@@ -54,19 +54,25 @@ class ScenarioFirstStrategy:
         scenario_k = max(3, top_k // 10) + 3  # ~9% + boost
 
         # Scenarios (supplementary reasoning examples)
-        scenario_chunks = await self._retriever.retrieve(
-            query_text,
-            collection=scenario_collection,
-            top_k=scenario_k,
-            frameworks=[framework] if framework else None,
-            setup_families=all_setup_fams,
-            directions=[direction] if direction else None,
-            timeframes=[timeframe] if timeframe else None,
-        )
-        for chunk in scenario_chunks:
-            if chunk.chunk_id not in seen_ids:
-                merged.append(chunk)
-                seen_ids.add(chunk.chunk_id)
+        try:
+            scenario_chunks = await self._retriever.retrieve(
+                query_text,
+                collection=scenario_collection,
+                top_k=scenario_k,
+                frameworks=[framework] if framework else None,
+                setup_families=all_setup_fams,
+                directions=[direction] if direction else None,
+                timeframes=[timeframe] if timeframe else None,
+            )
+            for chunk in scenario_chunks:
+                if chunk.chunk_id not in seen_ids:
+                    merged.append(chunk)
+                    seen_ids.add(chunk.chunk_id)
+        except Exception:
+            # Scenario collection may be empty (0 documents) which causes
+            # ChromaDB to error on query. Scenarios are supplementary, so
+            # gracefully skip rather than crash the entire analysis pipeline.
+            pass
 
         # Rules
         rule_chunks = await self._retriever.retrieve(

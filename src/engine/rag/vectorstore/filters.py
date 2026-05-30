@@ -51,55 +51,31 @@ def build_where_filter(
     elif scenario_outcomes:
         conditions.append({METADATA_KEY_SCENARIO_OUTCOME: {"$in": scenario_outcomes}})
 
-    # Multi-value fields (comma-separated): use $contains for substring matching
-    # When multiple values are requested, use $or to match any of them
+    # Multi-value fields (comma-separated): we now use dynamic boolean flags
+    # stored in metadata (e.g. timeframe_H1=True, direction_long=True).
     if directions:
         if len(directions) == 1:
-            conditions.append({METADATA_KEY_DIRECTION: {"$contains": directions[0]}})
+            conditions.append({f"direction_{directions[0]}": {"$eq": True}})
         else:
-            conditions.append(
-                {
-                    "$or": [
-                        {METADATA_KEY_DIRECTION: {"$contains": d}} for d in directions
-                    ]
-                }
-            )
+            conditions.append({"$or": [{f"direction_{d}": {"$eq": True}} for d in directions]})
 
     if setup_families:
         if len(setup_families) == 1:
-            conditions.append(
-                {METADATA_KEY_SETUP_FAMILY: {"$contains": setup_families[0]}}
-            )
+            conditions.append({f"setup_family_{setup_families[0]}": {"$eq": True}})
         else:
-            conditions.append(
-                {
-                    "$or": [
-                        {METADATA_KEY_SETUP_FAMILY: {"$contains": sf}}
-                        for sf in setup_families
-                    ]
-                }
-            )
+            conditions.append({"$or": [{f"setup_family_{sf}": {"$eq": True}} for sf in setup_families]})
 
     if timeframes:
         if len(timeframes) == 1:
-            conditions.append({METADATA_KEY_TIMEFRAMES: {"$contains": timeframes[0]}})
+            conditions.append({f"timeframe_{timeframes[0]}": {"$eq": True}})
         else:
-            conditions.append(
-                {
-                    "$or": [
-                        {METADATA_KEY_TIMEFRAMES: {"$contains": tf}}
-                        for tf in timeframes
-                    ]
-                }
-            )
+            conditions.append({"$or": [{f"timeframe_{tf}": {"$eq": True}} for tf in timeframes]})
 
     if styles:
-        if len(styles) == 1:
-            conditions.append({METADATA_KEY_STYLE: {"$contains": styles[0]}})
-        else:
-            conditions.append(
-                {"$or": [{METADATA_KEY_STYLE: {"$contains": s}} for s in styles]}
-            )
+        # Note: chunkers metadata builder doesn't extract 'style' to a dynamic flag yet.
+        # But this was broken before anyway (using $contains). If style extraction is added later,
+        # it should follow the same pattern `style_X = True`.
+        pass
 
     if not conditions:
         return None

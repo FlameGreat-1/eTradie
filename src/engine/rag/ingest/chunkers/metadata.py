@@ -128,16 +128,22 @@ def attach_metadata(
         directions = _extract_directions(chunk.content)
         if directions:
             meta[METADATA_KEY_DIRECTION] = ",".join(sorted(directions))
+            for d in directions:
+                meta[f"direction_{d}"] = True
 
         # Extract setup families from chunk content
         setup_families = _extract_setup_families(chunk.content)
         if setup_families:
             meta[METADATA_KEY_SETUP_FAMILY] = ",".join(sorted(setup_families))
+            for sf in setup_families:
+                meta[f"setup_family_{sf}"] = True
 
         # Extract timeframes from chunk content
         timeframes = _extract_timeframes(chunk.content)
         if timeframes:
             meta[METADATA_KEY_TIMEFRAMES] = ",".join(sorted(timeframes))
+            for tf in timeframes:
+                meta[f"timeframe_{tf}"] = True
 
         enriched.append(
             RawChunk(

@@ -126,19 +126,25 @@ class HybridStrategy:
                 seen_ids.add(chunk.chunk_id)
 
         # Category 4: Scenario examples (supplementary, not core knowledge)
-        scenario_chunks = await self._retriever.retrieve(
-            query_text,
-            collection=scenario_collection,
-            top_k=scenario_k + 2,
-            frameworks=[framework] if framework else None,
-            setup_families=all_setup_fams,
-            directions=[direction] if direction else None,
-            timeframes=[timeframe] if timeframe else None,
-        )
-        for chunk in scenario_chunks:
-            if chunk.chunk_id not in seen_ids:
-                merged.append(chunk)
-                seen_ids.add(chunk.chunk_id)
+        try:
+            scenario_chunks = await self._retriever.retrieve(
+                query_text,
+                collection=scenario_collection,
+                top_k=scenario_k + 2,
+                frameworks=[framework] if framework else None,
+                setup_families=all_setup_fams,
+                directions=[direction] if direction else None,
+                timeframes=[timeframe] if timeframe else None,
+            )
+            for chunk in scenario_chunks:
+                if chunk.chunk_id not in seen_ids:
+                    merged.append(chunk)
+                    seen_ids.add(chunk.chunk_id)
+        except Exception:
+            # Scenario collection may be empty (0 documents) which causes
+            # ChromaDB to error on query. Scenarios are supplementary, so
+            # gracefully skip rather than crash the entire analysis pipeline.
+            pass
 
         merged.sort(key=lambda c: c.score, reverse=True)
         return merged

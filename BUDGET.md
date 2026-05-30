@@ -369,3 +369,117 @@ Both pricing options are excellent for the scale of platform you're building. St
 
 
 
+Short answer: **yes, with that VPS you get ~10 hosted users max, and that's only if you do nothing else on the box.**
+
+#### The math
+
+Each hosted user gets a dedicated K8s Pod running Wine + Xvfb + MT5 + the watchdog sidecar. In production we pin **2 CPU cores + 2 GiB RAM per Pod** (configured in `helm/mt-node/values-production.yaml::resources`). That's not arbitrary — Wine running a Windows GUI app (MT5) under Xvfb genuinely needs that. MT5 alone idles at ~400-600 MiB and spikes when downloading history; Wine adds overhead; the watchdog adds ~50 MiB.
+
+For your VPS (8 vCPU / 24 GiB RAM):
+- Raw ceiling: `8 / 2 = 4 users` by CPU, `24 / 2 = 12 users` by RAM → **CPU is the binding constraint, not RAM**.
+- You actually get **~3 hosted users**, not 10, because you also need to run engine + gateway + execution + management + Postgres + Redis + ChromaDB + Kubernetes itself on the same box. Those eat ~3-4 cores and ~6-8 GiB before a single user logs in.
+
+#### Why this VPS is wrong for the architecture
+
+This is not a sizing tweak — it's a category mismatch. The hosted-MT5 model is **inherently expensive per user** because every user runs a full Windows desktop trading terminal in a container. It's how prop firms and copy-trading platforms work, and they price accordingly ($20-50/user/month minimum).
+
+A single 8-core VPS is a **dev/staging box**, not a production multi-tenant host.
+
+#### Your real options
+
+**1. Accept the architecture and size correctly.** For 100 hosted users in production you need roughly 200 cores + 200 GiB RAM across a cluster — typically 6-10 dedicated nodes (e.g., Hetzner CCX33: 8 cores/32 GiB at ~£50/mo each, or bare metal AX52: 16 cores/64 GiB at ~£55/mo each). With AX52s you'd serve ~25-30 hosted users per node = **3-4 nodes for 100 users**, ~£200/mo. That's the real economics.
+
+**2. Push users to MetaAPI (cloud) instead of hosted.** MetaAPI runs MT5 on **their** infrastructure and charges per account (~$5-15/user/month). Your VPS only runs the engine, which is light (~2 cores, 4 GiB for hundreds of users). The dashboard already supports this — `connection_type='metaapi'` is fully wired. **This is the cheapest path to scale.**
+
+**3. Reduce per-Pod resources.** You can drop to 1 CPU + 1.5 GiB per user in `values-production.yaml` if you accept slower history downloads and occasional CPU throttling. That doubles density to ~6-7 users on your VPS. Not recommended for paying customers.
+
+**4. Tighten the quota with the change I just shipped.** `MT_NODE_MAX_HOSTED_PER_USER=1` (the new default in [!39](https://gitlab.com/exoper2/exoper/-/merge_requests/39)) means each *user* can have only 1 hosted account, so the cap is users-not-Pods. Combined with sizing, this is your billing/protection lever.
+
+#### My recommendation
+
+For the £13.70/mo VPS: **disable hosted entirely on that environment** and only offer MetaAPI + ZeroMQ-local. That box can comfortably run the engine + 200+ MetaAPI users. Reserve "hosted" for a later production deployment on real hardware where the per-user cost is justified by your pricing model.
+
+Want me to wire a feature flag (`MT_NODE_HOSTED_ENABLED=false`) that hides the "Exoper (hosted)" option from the dashboard and rejects hosted creates at the router, so this VPS only serves MetaAPI users? It's a 10-line change.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Straight answer: No, the cost is NOT because of K8s/Helm
+
+The cost is because **MetaTrader 5 is a Windows desktop app**. To run it on Linux servers, you need Wine + Xvfb (a fake screen) + a full Windows graphics stack — per user. **That's the 2 CPU + 2 GB minimum, and it doesn't matter what orchestrates it.**
+
+If you wrote a pure Go/Python orchestrator that spawned MT5 processes directly with `os.exec`, **each MT5 process would still need 2 CPU + 2 GB**. K8s adds maybe 50 MiB of overhead per Pod for the kubelet. That's it. The cost is **the app, not the platform**.
+
+#### What if we ditched K8s and used pure Go/Python?
+
+Let's be honest about both paths.
+
+**Pure Go/Python orchestrator (no K8s):**
+- You'd write code that runs `docker run --name user-123-mt5 ...` for each user.
+- You'd write code to restart crashed containers (we have this — it's the watchdog).
+- You'd write code to assign ports, manage networks, mount volumes per user.
+- You'd write code to handle a server reboot and bring all 100 users back up.
+- You'd write code to load-balance across multiple servers when one fills up.
+- You'd write code to roll out a new MT5 image without dropping users.
+- You'd write code to handle secrets (broker passwords) safely.
+- You'd write code to monitor each container's health and alert on failures.
+- You'd write code to enforce CPU/RAM limits per container so one user can't starve others.
+- You'd write code to do TLS, DNS, and service discovery between engine ↔ user Pods.
+
+**You'd end up reinventing Kubernetes, badly, in 6 months of work.** That's literally what K8s is — a Go program that does all of the above. Google wrote it because they got tired of writing it from scratch for every project.
+
+#### What K8s/Helm actually buy you
+
+Six concrete things, in plain English:
+
+**1. Self-healing.** If a user's MT5 Pod crashes at 3 AM, K8s restarts it. If the whole server dies, K8s moves all Pods to a healthy server. Without K8s, you write a daemon to do this and pray it doesn't have bugs.
+
+**2. Resource isolation.** When you tell K8s "this Pod gets 2 CPU + 2 GB," the Linux kernel enforces it via cgroups. User A's MT5 going crazy cannot slow down user B's MT5. Without K8s, one runaway user kills everyone on the box.
+
+**3. Multi-server scaling.** When your one VPS fills up, you add a second VPS to the cluster and K8s automatically schedules new users to whichever server has room. Without K8s, you write a custom scheduler — and it will be worse than Google's.
+
+**4. Zero-downtime deploys.** When you ship a new mt-node image, K8s replaces old Pods one at a time. Users stay connected to working Pods while the rest update. Without K8s, you either drop all users during a deploy or write rolling-update logic yourself.
+
+**5. Declarative config (this is what Helm does).** Helm lets you say "this environment has 8 GB engine, 100 users, 4Gi PVCs." One file, version-controlled, reproducible. Without Helm, you have shell scripts and a Notion page titled "How to deploy production (DO NOT LOSE)."
+
+**6. Secrets, networking, monitoring already wired.** Vault integration, Prometheus scraping, network policies, service mesh — all standard K8s primitives. Without K8s, you wire each one manually and they don't talk to each other cleanly.
+
+#### Where you're right to push back
+
+K8s is **overkill for a 10-user MVP** running on one VPS. For that stage, `docker-compose` + a single Go supervisor program would genuinely be simpler and run on cheaper hardware. The complexity tax of K8s is real — operators, control plane RAM (~1-2 GB), and the learning curve.
+
+**But:** you already paid that tax. The chart is written, the provisioner works, the watchdog is in place, the audit is done. Ripping it out to save £20/month on infrastructure would cost you 2-3 months of rewrite and lose everything in points 1-6 above.
+
+#### The honest tradeoff matrix
+
+| Scale | Best choice |
+|---|---|
+| 1-5 hosted users, single server, no HA needed | docker-compose + a Go supervisor. Simpler, cheaper. |
+| 10-100 users across 1-3 servers, need uptime | **K8s + Helm (what you have).** Sweet spot. |
+| 1000+ users, multiple regions | K8s + service mesh + multi-cluster. Inevitable. |
+
+You're in the middle band. **What you built is correct for that band.** The £13.70 VPS just isn't.
+
+#### So what should you actually do?
+
+Pick one of these, not both:
+
+**Path A — keep K8s, fix the hardware.** Buy a Hetzner AX52 (16 cores / 64 GiB / £55/mo bare metal). Run K8s on it. Serve ~25 hosted users plus all platform services. Honest production setup.
+
+**Path B — kill hosted on cheap hardware.** Keep the £13.70 VPS, disable the "hosted" connection type, push everyone to MetaAPI (their cloud, your cost = $0). Serve 200+ MetaAPI users from that box. Re-enable hosted when revenue justifies real hardware.
+
+K8s doesn't punish you. **MT5 on Linux punishes you.** No orchestrator changes that.
+
+Which path do you want to take? I'll execute either one cleanly.

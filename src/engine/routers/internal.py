@@ -306,9 +306,9 @@ async def internal_rag_retrieve(
         return {"context_bundle": str(bundle)}
 
     except Exception as exc:
-        logger.error(
+        logger.exception(
             "internal_rag_retrieve_failed",
-            extra={"error": str(exc), "trace_id": body.trace_id},
+            extra={"trace_id": body.trace_id},
         )
         raise HTTPException(status_code=500, detail=f"RAG retrieval failed: {exc}")
 

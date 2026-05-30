@@ -594,15 +594,14 @@ class Container:
         """Launch the periodic gauge refresher.
 
         Idempotent: a second call is a no-op once the task is running.
-        The task is registered with BackgroundTaskCoordinator so
-        shutdown drains it deterministically.
         """
         if getattr(self, "_active_connections_task", None) is not None:
             return
         # Prime the gauge immediately so the first HPA scrape after
         # boot has a real value.
         await self.refresh_active_user_connections()
-        self._active_connections_task = self.background_tasks.create_task(
+        import asyncio
+        self._active_connections_task = asyncio.create_task(
             self._active_connections_refresh_loop(interval_secs),
             name="active-user-connections-refresh",
         )
@@ -1369,6 +1368,16 @@ class Container:
                     "hosted_recovery_service_stop_failed",
                     extra={"error": str(exc)},
                 )
+
+        if getattr(self, "_active_connections_task", None) is not None:
+            import asyncio
+            self._active_connections_task.cancel()
+            try:
+                await self._active_connections_task
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:
+                _logger.warning("active_connections_task_shutdown_error", extra={"error": str(exc)})
 
         # Cancel pending background work BEFORE we tear down the resources
         # those tasks may be holding (broker clients, http client, redis).

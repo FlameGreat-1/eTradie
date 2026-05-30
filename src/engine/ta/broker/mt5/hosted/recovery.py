@@ -216,7 +216,7 @@ class HostedRecoveryService:
             return
         if self._task is not None and not self._task.done():
             return
-        self._task = coordinator.create_task(
+        self._task = asyncio.create_task(
             self._loop(),
             name="hosted-recovery-sweep",
         )
