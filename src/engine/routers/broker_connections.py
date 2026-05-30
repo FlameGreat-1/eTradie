@@ -244,13 +244,20 @@ async def create_broker_connection(
                     },
                 )
 
+            # Allocate the connection_id ONCE and pass the same value to both
+            # the K8s provisioner and the DB row. Without this, the provisioner
+            # would build a release named etradie-mt-<temp_id[:12]> while the
+            # repository would persist a DIFFERENT uuid4() in broker_connections.id.
+            # HostedRecoveryService and gc_orphans both key on str(row.id), so
+            # the throw-away id was permanently desynced from the actual K8s
+            # objects. Audit ref: CHECKLIST Section 8 Step 2 (C1).
             from uuid import uuid4 as _uuid4
-            temp_connection_id = str(_uuid4())
+            allocated_connection_id = str(_uuid4())
 
             try:
                 provisioner = HostedProvisioner()
                 hosted_result = await provisioner.provision_account(
-                    connection_id=temp_connection_id,
+                    connection_id=allocated_connection_id,
                     user_id=user.user_id,
                     login=body.mt5_login,
                     password=body.mt5_password,
@@ -274,6 +281,12 @@ async def create_broker_connection(
                     detail=f"Hosted provisioning failed: {exc}"
                 )
 
+        # Pin the row id to the pre-allocated connection_id for hosted rows so
+        # the persisted broker_connections.id equals the K8s release suffix.
+        # All other connection types let the repository allocate as before.
+        _row_id_override = (
+            allocated_connection_id if body.connection_type == "hosted" else None
+        )
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
             row = await repo.create(
@@ -293,6 +306,7 @@ async def create_broker_connection(
                 mt5_symbol=body.mt5_symbol,
                 platform=body.platform,
                 activate=body.activate,
+                id=_row_id_override,
             )
             result = _serialize_broker_connection(row)
             connection_id = str(row.id)
