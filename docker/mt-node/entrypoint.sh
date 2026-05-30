@@ -66,10 +66,18 @@ trap _shutdown TERM INT
 
 # ── Defaults ──────────────────────────────────────────────────────
 MT_PLATFORM="${MT_PLATFORM:-mt5}"
-MT_SYMBOL="${MT_SYMBOL:-EURUSD}"
 ZMQ_PORT="${ZMQ_PORT:-5555}"
 DISPLAY=":99"
 export DISPLAY
+
+# Sentinel written by the engine provisioner on first boot, before
+# automatic broker symbol resolution has run. When the sentinel is
+# present, skip writing the chart template and the Charts section of
+# startup.ini so the EA falls back to MT's default chart; resolution
+# runs against that default chart's GET_ALL_SYMBOLS reply, then the
+# engine patches MT_SYMBOL to the broker-actual name and K8s rolls
+# the Pod once. The second boot writes the chart template normally.
+MT_SYMBOL_PENDING_SENTINEL="__pending__"
 
 # ── Load Vault-rendered credentials ───────────────────────────────
 # The Vault Agent init-container renders broker credentials to
@@ -107,6 +115,12 @@ for var in MT_LOGIN MT_PASSWORD MT_SERVER MT_SYMBOL; do
     exit 1
   fi
 done
+
+if [ "$MT_SYMBOL" = "$MT_SYMBOL_PENDING_SENTINEL" ]; then
+  SYMBOL_RESOLVED="false"
+else
+  SYMBOL_RESOLVED="true"
+fi
 if [ -z "${EFFECTIVE_AUTH_TOKEN}" ]; then
   log FATAL "Neither MT_ZMQ_AUTH_TOKEN (per-tenant) nor DEFAULT_ZMQ_AUTH_TOKEN (platform) is set"
   exit 1
@@ -199,8 +213,14 @@ LOG_COMMANDS=false
 EOF
 log INFO "EA .set written to $MT_DIR/$SET_REL_DST"
 
-# ── Chart template (per-tenant symbol, NOT hardcoded EURUSD) ─────
-cat > "$MT_DIR/$TPL_REL_DST" <<EOF
+# ── Chart template + startup INI ────────────────────────────────
+# When the symbol has not been resolved yet, MT boots into its
+# default chart and the EA attaches there; the engine resolves the
+# broker-actual symbol via GET_ALL_SYMBOLS and patches MT_SYMBOL,
+# triggering a single rolling restart with the real value.
+INI_FILE="$MT_DIR/config/startup.ini"
+if [ "$SYMBOL_RESOLVED" = "true" ]; then
+  cat > "$MT_DIR/$TPL_REL_DST" <<EOF
 <chart>
 symbol=${MT_SYMBOL}
 period=16385
@@ -209,11 +229,9 @@ name=ZeroMQ_EA
 </expert>
 </chart>
 EOF
-log INFO "Chart template written ($MT_SYMBOL)"
+  log INFO "Chart template written ($MT_SYMBOL)"
 
-# ── Startup INI (auto-login + auto-attach chart) ─────────────────
-INI_FILE="$MT_DIR/config/startup.ini"
-cat > "$INI_FILE" <<EOF
+  cat > "$INI_FILE" <<EOF
 [Common]
 Login=${MT_LOGIN}
 Password=${MT_PASSWORD}
@@ -232,6 +250,23 @@ Enabled=true
 Account=${MT_LOGIN}
 Profile=default
 EOF
+else
+  log INFO "MT_SYMBOL is the resolution sentinel; skipping chart template until engine patches the StatefulSet"
+  cat > "$INI_FILE" <<EOF
+[Common]
+Login=${MT_LOGIN}
+Password=${MT_PASSWORD}
+Server=${MT_SERVER}
+AutoConfiguration=true
+
+[Experts]
+AllowLive=true
+AllowDllImport=true
+Enabled=true
+Account=${MT_LOGIN}
+Profile=default
+EOF
+fi
 log INFO "Startup config written to $INI_FILE"
 
 # ── Supervised MT restart loop ───────────────────────────────────
@@ -239,7 +274,7 @@ restart_count=0
 window_start=$(date +%s)
 
 while :; do
-  log INFO "Launching $MT_EXE (platform=$MT_PLATFORM, server=$MT_SERVER, login=$MT_LOGIN, symbol=$MT_SYMBOL, zmq_port=$ZMQ_PORT, restart_count=$restart_count)"
+  log INFO "Launching $MT_EXE (platform=$MT_PLATFORM, server=$MT_SERVER, login=$MT_LOGIN, symbol=$MT_SYMBOL, symbol_resolved=$SYMBOL_RESOLVED, zmq_port=$ZMQ_PORT, restart_count=$restart_count)"
 
   cd "$MT_DIR"
   wine "$MT_EXE" "/config:$INI_FILE" &

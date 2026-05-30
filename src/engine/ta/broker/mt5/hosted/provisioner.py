@@ -1003,10 +1003,6 @@ class HostedProvisioner:
                 value=str(watchdog_port),
             ),
             client.V1EnvVar(
-                name="WATCHDOG_SYMBOL",
-                value=symbol,
-            ),
-            client.V1EnvVar(
                 name="WATCHDOG_POLL_INTERVAL_SECONDS",
                 value="10",
             ),
@@ -1434,9 +1430,6 @@ class HostedProvisioner:
         env_patch = [
             {"name": "MT_SYMBOL", "value": active_symbol},
         ]
-        watchdog_env_patch = [
-            {"name": "WATCHDOG_SYMBOL", "value": active_symbol},
-        ]
         patch_body = {
             "spec": {
                 "template": {
@@ -1449,7 +1442,6 @@ class HostedProvisioner:
                     "spec": {
                         "containers": [
                             {"name": "mt-node", "env": env_patch},
-                            {"name": "watchdog", "env": watchdog_env_patch},
                         ],
                     },
                 },

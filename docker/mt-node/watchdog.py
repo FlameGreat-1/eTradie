@@ -130,7 +130,6 @@ MEMORY_SOFT_CAP_FRACTION = float(os.environ.get("WATCHDOG_MEMORY_SOFT_CAP_FRACTI
 LIVEZ_GRACE_SECONDS = float(os.environ.get("WATCHDOG_LIVEZ_GRACE_SECONDS", "60"))
 ZMQ_ENDPOINT = os.environ.get("WATCHDOG_ZMQ_ENDPOINT", "tcp://127.0.0.1:5555")
 HTTP_PORT = int(os.environ.get("WATCHDOG_HTTP_PORT", "9100"))
-SYMBOL = os.environ.get("WATCHDOG_SYMBOL", "EURUSD")
 AUTH_TOKEN = os.environ.get("MT_ZMQ_AUTH_TOKEN") or os.environ.get("DEFAULT_ZMQ_AUTH_TOKEN", "")
 
 # CPU soft-cap (CHECKLIST Section 1: 'Indicator recalculation spikes
