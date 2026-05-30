@@ -48,7 +48,7 @@ class BrokerConnectionRow(ProcessorBase):
         index=True,
     )
 
-    # -- Connection type: 'ea' or 'metaapi' -----------------------------------
+    # -- Connection type: 'ea', 'metaapi', or 'hosted' ------------------------
     connection_type: Mapped[str] = mapped_column(
         String(20),
         nullable=False,

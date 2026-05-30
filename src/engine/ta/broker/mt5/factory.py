@@ -442,9 +442,9 @@ def create_mt5_broker_from_connection(
         # Per-tenant ZMQ auth token. HostedProvisioner generates one
         # at provision_account() time and the caller stores it in
         # broker_connections.ea_auth_token (column-encrypted at rest
-        # by broker_encryption_key). ea_auth_token reaches this code
-        # path already DECRYPTED via the same path used for
-        # connection_type=='ea' (see line ~98 above).
+        # by broker_encryption_key). The caller of this function
+        # decrypts it via decrypt_credential() before passing it as
+        # ea_auth_token.
         #
         # Backwards-compatibility: rows that pre-date this contract
         # have ea_auth_token=NULL. We surface a clear ConfigurationError

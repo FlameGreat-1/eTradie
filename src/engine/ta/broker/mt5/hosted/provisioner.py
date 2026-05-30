@@ -51,7 +51,6 @@ from kubernetes_asyncio import client, config
 from kubernetes_asyncio.client.exceptions import ApiException
 from tenacity import (
     AsyncRetrying,
-    RetryError,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
@@ -408,22 +407,27 @@ class HostedProvisioner:
         Side effects (idempotent w.r.t. an existing release of the same name):
           1. Create / update the per-tenant Vault secret with sealed creds.
           2. Create / update the per-tenant ServiceAccount.
-          3. Create / update the StatefulSet with MT_SYMBOL=
+          3. Create / update the per-release watchdog ConfigMap.
+          4. Create / update the StatefulSet with MT_SYMBOL=
              SYMBOL_PENDING_SENTINEL on first boot so the entrypoint
-             skips chart template writing until the resolver runs.
-          4. Create / update the regular ClusterIP Service AND the
+             skips chart template writing until the broker catalog is
+             reachable.
+          5. Create / update the regular ClusterIP Service AND the
              headless Service the StatefulSet needs for stable pod-DNS.
-          5. Wait until the StatefulSet has at least one Ready replica
+          6. Wait until the StatefulSet has at least one Ready replica
              AND a ZMQ PING succeeds.
-          6. Run automatic broker symbol resolution (GET_ALL_SYMBOLS
-             via one-shot ZMQ REQ, generic scoring, persist to
-             broker_connections.symbol_map + mt5_symbol).
-          7. Patch the StatefulSet pod template env so K8s rolls the
-             Pod once with the resolved broker-actual symbol values.
+          7. Ask the EA for the broker's symbol-name list via the
+             injected catalog_sync_runner; pick the first published
+             name as the chart-attach symbol. The runner also schedules
+             the full per-symbol metadata sync as a background task.
+          8. Patch the StatefulSet pod template to replace the
+             sentinel with the chart-attach symbol and persist the
+             same value to broker_connections.mt5_symbol via the
+             injected chart_symbol_writer. K8s rolls the Pod once.
 
         Returns the runtime metadata the router persists onto the
-        broker_connections row plus the resolved symbol_map so the
-        caller can render it in the API response.
+        broker_connections row plus the chart_symbol picked from the
+        broker's live catalog.
         """
         if platform not in ("mt4", "mt5"):
             raise ConfigurationError(
@@ -715,9 +719,6 @@ class HostedProvisioner:
                 "hosted_vault_path_destroy_failed",
                 extra={"path": path, "error": str(exc), **(exc.details or {})},
             )
-
-    def resolve_zmq_host(self, container_id: str) -> Optional[str]:
-        return f"{container_id}.{self._namespace}.svc.cluster.local"
 
     async def gc_orphans(self, known_connection_ids: Iterable[str]) -> dict[str, Any]:
         """Delete StatefulSets whose connection-id is no longer in the DB.
@@ -1203,6 +1204,14 @@ class HostedProvisioner:
             f"vault.hashicorp.com/agent-inject-template-{_VAULT_SECRETS_FILE}":
                 vault_template,
         }
+        # Stamp the sentinel-or-real symbol's resolution moment on the
+        # initial pod template so a chart upgrade that replaces the
+        # StatefulSet does not lose the annotation; HostedRecoveryService
+        # uses it as a freshness signal.
+        if symbol != SYMBOL_PENDING_SENTINEL:
+            merged_annotations["etradie.io/symbol-resolved-at"] = str(
+                int(_time.time())
+            )
         if pod_annotations:
             merged_annotations.update(pod_annotations)
         if credentials_checksum:
@@ -1478,18 +1487,18 @@ class HostedProvisioner:
         release: str,
         active_symbol: str,
     ) -> None:
-        """Patch MT_SYMBOL + WATCHDOG_SYMBOL on the pod template.
+        """Patch MT_SYMBOL on the pod template once the broker is reachable.
 
-        The provisioner first-boots the StatefulSet with the
-        SYMBOL_PENDING_SENTINEL value so the entrypoint skips chart
-        template writing. Once resolution succeeds we patch both env
-        vars to the resolved broker-actual symbol; K8s observes the
-        pod template diff and performs one rolling restart, after
-        which the entrypoint writes the chart template normally.
+        The provisioner first-boots the StatefulSet with
+        SYMBOL_PENDING_SENTINEL so the entrypoint skips chart-template
+        writing. After the broker reports its first published symbol
+        we patch MT_SYMBOL to that value; K8s observes the pod template
+        diff and performs one rolling restart, after which the
+        entrypoint writes the chart template normally.
 
-        When resolution returned no symbol (broker exposes none of the
-        canonical pairs in CANONICAL_PAIRS) we leave the sentinel in
-        place; HostedRecoveryService will retry on its next sweep.
+        The caller (provision_account) raises ProviderError on an
+        empty broker catalog so this method is only invoked with a
+        non-empty symbol.
         """
         if not active_symbol:
             logger.warning(
