@@ -137,6 +137,11 @@ data:
   ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS: {{ .Values.config.connectivity.hostedRecoverySweepIntervalSecs | quote }}
   ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS: {{ .Values.config.connectivity.hostedRecoveryUnhealthyThresholdSecs | quote }}
   ENGINE_HOSTED_RECOVERY_REPROVISION_COOLDOWN_SECS: {{ .Values.config.connectivity.hostedRecoveryReprovisionCooldownSecs | quote }}
+  # M4 fix: cap concurrent reprovision calls inside a single sweep. 4
+  # matches the ZmqClient in-flight gate sizing so the operational
+  # thumbprint is consistent across the engine. Tune via the production
+  # overlay if SLO measurements support it.
+  ENGINE_HOSTED_RECOVERY_MAX_CONCURRENT: {{ .Values.config.connectivity.hostedRecoveryMaxConcurrent | default "4" | quote }}
 
   # mt-node runtime tunables consumed by HostedProvisioner. Non-secret.
   MT_NODE_NAMESPACE: {{ .Values.config.mtNode.namespace | quote }}

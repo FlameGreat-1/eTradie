@@ -230,6 +230,10 @@ config:
     hostedRecoverySweepIntervalSecs: "60"
     hostedRecoveryUnhealthyThresholdSecs: "600"
     hostedRecoveryReprovisionCooldownSecs: "300"
+    # M4 fix: bound the recovery sweep's concurrent reprovision count.
+    # Without this, an N-tenant cluster-wide outage would issue N
+    # parallel readiness gates against the kube-apiserver.
+    hostedRecoveryMaxConcurrent: "4"
 
   # mt-node runtime tunables read by HostedProvisioner (Step 4 of
   # the mt-node hardening series). Non-secret; the credential
