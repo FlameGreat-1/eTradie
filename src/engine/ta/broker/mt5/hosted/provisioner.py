@@ -411,6 +411,7 @@ class HostedProvisioner:
         zmq_port: int = DEFAULT_ZMQ_PORT,
         per_user_zmq_token: str | None = None,
         readiness_timeout_secs: float | None = None,
+        existing_chart_symbol: str | None = None,
     ) -> dict[str, Any]:
         """Provision a new hosted mt-node release.
 
@@ -574,6 +575,7 @@ class HostedProvisioner:
                 dns_name=dns_name,
                 zmq_port=zmq_port,
                 token=effective_token,
+                existing_chart_symbol=existing_chart_symbol,
             )
 
             await self._patch_statefulset_symbol(
@@ -581,7 +583,14 @@ class HostedProvisioner:
                 release=release,
                 active_symbol=chart_symbol,
             )
-            await self._chart_symbol_writer(connection_id, chart_symbol)
+            # Only write back to the DB when the resolver actually
+            # picked a new symbol. A non-empty existing_chart_symbol
+            # short-circuits _populate_broker_catalog above to return
+            # that same value, so this conditional is the H-4 guard
+            # that prevents recovery sweeps from overwriting a
+            # user's previously-resolved mt5_symbol.
+            if not (existing_chart_symbol and existing_chart_symbol.strip()):
+                await self._chart_symbol_writer(connection_id, chart_symbol)
         finally:
             await self._close(core_api)
             await self._close(apps_api)
@@ -1491,6 +1500,7 @@ class HostedProvisioner:
         dns_name: str,
         zmq_port: int,
         token: str,
+        existing_chart_symbol: str | None = None,
     ) -> str:
         """Pick the chart-attach symbol from the broker's Market Watch.
 
@@ -1503,20 +1513,34 @@ class HostedProvisioner:
         read so the user sees their catalogue while metadata enrichment
         finishes asynchronously.
 
-        Raises ProviderError when the broker reports zero instruments
-        so the caller never receives a 'success' result for a Pod
-        whose chart could not be resolved. This prevents the silent
-        stuck-on-sentinel state HostedRecoveryService had to keep
-        retrying out of.
+        When existing_chart_symbol is non-empty (recovery re-provision
+        on an already-resolved connection), the catalog runner is STILL
+        invoked so the background BrokerSyncService refreshes
+        broker_symbols, but the existing symbol is returned for the
+        StatefulSet env patch instead of names[0]. This is the H-4
+        guard: a Market Watch order shift on the broker side cannot
+        silently reshuffle a user's persisted mt5_symbol.
+
+        Raises ProviderError when there is no existing symbol AND the
+        broker reports zero instruments so the caller never receives
+        a 'success' result for a Pod whose chart could not be resolved.
+        This prevents the silent stuck-on-sentinel state
+        HostedRecoveryService had to keep retrying out of.
         """
         assert self._catalog_sync_runner is not None
         assert self._chart_symbol_writer is not None
-        chart_symbol = await self._catalog_sync_runner(
+        # Always run the runner so the background catalog sync fires
+        # (broker_symbols freshness on every provision). The runner's
+        # return value is the first-name pick; we only use it when
+        # there is no existing value to preserve.
+        resolver_pick = await self._catalog_sync_runner(
             dns_name=dns_name,
             zmq_port=zmq_port,
             auth_token=token,
         )
-        if not chart_symbol:
+        if existing_chart_symbol and existing_chart_symbol.strip():
+            return existing_chart_symbol.strip()
+        if not resolver_pick:
             raise ProviderError(
                 "Broker did not publish any tradeable symbols; cannot "
                 "select a chart-attach symbol. The connection has not "
@@ -1526,7 +1550,7 @@ class HostedProvisioner:
                     "dns_name": dns_name,
                 },
             )
-        return chart_symbol
+        return resolver_pick
 
     async def _patch_statefulset_symbol(
         self,

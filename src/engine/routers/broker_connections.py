@@ -458,6 +458,16 @@ async def update_broker_connection(
                 if row.mt5_password_encrypted
                 else ""
             )
+            # Preserve the previously-resolved chart-attach symbol so
+            # a password-rotation triggered re-provision does not
+            # silently change the user's mt5_symbol. Same H-4 guard
+            # as HostedRecoveryService._reprovision.
+            existing_symbol = None
+            if getattr(row, "mt5_symbol", None):
+                _stripped = str(row.mt5_symbol).strip()
+                if _stripped:
+                    existing_symbol = _stripped
+
             await provisioner.provision_account(
                 connection_id=connection_id,
                 user_id=user.user_id,
@@ -466,6 +476,7 @@ async def update_broker_connection(
                 server=row.mt5_server or "",
                 platform=row.platform or "mt5",
                 per_user_zmq_token=ea_auth_token or None,
+                existing_chart_symbol=existing_symbol,
             )
             # provision_account() also re-runs symbol resolution on
             # the new credentials and persists the refreshed map, so
