@@ -1,14 +1,9 @@
 {{- /*
-M7 fix: render the ServiceMonitor ONLY on the platform-only render path
-(mtConnection.enabled=false). A single ServiceMonitor selects EVERY
-mt-node Service in the namespace via the stable app.kubernetes.io/name
-label (hard-pinned to 'etradie-mt-node' in the chart's appName helper),
-so it works for all tenants without needing one CRD per release.
-
-Per-tenant Helm releases (mtConnection.enabled=true) no longer emit a
-ServiceMonitor; their per-tenant Service is still labelled
-app.kubernetes.io/name=etradie-mt-node so the platform-level
-ServiceMonitor below picks it up automatically.
+A single namespace-scoped ServiceMonitor selects every mt-node Service
+via the stable app.kubernetes.io/name=etradie-mt-node label, so one
+CRD covers all tenants. Renders only on the platform-only path
+(mtConnection.enabled=false); per-tenant releases emit no
+ServiceMonitor of their own.
 */ -}}
 {{- if and (not .Values.mtConnection.enabled) .Values.serviceMonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1

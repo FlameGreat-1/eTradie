@@ -273,7 +273,7 @@ resource "vault_kv_secret_v2" "mt_node" {
   name                = "etradie/services/mt-node/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate the SINGLE key default_zmq_auth_token (openssl rand -hex 32) before any user can pick connection_type=hosted in the dashboard. The legacy mt_node_credential_encryption_key is no longer required: H1 fix replaced the K8s-Secret plaintext envelope with Vault Agent Injector delivery. See mt_node_tenant_secrets.tf for the per-tenant infrastructure."
+    bootstrap = "placeholder; populate default_zmq_auth_token (openssl rand -hex 32) before any user can pick connection_type=hosted. Per-tenant MT credentials are stored in etradie/tenants/mt-node/<sa_name> via the Vault Agent Injector path - see mt_node_tenant_secrets.tf."
   })
   lifecycle {
     ignore_changes = [data_json]

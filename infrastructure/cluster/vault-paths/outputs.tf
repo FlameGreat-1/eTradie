@@ -17,11 +17,10 @@ output "vault_paths" {
   }
 }
 
-# H1 fix: per-tenant mt-node secret plumbing. The path prefix is the
-# parent under which the engine writes per-tenant credentials at
-# provision time (one path per broker_connections.id). The roles +
-# policies are the auth backbone. Subsequent commits in the H1 series
-# wire the engine + chart sides against these resources.
+# Per-tenant mt-node credential plumbing. The engine writes
+# credentials under <path_prefix>/<sa_name> at provision time; the
+# per-tenant Pod authenticates via tenant_role and reads from the
+# same path. See mt_node_tenant_secrets.tf for the full contract.
 output "mt_node_tenant_secrets" {
   description = "Per-tenant mt-node credential infrastructure (Vault Agent Injector). The engine writes plaintext credentials to <path_prefix>/<connection_id> at provision time; the per-tenant Pod fetches them via the tenant role."
   value = {

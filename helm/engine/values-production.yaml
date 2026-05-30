@@ -33,13 +33,10 @@ config:
     # same size so an operator can flip a tenant between paths without
     # losing the Wine prefix or hitting a PVC resize.
     pvcSize: "8Gi"
-    # CHECKLIST Section 8 Step 3 (C3 + M3): scheduling envelope MUST
-    # match helm/mt-node/values-production.yaml exactly. The two paths
-    # (chart-rendered platform-only and engine-runtime per-tenant) must
-    # produce wire-identical pod specs so an operator can flip a tenant
-    # between paths and so the runtime path lands on the dedicated
-    # node pool that is tainted workload=etradie-system:NoSchedule by
-    # infrastructure/cluster/oci/main.tf.
+    # Mirrors helm/mt-node/values-production.yaml so the chart-
+    # rendered and engine-runtime paths produce wire-identical pod
+    # specs. The toleration is required to land on the dedicated
+    # node pool tainted workload=etradie-system:NoSchedule.
     scheduling:
       priorityClassName: "etradie-mt-node-priority"
       tolerations:

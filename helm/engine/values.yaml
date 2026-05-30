@@ -218,21 +218,17 @@ config:
     requestDeadlineSafetyMs: "50"
     brokerPoolIdleTimeoutSecs: "600"
     brokerPoolSweepIntervalSecs: "60"
-    # Section 8 (CHECKLIST): hosted MT-node failure recovery loop.
-    # Read by engine.ta.broker.mt5.hosted.recovery.HostedRecoveryConfig
-    # at engine boot. The eager startup sweep runs unconditionally
-    # when enabled=true; the background sweep ticks every
-    # sweepIntervalSecs. A StatefulSet that has been not-Ready longer
-    # than unhealthyThresholdSecs is reprovisioned, respecting a
-    # per-connection cooldown of reprovisionCooldownSecs to avoid
-    # stampeding a permanently broken connection.
+    # Hosted MT-node failure recovery loop. Read by
+    # engine.ta.broker.mt5.hosted.recovery.HostedRecoveryConfig at
+    # boot. The startup sweep runs once before the engine serves
+    # traffic; the background sweep ticks every sweepIntervalSecs.
+    # A StatefulSet not-Ready longer than unhealthyThresholdSecs is
+    # reprovisioned, respecting the per-connection cooldown and the
+    # in-flight concurrency cap.
     hostedRecoveryEnabled: "true"
     hostedRecoverySweepIntervalSecs: "60"
     hostedRecoveryUnhealthyThresholdSecs: "600"
     hostedRecoveryReprovisionCooldownSecs: "300"
-    # M4 fix: bound the recovery sweep's concurrent reprovision count.
-    # Without this, an N-tenant cluster-wide outage would issue N
-    # parallel readiness gates against the kube-apiserver.
     hostedRecoveryMaxConcurrent: "4"
 
   # mt-node runtime tunables read by HostedProvisioner (Step 4 of
@@ -272,26 +268,18 @@ config:
     # this for power users via the production overlay or per-tenant
     # override.
     maxHostedPerUser: "1"
-    # Scheduling envelope the HostedProvisioner applies to every
+    # Scheduling envelope applied by HostedProvisioner to every
     # runtime-provisioned per-tenant StatefulSet. MUST mirror
-    # helm/mt-node/values{,-production,-staging}.yaml so the chart-
-    # rendered platform-only path and the engine-runtime path produce
-    # wire-identical resources. Empty defaults below preserve the
-    # legacy (no-hints) shape for dev / docker-compose. Production
-    # overlay fills them with the values the chart already uses.
-    # Audit ref: CHECKLIST Section 8 Step 3 (C3 + M3).
+    # helm/mt-node/values{,-production,-staging}.yaml so chart-
+    # rendered Pods and engine-runtime Pods produce wire-identical
+    # specs. Empty defaults preserve the dev/docker-compose shape;
+    # the production overlay fills in real values.
     scheduling:
       priorityClassName: ""
-      # Toleration list. Same shape as v1.PodSpec.tolerations.
       tolerations: []
-      # nodeSelector dict (label key -> value).
       nodeSelector: {}
-      # Full v1.PodSpec.affinity object (podAntiAffinity, nodeAffinity, podAffinity).
       affinity: {}
-      # Full v1.PodSpec.topologySpreadConstraints array.
       topologySpreadConstraints: []
-      # Extra pod annotations the engine attaches to every provisioned
-      # mt-node Pod (e.g. cluster-autoscaler.kubernetes.io/safe-to-evict).
       podAnnotations: {}
   postgres:
     host: "postgres.etradie-system.svc.cluster.local"

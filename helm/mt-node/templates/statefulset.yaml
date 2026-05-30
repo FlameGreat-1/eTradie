@@ -56,15 +56,12 @@ spec:
         fsGroup: {{ .Values.podSecurityContext.fsGroup | default 1000 }}
         seccompProfile:
           type: RuntimeDefault
-      # CHECKLIST Section 1 (H3 fix): share PID namespace between the
-      # mt-node container and the watchdog sidecar so the watchdog's
-      # psutil.process_iter can actually see terminal64.exe / terminal.exe
-      # / wineserver and SIGTERM them when soft-cap thresholds trip.
-      # Without this the entire memory + CPU soft-cap enforcement layer
-      # is non-functional in K8s (each container is in its own PID
-      # namespace by default; psutil finds nothing across the boundary).
-      # Tenant isolation is preserved because every mt-node Pod is
-      # per-tenant (one user per Pod); there is no cross-user exposure.
+      # Share the PID namespace between mt-node and the watchdog
+      # sidecar so the watchdog's psutil.process_iter can see
+      # terminal64.exe / terminal.exe / wineserver and SIGTERM them
+      # when soft-cap thresholds trip. Each container has its own PID
+      # namespace by default, which would make every soft-cap signal a
+      # no-op.
       shareProcessNamespace: true
       {{- with .Values.affinity }}
       affinity:
