@@ -311,6 +311,21 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 9100
+    # Kubelet liveness / readiness / startup probes target the
+    # watchdog port. On standard K8s the kubelet probe traffic
+    # appears with the node's IP as the source, which a podSelector
+    # rule cannot match. Allow any IPv4 source on the probe port so
+    # probes work uniformly across CNIs (Calico strict mode,
+    # Cilium, Antrea, etc.). Pod IPs are not routable from outside
+    # the cluster, so in practice this rule only opens the port to
+    # the kubelet on the same node plus the already-allowed
+    # Prometheus pod.
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 9100
   egress:
     # Cluster DNS for resolving the broker server hostname.
     - to:
