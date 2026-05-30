@@ -693,12 +693,9 @@ class Container:
             BrokerConnectionRepository,
         )
 
-        async def _catalog_sync_runner(
-            *,
-            dns_name: str,
-            zmq_port: int,
-            auth_token: str,
-        ) -> Optional[str]:
+        async def _build_sync_client(
+            dns_name: str, zmq_port: int, auth_token: str,
+        ) -> BrokerBase:
             sync_config = MT5Config.model_construct(
                 enabled=True,
                 provider="native",
@@ -720,22 +717,70 @@ class Container:
                 enable_tick_data=False,
                 magic_number=0,
             )
-            client: BrokerBase = ZmqClient(
+            return ZmqClient(
                 config=sync_config,
                 auth_token=auth_token,
             )
+
+        async def _run_full_catalog_sync(
+            dns_name: str, zmq_port: int, auth_token: str,
+        ) -> None:
+            client = await _build_sync_client(dns_name, zmq_port, auth_token)
             try:
                 await BrokerSyncService(
                     broker_client=client,
                     uow_factory=self.ta_uow_factory,
                 ).sync_all_symbols()
-                names = await client.get_all_symbol_names()
-                return names[0] if names else None
             finally:
                 try:
                     await client.shutdown()
                 except Exception:  # noqa: BLE001
                     pass
+
+        async def _catalog_sync_runner(
+            *,
+            dns_name: str,
+            zmq_port: int,
+            auth_token: str,
+        ) -> Optional[str]:
+            """Provision-time catalog hand-off.
+
+            Runs ONE fast ZMQ call (get_all_symbol_names) to pick the
+            chart-attach symbol, then schedules the full per-symbol
+            metadata sync (path/digits/point) through
+            BackgroundTaskCoordinator. The background wave is keyed by
+            (dns_name, zmq_port) so concurrent provisions / recovery
+            sweeps for the SAME release coalesce onto one sync.
+
+            Returns the broker's first published symbol name. The
+            provisioner converts None into a ProviderError so the user
+            never gets a 'success' response for a connection whose Pod
+            could not enumerate symbols.
+            """
+            client = await _build_sync_client(dns_name, zmq_port, auth_token)
+            try:
+                names = await client.get_all_symbol_names()
+            finally:
+                try:
+                    await client.shutdown()
+                except Exception:  # noqa: BLE001
+                    pass
+
+            if not names:
+                return None
+
+            sync_key = f"broker-sync:{dns_name}:{zmq_port}"
+
+            async def _factory() -> None:
+                await _run_full_catalog_sync(dns_name, zmq_port, auth_token)
+
+            await self.background_tasks.schedule_once(
+                sync_key,
+                _factory,
+                cooldown_s=3600.0,
+                timeout_s=1800.0,
+            )
+            return names[0]
 
         async def _chart_symbol_writer(
             connection_id: str,

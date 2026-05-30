@@ -558,8 +558,9 @@ class HostedProvisioner:
             await self._patch_statefulset_symbol(
                 apps_api=apps_api,
                 release=release,
-                active_symbol=chart_symbol or "",
+                active_symbol=chart_symbol,
             )
+            await self._chart_symbol_writer(connection_id, chart_symbol)
         finally:
             await self._close(core_api)
             await self._close(apps_api)
@@ -1378,15 +1379,23 @@ class HostedProvisioner:
         dns_name: str,
         zmq_port: int,
         token: str,
-    ) -> Optional[str]:
-        """Sync the broker's full Market Watch into broker_symbols.
+    ) -> str:
+        """Pick the chart-attach symbol from the broker's Market Watch.
 
-        Runs BrokerSyncService against the freshly-ready Pod (via the
-        injected runner) and returns the chart-attach symbol name:
-        the first instrument the broker publishes. None means the
-        broker exposes nothing - extremely rare in practice; the
-        caller leaves MT_SYMBOL on the sentinel and HostedRecoveryService
-        retries on its next sweep.
+        The provision-time path is intentionally fast: it asks the EA
+        for the symbol-name list (one ZMQ round-trip), returns the
+        first name, and defers the per-symbol metadata sync
+        (path/digits/point) to a background task scheduled by the
+        Container's BackgroundTaskCoordinator. The dashboard's
+        /api/broker/symbols endpoint triggers a lazy sync on first
+        read so the user sees their catalogue while metadata enrichment
+        finishes asynchronously.
+
+        Raises ProviderError when the broker reports zero instruments
+        so the caller never receives a 'success' result for a Pod
+        whose chart could not be resolved. This prevents the silent
+        stuck-on-sentinel state HostedRecoveryService had to keep
+        retrying out of.
         """
         assert self._catalog_sync_runner is not None
         assert self._chart_symbol_writer is not None
@@ -1395,8 +1404,16 @@ class HostedProvisioner:
             zmq_port=zmq_port,
             auth_token=token,
         )
-        if chart_symbol:
-            await self._chart_symbol_writer(connection_id, chart_symbol)
+        if not chart_symbol:
+            raise ProviderError(
+                "Broker did not publish any tradeable symbols; cannot "
+                "select a chart-attach symbol. The connection has not "
+                "been persisted.",
+                details={
+                    "connection_id": connection_id,
+                    "dns_name": dns_name,
+                },
+            )
         return chart_symbol
 
     async def _patch_statefulset_symbol(
