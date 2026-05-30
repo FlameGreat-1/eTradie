@@ -191,6 +191,10 @@ def _parse_json_envelope(env_name: str, raw: str, expected: type):
 _READINESS_TIMEOUT_SECS = float(os.environ.get("MT_NODE_READINESS_TIMEOUT_SECS", "300"))
 _READINESS_POLL_SECS = float(os.environ.get("MT_NODE_READINESS_POLL_SECS", "3"))
 _ZMQ_PROBE_TIMEOUT_SECS = float(os.environ.get("MT_NODE_ZMQ_PROBE_TIMEOUT_SECS", "5"))
+# GET_ALL_SYMBOLS emits a multi-MB JSON payload on brokers exposing
+# several thousand instruments; the standard probe timeout is too
+# tight for the EA's per-symbol serialisation loop.
+_ZMQ_RESOLVE_TIMEOUT_SECS = float(os.environ.get("MT_NODE_RESOLVE_TIMEOUT_SECS", "30"))
 
 # Vault path layout under VAULT_MOUNT.
 _VAULT_TENANT_PATH_PREFIX = "tenants/mt-node"
@@ -1486,8 +1490,8 @@ class HostedProvisioner:
         ctx = zmq_async.Context.instance()
         sock = ctx.socket(zmq.REQ)
         sock.setsockopt(zmq.LINGER, 0)
-        sock.setsockopt(zmq.RCVTIMEO, int(_ZMQ_PROBE_TIMEOUT_SECS * 1000))
-        sock.setsockopt(zmq.SNDTIMEO, int(_ZMQ_PROBE_TIMEOUT_SECS * 1000))
+        sock.setsockopt(zmq.RCVTIMEO, int(_ZMQ_RESOLVE_TIMEOUT_SECS * 1000))
+        sock.setsockopt(zmq.SNDTIMEO, int(_ZMQ_RESOLVE_TIMEOUT_SECS * 1000))
         try:
             sock.connect(endpoint)
             await asyncio.wait_for(
@@ -1499,7 +1503,7 @@ class HostedProvisioner:
                 sock.send_string(json.dumps({"command": "GET_ALL_SYMBOLS"})),
                 timeout=_ZMQ_PROBE_TIMEOUT_SECS,
             )
-            raw = await asyncio.wait_for(sock.recv(), timeout=_ZMQ_PROBE_TIMEOUT_SECS)
+            raw = await asyncio.wait_for(sock.recv(), timeout=_ZMQ_RESOLVE_TIMEOUT_SECS)
             reply = json.loads(raw.decode("utf-8"))
             if not isinstance(reply, dict):
                 raise ProviderError(
