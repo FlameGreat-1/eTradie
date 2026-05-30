@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSymbols, useBrokerSymbols, useUpdateSymbols } from '@/features/symbols/api/symbols';
+import { useActiveBrokerConnection } from '@/features/broker/api/brokerConnections';
 import { useTierGate } from '@/features/auth/hooks/useTierGate';
 import { BarChart3, Check, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 
@@ -12,6 +13,13 @@ interface Props { onComplete: () => void; }
 
 export function SymbolsStep({ onComplete }: Props) {
   const { data: symbolData } = useSymbols();
+  
+  // Get active connection to check provisioning status
+  const { data: activeBrokerConn, isLoading: activeBrokerLoading } = useActiveBrokerConnection(
+    undefined, 
+    { refetchInterval: (query) => query.state.data?.connection?.status === 'provisioning' ? 3000 : false }
+  );
+  
   // The catalog is populated asynchronously by BrokerSyncService
   // immediately after step 0 (BrokerStep) succeeds. On a slow broker
   // this can take up to a minute. Poll every 3 s while the list is
@@ -102,6 +110,22 @@ export function SymbolsStep({ onComplete }: Props) {
       onComplete();
     } catch { /* surface via mutation state if needed */ }
   };
+
+  const isProvisioning = activeBrokerConn?.connection?.status === 'provisioning';
+
+  if (activeBrokerLoading || isProvisioning) {
+    return (
+      <div className="w-full max-w-lg mx-auto flex flex-col items-center justify-center py-12 space-y-6 text-center">
+        <Loader2 size={40} className="text-brand animate-spin" />
+        <div>
+          <h2 className="text-xl font-bold text-content">Connecting to your broker...</h2>
+          <p className="mt-2 text-sm text-content-secondary max-w-sm mx-auto">
+            {activeBrokerConn?.connection?.status_message || 'Please wait while we provision your dedicated MetaTrader terminal. This may take up to 3 minutes.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-lg mx-auto">

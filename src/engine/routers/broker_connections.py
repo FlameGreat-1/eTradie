@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 
 from engine.dependencies import Container
 from engine.helpers import _rate_limit
@@ -89,6 +89,7 @@ def _serialize_broker_connection(row) -> dict:
 async def create_broker_connection(
     request: Request,
     body: CreateBrokerConnectionRequest,
+    background_tasks: BackgroundTasks,
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict:
     """Create a new broker connection (EA or MetaAPI).
@@ -251,31 +252,67 @@ async def create_broker_connection(
             from uuid import uuid4 as _uuid4
             allocated_connection_id = str(_uuid4())
 
-            try:
-                provisioner = container.hosted_provisioner
-                hosted_result = await provisioner.provision_account(
-                    connection_id=allocated_connection_id,
-                    user_id=user.user_id,
-                    login=body.mt5_login,
-                    password=body.mt5_password,
-                    server=body.mt5_server,
-                    platform=body.platform,
-                )
-                hosted_container_id = hosted_result["container_id"]
-                # For hosted connections, the Engine connects to the
-                # Pod via ZeroMQ on the internal Kubernetes network.
-                ea_host = hosted_result["zmq_host"]
-                ea_port = hosted_result["zmq_port"]
-                ea_auth_token = hosted_result.get("zmq_auth_token", "")
-            except Exception as exc:
-                logger.error(
-                    "hosted_provisioning_error_in_api",
-                    extra={"error": str(exc)},
-                )
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Hosted provisioning failed: {exc}"
-                )
+            provisioner = container.hosted_provisioner
+            
+            # Predict the runtime details immediately so the DB row can be
+            # created synchronously.
+            release = provisioner._release_name(allocated_connection_id)
+            hosted_container_id = release
+            ea_host = f"{release}.{provisioner._namespace}.svc.cluster.local"
+            # ZMQ port is always DEFAULT_ZMQ_PORT (5555) for hosted nodes.
+            ea_port = 5555
+            
+            # Generate a secure token upfront.
+            import secrets
+            ea_auth_token = secrets.token_hex(32)
+            
+            # Fire-and-forget provisioning. The engine will not block on
+            # the Pod boot. The background task updates the DB when done.
+            async def run_hosted_provisioner(
+                conn_id: str,
+                user_id: str,
+                login: str,
+                password: str,
+                server: str,
+                platform: str,
+                token: str,
+            ) -> None:
+                try:
+                    await provisioner.provision_account(
+                        connection_id=conn_id,
+                        user_id=user_id,
+                        login=login,
+                        password=password,
+                        server=server,
+                        platform=platform,
+                        per_user_zmq_token=token,
+                    )
+                    async with container.db.session() as bg_session:
+                        repo = BrokerConnectionRepository(bg_session)
+                        await repo.update_status(
+                            conn_id, user_id, status="ready", status_message="Provisioned successfully", connected=True
+                        )
+                except Exception as exc:
+                    logger.error(
+                        "hosted_provisioning_background_error",
+                        extra={"error": str(exc), "connection_id": conn_id},
+                    )
+                    async with container.db.session() as bg_session:
+                        repo = BrokerConnectionRepository(bg_session)
+                        await repo.update_status(
+                            conn_id, user_id, status="failed", status_message=f"Provisioning failed: {exc}"
+                        )
+
+            background_tasks.add_task(
+                run_hosted_provisioner,
+                conn_id=allocated_connection_id,
+                user_id=user.user_id,
+                login=body.mt5_login,
+                password=body.mt5_password,
+                server=body.mt5_server,
+                platform=body.platform,
+                token=ea_auth_token,
+            )
 
         # Pin the row id to the pre-allocated connection_id for hosted
         # rows so the persisted id equals the K8s release suffix. Other
@@ -302,6 +339,8 @@ async def create_broker_connection(
                 platform=body.platform,
                 activate=body.activate,
                 id=_row_id_override,
+                status="provisioning" if body.connection_type == "hosted" else "untested",
+                status_message="Connecting to your broker... This may take up to 3 minutes." if body.connection_type == "hosted" else "",
             )
             result = _serialize_broker_connection(row)
             connection_id = str(row.id)

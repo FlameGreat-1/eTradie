@@ -22,7 +22,7 @@ export function OnboardingWizard() {
   useEffect(() => {
     if (loading || mounted) return;
     setMounted(true);
-    const doneFlags = [perStep.broker, perStep.symbols, perStep.tradingSystem, true, perStep.llm, perStep.execution, perStep.ready];
+    const doneFlags = [perStep.broker, perStep.tradingSystem, perStep.billing, perStep.llm, perStep.execution, perStep.symbols, perStep.ready];
     const firstIncomplete = doneFlags.findIndex(d => !d);
     if (firstIncomplete >= 0) setCurrent(firstIncomplete);
     else setCurrent(TOTAL_STEPS - 1);
@@ -36,11 +36,11 @@ export function OnboardingWizard() {
   const stepComponent = useMemo(() => {
     switch (current) {
       case 0: return <BrokerStep onComplete={advance} />;
-      case 1: return <SymbolsStep onComplete={advance} />;
-      case 2: return <TradingSystemStep onComplete={advance} />;
-      case 3: return <BillingStep onComplete={advance} />;
-      case 4: return <ApiKeyStep onComplete={advance} />;
-      case 5: return <ExecutionStep onComplete={advance} />;
+      case 1: return <TradingSystemStep onComplete={advance} />;
+      case 2: return <BillingStep onComplete={advance} />;
+      case 3: return <ApiKeyStep onComplete={advance} />;
+      case 4: return <ExecutionStep onComplete={advance} />;
+      case 5: return <SymbolsStep onComplete={advance} />;
       case 6: return <ReadyStep />;
       default: return null;
     }

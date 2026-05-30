@@ -235,6 +235,9 @@ class BrokerConnectionRepository:
         # provisioner. The broker_connections.id, the StatefulSet name,
         # and the etradie.connection-id label all line up.
         id: Optional[str] = None,
+        # Status overrides
+        status: str = STATUS_UNTESTED,
+        status_message: str = "",
     ) -> BrokerConnectionRow:
         """Create a new broker connection.
 
@@ -306,8 +309,8 @@ class BrokerConnectionRepository:
             platform=platform,
             is_active=activate,
             is_primary=activate,
-            status=STATUS_UNTESTED,
-            status_message="",
+            status=status,
+            status_message=status_message,
             last_connected_at=None,
             created_at=now,
             updated_at=now,
