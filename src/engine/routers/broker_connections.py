@@ -252,7 +252,7 @@ async def create_broker_connection(
             allocated_connection_id = str(_uuid4())
 
             try:
-                provisioner = HostedProvisioner()
+                provisioner = container.hosted_provisioner
                 hosted_result = await provisioner.provision_account(
                     connection_id=allocated_connection_id,
                     user_id=user.user_id,
@@ -451,12 +451,15 @@ async def update_broker_connection(
         and body.mt5_password is not None
     ):
         try:
-            provisioner = HostedProvisioner()
-            # Decrypt the freshly-stored password to pass to the provisioner.
+            provisioner = container.hosted_provisioner
             ea_auth_token = ""
             if row.ea_auth_token_encrypted:
                 ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
-            password_plain = decrypt_credential(row.mt5_password_encrypted) if row.mt5_password_encrypted else ""
+            password_plain = (
+                decrypt_credential(row.mt5_password_encrypted)
+                if row.mt5_password_encrypted
+                else ""
+            )
             await provisioner.provision_account(
                 connection_id=connection_id,
                 user_id=user.user_id,
@@ -467,14 +470,14 @@ async def update_broker_connection(
                 per_user_zmq_token=ea_auth_token or None,
             )
             logger.info(
-                "hosted_secret_resealed_after_password_update",
+                "hosted_credentials_rotated_after_password_update",
                 extra={"connection_id": connection_id, "user_id": user.user_id},
             )
         except Exception as exc:
-            # Non-fatal: log and continue. The HostedRecoveryService
-            # will heal the connection on its next sweep.
+            # Non-fatal: log and continue. HostedRecoveryService will
+            # converge the Pod state on its next sweep.
             logger.error(
-                "hosted_secret_reseal_failed_after_password_update",
+                "hosted_credentials_rotation_failed_after_password_update",
                 extra={"connection_id": connection_id, "error": str(exc)},
             )
 
@@ -702,7 +705,7 @@ async def delete_broker_connection(
                 logger.error("failed_to_start_metaapi_cleanup", extra={"error": str(exc)})
     elif is_hosted and hosted_container_id:
         try:
-            provisioner = HostedProvisioner()
+            provisioner = container.hosted_provisioner
             asyncio.create_task(provisioner.delete_account(hosted_container_id))
         except Exception as exc:
             logger.error("failed_to_start_hosted_cleanup", extra={"error": str(exc)})

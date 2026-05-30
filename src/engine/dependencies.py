@@ -221,15 +221,14 @@ class Container:
         # NOT a client cache - the pool is the source of truth.
         self._user_broker_keys: dict[str, tuple[str, str]] = {}
 
-        # Section 8 (CHECKLIST): hosted MT-node failure recovery. The
-        # service is built lazily on the first access via the
-        # `hosted_recovery_service` property because it depends on
-        # HostedProvisioner which in turn loads MT_NODE_CREDENTIAL_
-        # ENCRYPTION_KEY at construction time. Building it here would
-        # force every engine bootstrap path that imports Container
-        # (alembic env.py, pytest collection, etc.) to also resolve
-        # that env var; lazy construction keeps those paths working
-        # without the platform key set.
+        # Hosted MT-node infrastructure. Both the provisioner and the
+        # recovery service are built lazily on first access so the
+        # engine bootstrap paths that do NOT exercise hosted
+        # provisioning (alembic env.py, pytest collection, ad-hoc
+        # scripts) can import Container without VAULT_ADDR or the
+        # other VAULT_* env vars present.
+        self._vault_client: Optional["VaultClient"] = None  # type: ignore[name-defined]
+        self._hosted_provisioner: Optional["HostedProvisioner"] = None  # type: ignore[name-defined]
         self._hosted_recovery_service: Optional["HostedRecoveryService"] = None  # type: ignore[name-defined]
 
     def _build_providers(self) -> None:
@@ -638,6 +637,53 @@ class Container:
     # -- Section 8 (CHECKLIST): hosted MT-node failure recovery -----------
 
     @property
+    def vault_client(self):
+        """Lazy-built singleton VaultClient.
+
+        Constructed on first access; reuses the engine's shared
+        HttpClient. Construction failure (missing VAULT_ADDR or role)
+        raises ConfigurationError, which the caller turns into a
+        clear 5xx for the dashboard.
+        """
+        if self._vault_client is not None:
+            return self._vault_client
+        from engine.shared.vault import VaultClient, VaultConfig
+
+        cfg = VaultConfig.from_env()
+        self._vault_client = VaultClient(
+            http_client=self.http_client,
+            config=cfg,
+        )
+        _logger.info(
+            "vault_client_built",
+            extra={
+                "address": cfg.address,
+                "mount": cfg.kv_mount,
+                "auth_path": cfg.k8s_auth_path,
+                "auth_role": cfg.k8s_auth_role,
+            },
+        )
+        return self._vault_client
+
+    @property
+    def hosted_provisioner(self):
+        """Lazy-built singleton HostedProvisioner.
+
+        Every hosted-connection call site (router create / update /
+        delete and the recovery service) MUST go through this
+        accessor so the VaultClient + provisioner are shared and the
+        Vault token cache is reused.
+        """
+        if self._hosted_provisioner is not None:
+            return self._hosted_provisioner
+        from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
+
+        self._hosted_provisioner = HostedProvisioner(
+            vault_client=self.vault_client,
+        )
+        return self._hosted_provisioner
+
+    @property
     def hosted_recovery_service(self):
         """Lazy-built singleton HostedRecoveryService.
 
@@ -648,16 +694,14 @@ class Container:
         """
         if self._hosted_recovery_service is not None:
             return self._hosted_recovery_service
-        from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
         from engine.ta.broker.mt5.hosted.recovery import (
             HostedRecoveryConfig,
             HostedRecoveryService,
         )
 
         cfg = HostedRecoveryConfig.from_env()
-        provisioner = HostedProvisioner()
         self._hosted_recovery_service = HostedRecoveryService(
-            provisioner=provisioner,
+            provisioner=self.hosted_provisioner,
             db=self.db,
             config=cfg,
         )
