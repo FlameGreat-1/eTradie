@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import os
 import secrets
@@ -247,6 +248,20 @@ def _b64(value: str) -> str:
     return base64.b64encode(value.encode("utf-8")).decode("ascii")
 
 
+def _hash_secret_data(data: dict[str, str]) -> str:
+    """Stable SHA-256 of a K8s Secret data dict.
+
+    The dict is canonicalised (sorted keys, no whitespace) so the same
+    payload always produces the same digest regardless of insertion
+    order. Used to stamp the StatefulSet pod template with a checksum
+    of the per-tenant Secret bytes (M2 fix); any rotation of the
+    underlying credentials produces a different annotation value, which
+    is what makes K8s observe a pod-template diff and roll the Pod.
+    """
+    payload = json.dumps(data, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def _pvc_name_for(release: str) -> str:
     """Return the per-replica PVC name that the StatefulSet's
     volumeClaimTemplate produces. The format is
@@ -453,7 +468,7 @@ class HostedProvisioner:
         core_api, apps_api = await self._api_clients()
         try:
             try:
-                await self._upsert_secret(
+                secret_data_checksum = await self._upsert_secret(
                     core_api=core_api,
                     name=secret_name,
                     labels=labels,
@@ -473,6 +488,7 @@ class HostedProvisioner:
                     symbol=symbol,
                     zmq_port=zmq_port,
                     secret_name=secret_name,
+                    secret_data_checksum=secret_data_checksum,
                 )
                 await self._upsert_service(
                     core_api=core_api,
@@ -700,41 +716,61 @@ class HostedProvisioner:
         password: str,
         token: str,
         seal_key: bytes,
-    ) -> None:
+    ) -> str:
         """Idempotent create-or-update of the per-tenant Secret.
 
         Keys written:
           MT_LOGIN, MT_PASSWORD, MT_ZMQ_AUTH_TOKEN  -> envFrom in chart
           ETRADIE_SEAL                              -> defense-in-depth
                                                        audit blob
+
+        Returns a SHA-256 digest over the Secret's data block. The caller
+        stamps this onto the StatefulSet's pod template annotations
+        (M2 fix). Any change to the underlying credentials produces a
+        different digest, which changes the pod template spec hash, which
+        makes the StatefulSet controller perform a rolling update so the
+        new Pod mounts the rotated Secret. Without this, K8s does not
+        observe envFrom-mounted Secret data changes and a re-seal silently
+        ships the OLD password to the running Pod for the rest of its life.
+
+        The digest is computed against the EXACT bytes the Pod will mount
+        - the base64-encoded data dict written to the Secret. ETRADIE_SEAL
+        carries fresh randomness on every call (AES-GCM nonce) so even an
+        identical credential rotation produces a different digest, which
+        is fine: the cost is one no-op rolling update and the invariant
+        'every Secret write is observable to the controller' stays true.
         """
         sealed_blob = json.dumps({
             "login": _seal(login, seal_key),
             "password": _seal(password, seal_key),
             "token": _seal(token, seal_key),
         })
+        secret_data = {
+            "MT_LOGIN": _b64(login),
+            "MT_PASSWORD": _b64(password),
+            "MT_ZMQ_AUTH_TOKEN": _b64(token),
+            "ETRADIE_SEAL": _b64(sealed_blob),
+        }
         body = client.V1Secret(
             metadata=client.V1ObjectMeta(name=name, namespace=self._namespace, labels=labels),
             type="Opaque",
-            data={
-                "MT_LOGIN": _b64(login),
-                "MT_PASSWORD": _b64(password),
-                "MT_ZMQ_AUTH_TOKEN": _b64(token),
-                "ETRADIE_SEAL": _b64(sealed_blob),
-            },
+            data=secret_data,
         )
         async for attempt in await self._retrying():
             with attempt:
                 try:
                     await core_api.create_namespaced_secret(namespace=self._namespace, body=body)
-                    return
+                    return _hash_secret_data(secret_data)
                 except ApiException as exc:
                     if exc.status == 409:
                         await core_api.replace_namespaced_secret(
                             name=name, namespace=self._namespace, body=body,
                         )
-                        return
+                        return _hash_secret_data(secret_data)
                     raise
+        # Defensive: the retry loop above always returns or raises. This
+        # is only here to satisfy the type checker.
+        return _hash_secret_data(secret_data)
 
     async def _upsert_statefulset(
         self,
@@ -749,6 +785,7 @@ class HostedProvisioner:
         symbol: str,
         zmq_port: int,
         secret_name: str,
+        secret_data_checksum: str = "",
     ) -> None:
         """Create or update the per-tenant StatefulSet.
 
@@ -1025,6 +1062,21 @@ class HostedProvisioner:
         # checksum/watchdog-config and checksum/platform-secret here too
         # for force-rollout-on-config-change; the runtime path adds them
         # in Step 4 (M2 fix) so the same drift detection applies.
+        # Merge the operator-supplied annotations with the M2 fix
+        # checksum. The checksum forces K8s to observe a pod template
+        # diff whenever the per-tenant Secret data rotates (e.g. user
+        # changes their broker password) so the StatefulSet rolls and
+        # the new Pod mounts the rotated Secret. Without this annotation,
+        # an envFrom-mounted Secret data change is INVISIBLE to the
+        # StatefulSet controller and the running Pod keeps using the
+        # old credentials for the rest of its life. Audit ref:
+        # CHECKLIST Section 2 'Re-login automation on session expiry'.
+        merged_annotations: dict[str, str] = {}
+        if pod_annotations:
+            merged_annotations.update(pod_annotations)
+        if secret_data_checksum:
+            merged_annotations["etradie.io/secret-data-checksum"] = secret_data_checksum
+
         pod_template_metadata = client.V1ObjectMeta(
             labels=selector | {
                 _LABEL_PART_OF: _PART_OF_VALUE,
@@ -1032,7 +1084,7 @@ class HostedProvisioner:
                 _LABEL_USER_ID: labels[_LABEL_USER_ID],
                 _LABEL_PLATFORM: platform,
             },
-            annotations=pod_annotations,
+            annotations=merged_annotations or None,
         )
         pod_template = client.V1PodTemplateSpec(
             metadata=pod_template_metadata,
