@@ -7,6 +7,15 @@ metadata:
   namespace: {{ include "mt-node.namespace" . }}
   labels:
     {{- include "mt-node.labels" . | nindent 4 }}
+  annotations:
+    # Stakater Reloader watches this named Secret. When ESO
+    # refreshes DEFAULT_ZMQ_AUTH_TOKEN from Vault into the platform
+    # Secret, Reloader bumps this StatefulSet's pod template and
+    # rolls the Pod so the new token reaches the EA's envFrom block.
+    # Per-tenant credential rotation is handled by the Vault Agent
+    # Injector (template re-render + file re-source), not by
+    # Reloader.
+    secret.reloader.stakater.com/reload: {{ include "mt-node.platformSecretName" . | quote }}
 spec:
   replicas: 1
   serviceName: {{ include "mt-node.fullname" . }}-headless
@@ -30,7 +39,6 @@ spec:
         etradie.platform: {{ .Values.mtConnection.platform | quote }}
       annotations:
         checksum/watchdog-config: {{ include (print $.Template.BasePath "/configmap-watchdog.yaml") . | sha256sum }}
-        checksum/platform-secret: {{ include (print $.Template.BasePath "/externalsecret-platform.yaml") . | sha256sum }}
         # Vault Agent Injector: render per-tenant broker credentials
         # from Vault to /vault/secrets/{{ .Values.vault.fileName }}
         # before the mt-node container starts. agent-init-first=true
