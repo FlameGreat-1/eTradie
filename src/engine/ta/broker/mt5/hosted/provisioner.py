@@ -1352,6 +1352,12 @@ class HostedProvisioner:
                 ok = await self._zmq_ping(dns_name=dns_name, port=zmq_port, token=token)
                 if ok:
                     return
+            except ProviderError:
+                # The EA returned an explicit error envelope (typically
+                # auth failure). No amount of further polling will
+                # change the answer; surface immediately so the caller
+                # gets the real diagnostic instead of a deadline.
+                raise
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
                 logger.debug(
@@ -1484,6 +1490,14 @@ class HostedProvisioner:
             ) from exc
 
     async def _zmq_ping(self, *, dns_name: str, port: int, token: str) -> bool:
+        """PING the EA. Returns True on auth success.
+
+        Raises ProviderError on an explicit EA error envelope (auth
+        rejected, EA not running, command unsupported) so the caller
+        does not waste the readiness budget polling a permanent failure.
+        Network-level failures bubble up as their native exception type
+        and are treated as transient by _wait_ready.
+        """
         endpoint = f"tcp://{dns_name}:{port}"
         ctx = zmq_async.Context.instance()
         sock = ctx.socket(zmq.REQ)
@@ -1498,7 +1512,20 @@ class HostedProvisioner:
             )
             raw = await asyncio.wait_for(sock.recv(), timeout=_ZMQ_PROBE_TIMEOUT_SECS)
             reply = json.loads(raw.decode("utf-8"))
-            return isinstance(reply, dict) and reply.get("status") == "ok"
+            if not isinstance(reply, dict):
+                return False
+            if reply.get("status") == "ok":
+                return True
+            ea_error = reply.get("error")
+            if ea_error:
+                raise ProviderError(
+                    f"EA rejected PING: {ea_error}",
+                    details={
+                        "endpoint": endpoint,
+                        "ea_error": str(ea_error)[:200],
+                    },
+                )
+            return False
         finally:
             try:
                 sock.close(linger=0)
