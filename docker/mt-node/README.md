@@ -62,46 +62,64 @@ Useful for users who do not want to self-host.
    user dashboard "add broker"
      │
      ▼
-   engine: broker_connections row (encrypted at rest)
+   engine: broker_connections row (column-encrypted at rest)
      │   ├─ mt5_login
-     │   ├─ mt5_password (column-encrypted)
-     │   └─ ea_auth_token (column-encrypted; engine generates per-tenant)
+     │   ├─ mt5_password
+     │   └─ ea_auth_token (engine generates per-tenant)
      │
      ▼
    HostedProvisioner.provision_account()
-     │   │ (1) AES-GCM-seal {login, password, token} for audit blob
-     │   │ (2) Create K8s Secret <release>-creds
-     │   │     data:
-     │   │       MT_LOGIN, MT_PASSWORD, MT_ZMQ_AUTH_TOKEN  (plain, envFrom)
-     │   │       ETRADIE_SEAL                              (sealed audit)
-     │   └─ (3) Create StatefulSet + Services (Secret mounted via envFrom)
+     │   │ (1) Write to Vault KV-v2 at
+     │   │     etradie/data/tenants/mt-node/<connection_id>
+     │   │       mt5_login, mt5_password, mt5_zmq_auth_token
+     │   │ (2) Create per-tenant ServiceAccount etradie-mt-<id12>
+     │   │     (matches the Vault role's bound-SA glob)
+     │   └─ (3) Create StatefulSet + Services with Vault Agent
+     │         Injector annotations on the pod template
+     │
+     ▼
+   Pod scheduling: kube-apiserver mutating webhook injects two
+     containers ahead of mt-node:
+     │   ├─ vault-agent-init  (authenticates with the projected SA
+     │   │                       token via the kubernetes auth backend
+     │   │                       role mt-node-tenant, renders the
+     │   │                       credentials template to
+     │   │                       /vault/secrets/mt-credentials.env on
+     │   │                       a tmpfs emptyDir, exits 0)
+     │   └─ vault-agent       (long-running sidecar; re-renders on
+     │                         lease renewal so credential rotations
+     │                         are picked up on the next file source)
      │
      ▼
    mt-node Pod boots
-     │   │ (1) entrypoint.sh reads MT_LOGIN / MT_PASSWORD / MT_ZMQ_AUTH_TOKEN
-     │   │ (2) Wine + MT5 terminal launched (auto-login from startup.ini)
-     │   │ (3) ZeroMQ EA loaded with AUTH_TOKEN=<MT_ZMQ_AUTH_TOKEN>
-     │   └─ (4) Watchdog sidecar PINGs with the same auth_token
+     │   │ (1) entrypoint.sh sources /vault/secrets/mt-credentials.env
+     │   │ (2) MT_LOGIN / MT_PASSWORD / MT_ZMQ_AUTH_TOKEN are now in env
+     │   │ (3) Wine + MT5 terminal launched (auto-login from startup.ini)
+     │   │ (4) ZeroMQ EA loaded with AUTH_TOKEN=<MT_ZMQ_AUTH_TOKEN>
+     │   └─ (5) Watchdog parses the same file at startup; PINGs MT5
      │
      ▼
    engine.ZmqClient dials <release>.etradie-system.svc:5555
          with auth_token = ea_auth_token (decrypted from broker_connections)
 ```
 
-The Secret is plain-text envFrom inside the Pod because:
-  - The Pod is per-tenant; no other tenant has access.
-  - The rootfs is read-only; nothing can write to the env block.
-  - `automountServiceAccountToken: false` blocks Pod-side K8s API
-    enumeration.
-  - Drop ALL capabilities + non-root user blocks lateral movement.
+Key security properties:
+
+  - Credentials never traverse a Kubernetes Secret. Vault KV-v2 is
+    sealed at rest by Vault itself (AES-256-GCM with a key sealed
+    by the cluster's auto-unseal KMS); `kubectl get secret` cannot
+    leak broker credentials because no such Secret exists.
+  - The projected SA token mounted into the pod can only exchange
+    for a Vault token bound to one role (`mt-node-tenant`) which
+    has READ on a single KV path templated by the SA name. A
+    compromised pod cannot read another tenant's credentials.
+  - The Vault-rendered file lives on an in-memory tmpfs emptyDir,
+    not on the underlying node disk.
+  - Drop-ALL capabilities, non-root user, and read-only rootfs
+    keep the in-pod blast radius narrow if MT5 itself is
+    compromised.
   - NetworkPolicy egress restricted to public IP space only (no
     in-cluster pivot; no cloud metadata IMDS access).
-
-The AES-GCM audit blob `ETRADIE_SEAL` is engine-side
-defense-in-depth in case the K8s Secret is dumped: an attacker
-with the Secret bytes still needs the platform encryption key
-(Vault path `etradie/services/mt-node/<env>:mt_node_credential_encryption_key`)
-to recover the original credentials.
 
 ## Wine prefix PVC lifecycle
 
