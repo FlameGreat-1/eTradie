@@ -229,13 +229,11 @@ class BrokerConnectionRepository:
         platform: str = "mt5",
         # Activation
         activate: bool = True,
-        # Optional explicit row id. When supplied, the row is persisted with
-        # this exact UUID instead of a freshly-generated one. The hosted path
-        # uses this to make the broker_connections.id, the K8s release name
-        # (etradie-mt-<id[:12]>), and the etradie.connection-id label on
-        # every Kubernetes resource agree on a single identifier for the
-        # entire lifecycle of the row. Must be a valid UUID string when set.
-        # Audit ref: CHECKLIST Section 8 Step 2 (C1).
+        # Optional explicit row id (UUID string). When supplied, the row
+        # is persisted with this exact id so the hosted-connection path
+        # can pre-allocate it and pass the same value to the K8s
+        # provisioner. The broker_connections.id, the StatefulSet name,
+        # and the etradie.connection-id label all line up.
         id: Optional[str] = None,
     ) -> BrokerConnectionRow:
         """Create a new broker connection.
@@ -274,16 +272,11 @@ class BrokerConnectionRepository:
         if mt5_password and mt5_password.strip():
             encrypted_mt5_password = _encrypt(mt5_password)
 
-        # Honor an explicit caller-supplied id so the hosted provisioning path
-        # can pre-allocate the UUID and pass the same value to both the K8s
-        # provisioner and the DB row. Anyone other than that path leaves id=None
-        # and gets the legacy uuid4() behaviour. Validate the format up front so
-        # an invalid string fails the request cleanly rather than at INSERT time.
+        # Validate any caller-supplied id up front so an invalid value
+        # fails the request cleanly rather than at INSERT time.
         row_id: str
         if id is not None:
             try:
-                # Round-trip through UUID to reject anything that isn't a
-                # well-formed UUID; preserve the caller's exact string form.
                 from uuid import UUID as _UUIDValidate
                 _UUIDValidate(str(id))
                 row_id = str(id)

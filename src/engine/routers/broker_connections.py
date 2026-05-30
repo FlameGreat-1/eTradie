@@ -107,12 +107,11 @@ async def create_broker_connection(
             detail=f"connection_type must be one of {sorted(VALID_CONNECTION_TYPES)}",
         )
 
-    # platform='mt4' is not currently supported: docker/mt-node/ea/ZeroMQ_EA.ex4
-    # is not committed to the repository (see docker/mt-node/ea/README.md). A
-    # platform='mt4' hosted connection would launch terminal.exe inside the
-    # Wine container with no EA binary, fail every ZMQ authentication, and
-    # loop the Pod on the kubelet backoff envelope. Reject at the router with
-    # a stable error code so the dashboard can surface a specific message.
+    # platform='mt4' is rejected at the router because the MT4 EA
+    # binary is not bundled in the mt-node image (see
+    # docker/mt-node/ea/README.md). A platform='mt4' hosted connection
+    # would loop the Pod forever; surface a stable error code so the
+    # dashboard can render a specific message.
     if (body.platform or "mt5").strip().lower() == "mt4":
         raise HTTPException(
             status_code=422,
@@ -244,13 +243,11 @@ async def create_broker_connection(
                     },
                 )
 
-            # Allocate the connection_id ONCE and pass the same value to both
-            # the K8s provisioner and the DB row. Without this, the provisioner
-            # would build a release named etradie-mt-<temp_id[:12]> while the
-            # repository would persist a DIFFERENT uuid4() in broker_connections.id.
-            # HostedRecoveryService and gc_orphans both key on str(row.id), so
-            # the throw-away id was permanently desynced from the actual K8s
-            # objects. Audit ref: CHECKLIST Section 8 Step 2 (C1).
+            # Allocate the connection_id ONCE and pass the same value to
+            # both the K8s provisioner and the DB row so the StatefulSet
+            # name, the etradie.connection-id label, and broker_connections.id
+            # all agree. HostedRecoveryService and gc_orphans key on the
+            # row id; any mismatch breaks recovery and GC silently.
             from uuid import uuid4 as _uuid4
             allocated_connection_id = str(_uuid4())
 
@@ -281,9 +278,9 @@ async def create_broker_connection(
                     detail=f"Hosted provisioning failed: {exc}"
                 )
 
-        # Pin the row id to the pre-allocated connection_id for hosted rows so
-        # the persisted broker_connections.id equals the K8s release suffix.
-        # All other connection types let the repository allocate as before.
+        # Pin the row id to the pre-allocated connection_id for hosted
+        # rows so the persisted id equals the K8s release suffix. Other
+        # connection types let the repository allocate as before.
         _row_id_override = (
             allocated_connection_id if body.connection_type == "hosted" else None
         )

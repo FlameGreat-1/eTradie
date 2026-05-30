@@ -113,12 +113,9 @@ _CPU_REQUEST = os.environ.get("MT_NODE_CPU_REQUEST", "500m")
 _EPHEMERAL_LIMIT = os.environ.get("MT_NODE_EPHEMERAL_LIMIT", "1Gi")
 _EPHEMERAL_REQUEST = os.environ.get("MT_NODE_EPHEMERAL_REQUEST", "512Mi")
 
-# Scheduling envelope (C3 fix). The engine ConfigMap surfaces these from
-# .Values.config.mtNode.scheduling.* which mirrors helm/mt-node/values-*.yaml.
-# An empty string means 'do not set the field' so dev / docker-compose paths
-# (and any cluster without taints) continue to work as before. Malformed JSON
-# is a fatal configuration error and fails the first provision call with a
-# clear message - it does not corrupt the pod spec silently.
+# Scheduling envelope sourced from the engine ConfigMap so the runtime
+# provisioner and the chart-rendered platform path produce wire-identical
+# pod specs. Empty values mean 'do not set the field'.
 _PRIORITY_CLASS_NAME_RAW = os.environ.get("MT_NODE_PRIORITY_CLASS_NAME", "").strip()
 _TOLERATIONS_JSON_RAW = os.environ.get("MT_NODE_TOLERATIONS_JSON", "").strip()
 _NODE_SELECTOR_JSON_RAW = os.environ.get("MT_NODE_NODE_SELECTOR_JSON", "").strip()
@@ -128,14 +125,12 @@ _POD_ANNOTATIONS_JSON_RAW = os.environ.get("MT_NODE_POD_ANNOTATIONS_JSON", "").s
 
 
 def _parse_json_envelope(env_name: str, raw: str, expected: type):
-    """Parse a JSON envelope from an engine ConfigMap env var.
+    """Parse a JSON envelope env var into a dict or list.
 
-    Returns None when the env var is empty (the chart's empty-default
-    contract: '' means 'do not apply this field'). Raises
-    ConfigurationError on malformed JSON or on a type mismatch (e.g.
-    expected list, got dict). The expected type is one of dict or list;
-    kubernetes_asyncio model constructors do not accept arbitrary JSON
-    blobs, so the provisioner pre-validates the shape.
+    Returns None when the env var is empty or decodes to an empty
+    container, so callers can pass the result directly to the
+    kubernetes_asyncio constructors without emitting empty {} or [].
+    Raises ConfigurationError on malformed JSON or a type mismatch.
     """
     if not raw:
         return None
@@ -151,9 +146,6 @@ def _parse_json_envelope(env_name: str, raw: str, expected: type):
             f"{env_name} must be a JSON {expected.__name__}, got {type(parsed).__name__}",
             details={"env_var": env_name, "got_type": type(parsed).__name__},
         )
-    # Treat an empty container the same as 'not set' so the kubernetes
-    # client does not see {} or [] (which it would happily accept but
-    # which obscures operator intent).
     if isinstance(parsed, dict) and not parsed:
         return None
     if isinstance(parsed, list) and not parsed:
@@ -253,10 +245,10 @@ def _hash_secret_data(data: dict[str, str]) -> str:
 
     The dict is canonicalised (sorted keys, no whitespace) so the same
     payload always produces the same digest regardless of insertion
-    order. Used to stamp the StatefulSet pod template with a checksum
-    of the per-tenant Secret bytes (M2 fix); any rotation of the
-    underlying credentials produces a different annotation value, which
-    is what makes K8s observe a pod-template diff and roll the Pod.
+    order. Stamped on the StatefulSet pod template so K8s observes a
+    diff and rolls the Pod whenever the underlying credentials change.
+    envFrom-mounted Secret data changes are otherwise invisible to the
+    StatefulSet controller.
     """
     payload = json.dumps(data, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -724,21 +716,13 @@ class HostedProvisioner:
           ETRADIE_SEAL                              -> defense-in-depth
                                                        audit blob
 
-        Returns a SHA-256 digest over the Secret's data block. The caller
-        stamps this onto the StatefulSet's pod template annotations
-        (M2 fix). Any change to the underlying credentials produces a
-        different digest, which changes the pod template spec hash, which
-        makes the StatefulSet controller perform a rolling update so the
-        new Pod mounts the rotated Secret. Without this, K8s does not
-        observe envFrom-mounted Secret data changes and a re-seal silently
-        ships the OLD password to the running Pod for the rest of its life.
-
-        The digest is computed against the EXACT bytes the Pod will mount
-        - the base64-encoded data dict written to the Secret. ETRADIE_SEAL
-        carries fresh randomness on every call (AES-GCM nonce) so even an
-        identical credential rotation produces a different digest, which
-        is fine: the cost is one no-op rolling update and the invariant
-        'every Secret write is observable to the controller' stays true.
+        Returns a SHA-256 digest over the Secret's data block so the
+        caller can stamp it on the StatefulSet pod template; the
+        rolling update on a credential rotation depends on this digest
+        changing whenever the Secret bytes change. ETRADIE_SEAL
+        re-randomises on every call (fresh AES-GCM nonce), so an
+        identical credential rotation still produces a different
+        digest and a single no-op rolling update.
         """
         sealed_blob = json.dumps({
             "login": _seal(login, seal_key),
@@ -768,8 +752,8 @@ class HostedProvisioner:
                         )
                         return _hash_secret_data(secret_data)
                     raise
-        # Defensive: the retry loop above always returns or raises. This
-        # is only here to satisfy the type checker.
+        # Unreachable in practice; the retry loop always returns or
+        # raises. Present so the function has a single typed return.
         return _hash_secret_data(secret_data)
 
     async def _upsert_statefulset(
@@ -1004,10 +988,10 @@ class HostedProvisioner:
             ],
         )
 
-        # ── Scheduling envelope (C3 fix) ──────────────────────────────────
-        # Parse each JSON envelope ONCE per provision. The parsers raise
-        # ConfigurationError on malformed JSON so a misconfigured ConfigMap
-        # surfaces immediately with a clear message.
+        # Parse each scheduling envelope from its ConfigMap-sourced JSON
+        # string. kubernetes_asyncio accepts raw dicts/lists in place of
+        # typed Tolerations / Affinity / TopologySpreadConstraint objects
+        # because the OpenAPI serialisation handles the camelCase mapping.
         tolerations_raw = _parse_json_envelope(
             "MT_NODE_TOLERATIONS_JSON", _TOLERATIONS_JSON_RAW, list,
         )
@@ -1023,10 +1007,6 @@ class HostedProvisioner:
         pod_annotations = _parse_json_envelope(
             "MT_NODE_POD_ANNOTATIONS_JSON", _POD_ANNOTATIONS_JSON_RAW, dict,
         )
-        # The kubernetes_asyncio client accepts raw dicts in place of
-        # typed Tolerations / Affinity / TopologySpreadConstraint objects
-        # because the underlying serialisation passes through the OpenAPI
-        # camelCase mapping. We feed the raw lists/dicts directly.
 
         # ── Pod spec ───────────────────────────────────────────────────────
         pod_spec = client.V1PodSpec(
@@ -1040,12 +1020,11 @@ class HostedProvisioner:
                 seccomp_profile=client.V1SeccompProfile(type="RuntimeDefault"),
             ),
             termination_grace_period_seconds=60,
-            # CHECKLIST Section 1 (H3 fix): share PID namespace between
-            # the mt-node container and the watchdog sidecar so the
-            # watchdog's psutil.process_iter can see terminal64.exe and
-            # SIGTERM it on a soft-cap trip. Without this the watchdog's
-            # entire memory + CPU enforcement is a metrics-only no-op.
-            # Mirrors helm/mt-node/templates/statefulset.yaml.
+            # Share the PID namespace between the mt-node container and
+            # the watchdog sidecar so the watchdog's psutil.process_iter
+            # can see terminal64.exe and SIGTERM it on a soft-cap trip.
+            # Each container has its own PID namespace by default, which
+            # would make every soft-cap signal a no-op.
             share_process_namespace=True,
             containers=[container, watchdog_container],
             # Inline volumes only; the wine-prefix volume is supplied by
@@ -1062,22 +1041,12 @@ class HostedProvisioner:
             topology_spread_constraints=topology_spread_raw,
         )
 
-        # Build the pod template metadata. Annotations come from the env
-        # envelope (production overlay sets prometheus.io/* and
-        # cluster-autoscaler.kubernetes.io/safe-to-evict). The chart's
-        # static path (helm/mt-node/templates/statefulset.yaml) attaches
-        # checksum/watchdog-config and checksum/platform-secret here too
-        # for force-rollout-on-config-change; the runtime path adds them
-        # in Step 4 (M2 fix) so the same drift detection applies.
-        # Merge the operator-supplied annotations with the M2 fix
-        # checksum. The checksum forces K8s to observe a pod template
-        # diff whenever the per-tenant Secret data rotates (e.g. user
-        # changes their broker password) so the StatefulSet rolls and
-        # the new Pod mounts the rotated Secret. Without this annotation,
-        # an envFrom-mounted Secret data change is INVISIBLE to the
-        # StatefulSet controller and the running Pod keeps using the
-        # old credentials for the rest of its life. Audit ref:
-        # CHECKLIST Section 2 'Re-login automation on session expiry'.
+        # Annotations carry both the operator-supplied set (prometheus.io/*,
+        # cluster-autoscaler.kubernetes.io/safe-to-evict, etc.) and the
+        # per-tenant Secret data checksum. The checksum forces a rolling
+        # update whenever the underlying credentials rotate; without it,
+        # K8s does not observe envFrom-mounted Secret data changes and
+        # the running Pod keeps using the old credentials.
         merged_annotations: dict[str, str] = {}
         if pod_annotations:
             merged_annotations.update(pod_annotations)

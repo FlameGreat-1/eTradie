@@ -91,11 +91,9 @@ class HostedRecoveryConfig:
     sweep_interval_secs: float
     unhealthy_threshold_secs: float
     reprovision_cooldown_secs: float
-    # M4 fix: cap the number of concurrent reprovision calls inside a
-    # single sweep so an N-tenant cluster-wide outage cannot stampede the
-    # kube-apiserver with N parallel readiness gates. Status checks remain
-    # unbounded (read-only and cheap). 4 matches the ZmqClient in-flight
-    # gate sizing so the operational thumbprint is consistent.
+    # Caps concurrent reprovision calls inside one sweep so a cluster-
+    # wide outage does not issue N parallel readiness gates against the
+    # kube-apiserver. Status checks remain unbounded.
     max_concurrent_reprovisions: int
 
     @classmethod
@@ -199,12 +197,9 @@ class HostedRecoveryService:
         # service waits at least unhealthy_threshold_secs before
         # treating a not-Ready StatefulSet as actionable.
         self._first_unhealthy: dict[str, float] = {}
-        # M4 fix: bound the number of concurrent reprovision calls inside
-        # a single sweep. Without this, a cluster-wide outage that left
-        # every tenant unhealthy would stampede the kube-apiserver with N
-        # parallel readiness gates. The semaphore is sized from the config
-        # at construction time (ENGINE_HOSTED_RECOVERY_MAX_CONCURRENT,
-        # default 4 to match the ZmqClient in-flight gate sizing).
+        # Bounds the number of in-flight reprovision calls inside one
+        # sweep. Sized at construction from the config so a misconfig
+        # surfaces at engine boot rather than at the first incident.
         self._reprovision_gate = asyncio.Semaphore(
             self._config.max_concurrent_reprovisions,
         )
@@ -393,11 +388,10 @@ class HostedRecoveryService:
                     )
                     continue
 
-            # Act. The reprovision gate caps the number of concurrent
-            # reprovision calls so a cluster-wide outage cannot stampede
-            # the kube-apiserver. Per-connection cooldown is enforced
-            # ABOVE the gate so a connection inside its cooldown window
-            # does not hold a slot. Audit ref: M4.
+            # The cooldown gate above this point already filtered out
+            # connections still inside their back-off window, so the
+            # semaphore acquire here only competes with rows that are
+            # genuinely ready to be reprovisioned.
             async with self._reprovision_gate:
                 self._last_reprovision[connection_id] = time.monotonic()
                 HOSTED_RECOVERY_REPROVISIONS_TOTAL.labels(reason=reason).inc()

@@ -18,7 +18,7 @@ Three creation paths from DB rows:
 
 from __future__ import annotations
 
-import os  # required for _app_env check in connection_type=='ea' path
+import os
 from typing import TYPE_CHECKING, Any
 
 from engine.shared.exceptions import ConfigurationError
@@ -261,13 +261,11 @@ def create_mt5_broker_from_connection(
     """
     if row.connection_type == "ea":
         # connection_type='ea' is a local-development-only path that
-        # reads single-tenant MT5_ZMQ_* env vars from the engine's own
-        # environment. Refuse to build a client for an 'ea' row when
-        # the engine is running in production or staging - the router
-        # already rejects new ea row CREATES, but a pre-existing row
-        # (shared DB seeded during a dev boot, out-of-band migration,
-        # legacy data) must not bypass that gate. Mirrors
-        # src/engine/routers/broker_connections.py::_ea_connection_type_disabled.
+        # reads single-tenant MT5_ZMQ_* env vars from the engine. The
+        # router rejects new 'ea' row CREATES in production/staging;
+        # this gate stops a pre-existing 'ea' row (from a shared DB or
+        # an out-of-band migration) from bypassing that policy at
+        # client-build time.
         _app_env = os.environ.get("APP_ENV", "").strip().lower()
         if _app_env in ("production", "staging"):
             raise ConfigurationError(
@@ -389,13 +387,9 @@ def create_mt5_broker_from_connection(
         return client
 
     if row.connection_type == "hosted":
-        # MT4 hosted connections are currently non-functional because
-        # docker/mt-node/ea/ZeroMQ_EA.ex4 is not committed to the
-        # repository (see docker/mt-node/ea/README.md). Refuse to build
-        # a client for a platform='mt4' hosted row so the engine fails
-        # fast with a clear error instead of letting a pod loop forever.
-        # Drop this gate once the .ex4 binary is committed and the
-        # entrypoint.sh MT4 chart-template path is validated end-to-end.
+        # MT4 hosted connections are non-functional because the MT4 EA
+        # binary is not bundled in the mt-node image (see
+        # docker/mt-node/ea/README.md). Fail fast with a clear error.
         if (row.platform or "mt5").strip().lower() == "mt4":
             raise ConfigurationError(
                 "platform='mt4' hosted connections are not currently "
