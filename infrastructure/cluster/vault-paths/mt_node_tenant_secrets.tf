@@ -50,7 +50,11 @@
 #
 # Path convention (NOT a Terraform resource; documented here for clarity):
 #
-#   etradie/tenants/mt-node/<connection_id>
+#   etradie/tenants/mt-node/<sa_name>
+#
+#   where <sa_name> = etradie-mt-<connection_id[:12]> (the engine-allocated
+#   per-tenant ServiceAccount name; matches the Helm release name and the
+#   K8s StatefulSet name).
 #
 #     keys:
 #       mt5_login           - broker account login (string)
@@ -58,9 +62,9 @@
 #       mt5_zmq_auth_token  - per-tenant EA AUTH_TOKEN (string)
 #
 # The engine writes here at provision time via Vault HTTP API
-# (POST /v1/etradie/data/tenants/mt-node/<connection_id>). The Vault
-# Agent in the per-tenant Pod renders these into
-# /vault/secrets/mt-credentials.env which entrypoint.sh sources.
+# (POST /v1/etradie/data/tenants/mt-node/<sa_name>). The Vault Agent in
+# the per-tenant Pod renders these into /vault/secrets/mt-credentials.env
+# which entrypoint.sh sources at startup.
 #
 # Variables required from existing variables.tf:
 #   var.vault_mount     - KV-v2 mount name (default "etradie")
@@ -166,21 +170,33 @@ resource "vault_policy" "mt_node_provisioner" {
 #
 # Granted to every per-tenant mt-node Pod via the K8s auth role.
 # READ ONLY, scoped to the SINGLE path keyed by the requesting Pod's
-# bound metadata (the etradie.connection-id label). A pod cannot read
-# any other tenant's credentials even with its SA token.
+# ServiceAccount name. A pod cannot read any other tenant's credentials
+# even if its SA token leaked.
+#
+# Why service_account_name and not a custom 'connection_id' field:
+# Vault's Kubernetes auth backend does NOT copy arbitrary SA annotations
+# into the entity alias metadata. The only metadata fields available in
+# policy templates are the standard set produced by TokenReview:
+#   service_account_name, service_account_uid, service_account_namespace,
+#   service_account_secret_name, role.
+# The engine's per-tenant SA name is deterministically derived from the
+# broker_connections.id (etradie-mt-<id[:12]>), so the SA name is a
+# stable, non-secret tenant identifier. The engine writes credentials
+# to <path_prefix>/<sa_name>; the Pod reads from the SAME path because
+# {{identity.entity.aliases.<accessor>.metadata.service_account_name}}
+# renders to its own SA name.
 #
 # {{identity.entity.aliases.<accessor>.metadata.<key>}} templating is
 # the Vault-native multi-tenant isolation primitive. The accessor value
-# is read from the role's backend at apply time.
+# is the backend's runtime accessor (vault_auth_backend.kubernetes.accessor).
 # ---------------------------------------------------------------------
 resource "vault_policy" "mt_node_tenant" {
   name = "mt-node-tenant-${var.environment}"
 
   policy = <<-EOT
-    # Per-Pod tenant secret. Path is templated on the auth role's
-    # alias_metadata['connection_id'] which the K8s auth backend
-    # populates from the bound Pod's SA annotations.
-    path "${var.vault_mount}/data/tenants/mt-node/{{identity.entity.aliases.${vault_auth_backend.kubernetes.accessor}.metadata.connection_id}}" {
+    # Per-Pod tenant secret. Path is templated on the Pod's SA name.
+    # The engine writes to the SAME path at provision time.
+    path "${var.vault_mount}/data/tenants/mt-node/{{identity.entity.aliases.${vault_auth_backend.kubernetes.accessor}.metadata.service_account_name}}" {
       capabilities = ["read"]
     }
   EOT
