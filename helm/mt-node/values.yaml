@@ -44,13 +44,18 @@ mtConnection:
   # field is non-secret and lives in the StatefulSet env block.
   server: ""
   # Default chart symbol baked into the rendered StatefulSet when the
-  # chart is installed by hand against a development cluster. In
-  # production, per-tenant StatefulSets are constructed at runtime by
-  # HostedProvisioner (src/engine/ta/broker/mt5/hosted/provisioner.py)
-  # which boots with MT_SYMBOL=__pending__ and then patches the
-  # broker-actual symbol resolved from GET_ALL_SYMBOLS; the chart's
-  # value below is therefore only used in single-tenant dev flows.
-  symbol: "EURUSD"
+  # chart is installed by hand against a development cluster. The
+  # default value is the __pending__ sentinel that the entrypoint
+  # treats as 'skip chart template until the engine patches the env';
+  # in production every Pod is engine-runtime-provisioned and the
+  # sentinel is replaced with the broker's first published symbol
+  # after the catalog is reachable.
+  #
+  # An operator who installs this chart by hand (no engine in the
+  # loop) and wants the Pod to attach a chart immediately should
+  # pass --set mtConnection.symbol=<broker-actual-name> on the
+  # helm command line.
+  symbol: "__pending__"
 # ---------------------------------------------------------------------
 # Vault Agent Injector
 #

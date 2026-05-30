@@ -503,6 +503,16 @@ class HostedRecoveryService:
 
         password = decrypt_credential(row.mt5_password_encrypted)
 
+        # Forward the existing per-tenant ZMQ auth token so the
+        # provisioner re-seals the SAME secret in Vault. Without this,
+        # provision_account() would generate a fresh token and the
+        # engine's ZmqClient would keep authenticating with the stale
+        # token stored in broker_connections.ea_auth_token_encrypted -
+        # the Pod would look healthy but every command would fail.
+        existing_token: Optional[str] = None
+        if row.ea_auth_token_encrypted:
+            existing_token = decrypt_credential(row.ea_auth_token_encrypted)
+
         logger.info(
             "hosted_recovery_reprovision_starting",
             extra={
@@ -512,6 +522,7 @@ class HostedRecoveryService:
                 "phase": phase,
                 "platform": row.platform,
                 "server": row.mt5_server,
+                "token_propagated": existing_token is not None,
             },
         )
 
@@ -522,6 +533,7 @@ class HostedRecoveryService:
             password=password,
             server=row.mt5_server,
             platform=row.platform,
+            per_user_zmq_token=existing_token,
         )
 
         logger.info(

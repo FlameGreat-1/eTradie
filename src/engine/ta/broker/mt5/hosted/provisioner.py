@@ -51,7 +51,6 @@ from kubernetes_asyncio import client, config
 from kubernetes_asyncio.client.exceptions import ApiException
 from tenacity import (
     AsyncRetrying,
-    RetryError,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
@@ -408,22 +407,27 @@ class HostedProvisioner:
         Side effects (idempotent w.r.t. an existing release of the same name):
           1. Create / update the per-tenant Vault secret with sealed creds.
           2. Create / update the per-tenant ServiceAccount.
-          3. Create / update the StatefulSet with MT_SYMBOL=
+          3. Create / update the per-release watchdog ConfigMap.
+          4. Create / update the StatefulSet with MT_SYMBOL=
              SYMBOL_PENDING_SENTINEL on first boot so the entrypoint
-             skips chart template writing until the resolver runs.
-          4. Create / update the regular ClusterIP Service AND the
+             skips chart template writing until the broker catalog is
+             reachable.
+          5. Create / update the regular ClusterIP Service AND the
              headless Service the StatefulSet needs for stable pod-DNS.
-          5. Wait until the StatefulSet has at least one Ready replica
+          6. Wait until the StatefulSet has at least one Ready replica
              AND a ZMQ PING succeeds.
-          6. Run automatic broker symbol resolution (GET_ALL_SYMBOLS
-             via one-shot ZMQ REQ, generic scoring, persist to
-             broker_connections.symbol_map + mt5_symbol).
-          7. Patch the StatefulSet pod template env so K8s rolls the
-             Pod once with the resolved broker-actual symbol values.
+          7. Ask the EA for the broker's symbol-name list via the
+             injected catalog_sync_runner; pick the first published
+             name as the chart-attach symbol. The runner also schedules
+             the full per-symbol metadata sync as a background task.
+          8. Patch the StatefulSet pod template to replace the
+             sentinel with the chart-attach symbol and persist the
+             same value to broker_connections.mt5_symbol via the
+             injected chart_symbol_writer. K8s rolls the Pod once.
 
         Returns the runtime metadata the router persists onto the
-        broker_connections row plus the resolved symbol_map so the
-        caller can render it in the API response.
+        broker_connections row plus the chart_symbol picked from the
+        broker's live catalog.
         """
         if platform not in ("mt4", "mt5"):
             raise ConfigurationError(
@@ -473,6 +477,13 @@ class HostedProvisioner:
                     core_api=core_api,
                     name=sa_name,
                     labels=labels,
+                )
+                await self._upsert_watchdog_configmap(
+                    core_api=core_api,
+                    name=f"{release}-watchdog-config",
+                    labels=labels,
+                    zmq_port=zmq_port,
+                    watchdog_port=DEFAULT_WATCHDOG_PORT,
                 )
                 await self._upsert_statefulset(
                     apps_api=apps_api,
@@ -558,8 +569,9 @@ class HostedProvisioner:
             await self._patch_statefulset_symbol(
                 apps_api=apps_api,
                 release=release,
-                active_symbol=chart_symbol or "",
+                active_symbol=chart_symbol,
             )
+            await self._chart_symbol_writer(connection_id, chart_symbol)
         finally:
             await self._close(core_api)
             await self._close(apps_api)
@@ -668,6 +680,11 @@ class HostedProvisioner:
                 "Secret(legacy-creds)",
             )
             ok &= await self._safe_delete(
+                core_api.delete_namespaced_config_map,
+                f"{container_id}-watchdog-config",
+                "ConfigMap(watchdog-config)",
+            )
+            ok &= await self._safe_delete(
                 core_api.delete_namespaced_persistent_volume_claim,
                 _pvc_name_for(container_id),
                 "PVC(wine-prefix)",
@@ -702,9 +719,6 @@ class HostedProvisioner:
                 "hosted_vault_path_destroy_failed",
                 extra={"path": path, "error": str(exc), **(exc.details or {})},
             )
-
-    def resolve_zmq_host(self, container_id: str) -> Optional[str]:
-        return f"{container_id}.{self._namespace}.svc.cluster.local"
 
     async def gc_orphans(self, known_connection_ids: Iterable[str]) -> dict[str, Any]:
         """Delete StatefulSets whose connection-id is no longer in the DB.
@@ -745,6 +759,11 @@ class HostedProvisioner:
                     await self._safe_delete(
                         core_api.delete_namespaced_secret,
                         f"{name}-creds", "Secret(legacy-creds)",
+                    )
+                    await self._safe_delete(
+                        core_api.delete_namespaced_config_map,
+                        f"{name}-watchdog-config",
+                        "ConfigMap(watchdog-config)",
                     )
                     await self._safe_delete(
                         core_api.delete_namespaced_persistent_volume_claim,
@@ -797,6 +816,60 @@ class HostedProvisioner:
                 details={"path": path, **(exc.details or {})},
             ) from exc
         return _hash_secret_data(data)
+
+    async def _upsert_watchdog_configmap(
+        self,
+        *,
+        core_api: client.CoreV1Api,
+        name: str,
+        labels: dict[str, str],
+        zmq_port: int,
+        watchdog_port: int,
+    ) -> None:
+        """Idempotent create-or-update of the per-release watchdog
+        ConfigMap.
+
+        Carries the same seven keys helm/mt-node/templates/
+        configmap-watchdog.yaml emits so chart-rendered and runtime-
+        provisioned Pods feed their watchdog from a ConfigMap with an
+        identical wire shape.
+        """
+        data = {
+            "WATCHDOG_ZMQ_ENDPOINT": f"tcp://127.0.0.1:{zmq_port}",
+            "WATCHDOG_HTTP_PORT": str(watchdog_port),
+            "WATCHDOG_POLL_INTERVAL_SECONDS": "10",
+            "WATCHDOG_MAX_FAILURES": "6",
+            "WATCHDOG_MEMORY_SOFT_CAP_FRACTION": "0.8",
+            "WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION": "0.5",
+            "WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS": "6",
+            "WATCHDOG_LIVEZ_GRACE_SECONDS": "60",
+        }
+        body = client.V1ConfigMap(
+            metadata=client.V1ObjectMeta(
+                name=name, namespace=self._namespace, labels=labels,
+            ),
+            data=data,
+        )
+        async for attempt in await self._retrying():
+            with attempt:
+                try:
+                    await core_api.create_namespaced_config_map(
+                        namespace=self._namespace, body=body,
+                    )
+                    return
+                except ApiException as exc:
+                    if exc.status == 409:
+                        existing = await core_api.read_namespaced_config_map(
+                            name=name, namespace=self._namespace,
+                        )
+                        body.metadata.resource_version = (
+                            existing.metadata.resource_version
+                        )
+                        await core_api.replace_namespaced_config_map(
+                            name=name, namespace=self._namespace, body=body,
+                        )
+                        return
+                    raise
 
     async def _upsert_serviceaccount(
         self,
@@ -990,43 +1063,21 @@ class HostedProvisioner:
             requests={"cpu": "100m", "memory": "64Mi"},
             limits={"cpu": "100m", "memory": "64Mi"},
         )
-        # Watchdog reads MT_ZMQ_AUTH_TOKEN by sourcing the same Vault-
-        # rendered file the mt-node entrypoint sources. The platform
-        # DEFAULT_ZMQ_AUTH_TOKEN fallback still comes via envFrom.
-        watchdog_env_from: list[client.V1EnvFromSource] = []
+        # Watchdog runtime tunables live in a per-release ConfigMap so
+        # the engine-runtime provisioner and the chart-rendered
+        # platform path produce identical envFrom shapes. POD_NAME and
+        # POD_NAMESPACE stay inline because ConfigMaps cannot carry
+        # fieldRef.
+        watchdog_cm_name = f"{release}-watchdog-config"
+        watchdog_env_from = [
+            client.V1EnvFromSource(
+                config_map_ref=client.V1ConfigMapEnvSource(
+                    name=watchdog_cm_name,
+                    optional=False,
+                ),
+            ),
+        ]
         watchdog_env = [
-            client.V1EnvVar(
-                name="WATCHDOG_ZMQ_ENDPOINT",
-                value=f"tcp://127.0.0.1:{zmq_port}",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_HTTP_PORT",
-                value=str(watchdog_port),
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_POLL_INTERVAL_SECONDS",
-                value="10",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_MAX_FAILURES",
-                value="6",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_MEMORY_SOFT_CAP_FRACTION",
-                value="0.8",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION",
-                value="0.5",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS",
-                value="6",
-            ),
-            client.V1EnvVar(
-                name="WATCHDOG_LIVEZ_GRACE_SECONDS",
-                value="60",
-            ),
             client.V1EnvVar(
                 name="POD_NAME",
                 value_from=client.V1EnvVarSource(
@@ -1153,6 +1204,14 @@ class HostedProvisioner:
             f"vault.hashicorp.com/agent-inject-template-{_VAULT_SECRETS_FILE}":
                 vault_template,
         }
+        # Stamp the sentinel-or-real symbol's resolution moment on the
+        # initial pod template so a chart upgrade that replaces the
+        # StatefulSet does not lose the annotation; HostedRecoveryService
+        # uses it as a freshness signal.
+        if symbol != SYMBOL_PENDING_SENTINEL:
+            merged_annotations["etradie.io/symbol-resolved-at"] = str(
+                int(_time.time())
+            )
         if pod_annotations:
             merged_annotations.update(pod_annotations)
         if credentials_checksum:
@@ -1351,6 +1410,12 @@ class HostedProvisioner:
                 ok = await self._zmq_ping(dns_name=dns_name, port=zmq_port, token=token)
                 if ok:
                     return
+            except ProviderError:
+                # The EA returned an explicit error envelope (typically
+                # auth failure). No amount of further polling will
+                # change the answer; surface immediately so the caller
+                # gets the real diagnostic instead of a deadline.
+                raise
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
                 logger.debug(
@@ -1378,15 +1443,23 @@ class HostedProvisioner:
         dns_name: str,
         zmq_port: int,
         token: str,
-    ) -> Optional[str]:
-        """Sync the broker's full Market Watch into broker_symbols.
+    ) -> str:
+        """Pick the chart-attach symbol from the broker's Market Watch.
 
-        Runs BrokerSyncService against the freshly-ready Pod (via the
-        injected runner) and returns the chart-attach symbol name:
-        the first instrument the broker publishes. None means the
-        broker exposes nothing - extremely rare in practice; the
-        caller leaves MT_SYMBOL on the sentinel and HostedRecoveryService
-        retries on its next sweep.
+        The provision-time path is intentionally fast: it asks the EA
+        for the symbol-name list (one ZMQ round-trip), returns the
+        first name, and defers the per-symbol metadata sync
+        (path/digits/point) to a background task scheduled by the
+        Container's BackgroundTaskCoordinator. The dashboard's
+        /api/broker/symbols endpoint triggers a lazy sync on first
+        read so the user sees their catalogue while metadata enrichment
+        finishes asynchronously.
+
+        Raises ProviderError when the broker reports zero instruments
+        so the caller never receives a 'success' result for a Pod
+        whose chart could not be resolved. This prevents the silent
+        stuck-on-sentinel state HostedRecoveryService had to keep
+        retrying out of.
         """
         assert self._catalog_sync_runner is not None
         assert self._chart_symbol_writer is not None
@@ -1395,8 +1468,16 @@ class HostedProvisioner:
             zmq_port=zmq_port,
             auth_token=token,
         )
-        if chart_symbol:
-            await self._chart_symbol_writer(connection_id, chart_symbol)
+        if not chart_symbol:
+            raise ProviderError(
+                "Broker did not publish any tradeable symbols; cannot "
+                "select a chart-attach symbol. The connection has not "
+                "been persisted.",
+                details={
+                    "connection_id": connection_id,
+                    "dns_name": dns_name,
+                },
+            )
         return chart_symbol
 
     async def _patch_statefulset_symbol(
@@ -1406,18 +1487,18 @@ class HostedProvisioner:
         release: str,
         active_symbol: str,
     ) -> None:
-        """Patch MT_SYMBOL + WATCHDOG_SYMBOL on the pod template.
+        """Patch MT_SYMBOL on the pod template once the broker is reachable.
 
-        The provisioner first-boots the StatefulSet with the
-        SYMBOL_PENDING_SENTINEL value so the entrypoint skips chart
-        template writing. Once resolution succeeds we patch both env
-        vars to the resolved broker-actual symbol; K8s observes the
-        pod template diff and performs one rolling restart, after
-        which the entrypoint writes the chart template normally.
+        The provisioner first-boots the StatefulSet with
+        SYMBOL_PENDING_SENTINEL so the entrypoint skips chart-template
+        writing. After the broker reports its first published symbol
+        we patch MT_SYMBOL to that value; K8s observes the pod template
+        diff and performs one rolling restart, after which the
+        entrypoint writes the chart template normally.
 
-        When resolution returned no symbol (broker exposes none of the
-        canonical pairs in CANONICAL_PAIRS) we leave the sentinel in
-        place; HostedRecoveryService will retry on its next sweep.
+        The caller (provision_account) raises ProviderError on an
+        empty broker catalog so this method is only invoked with a
+        non-empty symbol.
         """
         if not active_symbol:
             logger.warning(
@@ -1467,6 +1548,14 @@ class HostedProvisioner:
             ) from exc
 
     async def _zmq_ping(self, *, dns_name: str, port: int, token: str) -> bool:
+        """PING the EA. Returns True on auth success.
+
+        Raises ProviderError on an explicit EA error envelope (auth
+        rejected, EA not running, command unsupported) so the caller
+        does not waste the readiness budget polling a permanent failure.
+        Network-level failures bubble up as their native exception type
+        and are treated as transient by _wait_ready.
+        """
         endpoint = f"tcp://{dns_name}:{port}"
         ctx = zmq_async.Context.instance()
         sock = ctx.socket(zmq.REQ)
@@ -1481,7 +1570,20 @@ class HostedProvisioner:
             )
             raw = await asyncio.wait_for(sock.recv(), timeout=_ZMQ_PROBE_TIMEOUT_SECS)
             reply = json.loads(raw.decode("utf-8"))
-            return isinstance(reply, dict) and reply.get("status") == "ok"
+            if not isinstance(reply, dict):
+                return False
+            if reply.get("status") == "ok":
+                return True
+            ea_error = reply.get("error")
+            if ea_error:
+                raise ProviderError(
+                    f"EA rejected PING: {ea_error}",
+                    details={
+                        "endpoint": endpoint,
+                        "ea_error": str(ea_error)[:200],
+                    },
+                )
+            return False
         finally:
             try:
                 sock.close(linger=0)
@@ -1522,6 +1624,11 @@ class HostedProvisioner:
             (core_api.delete_namespaced_service, headless_service_name, "Service(headless)"),
             (core_api.delete_namespaced_service_account, sa_name, "ServiceAccount"),
             (core_api.delete_namespaced_secret, f"{release}-creds", "Secret(legacy-creds)"),
+            (
+                core_api.delete_namespaced_config_map,
+                f"{release}-watchdog-config",
+                "ConfigMap(watchdog-config)",
+            ),
             (
                 core_api.delete_namespaced_persistent_volume_claim,
                 _pvc_name_for(release),

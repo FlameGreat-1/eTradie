@@ -15,12 +15,17 @@ type GroupKey = 'Forex' | 'Metals' | 'Indices' | 'Crypto' | 'Other';
 
 const GROUP_ORDER: GroupKey[] = ['Forex', 'Metals', 'Indices', 'Crypto', 'Other'];
 
+const FOREX_TOKENS = ['forex', 'currenc', 'fx', 'валют', 'divisa', 'moedas'] as const;
+const METALS_TOKENS = ['metal', 'metales', 'metais', 'gold', 'silver', 'oro', 'ouro', 'plata', 'prata', 'металл'] as const;
+const INDICES_TOKENS = ['index', 'indices', 'indice', 'индекс'] as const;
+const CRYPTO_TOKENS = ['crypto', 'cripto', 'digital', 'крипто'] as const;
+
 function classifySymbol(symbol: BrokerSymbol): GroupKey {
   const path = (symbol.path || '').toLowerCase();
-  if (path.includes('forex') || path.includes('currenc') || path.includes('fx')) return 'Forex';
-  if (path.includes('metal') || path.includes('gold') || path.includes('silver')) return 'Metals';
-  if (path.includes('index') || path.includes('indices')) return 'Indices';
-  if (path.includes('crypto') || path.includes('digital')) return 'Crypto';
+  if (FOREX_TOKENS.some((t) => path.includes(t))) return 'Forex';
+  if (METALS_TOKENS.some((t) => path.includes(t))) return 'Metals';
+  if (INDICES_TOKENS.some((t) => path.includes(t))) return 'Indices';
+  if (CRYPTO_TOKENS.some((t) => path.includes(t))) return 'Crypto';
   return 'Other';
 }
 
