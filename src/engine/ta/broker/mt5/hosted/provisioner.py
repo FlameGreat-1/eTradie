@@ -558,39 +558,73 @@ class HostedProvisioner:
                     },
                 ) from exc
 
-            # Readiness gate uses the SAME api clients - no churn.
-            timeout = readiness_timeout_secs if readiness_timeout_secs is not None else _READINESS_TIMEOUT_SECS
-            await self._wait_ready(
-                core_api=core_api,
-                apps_api=apps_api,
-                release=release,
-                dns_name=dns_name,
-                zmq_port=zmq_port,
-                token=effective_token,
-                timeout=timeout,
-            )
+            # Readiness gate, broker catalog hand-off, and STS env
+            # patch all run AFTER the K8s upserts succeeded. Any
+            # failure here would otherwise leave the StatefulSet +
+            # Services + watchdog CM + SA + Vault path alive in the
+            # cluster while the broker_connections row never gets
+            # persisted (the router rolls back its DB transaction on
+            # ProviderError). That orphan keeps consuming Pod resources
+            # + Vault token leases until gc_orphans() sweeps it.
+            #
+            # Wrap the entire post-upsert sequence in a try/except
+            # that runs _best_effort_cleanup on ANY exception (not
+            # only ApiException) and re-raises so the router still
+            # surfaces the original error to the dashboard.
+            try:
+                timeout = readiness_timeout_secs if readiness_timeout_secs is not None else _READINESS_TIMEOUT_SECS
+                await self._wait_ready(
+                    core_api=core_api,
+                    apps_api=apps_api,
+                    release=release,
+                    dns_name=dns_name,
+                    zmq_port=zmq_port,
+                    token=effective_token,
+                    timeout=timeout,
+                )
 
-            chart_symbol = await self._populate_broker_catalog(
-                connection_id=connection_id,
-                dns_name=dns_name,
-                zmq_port=zmq_port,
-                token=effective_token,
-                existing_chart_symbol=existing_chart_symbol,
-            )
+                chart_symbol = await self._populate_broker_catalog(
+                    connection_id=connection_id,
+                    dns_name=dns_name,
+                    zmq_port=zmq_port,
+                    token=effective_token,
+                    existing_chart_symbol=existing_chart_symbol,
+                )
 
-            await self._patch_statefulset_symbol(
-                apps_api=apps_api,
-                release=release,
-                active_symbol=chart_symbol,
-            )
-            # Only write back to the DB when the resolver actually
-            # picked a new symbol. A non-empty existing_chart_symbol
-            # short-circuits _populate_broker_catalog above to return
-            # that same value, so this conditional is the H-4 guard
-            # that prevents recovery sweeps from overwriting a
-            # user's previously-resolved mt5_symbol.
-            if not (existing_chart_symbol and existing_chart_symbol.strip()):
-                await self._chart_symbol_writer(connection_id, chart_symbol)
+                await self._patch_statefulset_symbol(
+                    apps_api=apps_api,
+                    release=release,
+                    active_symbol=chart_symbol,
+                )
+                # Only write back to the DB when the resolver actually
+                # picked a new symbol. A non-empty existing_chart_symbol
+                # short-circuits _populate_broker_catalog above to return
+                # that same value, so this conditional is the H-4 guard
+                # that prevents recovery sweeps from overwriting a
+                # user's previously-resolved mt5_symbol.
+                if not (existing_chart_symbol and existing_chart_symbol.strip()):
+                    await self._chart_symbol_writer(connection_id, chart_symbol)
+            except Exception as post_upsert_exc:  # noqa: BLE001
+                logger.error(
+                    "hosted_provisioning_post_upsert_failed",
+                    extra={
+                        "connection_id": connection_id,
+                        "release": release,
+                        "error": str(post_upsert_exc),
+                        "error_type": type(post_upsert_exc).__name__,
+                    },
+                )
+                await self._best_effort_cleanup(
+                    core_api=core_api,
+                    apps_api=apps_api,
+                    vault=vault,
+                    release=release,
+                    service_name=service_name,
+                    headless_service_name=headless_service_name,
+                    sa_name=sa_name,
+                    vault_path=vault_path,
+                )
+                raise
         finally:
             await self._close(core_api)
             await self._close(apps_api)
