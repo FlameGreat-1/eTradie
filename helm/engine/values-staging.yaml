@@ -1,5 +1,10 @@
 # Staging overlay for the etradie-engine chart.
 # Applied AFTER values.yaml by the ArgoCD child Application.
+#
+# Image references (etradie-engine + mt-node) live in
+# helm/engine/values-image.yaml. This overlay may pin a
+# staging-specific tag below by re-declaring image.tag; the
+# registry path stays in the shared values-image.yaml file.
 
 replicaCount: 1
 
@@ -18,11 +23,7 @@ config:
     env: "staging"
     debug: "false"
     logLevel: "DEBUG"
-  # Explicit mt-node image. Same reasoning as values-production.yaml:
-  # the base values.yaml leaves this empty so a fork never inherits a
-  # personal-namespace default.
-  mtNode:
-    image: "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"
+  # mt-node image: defined in helm/engine/values-image.yaml.
   vault:
     address: "https://vault.vault.svc.cluster.local:8200"
   rag:

@@ -1,0 +1,25 @@
+# Single source of truth for both container images the engine chart
+# references:
+#   * image.repository           - the etradie-engine image itself
+#   * config.mtNode.image        - the mt-node image the engine reads
+#                                  from MT_NODE_IMAGE at runtime to
+#                                  construct per-tenant StatefulSets
+#
+# Loaded by every ArgoCD child Application that targets helm/engine
+# (see deployments/argocd/children/engine-{staging,production}.yaml).
+# Loaded AFTER values.yaml and BEFORE values-{env}.yaml so an env
+# overlay can override the tag without copying the registry path.
+#
+# Forks override exactly these two lines. Do not duplicate either
+# repository string anywhere else in the chart tree.
+image:
+  repository: ghcr.io/flamegreat-1/etradie/engine
+
+config:
+  mtNode:
+    # MUST stay in sync with helm/mt-node/values-image.yaml::image
+    # (the chart-rendered and engine-runtime paths must boot the
+    # same image). The :tag form is fine for staging; production
+    # operators are free to override this to a @sha256:<digest>
+    # pin in helm/engine/values-production.yaml.
+    image: "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"

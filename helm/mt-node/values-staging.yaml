@@ -3,13 +3,10 @@
 # Applied via --values values-staging.yaml after values.yaml.
 # The engine's HostedProvisioner picks the overlay based on the
 # ENV environment variable on the engine Pod.
-
-image:
-  # CHECKLIST hardening (Gap #13): explicit mt-node image. Same
-  # reasoning as values-production.yaml.
-  repository: ghcr.io/flamegreat-1/etradie-mt-node
-  tag: "0.1.0"
-  pullPolicy: IfNotPresent
+#
+# Image reference: see helm/mt-node/values-image.yaml. This overlay
+# may pin a staging-specific tag by re-declaring image.tag below;
+# the registry path stays in the shared values-image.yaml file.
 
 resources:
   requests:

@@ -22,6 +22,7 @@ spec:
       releaseName: etradie-engine
       valueFiles:
         - values.yaml
+        - values-image.yaml
         - values-staging.yaml
       parameters: []
 
