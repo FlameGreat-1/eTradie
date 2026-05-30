@@ -156,3 +156,22 @@ data:
   MT_NODE_READINESS_TIMEOUT_SECS: {{ .Values.config.mtNode.readinessTimeoutSecs | quote }}
   MT_NODE_READINESS_POLL_SECS: {{ .Values.config.mtNode.readinessPollSecs | quote }}
   MT_NODE_MAX_HOSTED_PER_USER: {{ .Values.config.mtNode.maxHostedPerUser | default "1" | quote }}
+
+  # Scheduling envelope (C3 fix). Engine-runtime HostedProvisioner reads
+  # these to keep the per-tenant StatefulSet pod spec in sync with the
+  # chart-rendered platform-only path. Without these, pods provisioned at
+  # runtime by the engine miss tolerations / priorityClass / affinity that
+  # the production node pool requires (workload=etradie-system taint) and
+  # sit Pending forever.
+  #
+  # Defaults are empty strings -> provisioner treats them as 'not set' and
+  # falls back to the legacy (no scheduling hints) shape so docker-compose
+  # and dev clusters without taints are unaffected. The production overlay
+  # fills these from .Values.config.mtNode.scheduling.* (which mirrors
+  # helm/mt-node/values-production.yaml exactly).
+  MT_NODE_PRIORITY_CLASS_NAME: {{ .Values.config.mtNode.scheduling.priorityClassName | default "" | quote }}
+  MT_NODE_TOLERATIONS_JSON: {{ .Values.config.mtNode.scheduling.tolerations | default list | toJson | quote }}
+  MT_NODE_NODE_SELECTOR_JSON: {{ .Values.config.mtNode.scheduling.nodeSelector | default dict | toJson | quote }}
+  MT_NODE_AFFINITY_JSON: {{ .Values.config.mtNode.scheduling.affinity | default dict | toJson | quote }}
+  MT_NODE_TOPOLOGY_SPREAD_JSON: {{ .Values.config.mtNode.scheduling.topologySpreadConstraints | default list | toJson | quote }}
+  MT_NODE_POD_ANNOTATIONS_JSON: {{ .Values.config.mtNode.scheduling.podAnnotations | default dict | toJson | quote }}
