@@ -35,6 +35,12 @@ externalSecrets:
     # Staging chromadb token path (matches the chromadb StatefulSet's
     # data-layer staging path). Audit ref: IV-C2.
     chromadbAuthVaultPath: etradie/data-layer/chromadb/staging
+    # Staging mt-node platform path (matches helm/mt-node/values-staging.yaml
+    # externalSecrets.platform.vaultPath). Without this the engine externalsecret
+    # template's 'required' on mtNodeVaultPath silently inherits the production
+    # default from base values.yaml and ExternalSecret materialisation fails on
+    # the staging cluster. Audit ref: CHECKLIST Section 8 Step 3 audit.
+    mtNodeVaultPath: etradie/services/mt-node/staging
 
 resources:
   requests:
