@@ -26,7 +26,7 @@ from engine.ta.broker.mt5.hosted.provisioner import (
     service_dns_for,
 )
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
 CONNECTION_ID = "abcdef01-2345-6789-abcd-ef0123456789"
