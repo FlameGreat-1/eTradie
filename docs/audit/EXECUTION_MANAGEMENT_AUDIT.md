@@ -113,13 +113,17 @@ to F1-F7 but it blocks CI, so it is fixed here.
 **Fix:** add a test-local internal secret and an identity-bearing context
 helper, and thread both through every bridge construction + call.
 
-### F7 (P2) — In-process analysisID dedup is now redundant
-`grpc_server.go` keeps an in-memory `processed` map for analysis_id dedup.
-With the DB-backed idempotency layer (F1-F3) now correct and keyed on the
-gateway's idempotency key (which IS the analysis_id by default), the
-in-process map is a weaker, single-process, restart-losing duplicate of the
-same guard. Kept for now as a cheap fast-path; flagged so it is a conscious
-choice, not an accident. No behavioural bug — documented as accepted.
+### F7 (P2) — In-process analysisID dedup removed (was dead/redundant)
+`grpc_server.go` kept an in-memory `processed` map for analysis_id dedup
+(plus its mutex, consts, cleanup goroutine, markProcessed/isDuplicate/
+evictExpired, and a Close() method). With the DB-backed idempotency layer
+(F1-F3) now correct and keyed on the gateway's idempotency key (which IS the
+analysis_id by default), that map was a weaker, single-process,
+restart-losing duplicate of the same guard — dead code. Removed in full.
+Behavioural note: a duplicate is now surfaced by the executor as
+`Accepted:true, Status=DUPLICATE` (returning the prior placement) instead of
+the old `Accepted:false` rejection. This is the intended idempotent-retry
+semantic and matches the executor's own return.
 
 ---
 
@@ -134,7 +138,7 @@ choice, not an accident. No behavioural bug — documented as accepted.
 | F5 | management post-boot reconciler supervisor | P1 | DONE |
 | F6 | wire BurstQueue into ExecuteTrade | P1 | DONE |
 | F8 | execution brokertest compile fix | P0-build | DONE |
-| F7 | redundant in-process analysisID dedup | P2 | ACCEPTED (documented) |
+| F7 | redundant in-process analysisID dedup | P2 | DONE (removed) |
 
 Update this table as each fix lands. Each commit references its finding ID.
 
