@@ -102,16 +102,10 @@ func main() {
 		// production/staging it is required, in development an empty
 		// value is allowed but the bridge logs a warning at construction.
 		bridge := mt5.NewBridge(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs, cfg.EngineInternalSecret)
-		// Section 3 (CHECKLIST): wire retry-with-backoff for transient
-		// broker errors. attempts<=1 disables retry (mock dev mode).
-		bridge = bridge.WithRetry(cfg.BrokerRetryAttempts, cfg.BrokerRetryBaseMs, cfg.BrokerRetryCapMs)
 		bp = bridge
 		log.Info().
 			Str("url", cfg.BrokerBridgeURL).
 			Bool("internal_auth_configured", cfg.EngineInternalSecret != "").
-			Int("retry_attempts", cfg.BrokerRetryAttempts).
-			Int("retry_base_ms", cfg.BrokerRetryBaseMs).
-			Int("retry_cap_ms", cfg.BrokerRetryCapMs).
 			Msg("broker_mt5_bridge_configured")
 	} else {
 		bp = mockbroker.NewBroker(cfg.MockBrokerBalance)
