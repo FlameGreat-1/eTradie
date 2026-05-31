@@ -49,6 +49,11 @@ const (
 	StatusLocked          OrderStatus = "LOCKED"
 	StatusPaused          OrderStatus = "PAUSED"
 	StatusPartiallyFilled OrderStatus = "PARTIALLY_FILLED"
+	// StatusDuplicate is returned when an idempotency claim detects a
+	// prior placement for the same (user_id, idempotency_key). The
+	// response carries the prior broker_order_id; no new broker call
+	// is made. CHECKLIST Section 1 ("Same order cannot execute twice").
+	StatusDuplicate OrderStatus = "DUPLICATE"
 )
 
 // BrokerOrderType distinguishes limit vs market at the broker level.

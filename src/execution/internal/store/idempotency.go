@@ -60,6 +60,13 @@ func NewIdempotencyStore(pool *pgxpool.Pool) *IdempotencyStore {
 	}
 }
 
+// claimSQL inserts the claim row. ON CONFLICT DO NOTHING means a
+// duplicate (user_id, idempotency_key) is a no-op. RETURNING order_id
+// fires ONLY when a row was actually inserted, so the caller can scan
+// it: a returned row => we won the race (FirstClaim); pgx.ErrNoRows =>
+// the row already existed (conflict fired, nothing inserted, nothing
+// returned). order_id is NOT NULL in the schema, so the scan target is
+// always a valid string on the insert path.
 const claimSQL = `
 INSERT INTO execution_order_idempotency (
     user_id, idempotency_key, order_id, symbol, direction,
@@ -68,7 +75,7 @@ INSERT INTO execution_order_idempotency (
     $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
 ON CONFLICT (user_id, idempotency_key) DO NOTHING
-RETURNING xmax
+RETURNING order_id
 `
 
 const existingSQL = `
@@ -108,7 +115,7 @@ func (s *IdempotencyStore) TryClaim(
 		return nil, fmt.Errorf("idempotency: user_id and idempotency_key are required")
 	}
 
-	var xmax string
+	var insertedOrderID string
 	err := s.pool.QueryRow(ctx, claimSQL,
 		rec.UserID,
 		rec.IdempotencyKey,
@@ -119,7 +126,7 @@ func (s *IdempotencyStore) TryClaim(
 		rec.EntryPrice,
 		rec.StopLoss,
 		rec.LotSize,
-	).Scan(&xmax)
+	).Scan(&insertedOrderID)
 
 	if err == nil {
 		// RETURNING fired on a successful INSERT - we won the race.
