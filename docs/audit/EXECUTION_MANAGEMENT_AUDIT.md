@@ -127,6 +127,31 @@ semantic and matches the executor's own return.
 
 ---
 
+### F9 (P0) — Order-placement HTTP retry is not idempotent at the broker
+Traced the full placement path to the metal: executor -> bridge.placeOrder
+(HTTP POST) -> engine /internal/broker/place_order -> zmq client.place_order
+-> EA ORDER_SEND. Findings, all verified in source:
+  - The engine handler reads no idempotency key and does no dedup.
+  - The zmq client sends ORDER_SEND with no dedup token.
+  - The EA's HandleOrderSend uses a fixed MAGIC_NUMBER and calls OrderSend()
+    unconditionally — no client-token or comment-based dedup.
+  - bridge.placeOrder wraps the POST in a retry-with-backoff loop and
+    isTransient() returns true for "EOF" / "connection reset" / 5xx.
+Consequence: if the order reaches the broker and fills but the HTTP RESPONSE
+is lost (connection reset after OrderSend), the bridge RETRIES and the EA
+places a SECOND order — a duplicate position. The DB idempotency layer
+(F1-F3) does NOT cover this: it dedupes ExecuteTrade RPCs, not retries
+inside a single placeOrder call. CHECKLIST Section 1 "Network retries are
+idempotent" is violated at the broker boundary.
+Also: bridge.go declares headerIdempotencyKey = "X-Idempotency-Key" but never
+sends it — dead, misleading constant.
+**Fix:** order placement must be attempted exactly once — never retried —
+because the broker cannot dedupe it. Make placeOrder a single attempt and
+remove the now-dead retry machinery (WithRetry, retryConfig, BrokerRetry*
+config, headerIdempotencyKey). Transient ambiguity is resolved by the
+reconciler, which compares broker truth against engine state. Read calls
+are unaffected (they never used the retry loop).
+
 ## PROGRESS TRACKER
 
 | ID | Title | Severity | Status |
@@ -138,6 +163,7 @@ semantic and matches the executor's own return.
 | F5 | management post-boot reconciler supervisor | P1 | DONE |
 | F6 | wire BurstQueue into ExecuteTrade | P1 | DONE |
 | F8 | execution brokertest compile fix | P0-build | DONE |
+| F9 | order placement must not retry (broker not idempotent) | P0 | TODO |
 | F7 | redundant in-process analysisID dedup | P2 | DONE (removed) |
 
 Update this table as each fix lands. Each commit references its finding ID.
