@@ -22,7 +22,7 @@ const testSecret = "test-internal-shared-secret-0000000000"
 func testCtx() context.Context {
 	return auth.InjectIdentity(
 		context.Background(),
-		"test-user", "tester", auth.RoleUser, "pro_byok", "active",
+		"test-user", "tester", auth.RoleEtradie, "pro_byok", "active",
 	)
 }
 
