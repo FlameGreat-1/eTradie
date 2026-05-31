@@ -206,6 +206,24 @@ Consequences (no separate change needed):
 | F11 | remove stale broker-retry config from execution helm chart | P2 | DONE |
 | F12 | expose F5/F6 config knobs (queue, reconcile interval) in charts | P2 | DONE |
 | F-MS1 | multi-symbol TA ran sequentially -> never completed; now bounded-concurrent | P0 | DONE |
+| F-MS4 | gateway read non-existent SnD candidate zone fields -> OBUpper/OBLower=0, INSTANT fast-path dead | P1 | DONE |
+
+### F-MS4 (P1) — SnD candidate zone fields read by wrong name
+In `processSymbol` (`src/gateway/internal/pipeline/orchestrator.go`) the SnD
+branch of the candidate-parameter injection read `ob_upper`/`ob_lower` then
+fell back to `zone_upper`/`zone_lower`. None of those keys exist on the
+`SnDCandidate` model that is `model_dump()`-serialized into the gateway's
+candidate dicts (verified in `src/engine/ta/models/candidate.py`): the real
+fields are `supply_zone_upper`/`supply_zone_lower` (bearish) and
+`demand_zone_upper`/`demand_zone_lower` (bullish). `zone_upper`/`zone_lower`
+only exist on `TechnicalCandidate`, which is NOT what reaches the gateway.
+Result: `OBUpper`/`OBLower` stayed 0 for every SnD setup, so INSTANT-mode
+execution's `tryConfirmAndFire` could not use the ~100ms
+`/internal/ta/confirm_ltf` fast-path and fell back to the ~5s full TA
+pipeline on every confirmation poll. The SMC branch was already correct
+(`order_block_upper`/`order_block_lower` match the model).
+**Fix:** read `supply_zone_*` first, `demand_zone_*` otherwise, mirroring the
+Python model's `to_technical_candidate()` resolution.
 
 Update this table as each fix lands. Each commit references its finding ID.
 
