@@ -328,7 +328,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 		}, nil
 	}
 
-	// Step 6: Audit + notify + idempotency.
+	// Step 6: Audit + notify.
 	s.audit.LogOrderPlaced(ctx, order)
 
 	modeLabel := "Limit order placed"
@@ -348,10 +348,6 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 			"execution_mode": string(order.ExecutionMode),
 			"analysis_id":    order.AnalysisID,
 		}))
-
-	if analysisID != "" {
-		s.markProcessed(analysisID)
-	}
 
 	elapsed := time.Since(start).Seconds()
 	observability.ExecutionDuration.Observe(elapsed)
