@@ -264,7 +264,13 @@ Step plan (each = one commit):
       or wire them; reconcile 30/45 style values with gateway.
   S11 update tracker -> DONE; final consistency pass.
 
-Progress marker: COMPLETED S1. NEXT: S2.
+Progress marker: COMPLETED S1, S2 (news.go evaluator), S3 (decision-time guard
+rewired + symbol threaded + Is247Market consolidated + unused import dropped).
+NEXT: S4 (INSTANT fire-time news gate in RunConfirmationPulseWithParams).
+
+Pending cleanup for S11: querybuilder/exports.go header comment still says its
+consumer is routing/guards.go (checkNewsProximity); the real consumer is now
+routing/news.go (EvaluateNewsWindow). Update the comment, do not change code.
 
 Update this table as each fix lands. Each commit references its finding ID.
 
