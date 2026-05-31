@@ -225,6 +225,47 @@ pipeline on every confirmation poll. The SMC branch was already correct
 **Fix:** read `supply_zone_*` first, `demand_zone_*` otherwise, mirroring the
 Python model's `to_technical_candidate()` resolution.
 
+| N1 | news lockout bypassed for delayed activation (INSTANT watcher + LIMIT TTL) | P0 | IN PROGRESS |
+| N2 | news guard ignores event currency -> over-blocks unrelated pairs | P1 | IN PROGRESS |
+| N3 | news guard fails-open silently when calendar data absent | P2 | IN PROGRESS |
+| N4 | is247Market duplicated across gateway + execution | P2 | IN PROGRESS |
+
+## NEWS PROTECTION (N1-N4) DESIGN + STEP PLAN
+
+Problem (verified): MR-REJECT-001 only runs at gateway decision time. But
+LIMIT orders rest at the broker for the full style TTL (Swing ~3d, Positional
+~7d per LimitTTLCandlesByStyle) and INSTANT watchers poll for up to the same
+window (WatcherTimeoutMinutesByStyle). So a setup that passes the 30-min gate
+at decision time can fill / fire directly into a high-impact event. The
+execution-side check4NewsLockout is a wired no-op. The gateway guard also
+ignores event currency (over-blocks) and fails open silently on missing
+calendar data. Gateway uses flat 30m; execution constants intend style-aware
+30m/45m (NewsLockoutMinutesNormal/Scalping) but never use them.
+
+Design: single currency-aware, style-aware, fail-CLOSED news evaluator in the
+gateway routing package = the one source of truth, reused at (a) decision
+time, (b) INSTANT fire time via RunConfirmationPulseWithParams, (c) LIMIT/
+placement time via a new gateway RPC CheckNewsWindow that execution calls.
+
+Step plan (each = one commit):
+  S1 [done] docs plan + tracker.
+  S2 gateway routing/news.go: ParseSymbolCurrencies, consolidated Is247Market,
+     NewsWindowStatus evaluator (currency+style aware, DataAvailable flag).
+  S3 rewrite checkHighImpactEventProximity to use evaluator (N2+N3 at decision
+     time); style-aware lockout; replace gateway Is247Market dupes (N4).
+  S4 orchestrator.RunConfirmationPulseWithParams: news gate before LTF confirm
+     (N1 INSTANT). Needs macroCollector handle + trading style on params.
+  S5 proto: gateway.proto add CheckNewsWindow rpc + messages; regenerate note.
+  S6 gateway grpc_server.go: implement CheckNewsWindow handler.
+  S7 execution watcher: GatewayPort.CheckNewsWindow + gateway_client impl.
+  S8 execution runLimitTTL: cancel resting order when news imminent (N1 LIMIT).
+  S9 execution check4NewsLockout: real placement-time check via gateway (N1).
+  S10 execution: consolidate is247Market (N4), remove unused NewsLockout consts
+      or wire them; reconcile 30/45 style values with gateway.
+  S11 update tracker -> DONE; final consistency pass.
+
+Progress marker: COMPLETED S1. NEXT: S2.
+
 Update this table as each fix lands. Each commit references its finding ID.
 
 All five findings landed on branch `audit/execution-management-hardening`.
