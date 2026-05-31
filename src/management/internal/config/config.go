@@ -54,6 +54,11 @@ type Config struct {
 	// Used to check 4H/1D candle closes for invalidation logic.
 	CandlePollIntervalSecs int `envconfig:"CANDLE_POLL_INTERVAL_SECS" default:"60"`
 
+	// How often the reconciler supervisor re-evaluates the active-user
+	// set, starting reconcilers for newly-active users and stopping
+	// them for deactivated ones (seconds).
+	ReconcileIntervalSecs int `envconfig:"RECONCILE_INTERVAL_SECS" default:"60"`
+
 	// Database (trade journal, analytics, trade state).
 	DatabaseURL         string `envconfig:"DATABASE_URL" required:"true"`
 	DatabaseMaxConns    int    `envconfig:"DATABASE_MAX_CONNS" default:"10"`
@@ -151,6 +156,9 @@ func (c *Config) validate() error {
 	}
 	if c.CandlePollIntervalSecs < 10 || c.CandlePollIntervalSecs > 600 {
 		return fmt.Errorf("CANDLE_POLL_INTERVAL_SECS must be 10..600, got %d", c.CandlePollIntervalSecs)
+	}
+	if c.ReconcileIntervalSecs < 10 || c.ReconcileIntervalSecs > 600 {
+		return fmt.Errorf("RECONCILE_INTERVAL_SECS must be 10..600, got %d", c.ReconcileIntervalSecs)
 	}
 
 	if c.DatabaseURL == "" {
