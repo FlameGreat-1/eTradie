@@ -10,6 +10,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
@@ -354,6 +355,15 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	order.StatusJWT = claims.Status
 	order.AuthToken = auth.RawTokenFromContext(ctx)
 
+	// Section 1/3 (CHECKLIST): stamp the gateway-supplied idempotency
+	// key so the executor's (UserID, IdempotencyKey) claim matches
+	// across RPC retries. The gateway sets x-idempotency-key to the
+	// analysis_id (or a fresh UUID when absent). When the header is
+	// missing (direct caller), the executor falls back to OrderID.
+	if idemKey := incomingIdempotencyKey(ctx); idemKey != "" {
+		order.IdempotencyKey = idemKey
+	}
+
 	// Step 5: Execute.
 	execResult, err := s.executor.Execute(ctx, order)
 	if err != nil {
@@ -556,6 +566,23 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv
 		PendingOrders:     protoPending,
 		TraceId:           req.GetTraceId(),
 	}, nil
+}
+
+// incomingIdempotencyKey extracts the x-idempotency-key value from the
+// inbound gRPC metadata. Returns "" when no metadata or no key is
+// present. gRPC lower-cases metadata keys, so the lookup uses the
+// canonical lower-case form the gateway writes
+// (metadata.AppendToOutgoingContext(ctx, "x-idempotency-key", ...)).
+func incomingIdempotencyKey(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	vals := md.Get("x-idempotency-key")
+	if len(vals) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(vals[0])
 }
 
 func validateRequest(req *executionv1.ExecuteTradeRequest) error {
