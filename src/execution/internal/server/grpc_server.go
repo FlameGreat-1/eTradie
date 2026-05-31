@@ -143,16 +143,6 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	}
 
 	analysisID := req.GetAnalysisId()
-	if analysisID != "" && s.isDuplicate(analysisID) {
-		s.log.Warn().Str("analysis_id", analysisID).Str("trace_id", traceID).Msg("duplicate_analysis_id")
-		return &executionv1.ExecuteTradeResponse{
-			Accepted:        false,
-			Status:          string(constants.StatusRejected),
-			RejectionReason: "duplicate analysis_id: already processed",
-			AnalysisId:      analysisID,
-			TraceId:         traceID,
-		}, nil
-	}
 
 	s.log.Info().
 		Str("symbol", req.GetSymbol()).
