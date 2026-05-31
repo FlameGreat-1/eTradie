@@ -161,6 +161,33 @@ ignores unknown env vars so this does not break boot, but it is dead,
 misleading config implying the broker still retries placement. Removed from
 all three files.
 
+### F-MS1 (P0) - Multiple-symbol analysis ran sequentially and never completed
+Reported symptom: selecting multiple instruments makes the analysis "keep
+running each one over and over and never complete"; RAG + LLM are never
+reached. Traced end to end:
+  - Gateway TACollector sends ALL symbols in ONE POST to /internal/ta/analyze,
+    wrapped in parallelCtx = TA_MACRO_PARALLEL_TIMEOUT_SECONDS (120s default).
+  - The engine handler ran `for symbol in body.symbols: await analyze(...)` -
+    strictly SEQUENTIAL. N symbols took N x single-symbol time.
+  - With real MT5 data (multi-timeframe candle fetch over ZMQ + SMC/SnD
+    detection) 4 symbols exceed 120s, so the gateway's TA HTTP call hits the
+    parallelCtx deadline.
+  - runSingleAttempt sets shouldRetry=true -> RunCycle retries the WHOLE cycle
+    (MaxCycleRetries default 1) and re-POSTs all symbols from scratch. Phase 2+
+    (RAG/LLM) is never reached. Exactly the reported loop.
+  - TA_MAX_CONCURRENT_SYMBOL_ANALYSIS (TAConfig.max_concurrent_symbol_analysis,
+    default 4) existed but was NEVER applied at this fan-out.
+**Fix:** engine analyzes symbols via asyncio.gather bounded by an
+asyncio.Semaphore(max_concurrent_symbol_analysis); per-symbol try/except
+preserved; order preserved. Gateway comment corrected.
+Consequences (no separate change needed):
+  - F-MS2 (timeout premise): the gateway budget-validation comment assumed
+    concurrent per-symbol processing; that assumption is now actually true for
+    TA, so the 120s budget is correctly sized for the default 4/4 case.
+  - F-MS3 (retry amplification): a TA timeout now indicates a genuine broker
+    problem rather than structural sequential slowness, so the single cycle
+    retry is appropriate and is no longer triggered by normal multi-symbol use.
+
 ## PROGRESS TRACKER
 
 | ID | Title | Severity | Status |
@@ -178,6 +205,7 @@ all three files.
 
 | F11 | remove stale broker-retry config from execution helm chart | P2 | DONE |
 | F12 | expose F5/F6 config knobs (queue, reconcile interval) in charts | P2 | DONE |
+| F-MS1 | multi-symbol TA ran sequentially -> never completed; now bounded-concurrent | P0 | DONE |
 
 Update this table as each fix lands. Each commit references its finding ID.
 

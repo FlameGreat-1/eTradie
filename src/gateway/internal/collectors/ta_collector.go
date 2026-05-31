@@ -54,7 +54,8 @@ func taCacheKey(userID string, symbols []string) string {
 }
 
 // Collect runs TA analysis for the given symbols via a single HTTP call
-// to the Python engine. The Python side processes them in parallel.
+// to the Python engine, which analyzes them concurrently bounded by
+// TA_MAX_CONCURRENT_SYMBOL_ANALYSIS.
 func (c *TACollector) Collect(ctx context.Context, symbols []string, traceID string, bypassCache bool) (*models.TAResult, error) {
 	if len(symbols) == 0 {
 		c.log.Warn().Str("trace_id", traceID).Msg("ta_collect_called_with_empty_symbols")
