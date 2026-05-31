@@ -86,10 +86,10 @@ reconciler exists per active broker'd user. Tracked, not yet landed.
 
 | ID | Title | Severity | Status |
 |----|-------|----------|--------|
-| F1 | xmax claim rewrite | P0 | TODO |
-| F2 | idempotency-key propagation | P0 | TODO |
-| F3 | INSTANT-mode idempotency | P0 | TODO |
-| F4 | StatusDuplicate constant | P1 | TODO |
+| F1 | xmax claim rewrite | P0 | DONE |
+| F2 | idempotency-key propagation | P0 | DONE |
+| F3 | INSTANT-mode idempotency | P0 | DONE |
+| F4 | StatusDuplicate constant | P1 | DONE |
 | F5 | management post-boot reconciler supervisor | P1 | INVESTIGATING |
 
 Update this table as each fix lands. Each commit references its finding ID.
