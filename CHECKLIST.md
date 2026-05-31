@@ -1,300 +1,379 @@
 
 
-Below is a **production-grade readiness checklist** for self-hosted MT4/MT5 (Wine-based or terminal-based) trading infrastructure.
+Since you've separated:
 
-This is the engineering spec for the team to work from.
+* **MT5 = broker adapter**
+* **Python = intelligence/analysis**
+* **Go Execution Service = order execution**
+* **Go Management Service = account/position management**
 
----
+your next major risk is no longer MT5.
 
-# 🧠 1. CORE MT TERMINAL STABILITY LAYER (CRITICAL)
+It is:
 
-These are non-negotiable before self-hosting.
+> **Trade correctness and state consistency.**
 
-### Terminal lifecycle stability
+In trading systems, a server crash is annoying.
 
-* [ ] MT4/MT5 terminals start reliably (100% automated boot)
-* [ ] Terminals auto-restart on crash
-* [ ] No manual intervention required to recover terminals
-* [ ] Persistent session recovery after VPS reboot
-* [ ] Graceful shutdown handling (no corrupted state)
-
----
-
-### Memory stability
-
-* [ ] No memory leaks in Wine + MT terminal over 24–72h uptime
-* [ ] Memory usage per terminal is bounded (hard limits enforced)
-* [ ] Automatic restart if memory exceeds threshold (watchdog)
-* [ ] Garbage process cleanup (zombie MT/Wine processes)
+A duplicated trade, missing trade, stale position, or incorrect account state can be catastrophic.
 
 ---
 
-### CPU stability
-
-* [ ] Indicator recalculation spikes do not freeze system
-* [ ] CPU throttling per terminal is enforced
-* [ ] Load balancing across cores (no core starvation)
-
----
-
-# 🔌 2. BROKER CONNECTIVITY & RESILIENCE
-
-This is where most self-host systems fail.
-
-### Connection stability
-
-* [ ] Automatic reconnection on broker disconnect
-* [ ] Detection of “silent disconnect” (no data but socket alive)
-* [ ] Heartbeat system per MT terminal
-* [ ] Re-login automation on session expiry
-
----
-
-### Market data integrity
-
-* [ ] No tick data loss during reconnect
-* [ ] No duplicated ticks after reconnection
-* [ ] Price feed validation layer (anti-stale pricing detection)
-
----
-
-### Multi-broker handling
-
-* [ ] Broker-specific configuration isolation
-* [ ] No cross-broker contamination (logs, cache, symbols)
-* [ ] Symbol mapping consistency layer
-
----
-
-# ⚙️ 3. EXECUTION ENGINE RELIABILITY
-
-This is your “money layer”.
-
-### Order execution correctness
-
-* [ ] No duplicate orders (idempotency layer)
-* [ ] Order confirmation verification system
-* [ ] Retry logic with backoff (not blind retries)
-* [ ] Partial fill handling correctly implemented
-
----
-
-### Latency handling
-
-* [ ] Execution latency measured per order
-* [ ] Orders rejected if latency exceeds threshold
-* [ ] Queue system for bursts (no execution storm collapse)
-
----
-
-### Failure handling
-
-* [ ] Failed orders logged with full context
-* [ ] Automatic reconciliation system (sync broker vs system state)
-* [ ] Trade state recovery after crash
-
----
-
-# 🧩 4. EA (EXPERT ADVISOR) STABILITY
-
-This is often overlooked — and very dangerous.
-
-### EA lifecycle
-
-* [ ] EA auto-restarts after terminal restart
-* [ ] EA state persistence (no loss of strategy state)
-* [ ] No duplicate EA instances per chart
-
----
-
-### EA desync prevention
-
-* [ ] Detect EA vs backend signal mismatch
-* [ ] Periodic state reconciliation between EA and backend
-* [ ] Kill-switch if EA diverges from expected logic
-
----
-
-### Strategy execution integrity
-
-* [ ] Deterministic signal handling (same input = same action)
-* [ ] No race conditions between multiple signals
-* [ ] Time synchronization (critical for trading logic)
-
----
-
-# 🧠 5. SYSTEM SCALING & LOAD CONTROL
-
-This is where your earlier assumptions break.
-
-### Load isolation
-
-* [ ] One MT terminal cannot affect another
-* [ ] Resource isolation per user (cgroups or equivalent)
-* [ ] No shared memory corruption risk
-
----
-
-### Scaling behavior
-
-* [ ] Predictable resource usage per new user
-* [ ] No exponential CPU spikes under load
-* [ ] No cascading failure when 1 terminal crashes
-
----
-
-### Burst handling
-
-* [ ] Market open / news spike handling
-* [ ] Order burst queue system
-* [ ] Backpressure control on execution engine
-
----
-
-# 🧱 6. INFRASTRUCTURE RELIABILITY
-
-### Process management
-
-* [ ] Supervisor system (systemd / custom orchestrator)
-* [ ] Auto-healing system for crashed containers/processes
-* [ ] Health checks per terminal
-
----
-
-### Observability
-
-* [ ] Real-time logs per MT instance
-* [ ] Centralized log aggregation
-* [ ] Metrics per:
-
-  * CPU per terminal
-  * memory per terminal
-  * execution latency
-  * trade success/failure rate
-
----
-
-### Alerting
-
-* [ ] Alerts for:
-
-  * terminal crash
-  * broker disconnect
-  * order failure spike
-  * memory leak detection
-  * latency spike
-
----
-
-# 💾 7. DATA CONSISTENCY & STATE MANAGEMENT
-
-### Trade state integrity
-
-* [ ] Single source of truth for positions
-* [ ] Broker vs system reconciliation loop
-* [ ] No “ghost positions”
-
----
-
-### Persistence layer
-
-* [ ] All trades logged immutably
-* [ ] Replay capability (audit + debugging)
-* [ ] Recovery after full system restart
-
----
-
-# 🧯 8. FAILURE RECOVERY SYSTEM (MOST IMPORTANT)
-
-This is what separates production systems from hobby systems.
-
-### Crash recovery
-
-* [ ] Full system restart recovery (all terminals restored)
-* [ ] Partial system recovery (only failed nodes restart)
-* [ ] No manual repair required for normal failures
-
----
-
-### Disaster scenarios
-
-* [ ] VPS reboot recovery tested
-* [ ] Network outage recovery tested
-* [ ] Broker outage recovery tested
-* [ ] Corrupted terminal recovery tested
-
----
-
-# 🔐 9. SECURITY & ISOLATION
-
-### Credential security
-
-* [ ] MT credentials encrypted at rest
-* [ ] No plain-text broker credentials in logs
-* [ ] Secure secret rotation capability
-
----
-
-### Tenant isolation
-
-* [ ] Users cannot interfere with each other’s terminals
-* [ ] No cross-user data leakage
-* [ ] No shared execution state
-
----
-
-# 🧪 10. TESTING & SIMULATION (CRITICAL BEFORE GOING LIVE)
-
-You MUST simulate real stress:
-
-### Load testing
-
-* [ ] 10 → 50 → 100 MT terminals simulation
-* [ ] Market open spike simulation
-* [ ] News event volatility simulation
-
----
-
-### Chaos testing
-
-* [ ] Kill random MT terminals
-* [ ] Simulate broker disconnection
-* [ ] Simulate CPU starvation
-* [ ] Simulate memory exhaustion
-
----
-
-### Recovery testing
-
-* [ ] Full VPS reboot test
-* [ ] Docker restart test
-* [ ] Network cut test
-
----
-
-# 🧭 FINAL REALITY CHECK
-
-If even ONE of these is weak:
-
-```text id="k9z1aa"
-your system will fail under real trading conditions
+# 🎯 PRODUCTION-GRADE EXECUTION ENGINE READINESS CHECKLIST
+
+The Execution Service has one responsibility:
+
+```text
+Receive an approved trade instruction
+→ Execute it exactly once
+→ Verify result
+→ Persist outcome
 ```
 
-Not because your code is bad —
-but because MT + Wine + real brokers are inherently unstable systems.
+Nothing more.
 
 ---
 
-# 🧠 SIMPLE WAY TO THINK ABOUT IT
+# 1. ORDER CORRECTNESS (HIGHEST PRIORITY)
 
-Before self-hosting, your system must be able to answer YES to:
+### Idempotency
 
-> “Can this system survive chaos without human intervention?”
+* [ ] Every order has a globally unique execution ID
+* [ ] Same order cannot execute twice
+* [ ] Duplicate requests are detected
+* [ ] Retry logic cannot create duplicate positions
+* [ ] Network retries are idempotent
 
-If the answer is not YES, then MetaApi is still the safer choice.
+---
+
+### Order Validation
+
+Before execution:
+
+* [ ] Account connected
+* [ ] Symbol tradable
+* [ ] Market open
+* [ ] Margin sufficient
+* [ ] Risk checks passed
+* [ ] Position limits respected
+* [ ] Account permissions validated
+
+---
+
+### Execution Confirmation
+
+After sending order:
+
+* [ ] Verify broker acknowledgement
+* [ ] Verify ticket received
+* [ ] Verify order actually exists
+* [ ] Verify execution volume matches request
+* [ ] Verify stop loss attached
+* [ ] Verify take profit attached
+
+Never assume success.
+
+---
+
+# 2. EXECUTION RELIABILITY
+
+### Retry Strategy
+
+* [ ] Exponential backoff
+* [ ] Retry limits
+* [ ] Different handling for permanent vs transient failures
+* [ ] Dead-letter queue for unresolved failures
+
+---
+
+### Network Failure Handling
+
+* [ ] Detect MT adapter disconnect
+* [ ] Detect ZeroMQ disconnect
+* [ ] Detect broker timeout
+* [ ] Detect partial message delivery
+* [ ] Automatic recovery procedures
+
+---
+
+### Crash Recovery
+
+* [ ] Recover pending orders after restart
+* [ ] Resume execution queue
+* [ ] Reconcile incomplete transactions
+* [ ] No manual intervention required
+
+---
+
+# 3. LATENCY ENGINEERING
+
+### Metrics
+
+Track:
+
+* [ ] Analysis → execution latency
+* [ ] Execution queue wait time
+* [ ] MT adapter latency
+* [ ] Broker acknowledgement latency
+* [ ] Trade completion latency
+
+---
+
+### Protection
+
+* [ ] Latency alerts
+* [ ] Queue depth monitoring
+* [ ] Circuit breakers
+* [ ] Backpressure controls
+
+---
+
+# 4. EXECUTION AUDIT TRAIL
+
+Every trade must be traceable.
+
+---
+
+### Immutability
+
+* [ ] Audit records never modified
+* [ ] Append-only history
+* [ ] Full replay capability
+
+---
+
+# 5. ORDER STATE MACHINE
+
+Every order should move through explicit states.
+
+
+* [ ] No ambiguous state
+* [ ] State transitions validated
+* [ ] State history preserved
+
+---
+
+# 🎯 PRODUCTION-GRADE MANAGEMENT ENGINE READINESS CHECKLIST
+
+The Management Service is your source of truth.
+
+It answers:
+
+```text
+What does this account currently look like?
+```
+
+---
+
+# 1. POSITION CONSISTENCY
+
+The biggest risk.
+
+---
+
+### Continuous Reconciliation
+
+Regularly compare:
+
+```text
+Broker state
+vs
+Internal state
+```
+
+for:
+
+* [ ] Open positions
+* [ ] Pending orders
+* [ ] Balance
+* [ ] Equity
+* [ ] Margin
+* [ ] Free margin
+
+---
+
+### Drift Detection
+
+Detect:
+
+* [ ] Missing positions
+* [ ] Ghost positions
+* [ ] Duplicate positions
+* [ ] Incorrect volume
+* [ ] Incorrect SL/TP
+
+---
+
+### Automatic Recovery
+
+* [ ] Self-healing reconciliation
+* [ ] Forced refresh
+* [ ] Manual escalation path
+
+---
+
+# 2. ACCOUNT STATE MANAGEMENT
+
+Track:
+
+* [ ] Connection status
+* [ ] Last heartbeat
+* [ ] Broker status
+* [ ] Account health
+* [ ] Trading permissions
+* [ ] Leverage
+* [ ] Margin level
+
+---
+
+### Health Classification
+
+```text
+HEALTHY
+DEGRADED
+DISCONNECTED
+ERROR
+```
+
+
+# 3. RISK MANAGEMENT INTEGRATION
+
+Even if risk lives elsewhere:
+
+Management service must enforce:
+
+* [ ] Daily loss limits
+* [ ] Max open trades
+* [ ] Max exposure
+* [ ] Symbol exposure
+* [ ] Margin thresholds
+* [ ] Emergency stop rules
+
+---
+
+### Kill Switch
+
+Must support:
+
+* [ ] User-level kill switch
+* [ ] Strategy-level kill switch
+* [ ] Global kill switch
 
 ---
 
 
+# 4. OBSERVABILITY
 
+Metrics:
 
+---
+
+### Execution Service
+
+* [ ] Orders/sec
+* [ ] Execution latency
+* [ ] Failure rate
+* [ ] Retry count
+* [ ] Queue depth
+
+---
+
+### Management Service
+
+* [ ] Connected accounts
+* [ ] Reconciliation failures
+* [ ] State drift count
+* [ ] Account health status
+* [ ] Position sync latency
+
+---
+
+### Alerts
+
+Immediate alerts for:
+
+* [ ] Trade execution failures
+* [ ] Position drift
+* [ ] Account disconnect
+* [ ] Margin call risk
+* [ ] Queue backlog
+* [ ] Reconciliation failure
+
+---
+
+# 5. DISASTER RECOVERY
+
+Both services must survive:
+
+### Service Crash
+
+* [ ] Auto restart
+* [ ] Queue recovery
+* [ ] No lost trades
+
+---
+
+### Database Failure
+
+* [ ] Point-in-time recovery
+* [ ] Backups tested
+* [ ] Restore procedure documented
+
+---
+
+### VPS Reboot
+
+* [ ] Services auto-start
+* [ ] State restored
+* [ ] Reconciliation runs immediately
+
+---
+
+# 6. MULTI-TENANT SAFETY
+
+Since you're building a SaaS:
+
+* [ ] Tenant isolation
+* [ ] Account isolation
+* [ ] Position isolation
+* [ ] No cross-account execution
+* [ ] No cross-user visibility
+
+---
+
+# 9. SECURITY
+
+Execution service:
+
+* [ ] Request authentication
+* [ ] Request authorization
+* [ ] Signed internal messages
+* [ ] Replay attack protection
+
+---
+
+---
+
+# 🚨 THE THREE MOST IMPORTANT THINGS
+
+If I were reviewing this architecture before launch, I'd focus on these first:
+
+### 1. Reconciliation Engine
+
+Can the system always determine the true broker state after failures?
+
+---
+
+### 2. Idempotent Execution
+
+Can the system guarantee that one signal results in exactly one trade?
+
+---
+
+### 3. Recovery Automation
+
+Can the entire system recover from crashes without human intervention?
+
+---
+
+If those three are engineered correctly, you've eliminated the majority of catastrophic failure modes seen in retail trading platforms and moved much closer to production-grade trading infrastructure.
