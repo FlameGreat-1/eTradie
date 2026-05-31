@@ -89,6 +89,7 @@ const (
 	ReasonThesisChanged  CancelReason = "THESIS_CHANGED"
 	ReasonManual         CancelReason = "MANUAL"
 	ReasonTTLExpired     CancelReason = "TTL_EXPIRED"
+	ReasonNewsLockout    CancelReason = "NEWS_LOCKOUT"
 )
 
 // TradingStyle from Rulebook Section 2.4.
