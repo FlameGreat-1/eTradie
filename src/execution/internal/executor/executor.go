@@ -69,14 +69,22 @@ func (e *Executor) Execute(ctx context.Context, order *models.Order) (*models.Ex
 	}
 }
 
+// idempotencyKeyFor derives the idempotency key for an order: the
+// gateway-supplied key when present, otherwise the order's own ID.
+// Shared by placeLimit and handleInstant so both execution modes use
+// the identical (UserID, key) tuple.
+func idempotencyKeyFor(order *models.Order) string {
+	if order.IdempotencyKey != "" {
+		return order.IdempotencyKey
+	}
+	return order.OrderID
+}
+
 func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models.ExecutionResult, error) {
 	start := time.Now()
 
 	// ---- Section 3: idempotency claim ----
-	idemKey := order.IdempotencyKey
-	if idemKey == "" {
-		idemKey = order.OrderID
-	}
+	idemKey := idempotencyKeyFor(order)
 	if e.idempotency != nil {
 		claim, err := e.idempotency.TryClaim(ctx, &store.IdempotencyRecord{
 			UserID:         order.UserID,
@@ -231,11 +239,72 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 // handleInstant arms the watcher manager to monitor the entry zone.
 // The watcher autonomously polls tick prices, calls Gateway for LTF
 // confirmation, and fires the market order when conditions are met.
-func (e *Executor) handleInstant(_ context.Context, order *models.Order) (*models.ExecutionResult, error) {
+//
+// Section 1/3 (CHECKLIST): a duplicate submission must NOT arm a second
+// watcher (each watcher can independently fire a market order). The
+// same (UserID, IdempotencyKey) claim that protects limit orders is
+// applied here BEFORE arming. A duplicate short-circuits with
+// StatusDuplicate; the first claim records the WATCHING state so a
+// later duplicate sees it.
+func (e *Executor) handleInstant(ctx context.Context, order *models.Order) (*models.ExecutionResult, error) {
 	start := time.Now()
+
+	idemKey := idempotencyKeyFor(order)
+	if e.idempotency != nil {
+		claim, err := e.idempotency.TryClaim(ctx, &store.IdempotencyRecord{
+			UserID:         order.UserID,
+			IdempotencyKey: idemKey,
+			OrderID:        order.OrderID,
+			Symbol:         order.Symbol,
+			Direction:      string(order.Direction),
+			ExecutionMode:  string(order.ExecutionMode),
+			EntryPrice:     order.EntryPrice,
+			StopLoss:       order.StopLoss,
+			LotSize:        order.LotSize,
+		})
+		if err != nil {
+			// Store failure must not block trading - log and fall
+			// through to a non-idempotent arm, consistent with the
+			// limit path.
+			e.log.Warn().Err(err).Str("order_id", order.OrderID).Msg("idempotency_claim_failed_falling_through")
+		} else if !claim.FirstClaim && claim.Existing != nil {
+			ex := claim.Existing
+			e.log.Info().
+				Str("order_id", order.OrderID).
+				Str("idempotency_key", idemKey).
+				Str("existing_order_id", ex.OrderID).
+				Str("existing_status", ex.Status).
+				Msg("duplicate_instant_order_short_circuit_not_arming")
+			return &models.ExecutionResult{
+				Accepted:        true,
+				Status:          constants.StatusDuplicate,
+				RejectionReason: "duplicate idempotency key; watcher already armed for prior submission",
+				OrderID:         ex.OrderID,
+				Order:           order,
+			}, nil
+		}
+	}
 
 	// Arm the watcher — this spawns a background goroutine.
 	e.watcher.Arm(order)
+
+	// Record the WATCHING state on the idempotency row so a later
+	// duplicate sees a populated status. The broker_order_id is empty
+	// until the watcher fires; it is surfaced through the audit/
+	// reconciler path on fill. Best-effort: a failure here only costs
+	// observability on the duplicate, never blocks the armed watcher.
+	if e.idempotency != nil {
+		if rerr := e.idempotency.RecordResult(
+			context.Background(),
+			order.UserID,
+			idemKey,
+			order.BrokerOrderID,
+			string(constants.StatusWatching),
+			0, 0, 0,
+		); rerr != nil {
+			e.log.Warn().Err(rerr).Str("order_id", order.OrderID).Msg("idempotency_record_result_failed")
+		}
+	}
 
 	elapsed := time.Since(start).Seconds()
 	observability.OrderPlacementDuration.WithLabelValues("INSTANT").Observe(elapsed)
