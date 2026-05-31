@@ -8,9 +8,23 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker/mt5"
 	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 )
+
+// testSecret is a non-empty internal secret so the bridge does not
+// short-circuit construction; the mock server does not validate it.
+const testSecret = "test-internal-shared-secret-0000000000"
+
+// testCtx returns a context carrying a user identity, which the
+// bridge's stampInternalAuth requires to resolve the per-user broker.
+func testCtx() context.Context {
+	return auth.InjectIdentity(
+		context.Background(),
+		"test-user", "tester", auth.RoleUser, "pro_byok", "active",
+	)
+}
 
 // ---------------------------------------------------------------------------
 // GetAccountInfo
