@@ -528,7 +528,6 @@ func main() {
 	// Shutdown order: gRPC → watchers → HTTP → alerts → DB.
 	grpcServer.GracefulStop()
 	wm.Shutdown()
-	execServer.Close()
 	_ = httpServer.Shutdown(shutdownCtx)
 	_ = gwClient.Close()
 	alertTransport.Close()
