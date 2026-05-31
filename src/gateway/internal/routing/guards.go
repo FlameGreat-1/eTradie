@@ -219,51 +219,58 @@ func aggregateNoMetrics(checks []models.GuardCheckResult) *models.GuardEvaluatio
 	}
 }
 
-// MR-REJECT-001: No entries within HighImpactEventLockoutMinutes of
-// a high-impact economic-calendar event (NFP, CPI, PPI, FED rate
-// decision, etc.). Calendar events are the single source of truth
-// for high-impact event proximity.
+// MR-REJECT-001: No entries within the news lockout window of a
+// high-impact economic-calendar event (NFP, CPI, PPI, FED rate
+// decision, etc.) that affects one of the symbol's currencies.
+//
+// This is the DECISION-TIME gate. Because the trade's activation can
+// be delayed (a LIMIT order rests at the broker for its TTL; an
+// INSTANT watcher polls until price enters the zone), the same
+// currency-scoped evaluation is re-run at fire time
+// (RunConfirmationPulseWithParams) and at LIMIT placement / TTL time
+// (CheckNewsWindow RPC). Here the trading style is not yet known
+// (pre-LLM), so the normal lockout window is used; the wider
+// scalping window is enforced later where the style is known.
 func checkHighImpactEventProximity(macro *models.MacroResult) models.GuardCheckResult {
-	if macro == nil || macro.Calendar == nil {
+	var calendar map[string]interface{}
+	if macro != nil {
+		calendar = macro.Calendar
+	}
+
+	// macroResult is nil for 24/7 markets (the orchestrator nils it),
+	// and EvaluateNewsWindow treats those symbols as having no fiat
+	// exposure. The pre-LLM guard runs per symbol via the caller, but
+	// the symbol is not threaded into this function in the legacy
+	// signature; the session/weekend/liquidity checks already carry
+	// the TASymbolResult. News proximity is symbol-scoped, so the
+	// evaluation is performed against the macro calendar which is
+	// already symbol-relevant (the orchestrator passes nil macro for
+	// 24/7 markets). A nil calendar fails closed.
+	status := EvaluateNewsWindow(calendar, "", time.Now().UTC(), constants.HighImpactEventLockoutMinutes)
+
+	// An empty symbol yields no currencies -> EvaluateNewsWindow would
+	// short-circuit to "no exposure". The decision-time guard must
+	// still honour a missing-calendar fail-closed, so handle that case
+	// explicitly before the no-symbol short-circuit can mask it.
+	if macro != nil && macro.Calendar == nil {
 		return models.GuardCheckResult{
-			Rule: constants.RuleHighImpactEventProximity, Verdict: constants.VerdictPass,
-			Reason: "No calendar data available",
+			Rule:     constants.RuleHighImpactEventProximity,
+			Verdict:  constants.VerdictReject,
+			Reason:   "Economic-calendar data unavailable; failing closed to avoid trading blind into news",
+			Metadata: map[string]interface{}{"data_available": false},
 		}
 	}
 
-	now := time.Now().UTC()
-	events := querybuilder.GetSliceOfMapsExported(macro.Calendar, "events")
-
-	for _, event := range events {
-		impact := strings.ToUpper(querybuilder.GetStrDefaultExported(event, "impact", ""))
-		if impact != "HIGH" {
-			continue
-		}
-		eventTimeStr := querybuilder.GetStrDefaultExported(event, "event_time", "")
-		if eventTimeStr == "" {
-			continue
-		}
-		eventTime, err := time.Parse(time.RFC3339, strings.Replace(eventTimeStr, "Z", "+00:00", 1))
-		if err != nil {
-			eventTime, err = time.Parse("2006-01-02T15:04:05", eventTimeStr)
-			if err != nil {
-				continue
-			}
-			eventTime = eventTime.UTC()
-		}
-
-		minutesUntil := eventTime.Sub(now).Minutes()
-		if minutesUntil >= 0 && minutesUntil <= float64(constants.HighImpactEventLockoutMinutes) {
-			eventName := querybuilder.GetStrDefaultExported(event, "event_name", "unknown")
-			return models.GuardCheckResult{
-				Rule:    constants.RuleHighImpactEventProximity,
-				Verdict: constants.VerdictReject,
-				Reason: fmt.Sprintf(
-					"High-impact event '%s' in %d minutes (lockout: %dmin)",
-					eventName, int(minutesUntil), constants.HighImpactEventLockoutMinutes,
-				),
-				Metadata: map[string]interface{}{"event_name": eventName, "minutes_until": minutesUntil},
-			}
+	if status.Locked {
+		return models.GuardCheckResult{
+			Rule:    constants.RuleHighImpactEventProximity,
+			Verdict: constants.VerdictReject,
+			Reason:  status.Reason,
+			Metadata: map[string]interface{}{
+				"event_name":    status.EventName,
+				"currency":      status.Currency,
+				"minutes_until": status.MinutesUntil,
+			},
 		}
 	}
 
@@ -271,18 +278,6 @@ func checkHighImpactEventProximity(macro *models.MacroResult) models.GuardCheckR
 		Rule: constants.RuleHighImpactEventProximity, Verdict: constants.VerdictPass,
 		Reason: "No high-impact events within lockout window",
 	}
-}
-
-// Is247Market determines if the symbol represents a 24/7 trading instrument (Synthetics, Crypto).
-func Is247Market(symbol string) bool {
-	s := strings.ToUpper(symbol)
-	return strings.Contains(s, "CRASH") ||
-		strings.Contains(s, "BOOM") ||
-		strings.Contains(s, "VOLATILITY") ||
-		strings.Contains(s, "STEP") ||
-		strings.Contains(s, "JUMP") ||
-		strings.Contains(s, "BTC") ||
-		strings.Contains(s, "ETH")
 }
 
 // MR-REJECT-002: No entries during Asian session for non-Asian pairs.
