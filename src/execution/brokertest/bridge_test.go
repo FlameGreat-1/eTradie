@@ -35,9 +35,9 @@ func TestBridge_GetAccountInfo(t *testing.T) {
 	defer srv.Close()
 
 	srv.AccountInfoResponse = AccountInfoFixture()
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
-	info, err := bridge.GetAccountInfo(context.Background())
+	info, err := bridge.GetAccountInfo(testCtx())
 
 	require.NoError(t, err)
 	require.NotNil(t, info)
@@ -55,9 +55,9 @@ func TestBridge_GetAccountInfo_BrokerUnavailable(t *testing.T) {
 
 	srv.AccountInfoResponse = map[string]interface{}{"detail": "Broker unavailable"}
 	srv.AccountInfoStatusCode = 502
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
-	_, err := bridge.GetAccountInfo(context.Background())
+	_, err := bridge.GetAccountInfo(testCtx())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "502")
@@ -72,9 +72,9 @@ func TestBridge_GetPositions(t *testing.T) {
 	defer srv.Close()
 
 	srv.PositionsResponse = PositionsFixture()
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
-	positions, err := bridge.GetPositions(context.Background())
+	positions, err := bridge.GetPositions(testCtx())
 
 	require.NoError(t, err)
 	require.Len(t, positions, 1)
@@ -99,9 +99,9 @@ func TestBridge_GetPositions_Empty(t *testing.T) {
 	defer srv.Close()
 
 	srv.PositionsResponse = []map[string]interface{}{}
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
-	positions, err := bridge.GetPositions(context.Background())
+	positions, err := bridge.GetPositions(testCtx())
 
 	require.NoError(t, err)
 	assert.Empty(t, positions)
@@ -116,9 +116,9 @@ func TestBridge_GetPendingOrders(t *testing.T) {
 	defer srv.Close()
 
 	srv.PendingOrdersResponse = PendingOrdersFixture()
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
-	orders, err := bridge.GetPendingOrders(context.Background())
+	orders, err := bridge.GetPendingOrders(testCtx())
 
 	require.NoError(t, err)
 	require.Len(t, orders, 1)
@@ -146,9 +146,9 @@ func TestBridge_GetInstrumentInfo(t *testing.T) {
 	defer srv.Close()
 
 	srv.SymbolInfoResponse = SymbolInfoFixture()
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
-	info, err := bridge.GetInstrumentInfo(context.Background(), "EURUSD")
+	info, err := bridge.GetInstrumentInfo(testCtx(), "EURUSD")
 
 	require.NoError(t, err)
 	require.NotNil(t, info)
@@ -193,9 +193,9 @@ func TestBridge_GetInstrumentInfo_JPYPair(t *testing.T) {
 		"trade_tick_value":    6.67, // Approximate for USDJPY on USD account.
 		"trade_tick_size":     0.001,
 	}
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
-	info, err := bridge.GetInstrumentInfo(context.Background(), "USDJPY")
+	info, err := bridge.GetInstrumentInfo(testCtx(), "USDJPY")
 
 	require.NoError(t, err)
 	// USDJPY: 3-digit. pipPointRatio=10 (digits > 2).
@@ -215,9 +215,9 @@ func TestBridge_GetTickPrice(t *testing.T) {
 	defer srv.Close()
 
 	srv.TickPriceResponse = TickPriceFixture()
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
-	tick, err := bridge.GetTickPrice(context.Background(), "EURUSD")
+	tick, err := bridge.GetTickPrice(testCtx(), "EURUSD")
 
 	require.NoError(t, err)
 	require.NotNil(t, tick)
@@ -240,7 +240,7 @@ func TestBridge_PlaceLimitOrder(t *testing.T) {
 	defer srv.Close()
 
 	srv.PlaceOrderResponse = PlaceOrderSuccessFixture()
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
 	order := &models.OrderPlacement{
 		Symbol:     "EURUSD",
@@ -253,7 +253,7 @@ func TestBridge_PlaceLimitOrder(t *testing.T) {
 		Comment:    "SMC-EURUSD-H4-001",
 	}
 
-	result, err := bridge.PlaceLimitOrder(context.Background(), order)
+	result, err := bridge.PlaceLimitOrder(testCtx(), order)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -283,7 +283,7 @@ func TestBridge_PlaceMarketOrder_Filled(t *testing.T) {
 	defer srv.Close()
 
 	srv.PlaceOrderResponse = PlaceOrderFilledFixture()
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
 	order := &models.OrderPlacement{
 		Symbol:     "EURUSD",
@@ -296,7 +296,7 @@ func TestBridge_PlaceMarketOrder_Filled(t *testing.T) {
 		Comment:    "SMC-EURUSD-H4-001",
 	}
 
-	result, err := bridge.PlaceMarketOrder(context.Background(), order)
+	result, err := bridge.PlaceMarketOrder(testCtx(), order)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -317,7 +317,7 @@ func TestBridge_PlaceOrder_Rejected(t *testing.T) {
 	defer srv.Close()
 
 	srv.PlaceOrderResponse = PlaceOrderRejectedFixture()
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
 	order := &models.OrderPlacement{
 		Symbol:    "EURUSD",
@@ -327,7 +327,7 @@ func TestBridge_PlaceOrder_Rejected(t *testing.T) {
 		LotSize:   100.0, // Huge lot -> insufficient margin.
 	}
 
-	result, err := bridge.PlaceLimitOrder(context.Background(), order)
+	result, err := bridge.PlaceLimitOrder(testCtx(), order)
 
 	// The bridge does NOT return an error for rejected orders;
 	// it returns the result with Status="REJECTED" and ErrorMessage set.
@@ -346,9 +346,9 @@ func TestBridge_CancelOrder_Success(t *testing.T) {
 	defer srv.Close()
 
 	srv.CancelOrderResponse = CancelOrderSuccessFixture()
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
-	err := bridge.CancelOrder(context.Background(), "87654321")
+	err := bridge.CancelOrder(testCtx(), "87654321")
 
 	require.NoError(t, err)
 
@@ -363,9 +363,9 @@ func TestBridge_CancelOrder_NotFound(t *testing.T) {
 	defer srv.Close()
 
 	srv.CancelOrderResponse = CancelOrderFailFixture()
-	bridge := mt5.NewBridge(srv.URL(), 5000)
+	bridge := mt5.NewBridge(srv.URL(), 5000, testSecret)
 
-	err := bridge.CancelOrder(context.Background(), "99999999")
+	err := bridge.CancelOrder(testCtx(), "99999999")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Order not found")
