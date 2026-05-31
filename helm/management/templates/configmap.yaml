@@ -17,6 +17,7 @@ data:
   MANAGEMENT_MOCK_BROKER_BALANCE: {{ .Values.config.management.mockBrokerBalance | quote }}
   MANAGEMENT_TICK_POLL_INTERVAL_MS: {{ .Values.config.management.tickPollIntervalMs | quote }}
   MANAGEMENT_CANDLE_POLL_INTERVAL_SECS: {{ .Values.config.management.candlePollIntervalSecs | quote }}
+  MANAGEMENT_RECONCILE_INTERVAL_SECS: {{ .Values.config.management.reconcileIntervalSecs | default "60" | quote }}
   MANAGEMENT_DATABASE_MAX_CONNS: {{ .Values.config.management.databaseMaxConns | quote }}
   MANAGEMENT_DATABASE_MIN_CONNS: {{ .Values.config.management.databaseMinConns | quote }}
   MANAGEMENT_DATABASE_MAX_IDLE_MS: {{ .Values.config.management.databaseMaxIdleMs | quote }}

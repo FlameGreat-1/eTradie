@@ -88,15 +88,16 @@ config:
     brokerMode: ""
     brokerBridgeURL: "http://engine.etradie-system.svc.cluster.local:8000"
     brokerTimeoutMs: "5000"
-    # Section 3 (CHECKLIST) - broker retry-with-backoff.
-    brokerRetryAttempts: "3"
-    brokerRetryBaseMs: "200"
-    brokerRetryCapMs: "2000"
     # Section 3 - end-to-end latency kill-switch.
     maxOrderLatencyMs: "5000"
     # Section 3 - order idempotency window.
     orderIdempotencyTtlSecs: "86400"
     reconcileIntervalSecs: "60"
+    # Section 3 - order intake backpressure (BurstQueue). queuePerUserCap
+    # must be <= queueMaxConcurrent (validated in config.go).
+    queueMaxConcurrent: "8"
+    queuePerUserCap: "4"
+    queueDeadlineMs: "2000"
     # Section 7 (CHECKLIST) - position snapshots + ghost detection.
     # positionSnapshotEnabled is the operator kill-switch; when 'false'
     # the reconciler runs the legacy Section-3 path with no snapshot

@@ -103,6 +103,37 @@ func (g *GatewayGRPCClient) ConfirmSetupWithParams(ctx context.Context, symbol, 
 	}, nil
 }
 
+// CheckNewsWindow asks the Gateway whether a high-impact event affecting
+// the symbol's currencies is imminent. Used by the watcher's LIMIT TTL
+// loop to cancel a resting limit order before it fills into news.
+func (g *GatewayGRPCClient) CheckNewsWindow(ctx context.Context, symbol, tradingStyle, traceID string) (*NewsWindowResult, error) {
+	callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	// Forward JWT token from incoming context to outbound Gateway call.
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		callCtx = metadata.AppendToOutgoingContext(callCtx, "authorization", "Bearer "+rawToken)
+	}
+
+	resp, err := g.client.CheckNewsWindow(callCtx, &gatewayv1.CheckNewsWindowRequest{
+		Symbol:       symbol,
+		TradingStyle: tradingStyle,
+		TraceId:      traceID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("gateway check news window: %w", err)
+	}
+
+	return &NewsWindowResult{
+		Locked:        resp.GetLocked(),
+		DataAvailable: resp.GetDataAvailable(),
+		Reason:        resp.GetReason(),
+		EventName:     resp.GetEventName(),
+		Currency:      resp.GetCurrency(),
+		MinutesUntil:  resp.GetMinutesUntil(),
+	}, nil
+}
+
 // NotifyExecutionCompleted informs the Gateway that an instant order was filled.
 // Sends the complete Order context so the Gateway can forward everything to Module C.
 func (g *GatewayGRPCClient) NotifyExecutionCompleted(ctx context.Context, order *models.Order, brokerOrderID string, fillPrice, slippage float64) error {

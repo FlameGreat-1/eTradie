@@ -369,60 +369,21 @@ func main() {
 			Msg("active_trades_restoration_complete")
 	}
 
-	// ── Startup tick-cache token (fallback for zero-trade cold starts) ──
+	// ── Reconciler supervisor ──
 	//
-	// When no active trades exist at startup, the tick cache has no
-	// identity and every tick_price request would 401. Seed with the
-	// first active user so the cache can authenticate immediately.
-	//
-	// Same caveat as the execution-side seed: the chosen user may
-	// lack a configured broker, in which case every poll 503s at the
-	// engine until a real trade arrives via gRPC and RegisterTrade
-	// overwrites the identity. Benign because nothing reads the cache
-	// before that point.
-	{
-		users, userErr := userStore.ListActiveUsers(ctx)
-		if userErr == nil && len(users) > 0 {
-			firstSet := false
-			for _, u := range users {
-				svcToken, tokenErr := tokenService.IssueServiceToken(u.ID, u.Username, u.Role, u.Tier, u.Status)
-				if tokenErr == nil {
-					if !firstSet {
-						mgr.TickCache().SetServiceIdentity(&auth.Claims{
-							UserID:   u.ID,
-							Username: u.Username,
-							Role:     u.Role,
-							Tier:     u.Tier,
-							Status:   u.Status,
-						}, svcToken)
-						log.Info().
-							Str("user_id", u.ID).
-							Str("username", u.Username).
-							Msg("startup_tick_cache_identity_issued")
-						firstSet = true
-					}
-
-					// Start the state reconciler for this user to import orphaned trades
-					// and watch broker positions for manual modifications / external closes.
-					// Watch cadence mirrors the manager's tick-poll cadence so the
-					// dashboard's position-line UI updates at the same rate.
-					watchInterval := time.Duration(cfg.TickPollIntervalMs) * time.Millisecond
-					reconciler := monitoring.NewStateReconciler(
-						mgr, bp, journalRepo, alertTransport,
-						u, svcToken, watchInterval,
-					)
-
-					// Run startup sync asynchronously so it doesn't block boot.
-					go func(r *monitoring.StateReconciler) {
-						// 1. Sync orphaned MT5 positions.
-						_ = r.RunStartupSync(context.Background())
-						// 2. Fall into position-watcher loop.
-						r.RunStreamListener(context.Background())
-					}(reconciler)
-				}
-			}
-		}
-	}
+	// Keeps one StateReconciler running per active user: imports
+	// orphaned MT5 positions, watches for manual modifications and
+	// external closes, and seeds the cold-start tick-cache identity.
+	// Re-evaluates the active-user set periodically so users who
+	// connect a broker after boot are picked up without a restart.
+	watchInterval := time.Duration(cfg.TickPollIntervalMs) * time.Millisecond
+	supervisor := monitoring.NewReconcilerSupervisor(
+		mgr, bp, journalRepo, alertTransport,
+		userStore, tokenService,
+		watchInterval, time.Duration(cfg.ReconcileIntervalSecs)*time.Second,
+	)
+	supervisorCtx, supervisorCancel := context.WithCancel(context.Background())
+	go supervisor.Run(supervisorCtx)
 
 	// -- gRPC server (with auth interceptor) -------------------------------
 	mgmtServer := server.NewManagementServer(mgr, journalRepo, metricsEngine)
@@ -575,9 +536,11 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	// Shutdown order: HTTP -> gRPC -> EOD scheduler -> monitoring -> alerts -> DB.
+	// Shutdown order: HTTP -> gRPC -> supervisor -> EOD scheduler -> monitoring -> alerts -> DB.
 	httpServer.Shutdown(shutdownCtx)
 	grpcServer.GracefulStop()
+	supervisorCancel()
+	supervisor.Shutdown()
 	eodScheduler.Shutdown()
 	mgr.Shutdown()
 	alertTransport.Close()

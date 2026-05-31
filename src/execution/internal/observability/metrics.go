@@ -120,17 +120,11 @@ var (
 	}, []string{"symbol"})
 )
 
-// Section 3 (CHECKLIST) metrics.
 var (
 	OrderIdempotencyTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "etradie_execution_order_idempotency_total",
 		Help: "Order placement idempotency outcomes",
 	}, []string{"result"}) // result: claimed | duplicate
-
-	OrderRetryTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "etradie_execution_order_retry_total",
-		Help: "Broker placement retry outcomes",
-	}, []string{"outcome"}) // outcome: retry | give_up | success_after_retry
 
 	OrderLatencyBreachTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "etradie_execution_order_latency_breach_total",

@@ -25,6 +25,13 @@ type GatewayPort interface {
 	ConfirmSetup(ctx context.Context, symbol, analysisID, traceID string) (*ConfirmResult, error)
 	ConfirmSetupWithParams(ctx context.Context, symbol, analysisID, traceID string, params *ConfirmSetupParams) (*ConfirmResult, error)
 	NotifyExecutionCompleted(ctx context.Context, order *models.Order, brokerOrderID string, fillPrice, slippage float64) error
+
+	// CheckNewsWindow asks the Gateway whether a high-impact economic
+	// event affecting the symbol's currencies is imminent. The Gateway
+	// owns the calendar; the watcher uses this on every LIMIT TTL tick
+	// so a resting limit order can be cancelled before it fills into
+	// news. tradingStyle selects the style-aware lockout window.
+	CheckNewsWindow(ctx context.Context, symbol, tradingStyle, traceID string) (*NewsWindowResult, error)
 }
 
 // ConfirmResult holds the Gateway's response to a confirmation pulse.
@@ -32,6 +39,18 @@ type ConfirmResult struct {
 	Confirmed       bool
 	LTFConfirmation bool
 	Reason          string
+}
+
+// NewsWindowResult holds the Gateway's news-proximity verdict for the
+// LIMIT TTL loop. DataAvailable is false when the Gateway had no
+// calendar data (it fails closed: Locked is then true).
+type NewsWindowResult struct {
+	Locked        bool
+	DataAvailable bool
+	Reason        string
+	EventName     string
+	Currency      string
+	MinutesUntil  float64
 }
 
 // Config holds watcher-specific configuration passed from the
@@ -509,8 +528,104 @@ func (w *Watcher) runLimitTTL(ctx context.Context) {
 			w.log.Debug().
 				Str("broker_order_id", w.order.BrokerOrderID).
 				Msg("limit_watcher_ttl_check_alive")
+
+			// News lockout (LIMIT lifetime, N1): a resting limit order
+			// can fill autonomously at the broker, so it must not
+			// outlive the approach of a high-impact event. The gateway
+			// owns the calendar; ask it each tick (style-aware window).
+			// An event beyond the calendar horizon at placement time
+			// enters the lockout window as time advances and the macro
+			// cache refreshes, so this tick loop closes that gap.
+			if w.checkNewsAndCancel(ctx) {
+				return
+			}
 		}
 	}
+}
+
+// checkNewsAndCancel asks the Gateway whether news is imminent for this
+// order's symbol and, if so, cancels the resting limit order at the
+// broker and reports true (watcher should stop). A transient gateway
+// error is logged and ignored (false) so a gateway blip never cancels
+// a valid order; the gateway fails closed on missing calendar data,
+// which arrives here as Locked=true and does trigger the cancel.
+func (w *Watcher) checkNewsAndCancel(ctx context.Context) bool {
+	if w.gateway == nil {
+		return false
+	}
+
+	w.order.RLock()
+	authCtx := w.order.IdentityCtx(ctx)
+	symbol := w.order.Symbol
+	style := string(w.order.TradingStyle)
+	analysisID := w.order.AnalysisID
+	brokerOrderID := w.order.BrokerOrderID
+	w.order.RUnlock()
+
+	news, err := w.gateway.CheckNewsWindow(authCtx, symbol, style, analysisID)
+	if err != nil {
+		w.log.Warn().Err(err).Str("symbol", symbol).Msg("limit_watcher_news_check_failed")
+		return false
+	}
+	if !news.Locked {
+		return false
+	}
+
+	w.log.Warn().
+		Str("symbol", symbol).
+		Str("reason", news.Reason).
+		Str("event_name", news.EventName).
+		Str("currency", news.Currency).
+		Float64("minutes_until", news.MinutesUntil).
+		Bool("data_available", news.DataAvailable).
+		Str("broker_order_id", brokerOrderID).
+		Msg("limit_order_cancelled_for_news_lockout")
+
+	if brokerOrderID != "" {
+		if cancelErr := w.broker.CancelOrder(authCtx, brokerOrderID); cancelErr != nil {
+			w.log.Error().Err(cancelErr).
+				Str("broker_order_id", brokerOrderID).
+				Msg("limit_order_news_cancel_failed")
+			// The order may still fill into news; surface critically.
+			if w.transport != nil {
+				w.transport.Publish(authCtx,
+					alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityCritical,
+						fmt.Sprintf("CRITICAL: failed to cancel %s limit order ahead of news: %s", symbol, cancelErr.Error())).
+						WithUserID(w.order.UserID).
+						WithSymbol(symbol).
+						WithDetail("broker_order_id", brokerOrderID).
+						WithDetail("reason", string(constants.ReasonNewsLockout)),
+				)
+			}
+			// Stop the watcher regardless: continuing to poll cannot
+			// un-fill an order, and a duplicate cancel next tick adds no
+			// value. Operators are alerted for manual reconciliation.
+			return true
+		}
+	}
+
+	observability.OrderPlacementTotal.WithLabelValues(string(constants.ModeLimit), "news_cancelled").Inc()
+
+	if w.transport != nil {
+		w.transport.Publish(authCtx,
+			alert.NewEvent(alert.SourceExecution, alert.TypeOrderCancelled, alert.SeverityWarning,
+				fmt.Sprintf("Limit order for %s cancelled ahead of high-impact news: %s", symbol, news.Reason)).
+				WithUserID(w.order.UserID).
+				WithSymbol(symbol).
+				WithDirection(string(w.order.Direction)).
+				WithDetails(map[string]interface{}{
+					"watcher_id":      w.order.WatcherID,
+					"analysis_id":     analysisID,
+					"broker_order_id": brokerOrderID,
+					"reason":          string(constants.ReasonNewsLockout),
+					"event_name":      news.EventName,
+					"currency":        news.Currency,
+					"minutes_until":   news.MinutesUntil,
+				}),
+		)
+	}
+
+	return true
 }
 
 // runInstant is the run loop for INSTANT orders. Polls tick prices,

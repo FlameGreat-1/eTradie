@@ -103,13 +103,10 @@ func (e *Executor) executeTP(
 		return "", fmt.Errorf("%s partial close: %w", label, err)
 	}
 
-	// Wait slightly to ensure the deal propagates in broker history
-	time.Sleep(500 * time.Millisecond)
-
 	// Layer 1: Broker deal history (exact profit, commissions, swaps)
 	pnl := 0.0
 	pnlSource := "none"
-	if brokerPnL, ok := e.fetchClosedDealProfit(ctx, brokerID, symbol); ok {
+	if brokerPnL, ok := e.pollClosedDealProfit(ctx, brokerID, symbol); ok {
 		pnl = brokerPnL
 		pnlSource = "broker_history"
 	}
@@ -195,6 +192,28 @@ func (e *Executor) executeTP(
 		Msg("tp_partial_close_executed")
 
 	return eventType, nil
+}
+
+// pollClosedDealProfit polls the broker deal history until the closed
+// deal for brokerOrderID is found or the deadline is reached.
+func (e *Executor) pollClosedDealProfit(ctx context.Context, brokerOrderID, symbol string) (float64, bool) {
+	const (
+		maxAttempts  = 5
+		pollInterval = 200 * time.Millisecond
+	)
+	for i := 0; i < maxAttempts; i++ {
+		if i > 0 {
+			select {
+			case <-time.After(pollInterval):
+			case <-ctx.Done():
+				return 0, false
+			}
+		}
+		if pnl, ok := e.fetchClosedDealProfit(ctx, brokerOrderID, symbol); ok {
+			return pnl, true
+		}
+	}
+	return 0, false
 }
 
 // fetchClosedDealProfit queries the broker's deal history to find the

@@ -60,6 +60,9 @@ func NewIdempotencyStore(pool *pgxpool.Pool) *IdempotencyStore {
 	}
 }
 
+// claimSQL returns order_id only when the INSERT actually happened.
+// A returned row means we won the race; pgx.ErrNoRows means the
+// (user_id, idempotency_key) row already existed.
 const claimSQL = `
 INSERT INTO execution_order_idempotency (
     user_id, idempotency_key, order_id, symbol, direction,
@@ -68,7 +71,7 @@ INSERT INTO execution_order_idempotency (
     $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
 ON CONFLICT (user_id, idempotency_key) DO NOTHING
-RETURNING xmax
+RETURNING order_id
 `
 
 const existingSQL = `
@@ -108,7 +111,7 @@ func (s *IdempotencyStore) TryClaim(
 		return nil, fmt.Errorf("idempotency: user_id and idempotency_key are required")
 	}
 
-	var xmax string
+	var insertedOrderID string
 	err := s.pool.QueryRow(ctx, claimSQL,
 		rec.UserID,
 		rec.IdempotencyKey,
@@ -119,7 +122,7 @@ func (s *IdempotencyStore) TryClaim(
 		rec.EntryPrice,
 		rec.StopLoss,
 		rec.LotSize,
-	).Scan(&xmax)
+	).Scan(&insertedOrderID)
 
 	if err == nil {
 		// RETURNING fired on a successful INSERT - we won the race.

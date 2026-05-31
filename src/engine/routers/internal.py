@@ -146,43 +146,59 @@ async def internal_ta_analyze(
         )
     user_broker = await _resolve_user_broker(container, user_id)
 
-    results = []
-    for symbol in body.symbols:
-        try:
-            result = await container.ta_orchestrator.analyze(
-                symbol=symbol,
-                broker_client=user_broker,
-                user_id=user_id,
-            )
-            results.append(result)
-        except Exception as exc:
-            logger.error(
-                "internal_ta_analyze_failed",
-                extra={
-                    "symbol": symbol,
-                    "error": str(exc),
-                    "trace_id": body.trace_id,
-                    "user_id": user_id,
-                },
-            )
-            results.append(
-                {
-                    "status": "error",
-                    "symbol": symbol,
-                    "error": str(exc),
-                    "htf_timeframes": [],
-                    "ltf_timeframes": [],
-                    "snapshots": {},
-                    "smc_candidates": [],
-                    "snd_candidates": [],
-                    "smc_candidates_count": 0,
-                    "snd_candidates_count": 0,
-                    "alignment": {},
-                    "overall_trend": "NEUTRAL",
-                }
-            )
+    # Analyze symbols concurrently, bounded by TA_MAX_CONCURRENT_SYMBOL_ANALYSIS.
+    # A sequential loop here serializes every symbol's multi-timeframe candle
+    # fetch + detection, so an N-symbol request takes N x single-symbol time and
+    # blows the gateway's TA_MACRO_PARALLEL_TIMEOUT_SECONDS budget, which makes
+    # the gateway retry the whole cycle and never reach RAG/LLM. Bounding with
+    # a semaphore lets the per-symbol work overlap while still capping load on
+    # the user's single broker connection.
+    from engine.config import get_ta_config
 
-    return {"symbol_results": results}
+    semaphore = asyncio.Semaphore(get_ta_config().max_concurrent_symbol_analysis)
+
+    def _error_result(symbol: str, exc: Exception) -> dict:
+        logger.error(
+            "internal_ta_analyze_failed",
+            extra={
+                "symbol": symbol,
+                "error": str(exc),
+                "trace_id": body.trace_id,
+                "user_id": user_id,
+            },
+        )
+        return {
+            "status": "error",
+            "symbol": symbol,
+            "error": str(exc),
+            "htf_timeframes": [],
+            "ltf_timeframes": [],
+            "snapshots": {},
+            "smc_candidates": [],
+            "snd_candidates": [],
+            "smc_candidates_count": 0,
+            "snd_candidates_count": 0,
+            "alignment": {},
+            "overall_trend": "NEUTRAL",
+        }
+
+    async def _analyze_one(symbol: str) -> dict:
+        async with semaphore:
+            try:
+                return await container.ta_orchestrator.analyze(
+                    symbol=symbol,
+                    broker_client=user_broker,
+                    user_id=user_id,
+                )
+            except Exception as exc:  # noqa: BLE001 - per-symbol isolation
+                return _error_result(symbol, exc)
+
+    # gather preserves input order, so symbol_results aligns with body.symbols.
+    results = await asyncio.gather(
+        *(_analyze_one(symbol) for symbol in body.symbols)
+    )
+
+    return {"symbol_results": list(results)}
 
 
 @router.post("/internal/macro/collect")

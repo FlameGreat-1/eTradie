@@ -69,14 +69,19 @@ func (e *Executor) Execute(ctx context.Context, order *models.Order) (*models.Ex
 	}
 }
 
+// idempotencyKeyFor returns the gateway-supplied key, or the order ID
+// as a fallback for direct callers that omit it.
+func idempotencyKeyFor(order *models.Order) string {
+	if order.IdempotencyKey != "" {
+		return order.IdempotencyKey
+	}
+	return order.OrderID
+}
+
 func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models.ExecutionResult, error) {
 	start := time.Now()
 
-	// ---- Section 3: idempotency claim ----
-	idemKey := order.IdempotencyKey
-	if idemKey == "" {
-		idemKey = order.OrderID
-	}
+	idemKey := idempotencyKeyFor(order)
 	if e.idempotency != nil {
 		claim, err := e.idempotency.TryClaim(ctx, &store.IdempotencyRecord{
 			UserID:         order.UserID,
@@ -90,9 +95,8 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 			LotSize:        order.LotSize,
 		})
 		if err != nil {
-			// Idempotency store failure must not block trading - log
-			// and fall through to a non-idempotent placement. The
-			// latency kill-switch + broker-level constraints remain.
+			// A store failure must not block trading; fall through to a
+			// non-idempotent placement, latency + broker guards still apply.
 			e.log.Warn().Err(err).Str("order_id", order.OrderID).Msg("idempotency_claim_failed_falling_through")
 		} else if !claim.FirstClaim && claim.Existing != nil {
 			ex := claim.Existing
@@ -105,7 +109,7 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 			order.BrokerOrderID = ex.BrokerOrderID
 			return &models.ExecutionResult{
 				Accepted:        true,
-				Status:          constants.OrderStatus("DUPLICATE"),
+				Status:          constants.StatusDuplicate,
 				RejectionReason: "duplicate idempotency key; returning prior placement",
 				OrderID:         order.OrderID,
 				Order:           order,
@@ -231,11 +235,62 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 // handleInstant arms the watcher manager to monitor the entry zone.
 // The watcher autonomously polls tick prices, calls Gateway for LTF
 // confirmation, and fires the market order when conditions are met.
-func (e *Executor) handleInstant(_ context.Context, order *models.Order) (*models.ExecutionResult, error) {
+//
+// A duplicate submission must not arm a second watcher, since each
+// watcher can independently fire a market order. The claim runs before
+// arming and short-circuits duplicates.
+func (e *Executor) handleInstant(ctx context.Context, order *models.Order) (*models.ExecutionResult, error) {
 	start := time.Now()
 
-	// Arm the watcher — this spawns a background goroutine.
+	idemKey := idempotencyKeyFor(order)
+	if e.idempotency != nil {
+		claim, err := e.idempotency.TryClaim(ctx, &store.IdempotencyRecord{
+			UserID:         order.UserID,
+			IdempotencyKey: idemKey,
+			OrderID:        order.OrderID,
+			Symbol:         order.Symbol,
+			Direction:      string(order.Direction),
+			ExecutionMode:  string(order.ExecutionMode),
+			EntryPrice:     order.EntryPrice,
+			StopLoss:       order.StopLoss,
+			LotSize:        order.LotSize,
+		})
+		if err != nil {
+			e.log.Warn().Err(err).Str("order_id", order.OrderID).Msg("idempotency_claim_failed_falling_through")
+		} else if !claim.FirstClaim && claim.Existing != nil {
+			ex := claim.Existing
+			e.log.Info().
+				Str("order_id", order.OrderID).
+				Str("idempotency_key", idemKey).
+				Str("existing_order_id", ex.OrderID).
+				Str("existing_status", ex.Status).
+				Msg("duplicate_instant_order_short_circuit_not_arming")
+			return &models.ExecutionResult{
+				Accepted:        true,
+				Status:          constants.StatusDuplicate,
+				RejectionReason: "duplicate idempotency key; watcher already armed for prior submission",
+				OrderID:         ex.OrderID,
+				Order:           order,
+			}, nil
+		}
+	}
+
 	e.watcher.Arm(order)
+
+	// Record WATCHING so a later duplicate sees a populated status. The
+	// broker_order_id is filled in by the watcher on fill.
+	if e.idempotency != nil {
+		if rerr := e.idempotency.RecordResult(
+			context.Background(),
+			order.UserID,
+			idemKey,
+			order.BrokerOrderID,
+			string(constants.StatusWatching),
+			0, 0, 0,
+		); rerr != nil {
+			e.log.Warn().Err(rerr).Str("order_id", order.OrderID).Msg("idempotency_record_result_failed")
+		}
+	}
 
 	elapsed := time.Since(start).Seconds()
 	observability.OrderPlacementDuration.WithLabelValues("INSTANT").Observe(elapsed)

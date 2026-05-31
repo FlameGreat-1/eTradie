@@ -637,6 +637,37 @@ func (o *Orchestrator) RunConfirmationPulseWithParams(
 
 	start := time.Now()
 
+	// News lockout (fire-time, N1): an INSTANT watcher fires a market
+	// order the moment this returns Confirmed=true, which may be far
+	// later than the decision-time guard ran. Re-check news proximity
+	// here against the symbol's own currencies so the irreversible
+	// market order never lands inside a high-impact event window. The
+	// wider (scalping) window is used unconditionally: extra caution at
+	// the fire moment is correct and needs no per-order style on the
+	// wire. A non-24/7 symbol with no calendar data fails closed.
+	if !routing.Is247Market(symbol) {
+		var calendar map[string]interface{}
+		if macro, mErr := o.macroCollector.Collect(ctx, traceID); mErr == nil && macro != nil {
+			calendar = macro.Calendar
+		} else if mErr != nil {
+			pulseLog.Warn().Err(mErr).Str("symbol", symbol).Msg("confirmation_pulse_macro_collect_failed_failing_closed")
+		}
+		news := routing.EvaluateNewsWindow(calendar, symbol, time.Now().UTC(), constants.NewsLockoutMinutesScalping)
+		if news.Locked {
+			pulseLog.Warn().
+				Str("symbol", symbol).
+				Str("analysis_id", analysisID).
+				Str("reason", news.Reason).
+				Bool("data_available", news.DataAvailable).
+				Msg("confirmation_pulse_blocked_by_news_lockout")
+			return &ConfirmationResult{
+				Confirmed:       false,
+				LTFConfirmation: false,
+				Reason:          "News lockout: " + news.Reason,
+			}
+		}
+	}
+
 	// Fast path: call lightweight LTF confirmation endpoint
 	if params != nil {
 		result := o.runLightweightConfirmation(ctx, params, traceID, pulseLog)
@@ -739,6 +770,34 @@ func (o *Orchestrator) RunConfirmationPulseWithParams(
 		Confirmed: false,
 		Reason:    fmt.Sprintf("candidate %s not found in TA results", analysisID),
 	}
+}
+
+// CheckNewsWindow reports whether `symbol` must be locked out now
+// because a high-impact event affecting one of its currencies
+// activates within the style-aware lockout window. Backs the
+// GatewayService.CheckNewsWindow RPC used by the execution watcher's
+// LIMIT TTL loop. Reuses the cached macro calendar and the shared
+// evaluator so policy is identical to the decision-time guard and the
+// INSTANT fire-time gate.
+func (o *Orchestrator) CheckNewsWindow(
+	ctx context.Context,
+	symbol string,
+	tradingStyle string,
+	traceID string,
+) routing.NewsWindowStatus {
+	if routing.Is247Market(symbol) {
+		return routing.NewsWindowStatus{Locked: false, DataAvailable: true, Reason: "Symbol has no fiat calendar exposure"}
+	}
+
+	var calendar map[string]interface{}
+	if macro, err := o.macroCollector.Collect(ctx, traceID); err == nil && macro != nil {
+		calendar = macro.Calendar
+	} else if err != nil {
+		o.log.Warn().Err(err).Str("symbol", symbol).Str("trace_id", traceID).Msg("check_news_window_macro_collect_failed_failing_closed")
+	}
+
+	lockout := routing.LockoutMinutesForStyle(tradingStyle)
+	return routing.EvaluateNewsWindow(calendar, symbol, time.Now().UTC(), lockout)
 }
 
 // runLightweightConfirmation calls the Python engine's dedicated
@@ -1117,17 +1176,21 @@ func (o *Orchestrator) processSymbol(
 			if matchesCandidate(cand, processorOutput.AnalysisID) {
 				processorOutput.LTFTimeframe = getStringField(cand, "ltf_timeframe")
 				processorOutput.HTFTimeframe = getStringField(cand, "htf_timeframe")
-				
-				// SnD candidates might use zone_upper / zone_lower instead of ob_upper
-				upper := getFloat64Field(cand, "ob_upper")
+
+				// SnDCandidate carries its zone as supply_zone_* (bearish)
+				// or demand_zone_* (bullish); a candidate populates only
+				// one. Resolve supply-first to mirror the Python model's
+				// to_technical_candidate() so the LTF fast-path receives
+				// real bounds instead of zeros.
+				upper := getFloat64Field(cand, "supply_zone_upper")
 				if upper == 0 {
-					upper = getFloat64Field(cand, "zone_upper")
+					upper = getFloat64Field(cand, "demand_zone_upper")
 				}
-				lower := getFloat64Field(cand, "ob_lower")
+				lower := getFloat64Field(cand, "supply_zone_lower")
 				if lower == 0 {
-					lower = getFloat64Field(cand, "zone_lower")
+					lower = getFloat64Field(cand, "demand_zone_lower")
 				}
-				
+
 				processorOutput.OBUpper = upper
 				processorOutput.OBLower = lower
 				break

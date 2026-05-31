@@ -100,6 +100,16 @@ func (tc *TickCache) SetAuthToken(token string) {
 	tc.SetServiceIdentity(claims, token)
 }
 
+// HasServiceIdentity reports whether any user identity has been
+// configured. Used by the reconciler supervisor to seed the cache
+// exactly once on a cold start.
+func (tc *TickCache) HasServiceIdentity() bool {
+	tc.identMu.RLock()
+	n := len(tc.identities)
+	tc.identMu.RUnlock()
+	return n > 0
+}
+
 // identityFor returns the stored identity for user u, or nil when
 // none has been configured yet.
 func (tc *TickCache) identityFor(userID string) *userIdentity {

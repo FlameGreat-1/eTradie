@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
@@ -31,16 +31,6 @@ import (
 	"github.com/flamegreat-1/etradie/src/execution/internal/watcher"
 )
 
-const (
-	idempotencyTTL     = 1 * time.Hour
-	idempotencyMaxSize = 10000
-	idempotencyCleanup = 5 * time.Minute
-)
-
-type idempotencyEntry struct {
-	expiresAt time.Time
-}
-
 // ExecutionServer implements executionv1.ExecutionServiceServer.
 type ExecutionServer struct {
 	executionv1.UnimplementedExecutionServiceServer
@@ -55,11 +45,8 @@ type ExecutionServer struct {
 	transport *alertredis.Transport
 	settings  *store.SettingsStore
 	watcher   *watcher.Manager
+	queue     *executor.BurstQueue
 	log       zerolog.Logger
-
-	processedMu sync.RWMutex
-	processed   map[string]idempotencyEntry
-	stopCleanup chan struct{}
 }
 
 // NewExecutionServer creates the gRPC server with all dependencies.
@@ -74,80 +61,22 @@ func NewExecutionServer(
 	transport *alertredis.Transport,
 	ss *store.SettingsStore,
 	wm *watcher.Manager,
+	q *executor.BurstQueue,
 ) *ExecutionServer {
-	srv := &ExecutionServer{
-		cfg:         cfg,
-		validator:   v,
-		sizer:       s,
-		executor:    e,
-		state:       sm,
-		broker:      bp,
-		audit:       al,
-		transport:   transport,
-		settings:    ss,
-		watcher:     wm,
-		log:         observability.Logger("grpc_server"),
-		processed:   make(map[string]idempotencyEntry),
-		stopCleanup: make(chan struct{}),
+	return &ExecutionServer{
+		cfg:       cfg,
+		validator: v,
+		sizer:     s,
+		executor:  e,
+		state:     sm,
+		broker:    bp,
+		audit:     al,
+		transport: transport,
+		settings:  ss,
+		watcher:   wm,
+		queue:     q,
+		log:       observability.Logger("grpc_server"),
 	}
-	go srv.cleanupLoop()
-	return srv
-}
-
-// Close stops the idempotency cleanup goroutine. Must be called
-// during shutdown to prevent goroutine leaks.
-func (s *ExecutionServer) Close() {
-	close(s.stopCleanup)
-}
-
-func (s *ExecutionServer) cleanupLoop() {
-	ticker := time.NewTicker(idempotencyCleanup)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			s.evictExpired()
-		case <-s.stopCleanup:
-			return
-		}
-	}
-}
-
-func (s *ExecutionServer) evictExpired() {
-	now := time.Now()
-	s.processedMu.Lock()
-	for k, v := range s.processed {
-		if now.After(v.expiresAt) {
-			delete(s.processed, k)
-		}
-	}
-	s.processedMu.Unlock()
-}
-
-func (s *ExecutionServer) markProcessed(analysisID string) {
-	s.processedMu.Lock()
-	if len(s.processed) >= idempotencyMaxSize {
-		now := time.Now()
-		for k, v := range s.processed {
-			if now.After(v.expiresAt) {
-				delete(s.processed, k)
-			}
-		}
-	}
-	s.processed[analysisID] = idempotencyEntry{
-		expiresAt: time.Now().Add(idempotencyTTL),
-	}
-	s.processedMu.Unlock()
-}
-
-func (s *ExecutionServer) isDuplicate(analysisID string) bool {
-	s.processedMu.RLock()
-	entry, exists := s.processed[analysisID]
-	s.processedMu.RUnlock()
-	if !exists {
-		return false
-	}
-	return time.Now().Before(entry.expiresAt)
 }
 
 // resolveExecutionMode reads the current execution mode from the DB.
@@ -214,16 +143,6 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	}
 
 	analysisID := req.GetAnalysisId()
-	if analysisID != "" && s.isDuplicate(analysisID) {
-		s.log.Warn().Str("analysis_id", analysisID).Str("trace_id", traceID).Msg("duplicate_analysis_id")
-		return &executionv1.ExecuteTradeResponse{
-			Accepted:        false,
-			Status:          string(constants.StatusRejected),
-			RejectionReason: "duplicate analysis_id: already processed",
-			AnalysisId:      analysisID,
-			TraceId:         traceID,
-		}, nil
-	}
 
 	s.log.Info().
 		Str("symbol", req.GetSymbol()).
@@ -248,6 +167,26 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	if claims.Role != auth.RoleAdmin && claims.Tier == "free" {
 		return nil, status.Errorf(codes.PermissionDenied,
 			"automated trade execution is restricted to Pro users")
+	}
+
+	// Backpressure: acquire a queue slot before any broker-touching
+	// work. Overflow / deadline returns a non-retryable QUEUED response
+	// (not a gRPC error) so the gateway does not retry and defeat the
+	// gate. A nil queue (tests) skips the gate.
+	if s.queue != nil {
+		release, qErr := s.queue.Enter(ctx, userID)
+		if qErr != nil {
+			s.log.Warn().Err(qErr).Str("user_id", userID).Str("trace_id", traceID).Msg("execute_trade_queue_rejected")
+			observability.ExecutionTotal.WithLabelValues(req.GetSymbol(), req.GetDirection(), "queue_rejected").Inc()
+			return &executionv1.ExecuteTradeResponse{
+				Accepted:        false,
+				Status:          string(constants.StatusQueued),
+				RejectionReason: "execution intake at capacity: " + qErr.Error(),
+				AnalysisId:      analysisID,
+				TraceId:         traceID,
+			}, nil
+		}
+		defer release()
 	}
 
 	tradeReq := parseRequest(req)
@@ -354,6 +293,13 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	order.StatusJWT = claims.Status
 	order.AuthToken = auth.RawTokenFromContext(ctx)
 
+	// Stamp the gateway-supplied idempotency key so the executor's
+	// claim matches across RPC retries. Absent for direct callers, in
+	// which case the executor falls back to OrderID.
+	if idemKey := incomingIdempotencyKey(ctx); idemKey != "" {
+		order.IdempotencyKey = idemKey
+	}
+
 	// Step 5: Execute.
 	execResult, err := s.executor.Execute(ctx, order)
 	if err != nil {
@@ -382,7 +328,7 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 		}, nil
 	}
 
-	// Step 6: Audit + notify + idempotency.
+	// Step 6: Audit + notify.
 	s.audit.LogOrderPlaced(ctx, order)
 
 	modeLabel := "Limit order placed"
@@ -402,10 +348,6 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 			"execution_mode": string(order.ExecutionMode),
 			"analysis_id":    order.AnalysisID,
 		}))
-
-	if analysisID != "" {
-		s.markProcessed(analysisID)
-	}
 
 	elapsed := time.Since(start).Seconds()
 	observability.ExecutionDuration.Observe(elapsed)
@@ -556,6 +498,20 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv
 		PendingOrders:     protoPending,
 		TraceId:           req.GetTraceId(),
 	}, nil
+}
+
+// incomingIdempotencyKey reads the x-idempotency-key value from inbound
+// gRPC metadata, or "" when absent.
+func incomingIdempotencyKey(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	vals := md.Get("x-idempotency-key")
+	if len(vals) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(vals[0])
 }
 
 func validateRequest(req *executionv1.ExecuteTradeRequest) error {

@@ -91,9 +91,19 @@ const (
 	MacroResultCacheKeyPrefix = "macro_result"
 )
 
-// HighImpactEventLockoutMinutes is the lockout window before a
-// high-impact economic-calendar event (NFP, CPI, PPI, FED rate
-// decision, etc.). The news-proximity guard rejects any new entry
-// whose target activation time falls within this window before the
-// event.
-const HighImpactEventLockoutMinutes = 30
+// News lockout windows (minutes) before a high-impact economic-calendar
+// event (NFP, CPI, PPI, FED rate decision, etc.). Style-aware: scalping
+// uses a wider window because a scalp cannot absorb a news spike. These
+// values mirror the execution rulebook (NewsLockoutMinutesNormal/
+// Scalping) so the two services apply identical policy.
+const (
+	NewsLockoutMinutesNormal   = 30
+	NewsLockoutMinutesScalping = 45
+)
+
+// HighImpactEventLockoutMinutes is the decision-time lockout window.
+// The processor trading style is not known pre-LLM, so the normal
+// window is used at decision time; the wider scalping window is applied
+// later at fire time / placement time where the style (or the
+// irreversible-fire context) is known.
+const HighImpactEventLockoutMinutes = NewsLockoutMinutesNormal

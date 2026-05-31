@@ -182,9 +182,6 @@ func (m *Manager) handleSLHit(ctx context.Context, trade *types.Trade, closePric
 		return
 	}
 
-	// Wait slightly to ensure the deal propagates in broker history before querying
-	time.Sleep(500 * time.Millisecond)
-
 	// --- P&L Calculation (layered) ---
 	pnl := 0.0
 	rMultiple := 0.0
@@ -202,8 +199,8 @@ func (m *Manager) handleSLHit(ctx context.Context, trade *types.Trade, closePric
 		rMultiple = priceDist / slDist
 	}
 
-	// Layer 1: Broker deal history (most accurate, works for all instruments).
-	if brokerPnL, ok := m.fetchClosedDealProfit(ctx, brokerID, symbol); ok {
+	// Layer 1: Broker deal history (exact profit, commissions, swaps).
+	if brokerPnL, ok := m.pollClosedDealProfit(ctx, brokerID, symbol); ok {
 		pnl = brokerPnL
 		pnlSource = "broker_history"
 	}
@@ -409,6 +406,30 @@ func (m *Manager) HandleExternalClose(ctx context.Context, trade *types.Trade) {
 
 	// Crucial: Remove the trade from active management so it disappears from the Active Trades UI.
 	m.RemoveTrade(tradeID)
+}
+
+// pollClosedDealProfit polls the broker deal history until the closed
+// deal for brokerOrderID is found or the deadline is reached. Polling
+// avoids a fixed sleep whose duration is a timing assumption: MT5 deal
+// history propagation is non-deterministic and varies by broker.
+func (m *Manager) pollClosedDealProfit(ctx context.Context, brokerOrderID, symbol string) (float64, bool) {
+	const (
+		maxAttempts  = 5
+		pollInterval = 200 * time.Millisecond
+	)
+	for i := 0; i < maxAttempts; i++ {
+		if i > 0 {
+			select {
+			case <-time.After(pollInterval):
+			case <-ctx.Done():
+				return 0, false
+			}
+		}
+		if pnl, ok := m.fetchClosedDealProfit(ctx, brokerOrderID, symbol); ok {
+			return pnl, true
+		}
+	}
+	return 0, false
 }
 
 // fetchClosedDealProfit queries the broker's deal history to find the

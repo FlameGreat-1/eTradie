@@ -102,16 +102,10 @@ func main() {
 		// production/staging it is required, in development an empty
 		// value is allowed but the bridge logs a warning at construction.
 		bridge := mt5.NewBridge(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs, cfg.EngineInternalSecret)
-		// Section 3 (CHECKLIST): wire retry-with-backoff for transient
-		// broker errors. attempts<=1 disables retry (mock dev mode).
-		bridge = bridge.WithRetry(cfg.BrokerRetryAttempts, cfg.BrokerRetryBaseMs, cfg.BrokerRetryCapMs)
 		bp = bridge
 		log.Info().
 			Str("url", cfg.BrokerBridgeURL).
 			Bool("internal_auth_configured", cfg.EngineInternalSecret != "").
-			Int("retry_attempts", cfg.BrokerRetryAttempts).
-			Int("retry_base_ms", cfg.BrokerRetryBaseMs).
-			Int("retry_cap_ms", cfg.BrokerRetryCapMs).
 			Msg("broker_mt5_bridge_configured")
 	} else {
 		bp = mockbroker.NewBroker(cfg.MockBrokerBalance)
@@ -194,6 +188,14 @@ func main() {
 		cfg.BrokerTimeoutMs,
 		cfg.MaxOrderLatencyMs,
 	)
+
+	// Order intake gate: per-user fairness + global in-flight cap +
+	// wait deadline. Enforced at the head of ExecuteTrade.
+	bq := executor.NewBurstQueue(executor.QueueConfig{
+		MaxConcurrent:   cfg.QueueMaxConcurrent,
+		PerUserCap:      cfg.QueuePerUserCap,
+		DefaultDeadline: time.Duration(cfg.QueueDeadlineMs) * time.Millisecond,
+	})
 
 	// ──────────────────────────────────────────────────────────────────────
 	// CRITICAL BOOT ORDER:
@@ -457,7 +459,7 @@ func main() {
 	// ──────────────────────────────────────────────────────────────────────
 
 	// ── gRPC server ────────────────────────────────────────────────────────
-	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore, wm)
+	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore, wm, bq)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
 	if err != nil {
@@ -520,7 +522,6 @@ func main() {
 	// Shutdown order: gRPC → watchers → HTTP → alerts → DB.
 	grpcServer.GracefulStop()
 	wm.Shutdown()
-	execServer.Close()
 	_ = httpServer.Shutdown(shutdownCtx)
 	_ = gwClient.Close()
 	alertTransport.Close()
