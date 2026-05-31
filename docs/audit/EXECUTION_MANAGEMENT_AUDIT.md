@@ -286,7 +286,35 @@ Revised step plan (each = one commit):
      real (now-complete) ownership; keep as pass() no-op (calendar lives in GW).
   S7 update tracker -> DONE; final consistency pass incl exports.go comment.
 
-Progress marker: COMPLETED S1, S2, S3. NEXT: S4 (INSTANT fire-time gate).
+VERIFIED CONSTRAINT (calendar horizon): the calendar source is an RSS feed
+(InvestingRSSCalendarProvider) whose lookahead horizon is NOT controlled by us
+and is typically only ~24-48h. Therefore a one-shot "placement + full TTL
+window" check at LIMIT placement CANNOT reliably see events 3-7 days out for
+Swing/Positional TTLs. Honest consequence: LIMIT news protection must be
+RE-EVALUATED over the order lifetime (the watcher runLimitTTL ticks every 1m
+and the calendar refreshes each macro cycle), not only at placement.
+
+That lifetime re-check requires execution -> gateway to ask "news imminent?",
+which needs a proto change (new RPC or field). protoc cannot be run here and
+hand-editing generated descriptor bytes is unsafe -> DO NOT fake it.
+
+SPLIT DECISION:
+  - N1 INSTANT: fully closeable now with NO proto change (gateway ConfirmSetup
+    fire-time gate). PROCEED.
+  - N2, N3, N4: fully closeable now with NO proto change. PROCEED (S2/S3 done
+    + a placement-time best-effort LIMIT gate that is correct within the RSS
+    horizon and strictly better than today).
+  - N1 LIMIT lifetime re-check: needs proto. Two correct options for the user:
+      (a) add gateway RPC CheckNewsWindow + regenerate via `make proto-gen`
+          (best, full coverage); OR
+      (b) cap LIMIT TTL so a resting order never outlives the calendar horizon
+          AND re-check at placement each macro cycle (no proto, but reduces
+          max TTL for Swing/Positional LIMIT orders).
+  Awaiting user choice for the LIMIT lifetime piece; everything else proceeds.
+
+Progress marker: COMPLETED S1, S2, S3. NEXT: S4 (INSTANT fire-time gate),
+then placement-time LIMIT gate (within-horizon), then pause for user decision
+on the LIMIT lifetime re-check (proto vs TTL-cap).
 
 Pending cleanup for S11: querybuilder/exports.go header comment still says its
 consumer is routing/guards.go (checkNewsProximity); the real consumer is now
