@@ -105,6 +105,7 @@ config:
     mockBrokerBalance: "10000.0"
     tickPollIntervalMs: "1000"
     candlePollIntervalSecs: "60"
+    reconcileIntervalSecs: "60"
     databaseMaxConns: "10"
     databaseMinConns: "2"
     databaseMaxIdleMs: "30000"
