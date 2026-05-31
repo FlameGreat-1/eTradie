@@ -25,6 +25,13 @@ type GatewayPort interface {
 	ConfirmSetup(ctx context.Context, symbol, analysisID, traceID string) (*ConfirmResult, error)
 	ConfirmSetupWithParams(ctx context.Context, symbol, analysisID, traceID string, params *ConfirmSetupParams) (*ConfirmResult, error)
 	NotifyExecutionCompleted(ctx context.Context, order *models.Order, brokerOrderID string, fillPrice, slippage float64) error
+
+	// CheckNewsWindow asks the Gateway whether a high-impact economic
+	// event affecting the symbol's currencies is imminent. The Gateway
+	// owns the calendar; the watcher uses this on every LIMIT TTL tick
+	// so a resting limit order can be cancelled before it fills into
+	// news. tradingStyle selects the style-aware lockout window.
+	CheckNewsWindow(ctx context.Context, symbol, tradingStyle, traceID string) (*NewsWindowResult, error)
 }
 
 // ConfirmResult holds the Gateway's response to a confirmation pulse.
@@ -32,6 +39,18 @@ type ConfirmResult struct {
 	Confirmed       bool
 	LTFConfirmation bool
 	Reason          string
+}
+
+// NewsWindowResult holds the Gateway's news-proximity verdict for the
+// LIMIT TTL loop. DataAvailable is false when the Gateway had no
+// calendar data (it fails closed: Locked is then true).
+type NewsWindowResult struct {
+	Locked        bool
+	DataAvailable bool
+	Reason        string
+	EventName     string
+	Currency      string
+	MinutesUntil  float64
 }
 
 // Config holds watcher-specific configuration passed from the
