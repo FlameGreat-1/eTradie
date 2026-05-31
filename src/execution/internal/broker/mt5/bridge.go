@@ -354,47 +354,13 @@ func (b *Bridge) placeOrder(ctx context.Context, order *models.OrderPlacement, o
 		VolumeRemaining float64 `json:"volume_remaining"`
 	}
 
-	// Section 3 (CHECKLIST): retry transient errors with full jitter
-	// exponential backoff. We DO NOT retry on:
-	//   - 4xx HTTP responses (logical rejection / bad input)
-	//   - decoded payloads with Status="REJECTED" (broker said no)
-	//   - context cancellation (caller gave up)
-	// Retrying any of those is a duplicate-order risk.
-	attempts := 1
-	if b.retry.enabled() {
-		attempts = b.retry.Attempts
-	}
-	var lastErr error
-	for attempt := 1; attempt <= attempts; attempt++ {
-		err := b.post(ctx, "/internal/broker/place_order", payload, &resp)
-		if err == nil {
-			if attempt > 1 {
-				observability.OrderRetryTotal.WithLabelValues("success_after_retry").Inc()
-			}
-			break
-		}
-		lastErr = err
-		if !b.retry.enabled() || attempt >= attempts || !isTransient(err) || ctx.Err() != nil {
-			if b.retry.enabled() && attempt >= attempts {
-				observability.OrderRetryTotal.WithLabelValues("give_up").Inc()
-			}
-			return nil, fmt.Errorf("place %s order for %s: %w", orderType, order.Symbol, err)
-		}
-		observability.OrderRetryTotal.WithLabelValues("retry").Inc()
-		delay := b.retry.nextDelay(attempt)
-		b.log.Warn().
-			Err(err).
-			Int("attempt", attempt).
-			Int("max_attempts", attempts).
-			Dur("sleep", delay).
-			Str("symbol", order.Symbol).
-			Str("order_type", orderType).
-			Msg("place_order_transient_failure_retrying")
-		select {
-		case <-time.After(delay):
-		case <-ctx.Done():
-			return nil, fmt.Errorf("place %s order for %s: %w (ctx: %v)", orderType, order.Symbol, lastErr, ctx.Err())
-		}
+	// Placement is attempted exactly once. The broker has no
+	// idempotency (the engine, zmq client, and EA all place
+	// unconditionally), so a retry after a lost response would risk a
+	// duplicate position. An ambiguous transient failure is returned
+	// to the caller and resolved by the reconciler.
+	if err := b.post(ctx, "/internal/broker/place_order", payload, &resp); err != nil {
+		return nil, fmt.Errorf("place %s order for %s: %w", orderType, order.Symbol, err)
 	}
 
 	var slippage float64
@@ -428,27 +394,6 @@ func (b *Bridge) placeOrder(ctx context.Context, order *models.OrderPlacement, o
 		VolumeFilled:    volumeFilled,
 		VolumeRemaining: volumeRemaining,
 	}, nil
-}
-
-// isTransient determines whether a bridge error is worth retrying.
-// True for network errors, HTTP 5xx, and 429 Too Many Requests.
-func isTransient(err error) bool {
-	if err == nil {
-		return false
-	}
-	// Network-level errors are always transient.
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return true
-	}
-	// The post() helper wraps HTTP non-2xx as fmt.Errorf with the status
-	// embedded in the message. We pattern-match on the status string to
-	// avoid changing the post() return shape (zero ripple to callers).
-	msg := err.Error()
-	return strings.Contains(msg, "status 5") ||
-		strings.Contains(msg, "status 429") ||
-		strings.Contains(msg, "connection reset") ||
-		strings.Contains(msg, "EOF")
 }
 
 func (b *Bridge) CancelOrder(ctx context.Context, brokerOrderID string) error {
