@@ -77,8 +77,13 @@ positions for such users are never imported, and external closes are never
 detected, until the next process restart. CHECKLIST Management Section 1
 ("Continuous Reconciliation", "self-healing") is not met for the post-boot
 cohort.
-**Status:** under verification — fix is a periodic supervisor that ensures a
-reconciler exists per active broker'd user. Tracked, not yet landed.
+**Fix:** `monitoring.ReconcilerSupervisor` runs one StateReconciler per
+active user, re-evaluating the active-user set every
+`MANAGEMENT_RECONCILE_INTERVAL_SECS` (default 60s). It starts reconcilers
+for newly-active users, stops them for deactivated users, seeds the
+cold-start tick-cache identity once, and is drained on shutdown.
+Supporting changes: `TickCache.HasServiceIdentity()` and the new
+`ReconcileIntervalSecs` management config field.
 
 ---
 
@@ -90,6 +95,9 @@ reconciler exists per active broker'd user. Tracked, not yet landed.
 | F2 | idempotency-key propagation | P0 | DONE |
 | F3 | INSTANT-mode idempotency | P0 | DONE |
 | F4 | StatusDuplicate constant | P1 | DONE |
-| F5 | management post-boot reconciler supervisor | P1 | INVESTIGATING |
+| F5 | management post-boot reconciler supervisor | P1 | DONE |
 
 Update this table as each fix lands. Each commit references its finding ID.
+
+All five findings landed on branch `audit/execution-management-hardening`.
+Next step: open the MR from that branch into `main` and run CI.
