@@ -54,7 +54,7 @@ func (g *GuardEvaluator) EvaluatePreLLM(
 	start := time.Now()
 
 	checks := []models.GuardCheckResult{
-		checkHighImpactEventProximity(macroResult),
+		checkHighImpactEventProximity(taResult, macroResult),
 		checkSessionRestriction(taResult),
 		checkWeekendGapRisk(taResult),
 		checkLowLiquidityHours(taResult),
@@ -231,32 +231,32 @@ func aggregateNoMetrics(checks []models.GuardCheckResult) *models.GuardEvaluatio
 // (CheckNewsWindow RPC). Here the trading style is not yet known
 // (pre-LLM), so the normal lockout window is used; the wider
 // scalping window is enforced later where the style is known.
-func checkHighImpactEventProximity(macro *models.MacroResult) models.GuardCheckResult {
+func checkHighImpactEventProximity(ta *models.TASymbolResult, macro *models.MacroResult) models.GuardCheckResult {
+	// 24/7 markets have no fiat calendar exposure; the orchestrator
+	// also passes a nil macro for them. EvaluateNewsWindow returns
+	// "no exposure" for such symbols, so they pass without needing a
+	// calendar.
+	if Is247Market(ta.Symbol) {
+		return models.GuardCheckResult{
+			Rule: constants.RuleHighImpactEventProximity, Verdict: constants.VerdictPass,
+			Reason: "News proximity does not apply to 24/7 markets",
+		}
+	}
+
 	var calendar map[string]interface{}
 	if macro != nil {
 		calendar = macro.Calendar
 	}
 
-	// macroResult is nil for 24/7 markets (the orchestrator nils it),
-	// and EvaluateNewsWindow treats those symbols as having no fiat
-	// exposure. The pre-LLM guard runs per symbol via the caller, but
-	// the symbol is not threaded into this function in the legacy
-	// signature; the session/weekend/liquidity checks already carry
-	// the TASymbolResult. News proximity is symbol-scoped, so the
-	// evaluation is performed against the macro calendar which is
-	// already symbol-relevant (the orchestrator passes nil macro for
-	// 24/7 markets). A nil calendar fails closed.
-	status := EvaluateNewsWindow(calendar, "", time.Now().UTC(), constants.HighImpactEventLockoutMinutes)
+	status := EvaluateNewsWindow(calendar, ta.Symbol, time.Now().UTC(), constants.HighImpactEventLockoutMinutes)
 
-	// An empty symbol yields no currencies -> EvaluateNewsWindow would
-	// short-circuit to "no exposure". The decision-time guard must
-	// still honour a missing-calendar fail-closed, so handle that case
-	// explicitly before the no-symbol short-circuit can mask it.
-	if macro != nil && macro.Calendar == nil {
+	if !status.DataAvailable {
+		// Fail closed (N3): a non-24/7 symbol with no calendar data
+		// must not trade blind into a possible high-impact event.
 		return models.GuardCheckResult{
 			Rule:     constants.RuleHighImpactEventProximity,
 			Verdict:  constants.VerdictReject,
-			Reason:   "Economic-calendar data unavailable; failing closed to avoid trading blind into news",
+			Reason:   status.Reason,
 			Metadata: map[string]interface{}{"data_available": false},
 		}
 	}
