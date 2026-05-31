@@ -133,7 +133,7 @@ choice, not an accident. No behavioural bug — documented as accepted.
 | F4 | StatusDuplicate constant | P1 | DONE |
 | F5 | management post-boot reconciler supervisor | P1 | DONE |
 | F6 | wire BurstQueue into ExecuteTrade | P1 | DONE |
-| F8 | execution brokertest compile fix | P0-build | TODO |
+| F8 | execution brokertest compile fix | P0-build | DONE |
 | F7 | redundant in-process analysisID dedup | P2 | ACCEPTED (documented) |
 
 Update this table as each fix lands. Each commit references its finding ID.
