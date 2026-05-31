@@ -16,10 +16,6 @@ data:
   EXECUTION_BROKER_BRIDGE_URL: {{ .Values.config.execution.brokerBridgeURL | quote }}
   EXECUTION_BROKER_TIMEOUT_MS: {{ .Values.config.execution.brokerTimeoutMs | quote }}
   EXECUTION_MOCK_BROKER_BALANCE: {{ .Values.config.execution.mockBrokerBalance | quote }}
-  # Section 3 (CHECKLIST): broker retry-with-backoff.
-  EXECUTION_BROKER_RETRY_ATTEMPTS: {{ .Values.config.execution.brokerRetryAttempts | default "3" | quote }}
-  EXECUTION_BROKER_RETRY_BASE_MS: {{ .Values.config.execution.brokerRetryBaseMs | default "200" | quote }}
-  EXECUTION_BROKER_RETRY_CAP_MS: {{ .Values.config.execution.brokerRetryCapMs | default "2000" | quote }}
   # Section 3: end-to-end latency kill-switch.
   EXECUTION_MAX_ORDER_LATENCY_MS: {{ .Values.config.execution.maxOrderLatencyMs | default "5000" | quote }}
   # Section 3: order idempotency window.

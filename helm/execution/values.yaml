@@ -88,10 +88,6 @@ config:
     brokerMode: ""
     brokerBridgeURL: "http://engine.etradie-system.svc.cluster.local:8000"
     brokerTimeoutMs: "5000"
-    # Section 3 (CHECKLIST) - broker retry-with-backoff.
-    brokerRetryAttempts: "3"
-    brokerRetryBaseMs: "200"
-    brokerRetryCapMs: "2000"
     # Section 3 - end-to-end latency kill-switch.
     maxOrderLatencyMs: "5000"
     # Section 3 - order idempotency window.

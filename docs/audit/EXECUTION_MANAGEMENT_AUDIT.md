@@ -152,6 +152,15 @@ config, headerIdempotencyKey). Transient ambiguity is resolved by the
 reconciler, which compares broker truth against engine state. Read calls
 are unaffected (they never used the retry loop).
 
+### F11 (P2) — Stale broker-retry config in execution Helm chart
+F9 removed the BrokerRetry* config fields from src/execution config.go, but
+the Helm chart still set them in three places: values.yaml,
+values-production.yaml, and the configmap (which rendered
+EXECUTION_BROKER_RETRY_ATTEMPTS/BASE_MS/CAP_MS env vars). envconfig silently
+ignores unknown env vars so this does not break boot, but it is dead,
+misleading config implying the broker still retries placement. Removed from
+all three files.
+
 ## PROGRESS TRACKER
 
 | ID | Title | Severity | Status |
@@ -166,6 +175,8 @@ are unaffected (they never used the retry loop).
 | F9 | order placement must not retry (broker not idempotent) | P0 | DONE |
 | F10 | fixed 500ms sleep for deal history → poll-with-timeout | P1 | DONE |
 | F7 | redundant in-process analysisID dedup | P2 | DONE (removed) |
+
+| F11 | remove stale broker-retry config from execution helm chart | P2 | DONE |
 
 Update this table as each fix lands. Each commit references its finding ID.
 
