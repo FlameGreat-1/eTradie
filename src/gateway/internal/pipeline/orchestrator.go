@@ -772,6 +772,34 @@ func (o *Orchestrator) RunConfirmationPulseWithParams(
 	}
 }
 
+// CheckNewsWindow reports whether `symbol` must be locked out now
+// because a high-impact event affecting one of its currencies
+// activates within the style-aware lockout window. Backs the
+// GatewayService.CheckNewsWindow RPC used by the execution watcher's
+// LIMIT TTL loop. Reuses the cached macro calendar and the shared
+// evaluator so policy is identical to the decision-time guard and the
+// INSTANT fire-time gate.
+func (o *Orchestrator) CheckNewsWindow(
+	ctx context.Context,
+	symbol string,
+	tradingStyle string,
+	traceID string,
+) routing.NewsWindowStatus {
+	if routing.Is247Market(symbol) {
+		return routing.NewsWindowStatus{Locked: false, DataAvailable: true, Reason: "Symbol has no fiat calendar exposure"}
+	}
+
+	var calendar map[string]interface{}
+	if macro, err := o.macroCollector.Collect(ctx, traceID); err == nil && macro != nil {
+		calendar = macro.Calendar
+	} else if err != nil {
+		o.log.Warn().Err(err).Str("symbol", symbol).Str("trace_id", traceID).Msg("check_news_window_macro_collect_failed_failing_closed")
+	}
+
+	lockout := routing.LockoutMinutesForStyle(tradingStyle)
+	return routing.EvaluateNewsWindow(calendar, symbol, time.Now().UTC(), lockout)
+}
+
 // runLightweightConfirmation calls the Python engine's dedicated
 // /internal/ta/confirm_ltf endpoint. Returns nil if the call fails
 // (caller should fall back to full pipeline).
