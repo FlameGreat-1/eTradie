@@ -195,6 +195,14 @@ func main() {
 		cfg.MaxOrderLatencyMs,
 	)
 
+	// Order intake gate: per-user fairness + global in-flight cap +
+	// wait deadline. Enforced at the head of ExecuteTrade.
+	bq := executor.NewBurstQueue(executor.QueueConfig{
+		MaxConcurrent:   cfg.QueueMaxConcurrent,
+		PerUserCap:      cfg.QueuePerUserCap,
+		DefaultDeadline: time.Duration(cfg.QueueDeadlineMs) * time.Millisecond,
+	})
+
 	// ──────────────────────────────────────────────────────────────────────
 	// CRITICAL BOOT ORDER:
 	//
@@ -457,7 +465,7 @@ func main() {
 	// ──────────────────────────────────────────────────────────────────────
 
 	// ── gRPC server ────────────────────────────────────────────────────────
-	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore, wm)
+	execServer := server.NewExecutionServer(cfg, v, s, e, sm, bp, al, alertTransport, settingsStore, wm, bq)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
 	if err != nil {
