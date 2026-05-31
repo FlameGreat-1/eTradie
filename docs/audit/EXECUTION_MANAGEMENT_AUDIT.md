@@ -177,6 +177,7 @@ all three files.
 | F7 | redundant in-process analysisID dedup | P2 | DONE (removed) |
 
 | F11 | remove stale broker-retry config from execution helm chart | P2 | DONE |
+| F12 | expose F5/F6 config knobs (queue, reconcile interval) in charts | P2 | DONE |
 
 Update this table as each fix lands. Each commit references its finding ID.
 
