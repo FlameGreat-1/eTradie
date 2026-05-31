@@ -21,6 +21,13 @@ service GatewayService {
   // This triggers Step 7 of the architecture: Handoff to Module C.
   rpc NotifyExecutionCompleted(NotifyExecutionCompletedRequest) returns (NotifyExecutionCompletedResponse);
 
+  // CheckNewsWindow reports whether a high-impact economic-calendar event
+  // affecting the symbol's currencies is imminent. Called by Module B's
+  // watcher on every LIMIT-order TTL tick so a resting limit order can be
+  // cancelled before it fills into a news event. The gateway owns the
+  // calendar; the watcher has no calendar access of its own.
+  rpc CheckNewsWindow(CheckNewsWindowRequest) returns (CheckNewsWindowResponse);
+
   // SetActiveSymbols updates the user's active symbol selection.
   rpc SetActiveSymbols(SetActiveSymbolsRequest) returns (SetActiveSymbolsResponse);
 
@@ -192,5 +199,26 @@ message NotifyExecutionCompletedRequest {
 message NotifyExecutionCompletedResponse {
   bool   success = 1;
   string management_trade_id = 2;    // Module C's tracking ID, returned for reference
+}
+
+// CheckNewsWindowRequest asks the gateway whether `symbol` must be
+// locked out now because a high-impact event affecting one of its
+// currencies activates within the style-aware lockout window.
+message CheckNewsWindowRequest {
+  string symbol = 1;
+  string trading_style = 2;  // "SCALPING", "INTRADAY", "SWING", "POSITIONAL"
+  string trace_id = 3;
+}
+
+// CheckNewsWindowResponse is the gateway's news-proximity verdict.
+message CheckNewsWindowResponse {
+  bool   locked = 1;          // true if a new fill/entry must be blocked now
+  bool   data_available = 2;  // false when the calendar dataset was missing
+                              // (the gateway fails closed: locked=true)
+  string reason = 3;          // human-readable explanation
+  string event_name = 4;      // the blocking event, when locked
+  string currency = 5;        // the blocking event's currency, when locked
+  double minutes_until = 6;   // minutes until the blocking event, when locked
+  string trace_id = 7;
 }
 
