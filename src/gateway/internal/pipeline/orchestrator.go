@@ -1117,17 +1117,21 @@ func (o *Orchestrator) processSymbol(
 			if matchesCandidate(cand, processorOutput.AnalysisID) {
 				processorOutput.LTFTimeframe = getStringField(cand, "ltf_timeframe")
 				processorOutput.HTFTimeframe = getStringField(cand, "htf_timeframe")
-				
-				// SnD candidates might use zone_upper / zone_lower instead of ob_upper
-				upper := getFloat64Field(cand, "ob_upper")
+
+				// SnDCandidate carries its zone as supply_zone_* (bearish)
+				// or demand_zone_* (bullish); a candidate populates only
+				// one. Resolve supply-first to mirror the Python model's
+				// to_technical_candidate() so the LTF fast-path receives
+				// real bounds instead of zeros.
+				upper := getFloat64Field(cand, "supply_zone_upper")
 				if upper == 0 {
-					upper = getFloat64Field(cand, "zone_upper")
+					upper = getFloat64Field(cand, "demand_zone_upper")
 				}
-				lower := getFloat64Field(cand, "ob_lower")
+				lower := getFloat64Field(cand, "supply_zone_lower")
 				if lower == 0 {
-					lower = getFloat64Field(cand, "zone_lower")
+					lower = getFloat64Field(cand, "demand_zone_lower")
 				}
-				
+
 				processorOutput.OBUpper = upper
 				processorOutput.OBLower = lower
 				break
