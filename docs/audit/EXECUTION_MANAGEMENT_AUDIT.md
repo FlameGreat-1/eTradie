@@ -335,19 +335,25 @@ Wiring:
     the LIMIT lifetime gap regardless of the RSS calendar horizon, because the
     event enters the lockout window as time advances and the macro cache
     refreshes each cycle.
-  - check4NewsLockout: becomes a REAL placement-time check that calls the
-    gateway CheckNewsWindow (style-aware) and rejects if locked. Execution
-    gains a narrow gateway-news client dependency (interface, nil-safe for
-    tests) -- no calendar logic leaks into execution.
+  - check4NewsLockout: STAYS a no-op (calendar lives in the gateway). A LIMIT
+    trade reaching execution has already passed the gateway decision-time news
+    guard (checkHighImpactEventProximity, currency-aware + fail-closed, fixed
+    in S3); re-checking the SAME instant inside execution would be redundant
+    (forbidden). Its comment is corrected to state the real, now-complete
+    ownership: decision-time guard (gateway) + INSTANT fire-time gate
+    (ConfirmSetup) + LIMIT lifetime gate (watcher -> CheckNewsWindow). No
+    calendar dependency leaks into execution; the only new execution wiring is
+    the watcher's GatewayPort.CheckNewsWindow call.
 
 Revised step plan from here:
   S5 proto: gateway.proto add CheckNewsWindow rpc + request/response messages.
   S6 gateway grpc_server.go: implement CheckNewsWindow handler.
   S7 execution watcher GatewayPort + GatewayGRPCClient: CheckNewsWindow method.
   S8 watcher runLimitTTL: cancel resting order on news lockout (N1 LIMIT).
-  S9 execution validator check4NewsLockout: real placement-time gate via a new
-     news-gateway client; wire client through validator + grpc_server + main.
-  S10 final pass: exports.go comment, tracker -> DONE, list proto-gen step.
+  S9 execution validator check4NewsLockout: correct the misleading comment to
+     reflect the now-complete ownership (no code change; stays pass()).
+  S10 final pass: exports.go comment, tracker -> DONE, document the required
+     `make proto-gen` regeneration step + build expectations.
 
 Progress marker: COMPLETED S1, S2, S3, S4. NEXT: S5 (proto CheckNewsWindow).
 
