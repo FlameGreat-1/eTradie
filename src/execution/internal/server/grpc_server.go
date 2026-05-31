@@ -56,6 +56,7 @@ type ExecutionServer struct {
 	transport *alertredis.Transport
 	settings  *store.SettingsStore
 	watcher   *watcher.Manager
+	queue     *executor.BurstQueue
 	log       zerolog.Logger
 
 	processedMu sync.RWMutex
@@ -75,6 +76,7 @@ func NewExecutionServer(
 	transport *alertredis.Transport,
 	ss *store.SettingsStore,
 	wm *watcher.Manager,
+	q *executor.BurstQueue,
 ) *ExecutionServer {
 	srv := &ExecutionServer{
 		cfg:         cfg,
@@ -87,6 +89,7 @@ func NewExecutionServer(
 		transport:   transport,
 		settings:    ss,
 		watcher:     wm,
+		queue:       q,
 		log:         observability.Logger("grpc_server"),
 		processed:   make(map[string]idempotencyEntry),
 		stopCleanup: make(chan struct{}),
@@ -249,6 +252,26 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	if claims.Role != auth.RoleAdmin && claims.Tier == "free" {
 		return nil, status.Errorf(codes.PermissionDenied,
 			"automated trade execution is restricted to Pro users")
+	}
+
+	// Backpressure: acquire a queue slot before any broker-touching
+	// work. Overflow / deadline returns a non-retryable QUEUED response
+	// (not a gRPC error) so the gateway does not retry and defeat the
+	// gate. A nil queue (tests) skips the gate.
+	if s.queue != nil {
+		release, qErr := s.queue.Enter(ctx, userID)
+		if qErr != nil {
+			s.log.Warn().Err(qErr).Str("user_id", userID).Str("trace_id", traceID).Msg("execute_trade_queue_rejected")
+			observability.ExecutionTotal.WithLabelValues(req.GetSymbol(), req.GetDirection(), "queue_rejected").Inc()
+			return &executionv1.ExecuteTradeResponse{
+				Accepted:        false,
+				Status:          string(constants.StatusQueued),
+				RejectionReason: "execution intake at capacity: " + qErr.Error(),
+				AnalysisId:      analysisID,
+				TraceId:         traceID,
+			}, nil
+		}
+		defer release()
 	}
 
 	tradeReq := parseRequest(req)
