@@ -355,7 +355,9 @@ Revised step plan from here:
   S10 final pass: exports.go comment, tracker -> DONE, document the required
      `make proto-gen` regeneration step + build expectations.
 
-Progress marker: COMPLETED S1, S2, S3, S4. NEXT: S5 (proto CheckNewsWindow).
+Progress marker: COMPLETED S1-S6 (S5 proto CheckNewsWindow; S6 orchestrator
+CheckNewsWindow + gateway gRPC handler). NEXT: S7 (execution GatewayPort +
+GatewayGRPCClient CheckNewsWindow method).
 
 Pending cleanup for S11: querybuilder/exports.go header comment still says its
 consumer is routing/guards.go (checkNewsProximity); the real consumer is now
