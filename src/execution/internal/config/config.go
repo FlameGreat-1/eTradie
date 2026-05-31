@@ -51,6 +51,17 @@ type Config struct {
 	// against the engine's view and surfaces drift.
 	ReconcileIntervalSecs int `envconfig:"RECONCILE_INTERVAL_SECS" default:"60"`
 
+	// Section 3: order intake backpressure. The BurstQueue gates the
+	// ExecuteTrade pipeline: QueueMaxConcurrent bounds total in-flight
+	// placements cluster-wide, QueuePerUserCap bounds one user's
+	// in-flight placements so a noisy user cannot starve others, and
+	// QueueDeadlineMs is the max time an order waits for a slot before
+	// it is dropped (the broker price has moved; a stale order is
+	// worse than a clear rejection).
+	QueueMaxConcurrent int `envconfig:"QUEUE_MAX_CONCURRENT" default:"8"`
+	QueuePerUserCap    int `envconfig:"QUEUE_PER_USER_CAP" default:"4"`
+	QueueDeadlineMs    int `envconfig:"QUEUE_DEADLINE_MS" default:"2000"`
+
 	// Section 7 (CHECKLIST): position snapshots.
 	//
 	// PositionSnapshotEnabled is the operator kill-switch. When false
@@ -331,6 +342,15 @@ func (c *Config) validate() error {
 	}
 	if c.GhostPositionMinAgeSecs < 60 || c.GhostPositionMinAgeSecs > 3600 {
 		return fmt.Errorf("GHOST_POSITION_MIN_AGE_SECS must be 60..3600, got %d", c.GhostPositionMinAgeSecs)
+	}
+	if c.QueueMaxConcurrent < 1 || c.QueueMaxConcurrent > 256 {
+		return fmt.Errorf("QUEUE_MAX_CONCURRENT must be 1..256, got %d", c.QueueMaxConcurrent)
+	}
+	if c.QueuePerUserCap < 1 || c.QueuePerUserCap > c.QueueMaxConcurrent {
+		return fmt.Errorf("QUEUE_PER_USER_CAP must be 1..QUEUE_MAX_CONCURRENT (%d), got %d", c.QueueMaxConcurrent, c.QueuePerUserCap)
+	}
+	if c.QueueDeadlineMs < 100 || c.QueueDeadlineMs > 30000 {
+		return fmt.Errorf("QUEUE_DEADLINE_MS must be 100..30000, got %d", c.QueueDeadlineMs)
 	}
 	// PreloadPositionsOnStart is a bool; no range check.
 
