@@ -312,9 +312,11 @@ SPLIT DECISION:
           max TTL for Swing/Positional LIMIT orders).
   Awaiting user choice for the LIMIT lifetime piece; everything else proceeds.
 
-Progress marker: COMPLETED S1, S2, S3. NEXT: S4 (INSTANT fire-time gate),
-then placement-time LIMIT gate (within-horizon), then pause for user decision
-on the LIMIT lifetime re-check (proto vs TTL-cap).
+Progress marker: COMPLETED S1, S2, S3, S4 (INSTANT fire-time news gate in
+RunConfirmationPulseWithParams + gateway style-aware lockout constants).
+NEXT: S5 (LIMIT placement-time within-horizon gate in router executeTrade),
+then S6 (execution check4NewsLockout comment), S7 (final pass), then pause for
+user decision on the LIMIT lifetime re-check (proto RPC vs TTL-cap).
 
 Pending cleanup for S11: querybuilder/exports.go header comment still says its
 consumer is routing/guards.go (checkNewsProximity); the real consumer is now
