@@ -85,6 +85,29 @@ cold-start tick-cache identity once, and is drained on shutdown.
 Supporting changes: `TickCache.HasServiceIdentity()` and the new
 `ReconcileIntervalSecs` management config field.
 
+### F6 (P1) — BurstQueue is implemented and tested but never wired
+`src/execution/internal/executor/queue.go` defines a per-user FIFO intake
+gate with a global concurrency ceiling and deadlines, with full unit tests in
+`queue_test.go`. But no call site constructs it or calls `Enter`: not
+`main.go`, not `grpc_server.go`, not `executor.go`, not `http_server.go`. The
+only references are the definition and its tests. Backpressure, the global
+in-flight cap, and per-user fairness that CHECKLIST Section 3 ("Backpressure
+controls", "Queue depth monitoring") calls for are therefore NOT enforced — a
+burst of orders hits the broker bridge unbounded.
+**Fix:** construct the queue in main.go from config, hold it on
+ExecutionServer, and have ExecuteTrade acquire a per-user slot before the
+validate/size/execute pipeline and release it after. Overflow/deadline
+returns a non-retryable QUEUED/REJECTED response (not a gRPC error, which the
+gateway would retry and defeat the backpressure).
+
+### F7 (P2) — In-process analysisID dedup is now redundant
+`grpc_server.go` keeps an in-memory `processed` map for analysis_id dedup.
+With the DB-backed idempotency layer (F1-F3) now correct and keyed on the
+gateway's idempotency key (which IS the analysis_id by default), the
+in-process map is a weaker, single-process, restart-losing duplicate of the
+same guard. Kept for now as a cheap fast-path; flagged so it is a conscious
+choice, not an accident. No behavioural bug — documented as accepted.
+
 ---
 
 ## PROGRESS TRACKER
@@ -96,6 +119,8 @@ Supporting changes: `TickCache.HasServiceIdentity()` and the new
 | F3 | INSTANT-mode idempotency | P0 | DONE |
 | F4 | StatusDuplicate constant | P1 | DONE |
 | F5 | management post-boot reconciler supervisor | P1 | DONE |
+| F6 | wire BurstQueue into ExecuteTrade | P1 | TODO |
+| F7 | redundant in-process analysisID dedup | P2 | ACCEPTED (documented) |
 
 Update this table as each fix lands. Each commit references its finding ID.
 
