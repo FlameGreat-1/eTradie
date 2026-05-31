@@ -255,6 +255,38 @@ func (s *GRPCServer) ConfirmSetup(ctx context.Context, req *gatewayv1.ConfirmSet
 	}, nil
 }
 
+// CheckNewsWindow reports whether a high-impact economic-calendar event
+// affecting the symbol's currencies is imminent. Called by Module B's
+// watcher on every LIMIT-order TTL tick so a resting limit order can be
+// cancelled before it fills into a news event.
+func (s *GRPCServer) CheckNewsWindow(ctx context.Context, req *gatewayv1.CheckNewsWindowRequest) (*gatewayv1.CheckNewsWindowResponse, error) {
+	symbol := req.GetSymbol()
+	if symbol == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "symbol is required")
+	}
+
+	statusResult := s.orchestrator.CheckNewsWindow(ctx, symbol, req.GetTradingStyle(), req.GetTraceId())
+
+	s.log.Info().
+		Str("symbol", symbol).
+		Str("trading_style", req.GetTradingStyle()).
+		Bool("locked", statusResult.Locked).
+		Bool("data_available", statusResult.DataAvailable).
+		Str("reason", statusResult.Reason).
+		Str("trace_id", req.GetTraceId()).
+		Msg("check_news_window_completed")
+
+	return &gatewayv1.CheckNewsWindowResponse{
+		Locked:        statusResult.Locked,
+		DataAvailable: statusResult.DataAvailable,
+		Reason:        statusResult.Reason,
+		EventName:     statusResult.EventName,
+		Currency:      statusResult.Currency,
+		MinutesUntil:  statusResult.MinutesUntil,
+		TraceId:       req.GetTraceId(),
+	}, nil
+}
+
 // NotifyExecutionCompleted is called by Module B when a market order is filled.
 // This is Step 7 of the architecture: Gateway orchestrates handoff to Module C.
 func (s *GRPCServer) NotifyExecutionCompleted(ctx context.Context, req *gatewayv1.NotifyExecutionCompletedRequest) (*gatewayv1.NotifyExecutionCompletedResponse, error) {
