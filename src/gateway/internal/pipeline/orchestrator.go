@@ -637,6 +637,37 @@ func (o *Orchestrator) RunConfirmationPulseWithParams(
 
 	start := time.Now()
 
+	// News lockout (fire-time, N1): an INSTANT watcher fires a market
+	// order the moment this returns Confirmed=true, which may be far
+	// later than the decision-time guard ran. Re-check news proximity
+	// here against the symbol's own currencies so the irreversible
+	// market order never lands inside a high-impact event window. The
+	// wider (scalping) window is used unconditionally: extra caution at
+	// the fire moment is correct and needs no per-order style on the
+	// wire. A non-24/7 symbol with no calendar data fails closed.
+	if !routing.Is247Market(symbol) {
+		var calendar map[string]interface{}
+		if macro, mErr := o.macroCollector.Collect(ctx, traceID); mErr == nil && macro != nil {
+			calendar = macro.Calendar
+		} else if mErr != nil {
+			pulseLog.Warn().Err(mErr).Str("symbol", symbol).Msg("confirmation_pulse_macro_collect_failed_failing_closed")
+		}
+		news := routing.EvaluateNewsWindow(calendar, symbol, time.Now().UTC(), constants.NewsLockoutMinutesScalping)
+		if news.Locked {
+			pulseLog.Warn().
+				Str("symbol", symbol).
+				Str("analysis_id", analysisID).
+				Str("reason", news.Reason).
+				Bool("data_available", news.DataAvailable).
+				Msg("confirmation_pulse_blocked_by_news_lockout")
+			return &ConfirmationResult{
+				Confirmed:       false,
+				LTFConfirmation: false,
+				Reason:          "News lockout: " + news.Reason,
+			}
+		}
+	}
+
 	// Fast path: call lightweight LTF confirmation endpoint
 	if params != nil {
 		result := o.runLightweightConfirmation(ctx, params, traceID, pulseLog)
