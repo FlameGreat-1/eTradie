@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	_ "time"
 
 	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
 	"github.com/flamegreat-1/etradie/src/alert"
@@ -32,16 +33,6 @@ import (
 	"github.com/flamegreat-1/etradie/src/execution/internal/watcher"
 )
 
-const (
-	idempotencyTTL     = 1 * time.Hour
-	idempotencyMaxSize = 10000
-	idempotencyCleanup = 5 * time.Minute
-)
-
-type idempotencyEntry struct {
-	expiresAt time.Time
-}
-
 // ExecutionServer implements executionv1.ExecutionServiceServer.
 type ExecutionServer struct {
 	executionv1.UnimplementedExecutionServiceServer
@@ -58,10 +49,6 @@ type ExecutionServer struct {
 	watcher   *watcher.Manager
 	queue     *executor.BurstQueue
 	log       zerolog.Logger
-
-	processedMu sync.RWMutex
-	processed   map[string]idempotencyEntry
-	stopCleanup chan struct{}
 }
 
 // NewExecutionServer creates the gRPC server with all dependencies.
@@ -78,80 +65,20 @@ func NewExecutionServer(
 	wm *watcher.Manager,
 	q *executor.BurstQueue,
 ) *ExecutionServer {
-	srv := &ExecutionServer{
-		cfg:         cfg,
-		validator:   v,
-		sizer:       s,
-		executor:    e,
-		state:       sm,
-		broker:      bp,
-		audit:       al,
-		transport:   transport,
-		settings:    ss,
-		watcher:     wm,
-		queue:       q,
-		log:         observability.Logger("grpc_server"),
-		processed:   make(map[string]idempotencyEntry),
-		stopCleanup: make(chan struct{}),
+	return &ExecutionServer{
+		cfg:       cfg,
+		validator: v,
+		sizer:     s,
+		executor:  e,
+		state:     sm,
+		broker:    bp,
+		audit:     al,
+		transport: transport,
+		settings:  ss,
+		watcher:   wm,
+		queue:     q,
+		log:       observability.Logger("grpc_server"),
 	}
-	go srv.cleanupLoop()
-	return srv
-}
-
-// Close stops the idempotency cleanup goroutine. Must be called
-// during shutdown to prevent goroutine leaks.
-func (s *ExecutionServer) Close() {
-	close(s.stopCleanup)
-}
-
-func (s *ExecutionServer) cleanupLoop() {
-	ticker := time.NewTicker(idempotencyCleanup)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			s.evictExpired()
-		case <-s.stopCleanup:
-			return
-		}
-	}
-}
-
-func (s *ExecutionServer) evictExpired() {
-	now := time.Now()
-	s.processedMu.Lock()
-	for k, v := range s.processed {
-		if now.After(v.expiresAt) {
-			delete(s.processed, k)
-		}
-	}
-	s.processedMu.Unlock()
-}
-
-func (s *ExecutionServer) markProcessed(analysisID string) {
-	s.processedMu.Lock()
-	if len(s.processed) >= idempotencyMaxSize {
-		now := time.Now()
-		for k, v := range s.processed {
-			if now.After(v.expiresAt) {
-				delete(s.processed, k)
-			}
-		}
-	}
-	s.processed[analysisID] = idempotencyEntry{
-		expiresAt: time.Now().Add(idempotencyTTL),
-	}
-	s.processedMu.Unlock()
-}
-
-func (s *ExecutionServer) isDuplicate(analysisID string) bool {
-	s.processedMu.RLock()
-	entry, exists := s.processed[analysisID]
-	s.processedMu.RUnlock()
-	if !exists {
-		return false
-	}
-	return time.Now().Before(entry.expiresAt)
 }
 
 // resolveExecutionMode reads the current execution mode from the DB.
