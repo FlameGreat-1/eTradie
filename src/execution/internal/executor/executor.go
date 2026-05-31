@@ -69,10 +69,8 @@ func (e *Executor) Execute(ctx context.Context, order *models.Order) (*models.Ex
 	}
 }
 
-// idempotencyKeyFor derives the idempotency key for an order: the
-// gateway-supplied key when present, otherwise the order's own ID.
-// Shared by placeLimit and handleInstant so both execution modes use
-// the identical (UserID, key) tuple.
+// idempotencyKeyFor returns the gateway-supplied key, or the order ID
+// as a fallback for direct callers that omit it.
 func idempotencyKeyFor(order *models.Order) string {
 	if order.IdempotencyKey != "" {
 		return order.IdempotencyKey
@@ -83,7 +81,6 @@ func idempotencyKeyFor(order *models.Order) string {
 func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models.ExecutionResult, error) {
 	start := time.Now()
 
-	// ---- Section 3: idempotency claim ----
 	idemKey := idempotencyKeyFor(order)
 	if e.idempotency != nil {
 		claim, err := e.idempotency.TryClaim(ctx, &store.IdempotencyRecord{
@@ -98,9 +95,8 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 			LotSize:        order.LotSize,
 		})
 		if err != nil {
-			// Idempotency store failure must not block trading - log
-			// and fall through to a non-idempotent placement. The
-			// latency kill-switch + broker-level constraints remain.
+			// A store failure must not block trading; fall through to a
+			// non-idempotent placement, latency + broker guards still apply.
 			e.log.Warn().Err(err).Str("order_id", order.OrderID).Msg("idempotency_claim_failed_falling_through")
 		} else if !claim.FirstClaim && claim.Existing != nil {
 			ex := claim.Existing
@@ -240,12 +236,9 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 // The watcher autonomously polls tick prices, calls Gateway for LTF
 // confirmation, and fires the market order when conditions are met.
 //
-// Section 1/3 (CHECKLIST): a duplicate submission must NOT arm a second
-// watcher (each watcher can independently fire a market order). The
-// same (UserID, IdempotencyKey) claim that protects limit orders is
-// applied here BEFORE arming. A duplicate short-circuits with
-// StatusDuplicate; the first claim records the WATCHING state so a
-// later duplicate sees it.
+// A duplicate submission must not arm a second watcher, since each
+// watcher can independently fire a market order. The claim runs before
+// arming and short-circuits duplicates.
 func (e *Executor) handleInstant(ctx context.Context, order *models.Order) (*models.ExecutionResult, error) {
 	start := time.Now()
 
@@ -263,9 +256,6 @@ func (e *Executor) handleInstant(ctx context.Context, order *models.Order) (*mod
 			LotSize:        order.LotSize,
 		})
 		if err != nil {
-			// Store failure must not block trading - log and fall
-			// through to a non-idempotent arm, consistent with the
-			// limit path.
 			e.log.Warn().Err(err).Str("order_id", order.OrderID).Msg("idempotency_claim_failed_falling_through")
 		} else if !claim.FirstClaim && claim.Existing != nil {
 			ex := claim.Existing
@@ -285,14 +275,10 @@ func (e *Executor) handleInstant(ctx context.Context, order *models.Order) (*mod
 		}
 	}
 
-	// Arm the watcher — this spawns a background goroutine.
 	e.watcher.Arm(order)
 
-	// Record the WATCHING state on the idempotency row so a later
-	// duplicate sees a populated status. The broker_order_id is empty
-	// until the watcher fires; it is surfaced through the audit/
-	// reconciler path on fill. Best-effort: a failure here only costs
-	// observability on the duplicate, never blocks the armed watcher.
+	// Record WATCHING so a later duplicate sees a populated status. The
+	// broker_order_id is filled in by the watcher on fill.
 	if e.idempotency != nil {
 		if rerr := e.idempotency.RecordResult(
 			context.Background(),
