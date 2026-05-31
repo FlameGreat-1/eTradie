@@ -3,11 +3,8 @@ package mt5
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"math/rand"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -43,50 +40,15 @@ type Bridge struct {
 	baseURL        string
 	httpClient     *http.Client
 	internalSecret string
-	retry          retryConfig
 	log            zerolog.Logger
-}
-
-// WithRetry configures retry-with-backoff for transient broker errors.
-// Section 3 of CHECKLIST. Returns the receiver for fluent setup.
-func (b *Bridge) WithRetry(attempts, baseMs, capMs int) *Bridge {
-	b.retry = retryConfig{Attempts: attempts, BaseMs: baseMs, CapMs: capMs}
-	return b
 }
 
 // Header names mirror the engine constants. Kept as local consts so a
 // rename on either side is a one-place edit.
 const (
-	headerInternalAuth   = "X-Internal-Auth"
-	headerUserID         = "X-User-Id"
-	headerIdempotencyKey = "X-Idempotency-Key"
+	headerInternalAuth = "X-Internal-Auth"
+	headerUserID       = "X-User-Id"
 )
-
-// retryConfig groups the Section-3 retry knobs. Wired into NewBridge
-// from main.go via WithRetry(). Zero value disables retry entirely.
-type retryConfig struct {
-	Attempts int
-	BaseMs   int
-	CapMs    int
-}
-
-func (rc retryConfig) enabled() bool {
-	return rc.Attempts > 1 && rc.BaseMs > 0 && rc.CapMs > 0
-}
-
-func (rc retryConfig) nextDelay(attempt int) time.Duration {
-	if attempt < 1 {
-		return 0
-	}
-	schedule := rc.BaseMs * (1 << (attempt - 1))
-	if schedule > rc.CapMs {
-		schedule = rc.CapMs
-	}
-	if schedule <= 0 {
-		return 0
-	}
-	return time.Duration(rand.Intn(schedule+1)) * time.Millisecond
-}
 
 // NewBridge creates an MT5 bridge client. internalSecret must match
 // the engine's ENGINE_INTERNAL_SHARED_SECRET. An empty string is
