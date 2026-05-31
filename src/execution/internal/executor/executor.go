@@ -105,7 +105,7 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 			order.BrokerOrderID = ex.BrokerOrderID
 			return &models.ExecutionResult{
 				Accepted:        true,
-				Status:          constants.OrderStatus("DUPLICATE"),
+				Status:          constants.StatusDuplicate,
 				RejectionReason: "duplicate idempotency key; returning prior placement",
 				OrderID:         order.OrderID,
 				Order:           order,
