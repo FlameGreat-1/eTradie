@@ -355,11 +355,9 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 	order.StatusJWT = claims.Status
 	order.AuthToken = auth.RawTokenFromContext(ctx)
 
-	// Section 1/3 (CHECKLIST): stamp the gateway-supplied idempotency
-	// key so the executor's (UserID, IdempotencyKey) claim matches
-	// across RPC retries. The gateway sets x-idempotency-key to the
-	// analysis_id (or a fresh UUID when absent). When the header is
-	// missing (direct caller), the executor falls back to OrderID.
+	// Stamp the gateway-supplied idempotency key so the executor's
+	// claim matches across RPC retries. Absent for direct callers, in
+	// which case the executor falls back to OrderID.
 	if idemKey := incomingIdempotencyKey(ctx); idemKey != "" {
 		order.IdempotencyKey = idemKey
 	}
@@ -568,11 +566,8 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv
 	}, nil
 }
 
-// incomingIdempotencyKey extracts the x-idempotency-key value from the
-// inbound gRPC metadata. Returns "" when no metadata or no key is
-// present. gRPC lower-cases metadata keys, so the lookup uses the
-// canonical lower-case form the gateway writes
-// (metadata.AppendToOutgoingContext(ctx, "x-idempotency-key", ...)).
+// incomingIdempotencyKey reads the x-idempotency-key value from inbound
+// gRPC metadata, or "" when absent.
 func incomingIdempotencyKey(ctx context.Context) string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
