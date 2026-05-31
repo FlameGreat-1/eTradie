@@ -164,6 +164,7 @@ are unaffected (they never used the retry loop).
 | F6 | wire BurstQueue into ExecuteTrade | P1 | DONE |
 | F8 | execution brokertest compile fix | P0-build | DONE |
 | F9 | order placement must not retry (broker not idempotent) | P0 | DONE |
+| F10 | fixed 500ms sleep for deal history → poll-with-timeout | P1 | DONE |
 | F7 | redundant in-process analysisID dedup | P2 | DONE (removed) |
 
 Update this table as each fix lands. Each commit references its finding ID.
