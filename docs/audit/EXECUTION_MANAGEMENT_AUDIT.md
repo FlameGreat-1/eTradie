@@ -355,9 +355,13 @@ Revised step plan from here:
   S10 final pass: exports.go comment, tracker -> DONE, document the required
      `make proto-gen` regeneration step + build expectations.
 
-Progress marker: COMPLETED S1-S6 (S5 proto CheckNewsWindow; S6 orchestrator
-CheckNewsWindow + gateway gRPC handler). NEXT: S7 (execution GatewayPort +
-GatewayGRPCClient CheckNewsWindow method).
+Progress marker: COMPLETED S1-S8. S7 = execution GatewayPort.CheckNewsWindow +
+GatewayGRPCClient impl + NewsWindowResult type. S8 = watcher runLimitTTL now
+calls checkNewsAndCancel each tick -> cancels resting limit order on lockout
+(ReasonNewsLockout); nil-gateway safe; transient RPC errors ignored. Verified
+no other GatewayPort implementers exist (tests pass nil); gateway server embeds
+UnimplementedGatewayServiceServer so the new RPC is back-compatible.
+NEXT: S9 (correct check4NewsLockout comment), S10 (final pass + proto-gen note).
 
 Pending cleanup for S11: querybuilder/exports.go header comment still says its
 consumer is routing/guards.go (checkNewsProximity); the real consumer is now
