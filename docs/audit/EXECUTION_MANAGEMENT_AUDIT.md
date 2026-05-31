@@ -100,6 +100,19 @@ validate/size/execute pipeline and release it after. Overflow/deadline
 returns a non-retryable QUEUED/REJECTED response (not a gRPC error, which the
 gateway would retry and defeat the backpressure).
 
+### F8 (P0-build) — Execution brokertest package does not compile
+`src/execution/brokertest/bridge_test.go` calls `mt5.NewBridge(srv.URL(),
+5000)` (2 args) but the current `NewBridge` signature is `(baseURL,
+timeoutMs, internalSecret)` (3 args). The package therefore fails to build,
+which breaks `go test ./...` for the whole module. Separately, the bridge was
+refactored so `stampInternalAuth` requires BOTH a non-empty internal secret
+AND a user id in the context; every test passes `context.Background()` with no
+identity, so even after fixing the arg count each call would fail with
+"missing user id in request context". This is a pre-existing breakage unrelated
+to F1-F7 but it blocks CI, so it is fixed here.
+**Fix:** add a test-local internal secret and an identity-bearing context
+helper, and thread both through every bridge construction + call.
+
 ### F7 (P2) — In-process analysisID dedup is now redundant
 `grpc_server.go` keeps an in-memory `processed` map for analysis_id dedup.
 With the DB-backed idempotency layer (F1-F3) now correct and keyed on the
@@ -119,7 +132,8 @@ choice, not an accident. No behavioural bug — documented as accepted.
 | F3 | INSTANT-mode idempotency | P0 | DONE |
 | F4 | StatusDuplicate constant | P1 | DONE |
 | F5 | management post-boot reconciler supervisor | P1 | DONE |
-| F6 | wire BurstQueue into ExecuteTrade | P1 | TODO |
+| F6 | wire BurstQueue into ExecuteTrade | P1 | DONE |
+| F8 | execution brokertest compile fix | P0-build | TODO |
 | F7 | redundant in-process analysisID dedup | P2 | ACCEPTED (documented) |
 
 Update this table as each fix lands. Each commit references its finding ID.
