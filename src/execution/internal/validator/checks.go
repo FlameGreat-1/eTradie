@@ -13,13 +13,26 @@ import (
 	"github.com/flamegreat-1/etradie/src/execution/internal/state"
 )
 
-// check4NewsLockout: Gateway guard MR-REJECT-001 already evaluates news
-// proximity from MacroResult.Calendar during the analysis pipeline.
-// Execution is triggered within seconds of the guard pass. Module B
-// does not have access to the calendar data (only ProcessorOutput
-// fields arrive via gRPC). Re-fetching calendar data here would add
-// latency and duplicate the macro collector's responsibility.
-// Architectural decision: trust the gateway's evaluation.
+// check4NewsLockout intentionally passes: news protection is owned by
+// the gateway, which holds the economic calendar (Module B has no
+// calendar access). The protection is enforced at three points, so
+// re-checking the same instant here would be redundant:
+//
+//  1. Decision time: gateway guard MR-REJECT-001 (checkHighImpact-
+//     EventProximity) rejects an entry whose currencies face a HIGH-
+//     impact event within the lockout window, and fails closed when
+//     calendar data is missing. A trade only reaches Execution after
+//     passing this gate.
+//  2. INSTANT fire time: the watcher's ConfirmSetup call re-runs the
+//     gateway news evaluation before every market-order fire, so an
+//     INSTANT order never fires into news no matter how long the
+//     watcher polled.
+//  3. LIMIT lifetime: the watcher's TTL loop calls the gateway
+//     CheckNewsWindow RPC each tick and cancels the resting limit
+//     order before it can fill into an approaching event.
+//
+// This slot is retained (check number 4) so the validator numbering
+// matches the rulebook; it adds no per-call work.
 func check4NewsLockout(
 	_ context.Context,
 	_ *models.TradeRequest,
