@@ -36,6 +36,20 @@ The SEPARATE TwelveData CANDLE client (engine.ta.broker.twelve_data, used as a
 TA broker fallback) is untouched -- different object, still uses the retained
 twelvedata_* config.
 
+## Gold/silver source (Yahoo) + trend signals
+
+- Gold/silver come from `YahooMetalsProvider` (Yahoo Finance chart API, GC=F/SI=F,
+  operator-verified). Best-effort: an unofficial endpoint, so a Yahoo outage
+  leaves gold/silver None without affecting the FRED-sourced fields. Merged with
+  the FRED snapshot via the collector's _merge_snapshots.
+- Trend signals (direction + change) were added for the three fields whose
+  trajectory is a genuine risk signal -- VIX, US 10Y yield, gold -- computed
+  against the previous stored snapshot and emitted in correlation_signals
+  (vix_trend/vix_change, us10y_trend/us10y_change_bps, gold_trend/gold_change_pct).
+  DXY (already trended in its own collector), S&P/oil/silver/gas and the monthly
+  iron-ore/copper are intentionally not trended. They reach the LLM via the
+  opaque intermarket map (no gateway change needed).
+
 ## Limitations / not-guessed
 
 - gold, silver, copper, natural gas, iron ore, dairy are left None: no verified
