@@ -22,6 +22,7 @@ const (
 	GatewayService_RunCycle_FullMethodName                 = "/gateway.v1.GatewayService/RunCycle"
 	GatewayService_ConfirmSetup_FullMethodName             = "/gateway.v1.GatewayService/ConfirmSetup"
 	GatewayService_NotifyExecutionCompleted_FullMethodName = "/gateway.v1.GatewayService/NotifyExecutionCompleted"
+	GatewayService_CheckNewsWindow_FullMethodName          = "/gateway.v1.GatewayService/CheckNewsWindow"
 	GatewayService_SetActiveSymbols_FullMethodName         = "/gateway.v1.GatewayService/SetActiveSymbols"
 	GatewayService_GetActiveSymbols_FullMethodName         = "/gateway.v1.GatewayService/GetActiveSymbols"
 	GatewayService_ResetActiveSymbols_FullMethodName       = "/gateway.v1.GatewayService/ResetActiveSymbols"
@@ -48,6 +49,12 @@ type GatewayServiceClient interface {
 	// after a market order is successfully FILLED at the broker.
 	// This triggers Step 7 of the architecture: Handoff to Module C.
 	NotifyExecutionCompleted(ctx context.Context, in *NotifyExecutionCompletedRequest, opts ...grpc.CallOption) (*NotifyExecutionCompletedResponse, error)
+	// CheckNewsWindow reports whether a high-impact economic-calendar event
+	// affecting the symbol's currencies is imminent. Called by Module B's
+	// watcher on every LIMIT-order TTL tick so a resting limit order can be
+	// cancelled before it fills into a news event. The gateway owns the
+	// calendar; the watcher has no calendar access of its own.
+	CheckNewsWindow(ctx context.Context, in *CheckNewsWindowRequest, opts ...grpc.CallOption) (*CheckNewsWindowResponse, error)
 	// SetActiveSymbols updates the user's active symbol selection.
 	SetActiveSymbols(ctx context.Context, in *SetActiveSymbolsRequest, opts ...grpc.CallOption) (*SetActiveSymbolsResponse, error)
 	// GetActiveSymbols returns the current active symbol selection.
@@ -96,6 +103,16 @@ func (c *gatewayServiceClient) NotifyExecutionCompleted(ctx context.Context, in 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(NotifyExecutionCompletedResponse)
 	err := c.cc.Invoke(ctx, GatewayService_NotifyExecutionCompleted_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayServiceClient) CheckNewsWindow(ctx context.Context, in *CheckNewsWindowRequest, opts ...grpc.CallOption) (*CheckNewsWindowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CheckNewsWindowResponse)
+	err := c.cc.Invoke(ctx, GatewayService_CheckNewsWindow_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -180,6 +197,12 @@ type GatewayServiceServer interface {
 	// after a market order is successfully FILLED at the broker.
 	// This triggers Step 7 of the architecture: Handoff to Module C.
 	NotifyExecutionCompleted(context.Context, *NotifyExecutionCompletedRequest) (*NotifyExecutionCompletedResponse, error)
+	// CheckNewsWindow reports whether a high-impact economic-calendar event
+	// affecting the symbol's currencies is imminent. Called by Module B's
+	// watcher on every LIMIT-order TTL tick so a resting limit order can be
+	// cancelled before it fills into a news event. The gateway owns the
+	// calendar; the watcher has no calendar access of its own.
+	CheckNewsWindow(context.Context, *CheckNewsWindowRequest) (*CheckNewsWindowResponse, error)
 	// SetActiveSymbols updates the user's active symbol selection.
 	SetActiveSymbols(context.Context, *SetActiveSymbolsRequest) (*SetActiveSymbolsResponse, error)
 	// GetActiveSymbols returns the current active symbol selection.
@@ -212,6 +235,9 @@ func (UnimplementedGatewayServiceServer) ConfirmSetup(context.Context, *ConfirmS
 }
 func (UnimplementedGatewayServiceServer) NotifyExecutionCompleted(context.Context, *NotifyExecutionCompletedRequest) (*NotifyExecutionCompletedResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method NotifyExecutionCompleted not implemented")
+}
+func (UnimplementedGatewayServiceServer) CheckNewsWindow(context.Context, *CheckNewsWindowRequest) (*CheckNewsWindowResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CheckNewsWindow not implemented")
 }
 func (UnimplementedGatewayServiceServer) SetActiveSymbols(context.Context, *SetActiveSymbolsRequest) (*SetActiveSymbolsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetActiveSymbols not implemented")
@@ -302,6 +328,24 @@ func _GatewayService_NotifyExecutionCompleted_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(GatewayServiceServer).NotifyExecutionCompleted(ctx, req.(*NotifyExecutionCompletedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayService_CheckNewsWindow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckNewsWindowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServiceServer).CheckNewsWindow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayService_CheckNewsWindow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServiceServer).CheckNewsWindow(ctx, req.(*CheckNewsWindowRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -432,6 +476,10 @@ var GatewayService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "NotifyExecutionCompleted",
 			Handler:    _GatewayService_NotifyExecutionCompleted_Handler,
+		},
+		{
+			MethodName: "CheckNewsWindow",
+			Handler:    _GatewayService_CheckNewsWindow_Handler,
 		},
 		{
 			MethodName: "SetActiveSymbols",

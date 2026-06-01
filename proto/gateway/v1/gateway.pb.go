@@ -1361,6 +1361,163 @@ func (x *NotifyExecutionCompletedResponse) GetManagementTradeId() string {
 	return ""
 }
 
+// CheckNewsWindowRequest asks the gateway whether `symbol` must be
+// locked out now because a high-impact event affecting one of its
+// currencies activates within the style-aware lockout window.
+type CheckNewsWindowRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Symbol        string                 `protobuf:"bytes,1,opt,name=symbol,proto3" json:"symbol,omitempty"`
+	TradingStyle  string                 `protobuf:"bytes,2,opt,name=trading_style,json=tradingStyle,proto3" json:"trading_style,omitempty"` // "SCALPING", "INTRADAY", "SWING", "POSITIONAL"
+	TraceId       string                 `protobuf:"bytes,3,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckNewsWindowRequest) Reset() {
+	*x = CheckNewsWindowRequest{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckNewsWindowRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckNewsWindowRequest) ProtoMessage() {}
+
+func (x *CheckNewsWindowRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckNewsWindowRequest.ProtoReflect.Descriptor instead.
+func (*CheckNewsWindowRequest) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *CheckNewsWindowRequest) GetSymbol() string {
+	if x != nil {
+		return x.Symbol
+	}
+	return ""
+}
+
+func (x *CheckNewsWindowRequest) GetTradingStyle() string {
+	if x != nil {
+		return x.TradingStyle
+	}
+	return ""
+}
+
+func (x *CheckNewsWindowRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+// CheckNewsWindowResponse is the gateway's news-proximity verdict.
+type CheckNewsWindowResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Locked        bool                   `protobuf:"varint,1,opt,name=locked,proto3" json:"locked,omitempty"`                                    // true if a new fill/entry must be blocked now
+	DataAvailable bool                   `protobuf:"varint,2,opt,name=data_available,json=dataAvailable,proto3" json:"data_available,omitempty"` // false when the calendar dataset was missing
+	// (the gateway fails closed: locked=true)
+	Reason        string  `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`                                   // human-readable explanation
+	EventName     string  `protobuf:"bytes,4,opt,name=event_name,json=eventName,proto3" json:"event_name,omitempty"`            // the blocking event, when locked
+	Currency      string  `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`                               // the blocking event's currency, when locked
+	MinutesUntil  float64 `protobuf:"fixed64,6,opt,name=minutes_until,json=minutesUntil,proto3" json:"minutes_until,omitempty"` // minutes until the blocking event, when locked
+	TraceId       string  `protobuf:"bytes,7,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckNewsWindowResponse) Reset() {
+	*x = CheckNewsWindowResponse{}
+	mi := &file_gateway_v1_gateway_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckNewsWindowResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckNewsWindowResponse) ProtoMessage() {}
+
+func (x *CheckNewsWindowResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_gateway_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckNewsWindowResponse.ProtoReflect.Descriptor instead.
+func (*CheckNewsWindowResponse) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_gateway_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *CheckNewsWindowResponse) GetLocked() bool {
+	if x != nil {
+		return x.Locked
+	}
+	return false
+}
+
+func (x *CheckNewsWindowResponse) GetDataAvailable() bool {
+	if x != nil {
+		return x.DataAvailable
+	}
+	return false
+}
+
+func (x *CheckNewsWindowResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *CheckNewsWindowResponse) GetEventName() string {
+	if x != nil {
+		return x.EventName
+	}
+	return ""
+}
+
+func (x *CheckNewsWindowResponse) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *CheckNewsWindowResponse) GetMinutesUntil() float64 {
+	if x != nil {
+		return x.MinutesUntil
+	}
+	return 0
+}
+
+func (x *CheckNewsWindowResponse) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
 var File_gateway_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_gateway_v1_gateway_proto_rawDesc = "" +
@@ -1477,11 +1634,25 @@ const file_gateway_v1_gateway_proto_rawDesc = "" +
 	"setup_type\x18\x18 \x01(\tR\tsetupType\"l\n" +
 	" NotifyExecutionCompletedResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12.\n" +
-	"\x13management_trade_id\x18\x02 \x01(\tR\x11managementTradeId2\xcc\x06\n" +
+	"\x13management_trade_id\x18\x02 \x01(\tR\x11managementTradeId\"p\n" +
+	"\x16CheckNewsWindowRequest\x12\x16\n" +
+	"\x06symbol\x18\x01 \x01(\tR\x06symbol\x12#\n" +
+	"\rtrading_style\x18\x02 \x01(\tR\ftradingStyle\x12\x19\n" +
+	"\btrace_id\x18\x03 \x01(\tR\atraceId\"\xeb\x01\n" +
+	"\x17CheckNewsWindowResponse\x12\x16\n" +
+	"\x06locked\x18\x01 \x01(\bR\x06locked\x12%\n" +
+	"\x0edata_available\x18\x02 \x01(\bR\rdataAvailable\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x1d\n" +
+	"\n" +
+	"event_name\x18\x04 \x01(\tR\teventName\x12\x1a\n" +
+	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12#\n" +
+	"\rminutes_until\x18\x06 \x01(\x01R\fminutesUntil\x12\x19\n" +
+	"\btrace_id\x18\a \x01(\tR\atraceId2\xa8\a\n" +
 	"\x0eGatewayService\x12E\n" +
 	"\bRunCycle\x12\x1b.gateway.v1.RunCycleRequest\x1a\x1c.gateway.v1.RunCycleResponse\x12Q\n" +
 	"\fConfirmSetup\x12\x1f.gateway.v1.ConfirmSetupRequest\x1a .gateway.v1.ConfirmSetupResponse\x12u\n" +
-	"\x18NotifyExecutionCompleted\x12+.gateway.v1.NotifyExecutionCompletedRequest\x1a,.gateway.v1.NotifyExecutionCompletedResponse\x12]\n" +
+	"\x18NotifyExecutionCompleted\x12+.gateway.v1.NotifyExecutionCompletedRequest\x1a,.gateway.v1.NotifyExecutionCompletedResponse\x12Z\n" +
+	"\x0fCheckNewsWindow\x12\".gateway.v1.CheckNewsWindowRequest\x1a#.gateway.v1.CheckNewsWindowResponse\x12]\n" +
 	"\x10SetActiveSymbols\x12#.gateway.v1.SetActiveSymbolsRequest\x1a$.gateway.v1.SetActiveSymbolsResponse\x12]\n" +
 	"\x10GetActiveSymbols\x12#.gateway.v1.GetActiveSymbolsRequest\x1a$.gateway.v1.GetActiveSymbolsResponse\x12c\n" +
 	"\x12ResetActiveSymbols\x12%.gateway.v1.ResetActiveSymbolsRequest\x1a&.gateway.v1.ResetActiveSymbolsResponse\x12]\n" +
@@ -1501,7 +1672,7 @@ func file_gateway_v1_gateway_proto_rawDescGZIP() []byte {
 	return file_gateway_v1_gateway_proto_rawDescData
 }
 
-var file_gateway_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_gateway_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_gateway_v1_gateway_proto_goTypes = []any{
 	(*RunCycleRequest)(nil),                  // 0: gateway.v1.RunCycleRequest
 	(*CycleOutput)(nil),                      // 1: gateway.v1.CycleOutput
@@ -1522,29 +1693,33 @@ var file_gateway_v1_gateway_proto_goTypes = []any{
 	(*GetHealthResponse)(nil),                // 16: gateway.v1.GetHealthResponse
 	(*NotifyExecutionCompletedRequest)(nil),  // 17: gateway.v1.NotifyExecutionCompletedRequest
 	(*NotifyExecutionCompletedResponse)(nil), // 18: gateway.v1.NotifyExecutionCompletedResponse
+	(*CheckNewsWindowRequest)(nil),           // 19: gateway.v1.CheckNewsWindowRequest
+	(*CheckNewsWindowResponse)(nil),          // 20: gateway.v1.CheckNewsWindowResponse
 }
 var file_gateway_v1_gateway_proto_depIdxs = []int32{
 	1,  // 0: gateway.v1.RunCycleResponse.outputs:type_name -> gateway.v1.CycleOutput
 	0,  // 1: gateway.v1.GatewayService.RunCycle:input_type -> gateway.v1.RunCycleRequest
 	3,  // 2: gateway.v1.GatewayService.ConfirmSetup:input_type -> gateway.v1.ConfirmSetupRequest
 	17, // 3: gateway.v1.GatewayService.NotifyExecutionCompleted:input_type -> gateway.v1.NotifyExecutionCompletedRequest
-	5,  // 4: gateway.v1.GatewayService.SetActiveSymbols:input_type -> gateway.v1.SetActiveSymbolsRequest
-	7,  // 5: gateway.v1.GatewayService.GetActiveSymbols:input_type -> gateway.v1.GetActiveSymbolsRequest
-	9,  // 6: gateway.v1.GatewayService.ResetActiveSymbols:input_type -> gateway.v1.ResetActiveSymbolsRequest
-	11, // 7: gateway.v1.GatewayService.SetCycleInterval:input_type -> gateway.v1.SetCycleIntervalRequest
-	13, // 8: gateway.v1.GatewayService.GetGatewayConfig:input_type -> gateway.v1.GetGatewayConfigRequest
-	15, // 9: gateway.v1.GatewayService.GetHealth:input_type -> gateway.v1.GetHealthRequest
-	2,  // 10: gateway.v1.GatewayService.RunCycle:output_type -> gateway.v1.RunCycleResponse
-	4,  // 11: gateway.v1.GatewayService.ConfirmSetup:output_type -> gateway.v1.ConfirmSetupResponse
-	18, // 12: gateway.v1.GatewayService.NotifyExecutionCompleted:output_type -> gateway.v1.NotifyExecutionCompletedResponse
-	6,  // 13: gateway.v1.GatewayService.SetActiveSymbols:output_type -> gateway.v1.SetActiveSymbolsResponse
-	8,  // 14: gateway.v1.GatewayService.GetActiveSymbols:output_type -> gateway.v1.GetActiveSymbolsResponse
-	10, // 15: gateway.v1.GatewayService.ResetActiveSymbols:output_type -> gateway.v1.ResetActiveSymbolsResponse
-	12, // 16: gateway.v1.GatewayService.SetCycleInterval:output_type -> gateway.v1.SetCycleIntervalResponse
-	14, // 17: gateway.v1.GatewayService.GetGatewayConfig:output_type -> gateway.v1.GetGatewayConfigResponse
-	16, // 18: gateway.v1.GatewayService.GetHealth:output_type -> gateway.v1.GetHealthResponse
-	10, // [10:19] is the sub-list for method output_type
-	1,  // [1:10] is the sub-list for method input_type
+	19, // 4: gateway.v1.GatewayService.CheckNewsWindow:input_type -> gateway.v1.CheckNewsWindowRequest
+	5,  // 5: gateway.v1.GatewayService.SetActiveSymbols:input_type -> gateway.v1.SetActiveSymbolsRequest
+	7,  // 6: gateway.v1.GatewayService.GetActiveSymbols:input_type -> gateway.v1.GetActiveSymbolsRequest
+	9,  // 7: gateway.v1.GatewayService.ResetActiveSymbols:input_type -> gateway.v1.ResetActiveSymbolsRequest
+	11, // 8: gateway.v1.GatewayService.SetCycleInterval:input_type -> gateway.v1.SetCycleIntervalRequest
+	13, // 9: gateway.v1.GatewayService.GetGatewayConfig:input_type -> gateway.v1.GetGatewayConfigRequest
+	15, // 10: gateway.v1.GatewayService.GetHealth:input_type -> gateway.v1.GetHealthRequest
+	2,  // 11: gateway.v1.GatewayService.RunCycle:output_type -> gateway.v1.RunCycleResponse
+	4,  // 12: gateway.v1.GatewayService.ConfirmSetup:output_type -> gateway.v1.ConfirmSetupResponse
+	18, // 13: gateway.v1.GatewayService.NotifyExecutionCompleted:output_type -> gateway.v1.NotifyExecutionCompletedResponse
+	20, // 14: gateway.v1.GatewayService.CheckNewsWindow:output_type -> gateway.v1.CheckNewsWindowResponse
+	6,  // 15: gateway.v1.GatewayService.SetActiveSymbols:output_type -> gateway.v1.SetActiveSymbolsResponse
+	8,  // 16: gateway.v1.GatewayService.GetActiveSymbols:output_type -> gateway.v1.GetActiveSymbolsResponse
+	10, // 17: gateway.v1.GatewayService.ResetActiveSymbols:output_type -> gateway.v1.ResetActiveSymbolsResponse
+	12, // 18: gateway.v1.GatewayService.SetCycleInterval:output_type -> gateway.v1.SetCycleIntervalResponse
+	14, // 19: gateway.v1.GatewayService.GetGatewayConfig:output_type -> gateway.v1.GetGatewayConfigResponse
+	16, // 20: gateway.v1.GatewayService.GetHealth:output_type -> gateway.v1.GetHealthResponse
+	11, // [11:21] is the sub-list for method output_type
+	1,  // [1:11] is the sub-list for method input_type
 	1,  // [1:1] is the sub-list for extension type_name
 	1,  // [1:1] is the sub-list for extension extendee
 	0,  // [0:1] is the sub-list for field type_name
@@ -1561,7 +1736,7 @@ func file_gateway_v1_gateway_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gateway_v1_gateway_proto_rawDesc), len(file_gateway_v1_gateway_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
