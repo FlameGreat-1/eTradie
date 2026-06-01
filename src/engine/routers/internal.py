@@ -40,6 +40,7 @@ from engine.schemas import (
 from engine.shared.auth import AuthenticatedUser, get_current_user
 from engine.shared.internal_auth import verify_internal_auth
 from engine.shared.logging import get_logger
+from engine.shared.pulse import NoOpPulse, PulsePublisher
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -182,13 +183,32 @@ async def internal_ta_analyze(
             "overall_trend": "NEUTRAL",
         }
 
+    def _build_pulse(symbol: str):
+        """Per-symbol pulse publisher for the gateway-driven path.
+
+        The gateway already forwards X-User-Id, so we can broadcast on
+        the user's private SSE channel exactly like the manual rerun
+        endpoint. Falls back to NoOpPulse when the cache is missing so
+        a transient cache outage never affects analysis.
+        """
+        cache = getattr(container, "cache", None)
+        if cache is None or not user_id:
+            return NoOpPulse()
+        try:
+            return PulsePublisher(cache=cache, user_id=user_id, symbol=symbol)
+        except Exception:  # noqa: BLE001 - pulse must never break analysis
+            return NoOpPulse()
+
     async def _analyze_one(symbol: str) -> dict:
         async with semaphore:
+            pulse = _build_pulse(symbol)
+            await pulse.emit("LOADING", f"Preparing analysis for {symbol}")
             try:
                 return await container.ta_orchestrator.analyze(
                     symbol=symbol,
                     broker_client=user_broker,
                     user_id=user_id,
+                    pulse=pulse,
                 )
             except Exception as exc:  # noqa: BLE001 - per-symbol isolation
                 return _error_result(symbol, exc)
@@ -220,6 +240,31 @@ async def internal_macro_collect(
     """
     container: Container = request.app.state.container
 
+    # Pulse publisher for the user's SSE channel. The macro call is
+    # cycle-scoped (not per-symbol), so the symbol label is "macro".
+    # Falls back to NoOpPulse when cache/user_id is unavailable.
+    user_id = (request.headers.get("X-User-Id") or "").strip()
+    cache = getattr(container, "cache", None)
+    if cache is not None and user_id:
+        try:
+            pulse = PulsePublisher(cache=cache, user_id=user_id, symbol="macro")
+        except Exception:  # noqa: BLE001 - pulse must never break collection
+            pulse = NoOpPulse()
+    else:
+        pulse = NoOpPulse()
+
+    # Human-readable sub-step labels for each collector. Shown after the
+    # CLAUDING verb as the macro row's text swaps in-place per collector.
+    _collector_labels = {
+        "central_bank": "Polling central bank feeds & rate decisions",
+        "cot": "Fetching CFTC COT positioning",
+        "economic": "Harvesting economic releases",
+        "calendar": "Loading high-impact event calendar",
+        "dxy": "Computing DXY momentum",
+        "intermarket": "Analyzing intermarket correlations",
+        "sentiment": "Deriving market sentiment",
+    }
+
     collector_map = {
         "central_bank": container.cb_collector,
         "cot": container.cot_collector,
@@ -230,7 +275,22 @@ async def internal_macro_collect(
         "sentiment": container.sentiment_collector,
     }
 
-    tasks = {name: c.collect() for name, c in collector_map.items()}
+    async def _collect_one(name: str, collector):
+        """Run one collector, emitting a CLAUDING pulse on start and on
+        completion. The pulse is best-effort; collection behaviour and
+        per-collector isolation are unchanged.
+        """
+        label = _collector_labels.get(name, name)
+        await pulse.emit("CLAUDING", label, source="macro")
+        result = await collector.collect()
+        await pulse.emit(
+            "CLAUDING", f"{label} \u2014 done", source="macro", completed=True
+        )
+        return result
+
+    tasks = {
+        name: _collect_one(name, c) for name, c in collector_map.items()
+    }
     raw_results = await asyncio.gather(
         *tasks.values(),
         return_exceptions=True,
@@ -285,6 +345,21 @@ async def internal_rag_retrieve(
         raise HTTPException(status_code=503, detail="RAG not initialized")
 
     user_id = (request.headers.get("X-User-Id") or getattr(body, "user_id", "") or "").strip()
+
+    cache = getattr(container, "cache", None)
+    if cache is not None and user_id:
+        try:
+            pulse = PulsePublisher(
+                cache=cache, user_id=user_id, symbol=body.symbol or ""
+            )
+        except Exception:  # noqa: BLE001 - pulse must never break retrieval
+            pulse = NoOpPulse()
+    else:
+        pulse = NoOpPulse()
+
+    await pulse.emit(
+        "GERMINATING", "Querying rulebook knowledge base", source="rag"
+    )
     try:
         bundle = await container.rag_orchestrator.retrieve_context(
             body.query_text,
@@ -317,6 +392,12 @@ async def internal_rag_retrieve(
             risk_environment=body.risk_environment,
         )
 
+        await pulse.emit(
+            "GERMINATING",
+            "Knowledge retrieval complete",
+            source="rag",
+            completed=True,
+        )
         if hasattr(bundle, "model_dump"):
             return bundle.model_dump(mode="json")
         return {"context_bundle": str(bundle)}
@@ -393,6 +474,22 @@ async def internal_processor_process(
 
     try:
         processor_input = ProcessorInput(**body.processor_input)
+
+        cache = getattr(container, "cache", None)
+        _proc_symbol = getattr(processor_input, "symbol", "") or ""
+        if cache is not None and user_id:
+            try:
+                _proc_pulse = PulsePublisher(
+                    cache=cache, user_id=user_id, symbol=_proc_symbol
+                )
+            except Exception:  # noqa: BLE001 - pulse must never break the LLM call
+                _proc_pulse = NoOpPulse()
+        else:
+            _proc_pulse = NoOpPulse()
+        await _proc_pulse.emit(
+            "REASONING", "AI processor analyzing setup", source="processor"
+        )
+
         result = await processor.process(
             processor_input,
             user_id=user.user_id,
