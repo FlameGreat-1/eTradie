@@ -128,7 +128,12 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
     //     but pulse rows already exist; a still-running sibling symbol's
     //     pulse must NOT wipe those rows.
     // Keying on pulses.length (not isStreaming) distinguishes the two.
-    const startingFresh = state.pulses.length === 0;
+    // A LOADING pulse is the reliable start-of-cycle marker (both the
+    // gateway auto-cycle and the engine TA path emit it first), so it
+    // also forces a clean reset to clear a previous run's lingering
+    // completed rows on a fresh rerun.
+    const isCycleStart = frame.phase === 'LOADING';
+    const startingFresh = state.pulses.length === 0 || isCycleStart;
     const basePulses = startingFresh ? [] : state.pulses;
 
     const pulseSymbol = frame.symbol ?? state.symbol ?? '';
