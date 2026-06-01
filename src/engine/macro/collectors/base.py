@@ -10,6 +10,9 @@ from pydantic import BaseModel, ValidationError
 from engine.shared.cache import RedisCache
 from engine.shared.db import DatabaseManager
 from engine.shared.logging import get_logger
+from engine.macro.storage.repositories.snapshot.snapshot import (
+    MacroSnapshotRepository,
+)
 from engine.shared.metrics.prometheus import (
     COLLECTOR_ITEMS_STORED,
     COLLECTOR_RUN_DURATION,
@@ -188,6 +191,7 @@ class BaseCollector(abc.ABC):
 
             try:
                 result = await self._do_collect()
+                await self._persist_snapshot(result)
                 self._observe("success", start)
                 return result
             except Exception as exc:
@@ -286,17 +290,128 @@ class BaseCollector(abc.ABC):
         ...
 
     async def _read_from_db(self) -> Any | None:
-        """Fallback to read latest data from the database.
-        
-        Called during an analysis cycle when the cache is empty,
-        to prevent runtime API delays. If not overridden, or if
-        the DB is empty, falls back to `_empty_dataset()`.
+        """Read the last-good persisted snapshot for this collector.
+
+        Called on the analysis read path when the Redis cache is empty,
+        so the hot path never makes an external API call. Returns the
+        collector's last successfully-collected dataset, rehydrated to
+        the same type ``_do_collect()`` returns:
+
+          - When ``cache_model`` is set, the stored JSON is validated
+            back into that Pydantic model, so the result is byte-for-
+            byte equivalent to the writer's output.
+          - When ``cache_model`` is unset (the sentiment collector,
+            which returns a raw dict by design), the stored JSON dict
+            is returned as-is.
+
+        Returns ``None`` only when no snapshot has ever been persisted
+        (a genuinely cold, first-run system) or on a read/validation
+        failure; the caller then falls back to ``_empty_dataset()``.
         """
-        return None
-        
+        try:
+            async with self._db.read_session() as session:
+                repo = MacroSnapshotRepository(session)
+                payload = await repo.get_payload(self.cache_namespace)
+        except Exception as exc:
+            logger.warning(
+                "collector_snapshot_read_failed",
+                extra={
+                    "collector": self.collector_name,
+                    "namespace": self.cache_namespace,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                },
+            )
+            return None
+
+        if payload is None:
+            return None
+
+        if self.cache_model is None:
+            # Subclass returns a raw dict by design (sentiment).
+            return payload
+
+        try:
+            return self.cache_model.model_validate(payload)
+        except ValidationError as exc:
+            logger.warning(
+                "collector_snapshot_rehydrate_failed",
+                extra={
+                    "collector": self.collector_name,
+                    "namespace": self.cache_namespace,
+                    "model": self.cache_model.__name__,
+                    "error": str(exc),
+                },
+            )
+            return None
+
+    async def _persist_snapshot(self, dataset: Any) -> None:
+        """Persist the collector's final dataset as the last-good snapshot.
+
+        Writer-side durability: after every successful collection the
+        scheduler's path stores the exact serialised dataset so a later
+        request-path cache miss can be served from it without an API
+        call. Best-effort: a snapshot write failure is logged and
+        swallowed because the live dataset has already been produced and
+        returned to the caller; durability is a convenience for the next
+        reader, never a precondition for this collection succeeding.
+        """
+        if dataset is None:
+            return
+        try:
+            if hasattr(dataset, "model_dump"):
+                payload = dataset.model_dump(mode="json")
+            elif isinstance(dataset, dict):
+                payload = dataset
+            else:
+                # Nothing serialisable to persist; skip silently.
+                return
+            collected_at = self._extract_collected_at(payload)
+            async with self._db.session() as session:
+                repo = MacroSnapshotRepository(session)
+                await repo.upsert_payload(
+                    self.cache_namespace, payload, collected_at,
+                )
+        except Exception as exc:
+            logger.warning(
+                "collector_snapshot_persist_failed",
+                extra={
+                    "collector": self.collector_name,
+                    "namespace": self.cache_namespace,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                },
+            )
+
+    @staticmethod
+    def _extract_collected_at(payload: dict[str, Any]) -> datetime:
+        """Resolve the dataset's collected_at, defaulting to now (UTC).
+
+        Every macro dataset carries a ``collected_at`` field serialised
+        as an ISO-8601 string. We store it on the snapshot row for
+        operator visibility (how stale is the last-good value); if it is
+        missing or unparseable we fall back to the current time so a
+        write never fails on a timestamp technicality.
+        """
+        raw = payload.get("collected_at")
+        if isinstance(raw, str) and raw:
+            try:
+                parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=UTC)
+                return parsed
+            except ValueError:
+                pass
+        return datetime.now(UTC)
+
     @abc.abstractmethod
     def _empty_dataset(self) -> Any:
-        """Return an empty dataset to avoid API fetch during analysis."""
+        """Return an empty dataset for a genuinely cold, first-run system.
+
+        Only reached when neither the cache nor a persisted snapshot has
+        any data yet (e.g. a brand-new deployment before the scheduler's
+        first successful run). Never reached in steady state.
+        """
         ...
 
     async def _fetch_with_failover(self, providers: list[BaseProvider]) -> Any:
