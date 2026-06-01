@@ -40,6 +40,7 @@ from engine.schemas import (
 from engine.shared.auth import AuthenticatedUser, get_current_user
 from engine.shared.internal_auth import verify_internal_auth
 from engine.shared.logging import get_logger
+from engine.shared.pulse import NoOpPulse, PulsePublisher
 
 logger = get_logger(__name__)
 router = APIRouter()
