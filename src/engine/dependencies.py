@@ -47,6 +47,7 @@ from engine.macro.providers.economic_data.oecd import OECDEconomicProvider
 from engine.macro.providers.market_data.fred_intermarket import (
     FREDIntermarketProvider,
 )
+from engine.macro.providers.market_data.yahoo_metals import YahooMetalsProvider
 from engine.macro.providers.registry import ProviderRegistry
 from engine.macro.providers.sentiment.cot_derived import COTDerivedSentimentProvider
 
@@ -352,6 +353,12 @@ class Container:
         )
         self.registry.register(self.fred_intermarket_provider)
 
+        self.yahoo_metals_provider = YahooMetalsProvider(
+            h,
+            base_url=s.yahoo_finance_base_url,
+        )
+        self.registry.register(self.yahoo_metals_provider)
+
         self.forexfactory_cal_provider = ForexFactoryCalendarProvider(
             h,
             feed_url=s.forexfactory_calendar_url,
@@ -413,7 +420,7 @@ class Container:
         self.dxy_collector.cache_ttl = s.cache_ttl_dxy
 
         self.intermarket_collector = IntermarketCollector(
-            [self.fred_intermarket_provider],
+            [self.fred_intermarket_provider, self.yahoo_metals_provider],
             c,
             d,
         )

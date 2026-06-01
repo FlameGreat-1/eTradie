@@ -38,7 +38,7 @@ from engine.macro.providers.market_data.base import BaseMarketDataProvider
 
 logger = get_logger(__name__)
 
-# snapshot field -> FRED series id. All operator-verified to return real values.
+# snapshot field -> FRED series id (placeholder line; replaced below). All operator-verified to return real values.
 #
 # Daily series: DTWEXBGS, DGS2/10/30, VIXCLS, SP500, DCOILWTICO, DHHNGSP.
 # Monthly IMF series (slower cadence, fine for macro context): PIORECRUSDM
