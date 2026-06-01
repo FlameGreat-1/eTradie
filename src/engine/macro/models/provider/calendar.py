@@ -12,4 +12,11 @@ class CalendarEvent(TimestampedModel):
     currency: Currency
     event_time: datetime
     impact: EventImpact = EventImpact.LOW
+    # Consensus forecast, prior release, and (post-event) actual, as published
+    # by the calendar feed. Kept as free-form strings because feeds mix units
+    # and suffixes ("95K", "4.3%", "-1.61B"). Empty string when the feed omits
+    # the field (e.g. actual before the event prints).
+    forecast: str = ""
+    previous: str = ""
+    actual: str = ""
     source: str = ""

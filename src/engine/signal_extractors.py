@@ -220,9 +220,12 @@ def derive_macro_signals(macro: dict) -> dict:
 def derive_ta_signals(ta: dict) -> dict:
     """Derive TA signal flags from raw TA analysis output.
 
-    Replicates the signal extraction logic from the Go gateway's
-    ta_extractor.go so the rerun endpoint produces identical
-    signals as the normal Go gateway pipeline.
+    MIRROR of the Go gateway's ta_extractor.go (ExtractTASignals). The
+    automatic cycle uses the Go extractor; this Python copy exists only for the
+    dashboard /api/analysis/rerun path, which bypasses the gateway. The two
+    MUST stay field-for-field identical or a rerun produces a different RAG
+    query than production. (Tracked: a future refactor should have the rerun
+    endpoint call the gateway so this duplicate can be deleted.)
     """
     signals: dict = {
         "direction": "",
@@ -261,7 +264,9 @@ def derive_ta_signals(ta: dict) -> dict:
     frameworks.add("wyckoff")
     signals["all_frameworks"] = sorted(frameworks)
 
-    # Determine direction from candidates.
+    # Determine direction from candidates. Matches ta_extractor.go: fall back
+    # to the first (HTF) snapshot's trend_direction when no candidate carries a
+    # direction, before resolving the bullish/bearish tally.
     directions: list[str] = []
     for c in smc:
         if isinstance(c, dict) and c.get("direction"):
@@ -269,6 +274,13 @@ def derive_ta_signals(ta: dict) -> dict:
     for c in snd:
         if isinstance(c, dict) and c.get("direction"):
             directions.append(str(c["direction"]).upper())
+    if not directions:
+        snapshots = ta.get("snapshots") or {}
+        if isinstance(snapshots, dict):
+            for snap in snapshots.values():
+                if isinstance(snap, dict) and snap.get("trend_direction"):
+                    directions.append(str(snap["trend_direction"]).upper())
+                    break
     if directions:
         bullish = sum(1 for d in directions if d == "BULLISH")
         bearish = sum(1 for d in directions if d == "BEARISH")
@@ -312,8 +324,6 @@ def derive_ta_signals(ta: dict) -> dict:
             families.add("bms_rto")
         if "SMS_BMS_RTO" in pattern:
             families.add("sms_rto")
-        if "CHOCH_BMS_RTO" in pattern:
-            families.add("choch_rto")
 
     # Collect setup families from SnD candidate fields.
     for c in snd:
