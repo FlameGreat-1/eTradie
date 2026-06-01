@@ -86,8 +86,12 @@ function ThinkingTerminalInner({ pulses, isActive }: ThinkingTerminalProps) {
               {padPhase(entry.phase)}
             </span>
 
-            {/* Sub-step message */}
-            <span className="thinking-terminal__message">
+            {/* Sub-step message — keyed on text so a swap remounts the
+                node and re-triggers the character-scan reveal. */}
+            <span
+              key={entry.message}
+              className="thinking-terminal__message thinking-terminal__message--scan"
+            >
               {entry.message}
             </span>
           </div>
