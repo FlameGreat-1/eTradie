@@ -103,3 +103,46 @@ async def rag_health(request: Request) -> dict:
         "documents_count": rag_status.vectorstore.documents_collection_count,
         "scenarios_count": rag_status.vectorstore.scenarios_collection_count,
     }
+
+
+@router.get("/health/providers")
+async def providers_health(request: Request) -> dict:
+    """Per-provider health for operators (not used by probes).
+
+    Runs the provider registry's health check across every registered
+    macro data provider (central bank, COT, economic, market data,
+    sentiment, calendar). As a side effect this refreshes the
+    ACTIVE_PROVIDERS Prometheus gauge per category, so an operator
+    scrape after hitting this endpoint reflects current provider
+    health. Grouped by category and provider name for quick triage of
+    which external feed is degraded.
+    """
+    container: Container = request.app.state.container
+    if not hasattr(container, "registry"):
+        return {"status": "disabled"}
+
+    statuses = await container.registry.health_check_all()
+    providers = container.registry.all_providers
+
+    by_provider: dict[str, dict[str, str]] = {}
+    healthy = 0
+    for name, status in statuses.items():
+        category = (
+            providers[name].category.value
+            if name in providers
+            else "unknown"
+        )
+        by_provider[name] = {
+            "category": category,
+            "status": status.value,
+        }
+        if status.value == "HEALTHY":
+            healthy += 1
+
+    total = len(statuses)
+    return {
+        "status": "healthy" if healthy == total else "degraded",
+        "healthy": healthy,
+        "total": total,
+        "providers": by_provider,
+    }
