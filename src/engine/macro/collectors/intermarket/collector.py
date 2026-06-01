@@ -17,10 +17,10 @@ def _merge_snapshots(
 ) -> IntermarketSnapshot | None:
     """Merge multiple IntermarketSnapshot objects into one.
 
-    For each field, the first non-None value encountered wins.
-    This allows TwelveData to provide core market data while the
-    CommodityProxyProvider fills in niche fields like iron_ore
-    and dairy_gdt.
+    For each field, the first non-None value encountered wins. This lets the
+    FRED intermarket provider supply DXY/yields/VIX/S&P/oil/gas/iron-ore/copper
+    while the Yahoo metals provider fills gold and silver, producing one
+    complete snapshot.
     """
     if not snapshots:
         return None

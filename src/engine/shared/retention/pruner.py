@@ -141,8 +141,12 @@ class RetentionPruner:
         results["intermarket_snapshots"] = await self._prune_macro_table(
             IntermarketSnapshotRow, "created_at", RETENTION_MACRO_HOURS,
         )
+        # Sentiment rows are UPSERTED on (currency, source): created_at keeps
+        # its original insert time while collected_at advances every cycle.
+        # Prune by collected_at so a continuously-updated live row is not
+        # deleted just because it was first inserted > 7 days ago.
         results["sentiment_readings"] = await self._prune_macro_table(
-            SentimentReadingRow, "created_at", RETENTION_MACRO_HOURS,
+            SentimentReadingRow, "collected_at", RETENTION_MACRO_HOURS,
         )
 
         total_deleted = sum(results.values())
