@@ -26,6 +26,7 @@ from engine.macro.providers.central_bank.boc_rss import BOCRSSProvider
 from engine.macro.providers.central_bank.boe_rss import BOERSSProvider
 from engine.macro.providers.central_bank.boj_rss import BOJRSSProvider
 from engine.macro.providers.central_bank.ecb_rss import ECBRSSProvider
+from engine.macro.providers.central_bank.fed_rate import FedRateProvider
 from engine.macro.providers.central_bank.fed_rss import FedRSSProvider
 from engine.macro.providers.central_bank.rba_rss import RBARSSProvider
 from engine.macro.providers.central_bank.rbnz_rss import RBNZRSSProvider
@@ -237,6 +238,15 @@ class Container:
         r = self.rss_parser
 
         self.fed_provider = FedRSSProvider(r, feed_url=s.fed_rss_url)
+        # FRED-sourced numeric Fed funds target rate. Lives alongside the RSS
+        # CB providers (it is a central-bank provider emitting a RateDecision)
+        # so the CentralBankCollector populates rate_current/rate_previous the
+        # RSS headlines can never supply.
+        self.fed_rate_provider = FedRateProvider(
+            h,
+            base_url=s.fred_base_url,
+            api_key=s.fred_api_key,
+        )
         self.ecb_provider = ECBRSSProvider(r, feed_url=s.ecb_rss_url)
         self.boe_provider = BOERSSProvider(r, feed_url=s.boe_rss_url)
         self.boj_provider = BOJRSSProvider(r, feed_url=s.boj_rss_url)
@@ -246,6 +256,7 @@ class Container:
         self.snb_provider = SNBRSSProvider(r, feed_url=s.snb_rss_url)
         for p in (
             self.fed_provider,
+            self.fed_rate_provider,
             self.ecb_provider,
             self.boe_provider,
             self.boj_provider,
@@ -301,6 +312,7 @@ class Container:
         self.cb_collector = CentralBankCollector(
             [
                 self.fed_provider,
+                self.fed_rate_provider,
                 self.ecb_provider,
                 self.boe_provider,
                 self.boj_provider,
