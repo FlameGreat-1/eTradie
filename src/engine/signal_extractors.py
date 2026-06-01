@@ -24,6 +24,8 @@ def derive_macro_signals(macro: dict) -> dict:
         "has_cot_data": False,
         "has_rate_decision": False,
         "has_rate_change": False,
+        "rate_change_bank": "",
+        "rate_change_direction": "",
         "has_high_impact_event": False,
         "has_dxy_data": False,
         "has_qe_qt": False,
@@ -96,6 +98,7 @@ def derive_macro_signals(macro: dict) -> dict:
                 signals["balance_sheet_direction"] = (
                     "EXPANDING" if action_type == "QE" else "CONTRACTING"
                 )
+        rate_change_seen: set[str] = set()
         for decision in cb.get("rate_decisions") or []:
             if not isinstance(decision, dict):
                 continue
@@ -104,14 +107,19 @@ def derive_macro_signals(macro: dict) -> dict:
             _set_bank_tone(bank, tone)
             bps = decision.get("rate_change_bps") or decision.get("change") or 0
             try:
-                if float(bps) != 0:
-                    # A nonzero move is a rate CHANGE (hike/cut). This is the
-                    # gateway's has_rate_change; has_rate_decision is the
-                    # calendar-driven "a rate decision is scheduled" flag set
-                    # in the calendar block below.
-                    signals["has_rate_change"] = True
+                bps_val = float(bps)
             except (ValueError, TypeError):
-                pass
+                bps_val = 0.0
+            # rate_decisions is newest-first; record the change direction from
+            # the FIRST (newest) nonzero decision per bank so a multi-year
+            # history does not overwrite the latest move with a stale one.
+            # has_rate_change is the gateway's rate-CHANGE flag; the
+            # calendar-driven has_rate_decision is set in the calendar block.
+            if bps_val != 0 and bank not in rate_change_seen:
+                rate_change_seen.add(bank)
+                signals["has_rate_change"] = True
+                signals["rate_change_bank"] = bank
+                signals["rate_change_direction"] = "hike" if bps_val > 0 else "cut"
             policy = (decision.get("monetary_policy_action") or "NONE").upper()
             if policy in ("QE", "QT"):
                 signals["has_qe_qt"] = True
