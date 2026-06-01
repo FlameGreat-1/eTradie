@@ -1,13 +1,15 @@
 package querybuilder
 
-// This file exports map access helpers for use by the routing/guards package.
+// This file exports map access helpers for use by the routing package.
 //
-// WHY: The guard evaluator (routing/guards.go) needs to parse calendar events
+// WHY: The news evaluator (routing/news.go) needs to parse calendar events
 // from macro result maps using the same logic as the query builder. Rather than
 // duplicating the map access functions across packages, we export thin wrappers
 // here. The canonical implementations live in macro_extractor.go.
 //
-// CONSUMERS: routing/guards.go (checkNewsProximity)
+// CONSUMERS: routing/news.go (EvaluateNewsWindow), which backs the decision-time
+// guard (checkHighImpactEventProximity), the INSTANT fire-time pulse, and the
+// LIMIT-lifetime CheckNewsWindow RPC.
 
 // GetSliceOfMapsExported extracts a []map[string]interface{} from a parent map.
 // Used by guards to iterate calendar events from macro result data.
