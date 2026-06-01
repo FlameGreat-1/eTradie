@@ -63,10 +63,42 @@ forwarding of `macro_analysis` (serialised generically in
 `processor/prompts/system_prompt.py::build_user_message`) all carry the full
 series to the LLM unchanged.
 
+## Central banks covered
+
+All built on the shared `BaseFREDRateProvider`:
+
+| Bank | Provider | FRED series |
+|------|----------|-------------|
+| Fed  | `FedRateProvider` | `DFEDTARU` (+`DFEDTARL`) |
+| ECB  | `ECBRateProvider` | `ECBDFR` |
+| BOE  | `BOERateProvider` | `BOERUKM` |
+| BOJ  | `BOJRateProvider` | `IRSTCB01JPM156N` |
+
+This gives the LLM the rate level + multi-year trajectory for USD, EUR, GBP and
+JPY, and therefore the cross-bank differentials that drive EURUSD, GBPUSD and
+USDJPY.
+
+## Gateway fix (extractCentralBank)
+
+Exposing real `RateDecision` data surfaced two latent bugs in
+`src/gateway/internal/querybuilder/macro_extractor.go::extractCentralBank` that
+the empty-`rate_decisions` world had hidden:
+
+1. The `rate_decisions` loop set `signals[bank+"_tone"] = tone`
+   unconditionally. A `RateDecision` has no tone, so a tone-less decision wiped
+   the `fed_tone`/`ecb_tone` the speeches loop had set -- which feeds
+   `deriveUSDBias()` -> `macro_bias_usd`. Fixed: a decision only sets a bank's
+   tone when the decision carries a non-empty tone and the bank has none yet.
+2. The loop overwrote `rate_change_bank`/`rate_change_direction` every
+   iteration, so with the new newest-first multi-year history the reported
+   direction ended up reflecting the OLDEST move. Fixed: the direction is
+   recorded only from the FIRST (newest) decision seen per bank.
+
 ## Scope / limitations
 
-- Fed + ECB only. Other central banks have no equivalent free structured
-  target-rate series on FRED, so they keep providing tone/QE-QT from RSS.
+- Fed + ECB + BOE + BOJ. The remaining banks (RBA, BOC, RBNZ, SNB) have no
+  equally clean free FRED policy-rate series wired yet, so they keep providing
+  tone/QE-QT from RSS. Adding them later is a one-line subclass each.
 - When the FRED key is unset or a series is unavailable, that provider returns
   no decisions (non-fatal): the tone-only signal remains intact.
 - The oldest level in the lookback window is anchored with
