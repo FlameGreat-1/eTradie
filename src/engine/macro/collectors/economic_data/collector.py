@@ -115,8 +115,5 @@ class EconomicDataCollector(BaseCollector):
         return dataset
 
 
-    async def _read_from_db(self):
-        return None
-
-    def _empty_dataset(self):
+    def _empty_dataset(self) -> EconomicDataSet:
         return EconomicDataSet(releases=[], sources=[], collected_at=datetime.now(UTC))

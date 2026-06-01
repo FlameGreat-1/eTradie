@@ -113,8 +113,5 @@ class SentimentCollector(BaseCollector):
         return result
 
 
-    async def _read_from_db(self):
-        return None
-
-    def _empty_dataset(self):
+    def _empty_dataset(self) -> dict[str, Any]:
         return {}

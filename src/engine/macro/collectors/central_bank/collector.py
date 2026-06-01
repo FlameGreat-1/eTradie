@@ -181,13 +181,7 @@ class CentralBankCollector(BaseCollector):
         self._record_items_stored(len(all_events))
         return dataset
 
-    async def _read_from_db(self):
-        # We don't read from DB during analysis because assembling the dataset
-        # from the DB is expensive and not strictly required if we have an empty fallback.
-        # However, to be complete, if there's no cache, we return an empty dataset.
-        return None
-
-    def _empty_dataset(self):
+    def _empty_dataset(self) -> CentralBankDataSet:
         return CentralBankDataSet(
             rate_decisions=[],
             speeches=[],

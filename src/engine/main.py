@@ -215,8 +215,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             },
         )
         warmup_start = asyncio.get_event_loop().time()
+        # Use refresh() (force fetch + persist durable snapshot), NOT
+        # collect(). On a cold start there is no Redis cache and no
+        # persisted snapshot yet, so collect() would fall through to an
+        # empty dataset and warm nothing real; the first true fetch
+        # would then wait for the scheduler interval (up to 7 days for
+        # COT/sentiment). refresh() fetches once at boot, repopulates
+        # Redis, and writes the last-good snapshot so every subsequent
+        # request-path cache miss serves real data with no API call.
         warmup_results = await asyncio.gather(
-            *(c.collect() for c in macro_warmup_targets.values()),
+            *(c.refresh() for c in macro_warmup_targets.values()),
             return_exceptions=True,
         )
         warmup_duration_s = asyncio.get_event_loop().time() - warmup_start
