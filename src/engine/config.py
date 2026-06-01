@@ -121,7 +121,6 @@ class Settings(BaseSettings):
         "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
     )
 
-    # ── Commodity Proxy URLs (free, no API key) ───────────────────────
     # ── Polling Intervals (seconds) ──────────────────────────
     poll_interval_central_bank_rss: int = Field(
         default=3600, ge=60, description="CB RSS poll: 1H default"
