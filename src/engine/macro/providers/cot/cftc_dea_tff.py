@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import re
 import time
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
@@ -129,7 +129,7 @@ class CFTCDEATFFProvider(BaseCOTProvider):
 
             report = COTReport(
                 report_date=report_date,
-                release_timestamp=datetime.now(datetime.now().astimezone().tzinfo),
+                release_timestamp=datetime.now(UTC),
                 positions=[],
                 tff_positions=tff_positions,
             )
