@@ -479,6 +479,24 @@ class AnalysisProcessor(ProcessorPort):
             # except path) guarantees we only emit `final` when the LLM
             # call actually completed.
             if stream_channel:
+                # Settle the REASONING phase row to the done (✓) state.
+                # The row was opened by the gateway/engine processor
+                # pulses but otherwise only ever ended via the separate
+                # `final` frame, which the Thinking Terminal does not
+                # treat as a phase completion — so the row stayed active
+                # forever. Emit a matching pulse frame with
+                # completed=true on the same channel before `final`.
+                await self._cache.publish(
+                    stream_channel,
+                    {
+                        "symbol": symbol,
+                        "type": "pulse",
+                        "phase": "REASONING",
+                        "message": "AI decision finalised",
+                        "source": "processor",
+                        "completed": True,
+                    },
+                )
                 await self._cache.publish(
                     stream_channel,
                     {

@@ -179,6 +179,10 @@ class TAOrchestrator:
 
         try:
             # ── Phase 1: Fetch candles for every timeframe ───────────
+            # Settle the LOADING row opened by the internal/rerun handler
+            # so it shows done once the real candle sweep begins.
+            if pulse:
+                await pulse.emit("LOADING", "Initialisation complete", completed=True)
             sequences: dict[Timeframe, CandleSequence] = {}
             for tf in all_timeframes:
                 if pulse:
@@ -292,6 +296,7 @@ class TAOrchestrator:
             # ── Phase 6: Align adjacent snapshots ────────────────────
             if pulse:
                 await pulse.emit("SHIMMING", "Zone scanning complete", completed=True)
+                await pulse.emit("PONTIFICATING", "Liquidity & confirmation complete", completed=True)
                 await pulse.emit("FERMENTING", "Performing multi-timeframe trend alignment")
             alignments: dict[str, dict] = {}
             ordered_tfs = [tf for tf in all_timeframes if tf in snapshots]
@@ -336,6 +341,9 @@ class TAOrchestrator:
             )
 
             if pulse:
+                await pulse.emit(
+                    "ACTIONING", "Analysis results persisted", completed=True
+                )
                 await pulse.emit(
                     "FERMENTING",
                     f"TA complete — {len(all_smc)} SMC, {len(all_snd)} SnD candidates",
