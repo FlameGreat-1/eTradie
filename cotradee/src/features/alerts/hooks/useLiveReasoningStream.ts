@@ -224,6 +224,9 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
   useEffect(() => {
     // If we're already streaming something live, don't overwrite it with DB state.
     if (state.isStreaming) return;
+    // A finished live run leaves isStreaming=false but keeps its pulse
+    // rows on screen; never overwrite that with a hydrated DB analysis.
+    if (state.pulses.length > 0) return;
 
     const latest = latestAnalyses?.analyses?.[0];
     if (!latest) return;
@@ -250,7 +253,7 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
         status: 'Analysis Complete',
       },
     });
-  }, [latestAnalyses, state.isStreaming, state.analysisId]);
+  }, [latestAnalyses, state.isStreaming, state.analysisId, state.pulses.length]);
 
   const controllerRef = useRef<AbortController | null>(null);
   const reconnectAttemptsRef = useRef(0);
