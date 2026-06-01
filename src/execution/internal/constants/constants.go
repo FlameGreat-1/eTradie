@@ -151,11 +151,13 @@ const (
 	SpreadMultiplierScalping = 1.5
 )
 
-// News lockout windows in minutes from Rulebook Section 4.3.
-const (
-	NewsLockoutMinutesNormal   = 30
-	NewsLockoutMinutesScalping = 45
-)
+// News lockout policy is owned by the gateway (it holds the economic
+// calendar). The execution service enforces news only via the gateway's
+// CheckNewsWindow RPC; the previously-defined NewsLockoutMinutes* mirror
+// constants here had no consumer and were removed to avoid dead code.
+// The operator-tunable windows live in config (Config.NewsLockoutMinutes
+// / Config.NewsLockoutMinutesScalping), and the rulebook values are
+// owned by the gateway constants of the same name.
 
 // Session time windows (UTC hours). From Rulebook Section 2.3.
 type SessionWindow struct {
