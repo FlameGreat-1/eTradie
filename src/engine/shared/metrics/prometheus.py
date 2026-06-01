@@ -105,6 +105,18 @@ PROCESSOR_RUN_DURATION = Histogram(
     buckets=(0.1, 0.5, 1.0, 2.5, 5.0, 10.0),
 )
 
+# Distinguishes WHY a symbol was dropped for insufficient data. All three
+# causes share PROCESSOR_RUN_TOTAL{status="insufficient_data"}, which hides
+# whether the drop was a transient RAG outage (empty_rag — actionable,
+# infrastructure-side) or a genuine no-data market state
+# (no_candidates/empty_ta). Bounded label set: reason in
+# {empty_ta, no_candidates, empty_rag}.
+PROCESSOR_INSUFFICIENT_DATA_TOTAL = Counter(
+    "etradie_processor_insufficient_data_total",
+    "Processor insufficient-data drops by reason",
+    ["processor", "reason"],
+)
+
 # ==============================================================
 # Pipeline Metrics
 # ==============================================================
