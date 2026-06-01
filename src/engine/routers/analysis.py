@@ -395,7 +395,17 @@ async def stream_live_analysis(
                         last_keepalive = asyncio.get_event_loop().time()
 
                         data_obj = json.loads(data_str)
-                        if data_obj.get("type") in ("final", "error"):
+                        # Only `error` is terminal for the connection.
+                        # `final` is a PER-SYMBOL completion marker —
+                        # the processor publishes it at the end of every
+                        # symbol's LLM call on this shared per-user
+                        # channel. Breaking on `final` would tear the
+                        # stream down after the FIRST symbol finishes and
+                        # cut off every remaining symbol's pulses and
+                        # reasoning in a multi-symbol cycle. Forward it
+                        # and keep the connection open; lifecycle is
+                        # driven by client disconnect + keepalive.
+                        if data_obj.get("type") == "error":
                             break
                     except Exception as exc:
                         logger.warning(
