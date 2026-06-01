@@ -38,7 +38,15 @@ from engine.macro.providers.market_data.base import BaseMarketDataProvider
 
 logger = get_logger(__name__)
 
-# snapshot field -> FRED series id.
+# snapshot field -> FRED series id. All operator-verified to return real values.
+#
+# Daily series: DTWEXBGS, DGS2/10/30, VIXCLS, SP500, DCOILWTICO, DHHNGSP.
+# Monthly IMF series (slower cadence, fine for macro context): PIORECRUSDM
+# (iron ore, $/tonne), PCOPPUSDM (copper, $/tonne).
+#
+# Intentionally absent (no verified FRED source -> left None, never guessed):
+# gold, silver, dairy. Note IR14260 was rejected as a "gold" source: it returns
+# ~271 which is NOT a gold price.
 _SERIES: dict[str, str] = {
     "dxy_value": "DTWEXBGS",
     "us2y_yield": "DGS2",
@@ -47,6 +55,9 @@ _SERIES: dict[str, str] = {
     "vix": "VIXCLS",
     "sp500": "SP500",
     "oil_price": "DCOILWTICO",
+    "natural_gas": "DHHNGSP",
+    "iron_ore": "PIORECRUSDM",
+    "copper": "PCOPPUSDM",
 }
 
 
@@ -93,6 +104,9 @@ class FREDIntermarketProvider(BaseMarketDataProvider):
                 vix=values.get("vix"),
                 sp500=values.get("sp500"),
                 oil_price=values.get("oil_price"),
+                natural_gas=values.get("natural_gas"),
+                iron_ore=values.get("iron_ore"),
+                copper=values.get("copper"),
                 snapshot_at=datetime.now(UTC),
                 source=self.provider_name,
             )
