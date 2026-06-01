@@ -324,8 +324,6 @@ def derive_ta_signals(ta: dict) -> dict:
             families.add("bms_rto")
         if "SMS_BMS_RTO" in pattern:
             families.add("sms_rto")
-        if "CHOCH_BMS_RTO" in pattern:
-            families.add("choch_rto")
 
     # Collect setup families from SnD candidate fields.
     for c in snd:
