@@ -1,30 +1,30 @@
 {
   "alignment": {
     "D1_H12": {
-      "htf_ltf_aligned": true,
+      "htf_ltf_aligned": false,
       "htf_timeframe": "D1",
       "htf_trend": "BEARISH",
       "ltf_timeframe": "H12",
-      "ltf_trend": "BEARISH",
-      "trends_aligned": true,
-      "zones_nested": true
-    },
-    "H12_H8": {
-      "htf_ltf_aligned": false,
-      "htf_timeframe": "H12",
-      "htf_trend": "BEARISH",
-      "ltf_timeframe": "H8",
       "ltf_trend": "BULLISH",
       "trends_aligned": false,
       "zones_nested": false
     },
+    "H12_H8": {
+      "htf_ltf_aligned": true,
+      "htf_timeframe": "H12",
+      "htf_trend": "BULLISH",
+      "ltf_timeframe": "H8",
+      "ltf_trend": "BULLISH",
+      "trends_aligned": true,
+      "zones_nested": false
+    },
     "H1_M30": {
-      "htf_ltf_aligned": false,
+      "htf_ltf_aligned": true,
       "htf_timeframe": "H1",
       "htf_trend": "BULLISH",
       "ltf_timeframe": "M30",
-      "ltf_trend": "BEARISH",
-      "trends_aligned": false,
+      "ltf_trend": "BULLISH",
+      "trends_aligned": true,
       "zones_nested": true
     },
     "H3_H1": {
@@ -61,7 +61,7 @@
       "ltf_timeframe": "H6",
       "ltf_trend": "BULLISH",
       "trends_aligned": true,
-      "zones_nested": false
+      "zones_nested": true
     },
     "M15_M5": {
       "htf_ltf_aligned": true,
@@ -73,12 +73,12 @@
       "zones_nested": true
     },
     "M30_M15": {
-      "htf_ltf_aligned": true,
+      "htf_ltf_aligned": false,
       "htf_timeframe": "M30",
-      "htf_trend": "BEARISH",
+      "htf_trend": "BULLISH",
       "ltf_timeframe": "M15",
       "ltf_trend": "BEARISH",
-      "trends_aligned": true,
+      "trends_aligned": false,
       "zones_nested": true
     },
     "M5_M1": {
@@ -91,22 +91,22 @@
       "zones_nested": true
     },
     "MN1_W1": {
-      "htf_ltf_aligned": false,
+      "htf_ltf_aligned": true,
       "htf_timeframe": "MN1",
-      "htf_trend": "NEUTRAL",
+      "htf_trend": "BEARISH",
       "ltf_timeframe": "W1",
-      "ltf_trend": "NEUTRAL",
-      "trends_aligned": false,
+      "ltf_trend": "BEARISH",
+      "trends_aligned": true,
       "zones_nested": false
     },
     "W1_D1": {
-      "htf_ltf_aligned": false,
+      "htf_ltf_aligned": true,
       "htf_timeframe": "W1",
-      "htf_trend": "NEUTRAL",
+      "htf_trend": "BEARISH",
       "ltf_timeframe": "D1",
       "ltf_trend": "BEARISH",
-      "trends_aligned": false,
-      "zones_nested": false
+      "trends_aligned": true,
+      "zones_nested": true
     }
   },
   "htf_timeframes": [
@@ -128,5 +128,5 @@
   ],
   "overall_trend": "BEARISH",
   "status": "success",
-  "symbol": "Crash 100 Index"
+  "symbol": "Boom 1000 Index"
 }

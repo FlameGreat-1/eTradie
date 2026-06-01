@@ -1,0 +1,5744 @@
+{
+  "D1": {
+    "bms_events": [
+      {
+        "breakout_price": 13510.22,
+        "broken_level": 13702.873,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 192.65,
+        "timestamp": "2026-05-12T00:00:00+00:00"
+      }
+    ],
+    "breaker_blocks": [
+      {
+        "broken_timestamp": "2026-05-01T00:00:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 13761.604,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-04-30T00:00:00+00:00",
+        "timestamp": "2026-04-30T00:00:00+00:00",
+        "upper_bound": 14113.745
+      }
+    ],
+    "choch_events": [
+      {
+        "breakout_price": 13510.22,
+        "broken_level": 13594.321,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-12T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13510.22,
+        "broken_level": 13702.873,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-12T00:00:00+00:00"
+      }
+    ],
+    "dealing_ranges": [
+      {
+        "end_time": "2026-06-01T00:00:00+00:00",
+        "equilibrium": 13879.0265,
+        "high": 14759.786,
+        "low": 12998.267,
+        "range_size": 1761.5190000000002,
+        "start_time": "2026-04-03T00:00:00+00:00"
+      }
+    ],
+    "demand_zones": [],
+    "equal_highs_lows": [],
+    "fair_value_gaps": [
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 13585.267,
+        "timestamp": "2026-05-10T00:00:00+00:00",
+        "upper_bound": 13751.116
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 13240.085,
+        "timestamp": "2026-05-15T00:00:00+00:00",
+        "upper_bound": 13296.057
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13279.332,
+        "timestamp": "2026-05-26T00:00:00+00:00",
+        "upper_bound": 13523.242
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13630.611,
+        "timestamp": "2026-05-27T00:00:00+00:00",
+        "upper_bound": 13783.575
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14047.644,
+        "timestamp": "2026-05-31T00:00:00+00:00",
+        "upper_bound": 14103.189
+      }
+    ],
+    "fibonacci_retracements": [
+      {
+        "is_bullish": true,
+        "range_size": 1403.4650000000001,
+        "swing_high": 14401.732,
+        "swing_high_timestamp": "2026-05-04T00:00:00+00:00",
+        "swing_low": 12998.267,
+        "swing_low_timestamp": "2026-05-24T00:00:00+00:00"
+      }
+    ],
+    "inducement_events": [],
+    "liquidity_grabs": [],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 122.0630000000001,
+        "swept_level": 13120.33,
+        "timestamp": "2026-05-24T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 27.476000000000568,
+        "swept_level": 13251.856,
+        "timestamp": "2026-05-25T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 76.02399999999943,
+        "swept_level": 13866.537,
+        "timestamp": "2026-05-28T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 64.87400000000162,
+        "swept_level": 13783.575,
+        "timestamp": "2026-05-29T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 66.4330000000009,
+        "swept_level": 13981.211,
+        "timestamp": "2026-05-30T00:00:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [],
+    "qm_levels": [],
+    "rs_flips": [],
+    "sms_events": [],
+    "sr_flips": [
+      {
+        "breakout_price": 13166.086,
+        "flip_level": 13594.321,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-15T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13166.086,
+        "flip_level": 13702.873,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-15T00:00:00+00:00"
+      }
+    ],
+    "supply_zones": [],
+    "swing_highs": [
+      {
+        "price": 14744.714,
+        "strength": 10,
+        "timestamp": "2026-04-20T00:00:00+00:00"
+      },
+      {
+        "price": 14401.732,
+        "strength": 8,
+        "timestamp": "2026-05-04T00:00:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 13594.321,
+        "strength": 8,
+        "timestamp": "2026-04-13T00:00:00+00:00"
+      },
+      {
+        "price": 13702.873,
+        "strength": 7,
+        "timestamp": "2026-04-29T00:00:00+00:00"
+      },
+      {
+        "price": 13053.559,
+        "strength": 9,
+        "timestamp": "2026-05-16T00:00:00+00:00"
+      },
+      {
+        "price": 12998.267,
+        "strength": 10,
+        "timestamp": "2026-05-24T00:00:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T00:00:00+00:00",
+    "trend_direction": "BEARISH"
+  },
+  "H1": {
+    "bms_events": [
+      {
+        "breakout_price": 13836.22,
+        "broken_level": 13810.891,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 25.33,
+        "timestamp": "2026-05-28T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13970.05,
+        "broken_level": 13942.561,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 27.49,
+        "timestamp": "2026-05-30T03:00:00+00:00"
+      },
+      {
+        "breakout_price": 13970.05,
+        "broken_level": 13926.473,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 43.58,
+        "timestamp": "2026-05-30T01:00:00+00:00"
+      },
+      {
+        "breakout_price": 14021.035,
+        "broken_level": 13998.126,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 22.91,
+        "timestamp": "2026-05-30T17:00:00+00:00"
+      },
+      {
+        "breakout_price": 14234.427,
+        "broken_level": 14178.963,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 55.46,
+        "timestamp": "2026-06-01T02:00:00+00:00"
+      }
+    ],
+    "breaker_blocks": [
+      {
+        "broken_timestamp": "2026-05-30T10:00:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 13881.314,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-29T22:00:00+00:00",
+        "timestamp": "2026-05-29T22:00:00+00:00",
+        "upper_bound": 13923.738
+      },
+      {
+        "broken_timestamp": "2026-05-30T10:00:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 13881.314,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-29T22:00:00+00:00",
+        "timestamp": "2026-05-29T22:00:00+00:00",
+        "upper_bound": 13923.738
+      }
+    ],
+    "choch_events": [
+      {
+        "breakout_price": 13206.091,
+        "broken_level": 13205.558,
+        "direction": "BULLISH",
+        "is_minor": false,
+        "timestamp": "2026-05-23T01:00:00+00:00"
+      },
+      {
+        "breakout_price": 13230.191,
+        "broken_level": 13223.401,
+        "direction": "BULLISH",
+        "is_minor": false,
+        "timestamp": "2026-05-25T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13188.954,
+        "broken_level": 13182.97,
+        "direction": "BULLISH",
+        "is_minor": true,
+        "timestamp": "2026-05-24T21:00:00+00:00"
+      },
+      {
+        "breakout_price": 13248.305,
+        "broken_level": 13233.998,
+        "direction": "BULLISH",
+        "is_minor": true,
+        "timestamp": "2026-05-25T21:00:00+00:00"
+      },
+      {
+        "breakout_price": 13970.05,
+        "broken_level": 13926.473,
+        "direction": "BULLISH",
+        "is_minor": false,
+        "timestamp": "2026-05-30T01:00:00+00:00"
+      }
+    ],
+    "dealing_ranges": [
+      {
+        "end_time": "2026-06-01T12:00:00+00:00",
+        "equilibrium": 13651.0255,
+        "high": 14303.784,
+        "low": 12998.267,
+        "range_size": 1305.5169999999998,
+        "start_time": "2026-05-20T12:00:00+00:00"
+      }
+    ],
+    "demand_zones": [
+      {
+        "broken": false,
+        "lower_bound": 13725.992,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T05:00:00+00:00",
+        "upper_bound": 13926.473
+      },
+      {
+        "broken": false,
+        "lower_bound": 13725.992,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T05:00:00+00:00",
+        "upper_bound": 13901.891
+      },
+      {
+        "broken": false,
+        "lower_bound": 13725.992,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T05:00:00+00:00",
+        "upper_bound": 13998.126
+      },
+      {
+        "broken": false,
+        "lower_bound": 13725.992,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T18:00:00+00:00",
+        "upper_bound": 14047.644
+      },
+      {
+        "broken": false,
+        "lower_bound": 13725.992,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T18:00:00+00:00",
+        "upper_bound": 14064.152
+      }
+    ],
+    "equal_highs_lows": [],
+    "fair_value_gaps": [
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14127.403,
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "upper_bound": 14152.713
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14174.353,
+        "timestamp": "2026-06-01T01:00:00+00:00",
+        "upper_bound": 14198.101
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14206.584,
+        "timestamp": "2026-06-01T04:00:00+00:00",
+        "upper_bound": 14283.863
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14329.47,
+        "timestamp": "2026-06-01T07:00:00+00:00",
+        "upper_bound": 14354.607
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14303.784,
+        "timestamp": "2026-06-01T11:00:00+00:00",
+        "upper_bound": 14354.209
+      }
+    ],
+    "fibonacci_retracements": [
+      {
+        "is_bullish": true,
+        "range_size": 108.65799999999945,
+        "swing_high": 14178.963,
+        "swing_high_timestamp": "2026-05-31T18:00:00+00:00",
+        "swing_low": 14070.305,
+        "swing_low_timestamp": "2026-05-31T22:00:00+00:00"
+      }
+    ],
+    "inducement_events": [],
+    "liquidity_grabs": [],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 8.511000000000422,
+        "swept_level": 13251.856,
+        "timestamp": "2026-05-25T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 17.575000000000728,
+        "swept_level": 13233.998,
+        "timestamp": "2026-05-25T18:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 9.72400000000016,
+        "swept_level": 13279.332,
+        "timestamp": "2026-05-26T01:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 2.959999999999127,
+        "swept_level": 13301.959,
+        "timestamp": "2026-05-26T02:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 7.291000000001077,
+        "swept_level": 13725.992,
+        "timestamp": "2026-05-29T02:00:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 228.5689999999995,
+        "is_breaker": false,
+        "lower_bound": 13150.037,
+        "mitigated": false,
+        "timestamp": "2026-05-25T12:00:00+00:00",
+        "upper_bound": 13176.666
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 103.25299999999879,
+        "is_breaker": false,
+        "lower_bound": 13732.967,
+        "mitigated": false,
+        "timestamp": "2026-05-27T18:00:00+00:00",
+        "upper_bound": 13776.349
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 143.03199999999924,
+        "is_breaker": false,
+        "lower_bound": 13878.003,
+        "mitigated": false,
+        "timestamp": "2026-05-30T10:00:00+00:00",
+        "upper_bound": 13909.635
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 137.99399999999878,
+        "is_breaker": false,
+        "lower_bound": 14096.433,
+        "mitigated": false,
+        "timestamp": "2026-05-31T21:00:00+00:00",
+        "upper_bound": 14147.911
+      }
+    ],
+    "qm_levels": [
+      {
+        "direction": "BULLISH",
+        "h_price": 13301.959,
+        "h_timestamp": "2026-05-23T03:00:00+00:00",
+        "hh_price": 13419.981,
+        "hh_timestamp": "2026-05-26T05:00:00+00:00",
+        "qml_price": 13108.261,
+        "tested": false,
+        "timestamp": "2026-05-22T21:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13942.561,
+        "h_timestamp": "2026-05-28T04:00:00+00:00",
+        "hh_price": 13976.704,
+        "hh_timestamp": "2026-05-30T01:00:00+00:00",
+        "qml_price": 13725.992,
+        "tested": false,
+        "timestamp": "2026-05-27T16:00:00+00:00"
+      }
+    ],
+    "rs_flips": [
+      {
+        "breakout_price": 14024.675,
+        "flip_level": 13926.473,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-31T05:00:00+00:00"
+      },
+      {
+        "breakout_price": 14024.675,
+        "flip_level": 13901.891,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-31T05:00:00+00:00"
+      },
+      {
+        "breakout_price": 14024.675,
+        "flip_level": 13998.126,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-31T05:00:00+00:00"
+      },
+      {
+        "breakout_price": 14178.963,
+        "flip_level": 14047.644,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-31T18:00:00+00:00"
+      },
+      {
+        "breakout_price": 14178.963,
+        "flip_level": 14064.152,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-31T18:00:00+00:00"
+      }
+    ],
+    "sms_events": [
+      {
+        "direction": "BULLISH",
+        "failed_level": 12998.267,
+        "is_failure_swing": true,
+        "reversal_price": 13192.356,
+        "timestamp": "2026-05-25T05:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "failed_level": 13718.701,
+        "is_failure_swing": true,
+        "reversal_price": 13834.611,
+        "timestamp": "2026-05-29T17:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 13301.959,
+        "is_failure_swing": true,
+        "reversal_price": 13184.802,
+        "timestamp": "2026-05-23T20:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 13260.367,
+        "is_failure_swing": true,
+        "reversal_price": 13223.617,
+        "timestamp": "2026-05-25T09:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 13942.561,
+        "is_failure_swing": true,
+        "reversal_price": 13917.808,
+        "timestamp": "2026-05-28T11:00:00+00:00"
+      }
+    ],
+    "sr_flips": [
+      {
+        "breakout_price": 13057.71,
+        "flip_level": 13069.971,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-24T06:00:00+00:00"
+      },
+      {
+        "breakout_price": 13057.71,
+        "flip_level": 13103.944,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-24T06:00:00+00:00"
+      },
+      {
+        "breakout_price": 13105.115,
+        "flip_level": 13108.261,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-24T05:00:00+00:00"
+      }
+    ],
+    "supply_zones": [],
+    "swing_highs": [
+      {
+        "price": 13810.891,
+        "strength": 10,
+        "timestamp": "2026-05-27T12:00:00+00:00"
+      },
+      {
+        "price": 13942.561,
+        "strength": 10,
+        "timestamp": "2026-05-28T04:00:00+00:00"
+      },
+      {
+        "price": 13926.473,
+        "strength": 8,
+        "timestamp": "2026-05-28T11:00:00+00:00"
+      },
+      {
+        "price": 13901.891,
+        "strength": 8,
+        "timestamp": "2026-05-29T10:00:00+00:00"
+      },
+      {
+        "price": 13998.126,
+        "strength": 10,
+        "timestamp": "2026-05-30T00:00:00+00:00"
+      },
+      {
+        "price": 14047.644,
+        "strength": 10,
+        "timestamp": "2026-05-30T14:00:00+00:00"
+      },
+      {
+        "price": 14064.152,
+        "strength": 10,
+        "timestamp": "2026-05-31T07:00:00+00:00"
+      },
+      {
+        "price": 14178.963,
+        "strength": 10,
+        "timestamp": "2026-05-31T18:00:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 13523.242,
+        "strength": 10,
+        "timestamp": "2026-05-27T04:00:00+00:00"
+      },
+      {
+        "price": 13725.992,
+        "strength": 8,
+        "timestamp": "2026-05-27T16:00:00+00:00"
+      },
+      {
+        "price": 13718.701,
+        "strength": 10,
+        "timestamp": "2026-05-29T02:00:00+00:00"
+      },
+      {
+        "price": 13795.939,
+        "strength": 10,
+        "timestamp": "2026-05-29T17:00:00+00:00"
+      },
+      {
+        "price": 13863.69,
+        "strength": 10,
+        "timestamp": "2026-05-30T11:00:00+00:00"
+      },
+      {
+        "price": 13871.743,
+        "strength": 9,
+        "timestamp": "2026-05-31T04:00:00+00:00"
+      },
+      {
+        "price": 13989.847,
+        "strength": 8,
+        "timestamp": "2026-05-31T11:00:00+00:00"
+      },
+      {
+        "price": 14070.305,
+        "strength": 5,
+        "timestamp": "2026-05-31T22:00:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T12:00:00+00:00",
+    "trend_direction": "BULLISH"
+  },
+  "H12": {
+    "bms_events": [
+      {
+        "breakout_price": 13431.654,
+        "broken_level": 13319.34,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 112.31,
+        "timestamp": "2026-05-28T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13431.654,
+        "broken_level": 13301.959,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 129.69,
+        "timestamp": "2026-05-28T00:00:00+00:00"
+      }
+    ],
+    "breaker_blocks": [
+      {
+        "broken_timestamp": "2026-05-24T00:00:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 13120.33,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-23T12:00:00+00:00",
+        "timestamp": "2026-05-23T12:00:00+00:00",
+        "upper_bound": 13237.249
+      },
+      {
+        "broken_timestamp": "2026-05-24T00:00:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 13120.33,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-23T12:00:00+00:00",
+        "timestamp": "2026-05-23T12:00:00+00:00",
+        "upper_bound": 13237.249
+      }
+    ],
+    "choch_events": [
+      {
+        "breakout_price": 13431.654,
+        "broken_level": 13319.34,
+        "direction": "BULLISH",
+        "is_minor": false,
+        "timestamp": "2026-05-27T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13431.654,
+        "broken_level": 13301.959,
+        "direction": "BULLISH",
+        "is_minor": true,
+        "timestamp": "2026-05-27T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13691.378,
+        "broken_level": 13702.873,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-11T00:00:00+00:00"
+      }
+    ],
+    "dealing_ranges": [
+      {
+        "end_time": "2026-06-01T12:00:00+00:00",
+        "equilibrium": 13749.1955,
+        "high": 14500.124,
+        "low": 12998.267,
+        "range_size": 1501.857,
+        "start_time": "2026-04-23T12:00:00+00:00"
+      }
+    ],
+    "demand_zones": [],
+    "equal_highs_lows": [],
+    "fair_value_gaps": [
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13485.507,
+        "timestamp": "2026-05-26T12:00:00+00:00",
+        "upper_bound": 13523.242
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13630.611,
+        "timestamp": "2026-05-27T00:00:00+00:00",
+        "upper_bound": 13725.992
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13776.069,
+        "timestamp": "2026-05-27T12:00:00+00:00",
+        "upper_bound": 13803.592
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14064.152,
+        "timestamp": "2026-05-31T12:00:00+00:00",
+        "upper_bound": 14103.189
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14178.963,
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "upper_bound": 14273.705
+      }
+    ],
+    "fibonacci_retracements": [
+      {
+        "is_bullish": true,
+        "range_size": 303.6920000000009,
+        "swing_high": 13301.959,
+        "swing_high_timestamp": "2026-05-23T00:00:00+00:00",
+        "swing_low": 12998.267,
+        "swing_low_timestamp": "2026-05-24T12:00:00+00:00"
+      }
+    ],
+    "inducement_events": [],
+    "liquidity_grabs": [],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 19.659999999999854,
+        "swept_level": 13017.927,
+        "timestamp": "2026-05-24T12:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 8.511000000000422,
+        "swept_level": 13251.856,
+        "timestamp": "2026-05-25T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 64.87400000000162,
+        "swept_level": 13783.575,
+        "timestamp": "2026-05-29T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 16.915000000000873,
+        "swept_level": 13981.211,
+        "timestamp": "2026-05-30T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 16.50799999999981,
+        "swept_level": 14047.644,
+        "timestamp": "2026-05-31T00:00:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [],
+    "qm_levels": [
+      {
+        "direction": "BULLISH",
+        "h_price": 13319.34,
+        "h_timestamp": "2026-05-18T00:00:00+00:00",
+        "hh_price": 13768.617,
+        "hh_timestamp": "2026-05-27T00:00:00+00:00",
+        "qml_price": 13053.559,
+        "tested": false,
+        "timestamp": "2026-05-16T00:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13301.959,
+        "h_timestamp": "2026-05-23T00:00:00+00:00",
+        "hh_price": 13768.617,
+        "hh_timestamp": "2026-05-27T00:00:00+00:00",
+        "qml_price": 13017.927,
+        "tested": false,
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      }
+    ],
+    "rs_flips": [],
+    "sms_events": [],
+    "sr_flips": [
+      {
+        "breakout_price": 13202.054,
+        "flip_level": 13702.873,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-15T00:00:00+00:00"
+      }
+    ],
+    "supply_zones": [],
+    "swing_highs": [
+      {
+        "price": 14401.732,
+        "strength": 10,
+        "timestamp": "2026-05-04T00:00:00+00:00"
+      },
+      {
+        "price": 13319.34,
+        "strength": 7,
+        "timestamp": "2026-05-18T00:00:00+00:00"
+      },
+      {
+        "price": 13301.959,
+        "strength": 5,
+        "timestamp": "2026-05-23T00:00:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 13702.873,
+        "strength": 8,
+        "timestamp": "2026-04-29T12:00:00+00:00"
+      },
+      {
+        "price": 13053.559,
+        "strength": 10,
+        "timestamp": "2026-05-16T00:00:00+00:00"
+      },
+      {
+        "price": 13017.927,
+        "strength": 10,
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      },
+      {
+        "price": 12998.267,
+        "strength": 10,
+        "timestamp": "2026-05-24T12:00:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T12:00:00+00:00",
+    "trend_direction": "BULLISH"
+  },
+  "H3": {
+    "bms_events": [
+      {
+        "breakout_price": 13591.399,
+        "broken_level": 13531.28,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 60.12,
+        "timestamp": "2026-05-27T03:00:00+00:00"
+      },
+      {
+        "breakout_price": 13419.981,
+        "broken_level": 13319.34,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 100.64,
+        "timestamp": "2026-05-26T06:00:00+00:00"
+      },
+      {
+        "breakout_price": 13280.787,
+        "broken_level": 13214.691,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 66.1,
+        "timestamp": "2026-05-23T06:00:00+00:00"
+      },
+      {
+        "breakout_price": 13419.981,
+        "broken_level": 13301.959,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 118.02,
+        "timestamp": "2026-05-26T06:00:00+00:00"
+      },
+      {
+        "breakout_price": 13390.447,
+        "broken_level": 13427.882,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 37.43,
+        "timestamp": "2026-05-12T09:00:00+00:00"
+      }
+    ],
+    "breaker_blocks": [
+      {
+        "broken_timestamp": "2026-05-23T21:00:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 13125.368,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-22T15:00:00+00:00",
+        "timestamp": "2026-05-22T15:00:00+00:00",
+        "upper_bound": 13183.333
+      },
+      {
+        "broken_timestamp": "2026-05-26T21:00:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 13415.713,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-11T15:00:00+00:00",
+        "timestamp": "2026-05-11T15:00:00+00:00",
+        "upper_bound": 13585.267
+      }
+    ],
+    "choch_events": [
+      {
+        "breakout_price": 13289.576,
+        "broken_level": 13282.055,
+        "direction": "BULLISH",
+        "is_minor": false,
+        "timestamp": "2026-05-26T06:00:00+00:00"
+      },
+      {
+        "breakout_price": 13280.787,
+        "broken_level": 13214.691,
+        "direction": "BULLISH",
+        "is_minor": true,
+        "timestamp": "2026-05-23T06:00:00+00:00"
+      },
+      {
+        "breakout_price": 13390.447,
+        "broken_level": 13427.882,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-12T03:00:00+00:00"
+      },
+      {
+        "breakout_price": 13070.553,
+        "broken_level": 13086.84,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13098.065,
+        "broken_level": 13120.65,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-20T21:00:00+00:00"
+      }
+    ],
+    "dealing_ranges": [
+      {
+        "end_time": "2026-06-01T12:00:00+00:00",
+        "equilibrium": 13651.0255,
+        "high": 14303.784,
+        "low": 12998.267,
+        "range_size": 1305.5169999999998,
+        "start_time": "2026-05-07T15:00:00+00:00"
+      }
+    ],
+    "demand_zones": [
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-26T03:00:00+00:00",
+        "upper_bound": 13319.34
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-26T03:00:00+00:00",
+        "upper_bound": 13282.055
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-25T18:00:00+00:00",
+        "upper_bound": 13214.691
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-26T03:00:00+00:00",
+        "upper_bound": 13301.959
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-25T18:00:00+00:00",
+        "upper_bound": 13260.367
+      }
+    ],
+    "equal_highs_lows": [
+      {
+        "liquidity_type": "EQUAL_HIGHS",
+        "price_level": 13281.855,
+        "swept": false,
+        "timestamps": [
+          "2026-05-17T06:00:00+00:00",
+          "2026-05-20T06:00:00+00:00"
+        ],
+        "tolerance_pips": 2,
+        "touch_count": 2
+      }
+    ],
+    "fair_value_gaps": [
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 13974.099,
+        "timestamp": "2026-05-30T18:00:00+00:00",
+        "upper_bound": 13990.358
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13975.529,
+        "timestamp": "2026-05-31T03:00:00+00:00",
+        "upper_bound": 14011.134
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14087.378,
+        "timestamp": "2026-05-31T15:00:00+00:00",
+        "upper_bound": 14094.076
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14147.911,
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "upper_bound": 14174.103
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14239.444,
+        "timestamp": "2026-06-01T03:00:00+00:00",
+        "upper_bound": 14283.666
+      }
+    ],
+    "fibonacci_retracements": [
+      {
+        "is_bullish": true,
+        "range_size": 175.90099999999984,
+        "swing_high": 14047.644,
+        "swing_high_timestamp": "2026-05-30T12:00:00+00:00",
+        "swing_low": 13871.743,
+        "swing_low_timestamp": "2026-05-31T03:00:00+00:00"
+      }
+    ],
+    "inducement_events": [],
+    "liquidity_grabs": [],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 19.659999999999854,
+        "swept_level": 13017.927,
+        "timestamp": "2026-05-24T12:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 8.511000000000422,
+        "swept_level": 13251.856,
+        "timestamp": "2026-05-25T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 2.959999999999127,
+        "swept_level": 13301.959,
+        "timestamp": "2026-05-26T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 9.998999999999796,
+        "swept_level": 13475.508,
+        "timestamp": "2026-05-26T06:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 16.915000000000873,
+        "swept_level": 13981.211,
+        "timestamp": "2026-05-30T00:00:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 571.6409999999996,
+        "is_breaker": false,
+        "lower_bound": 13019.758,
+        "mitigated": false,
+        "timestamp": "2026-05-24T06:00:00+00:00",
+        "upper_bound": 13105.114
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 400.22299999999996,
+        "is_breaker": false,
+        "lower_bound": 13019.758,
+        "mitigated": false,
+        "timestamp": "2026-05-24T06:00:00+00:00",
+        "upper_bound": 13105.114
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 400.22299999999996,
+        "is_breaker": false,
+        "lower_bound": 13019.758,
+        "mitigated": false,
+        "timestamp": "2026-05-24T06:00:00+00:00",
+        "upper_bound": 13105.114
+      }
+    ],
+    "qm_levels": [
+      {
+        "direction": "BEARISH",
+        "h_price": 13281.855,
+        "h_timestamp": "2026-05-17T06:00:00+00:00",
+        "hh_price": 13319.34,
+        "hh_timestamp": "2026-05-18T09:00:00+00:00",
+        "qml_price": 13281.855,
+        "tested": false,
+        "timestamp": "2026-05-17T06:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13531.28,
+        "h_timestamp": "2026-05-13T00:00:00+00:00",
+        "hh_price": 13579.371,
+        "hh_timestamp": "2026-05-27T03:00:00+00:00",
+        "qml_price": 13289.394,
+        "tested": false,
+        "timestamp": "2026-05-12T03:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13475.508,
+        "h_timestamp": "2026-05-14T06:00:00+00:00",
+        "hh_price": 13591.399,
+        "hh_timestamp": "2026-05-26T21:00:00+00:00",
+        "qml_price": 13256.549,
+        "tested": false,
+        "timestamp": "2026-05-13T21:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13282.055,
+        "h_timestamp": "2026-05-20T06:00:00+00:00",
+        "hh_price": 13448.538,
+        "hh_timestamp": "2026-05-26T06:00:00+00:00",
+        "qml_price": 13120.65,
+        "tested": false,
+        "timestamp": "2026-05-19T15:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13301.959,
+        "h_timestamp": "2026-05-23T03:00:00+00:00",
+        "hh_price": 13431.654,
+        "hh_timestamp": "2026-05-26T09:00:00+00:00",
+        "qml_price": 13017.927,
+        "tested": false,
+        "timestamp": "2026-05-21T03:00:00+00:00"
+      }
+    ],
+    "rs_flips": [
+      {
+        "breakout_price": 13419.981,
+        "flip_level": 13319.34,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-26T03:00:00+00:00"
+      },
+      {
+        "breakout_price": 13419.981,
+        "flip_level": 13282.055,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-26T03:00:00+00:00"
+      },
+      {
+        "breakout_price": 13268.277,
+        "flip_level": 13214.691,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-25T18:00:00+00:00"
+      },
+      {
+        "breakout_price": 13419.981,
+        "flip_level": 13301.959,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-26T03:00:00+00:00"
+      },
+      {
+        "breakout_price": 13268.277,
+        "flip_level": 13260.367,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-25T18:00:00+00:00"
+      }
+    ],
+    "sms_events": [
+      {
+        "direction": "BULLISH",
+        "failed_level": 13053.559,
+        "is_failure_swing": true,
+        "reversal_price": 13147.869,
+        "timestamp": "2026-05-17T18:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "failed_level": 12998.267,
+        "is_failure_swing": true,
+        "reversal_price": 13762.582,
+        "timestamp": "2026-05-29T00:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 13319.34,
+        "is_failure_swing": true,
+        "reversal_price": 13262.846,
+        "timestamp": "2026-05-20T06:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 13301.959,
+        "is_failure_swing": true,
+        "reversal_price": 13210.082,
+        "timestamp": "2026-05-25T00:00:00+00:00"
+      }
+    ],
+    "sr_flips": [
+      {
+        "breakout_price": 13166.086,
+        "flip_level": 13289.394,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-15T21:00:00+00:00"
+      },
+      {
+        "breakout_price": 13166.086,
+        "flip_level": 13256.549,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-15T21:00:00+00:00"
+      },
+      {
+        "breakout_price": 13021.297,
+        "flip_level": 13053.559,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13021.297,
+        "flip_level": 13086.84,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13021.297,
+        "flip_level": 13120.65,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      }
+    ],
+    "supply_zones": [
+      {
+        "broken": false,
+        "lower_bound": 13281.855,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-15T21:00:00+00:00",
+        "upper_bound": 13289.394
+      },
+      {
+        "broken": false,
+        "lower_bound": 13256.549,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-15T21:00:00+00:00",
+        "upper_bound": 13281.855
+      },
+      {
+        "broken": false,
+        "lower_bound": 13053.559,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-21T00:00:00+00:00",
+        "upper_bound": 13281.855
+      },
+      {
+        "broken": false,
+        "lower_bound": 13086.84,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-21T00:00:00+00:00",
+        "upper_bound": 13281.855
+      },
+      {
+        "broken": false,
+        "lower_bound": 13120.65,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-21T00:00:00+00:00",
+        "upper_bound": 13281.855
+      }
+    ],
+    "swing_highs": [
+      {
+        "price": 13281.855,
+        "strength": 7,
+        "timestamp": "2026-05-17T06:00:00+00:00"
+      },
+      {
+        "price": 13319.34,
+        "strength": 10,
+        "timestamp": "2026-05-18T09:00:00+00:00"
+      },
+      {
+        "price": 13282.055,
+        "strength": 8,
+        "timestamp": "2026-05-20T06:00:00+00:00"
+      },
+      {
+        "price": 13214.691,
+        "strength": 5,
+        "timestamp": "2026-05-21T21:00:00+00:00"
+      },
+      {
+        "price": 13301.959,
+        "strength": 10,
+        "timestamp": "2026-05-23T03:00:00+00:00"
+      },
+      {
+        "price": 13260.367,
+        "strength": 5,
+        "timestamp": "2026-05-25T00:00:00+00:00"
+      },
+      {
+        "price": 13942.561,
+        "strength": 10,
+        "timestamp": "2026-05-28T03:00:00+00:00"
+      },
+      {
+        "price": 14047.644,
+        "strength": 10,
+        "timestamp": "2026-05-30T12:00:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 13256.549,
+        "strength": 10,
+        "timestamp": "2026-05-13T21:00:00+00:00"
+      },
+      {
+        "price": 13053.559,
+        "strength": 10,
+        "timestamp": "2026-05-16T09:00:00+00:00"
+      },
+      {
+        "price": 13086.84,
+        "strength": 8,
+        "timestamp": "2026-05-17T18:00:00+00:00"
+      },
+      {
+        "price": 13120.65,
+        "strength": 7,
+        "timestamp": "2026-05-19T15:00:00+00:00"
+      },
+      {
+        "price": 13017.927,
+        "strength": 10,
+        "timestamp": "2026-05-21T03:00:00+00:00"
+      },
+      {
+        "price": 12998.267,
+        "strength": 10,
+        "timestamp": "2026-05-24T12:00:00+00:00"
+      },
+      {
+        "price": 13718.701,
+        "strength": 9,
+        "timestamp": "2026-05-29T00:00:00+00:00"
+      },
+      {
+        "price": 13871.743,
+        "strength": 5,
+        "timestamp": "2026-05-31T03:00:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T12:00:00+00:00",
+    "trend_direction": "BULLISH"
+  },
+  "H4": {
+    "bms_events": [
+      {
+        "breakout_price": 13591.399,
+        "broken_level": 13531.28,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 60.12,
+        "timestamp": "2026-05-27T04:00:00+00:00"
+      },
+      {
+        "breakout_price": 13378.606,
+        "broken_level": 13319.34,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 59.27,
+        "timestamp": "2026-05-26T16:00:00+00:00"
+      },
+      {
+        "breakout_price": 13287.313,
+        "broken_level": 13214.691,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 72.62,
+        "timestamp": "2026-05-23T08:00:00+00:00"
+      },
+      {
+        "breakout_price": 13378.606,
+        "broken_level": 13301.959,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 76.65,
+        "timestamp": "2026-05-26T08:00:00+00:00"
+      }
+    ],
+    "breaker_blocks": [
+      {
+        "broken_timestamp": "2026-05-24T04:00:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 13112.594,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-22T16:00:00+00:00",
+        "timestamp": "2026-05-22T16:00:00+00:00",
+        "upper_bound": 13161.146
+      }
+    ],
+    "choch_events": [
+      {
+        "breakout_price": 13287.313,
+        "broken_level": 13214.691,
+        "direction": "BULLISH",
+        "is_minor": true,
+        "timestamp": "2026-05-23T08:00:00+00:00"
+      },
+      {
+        "breakout_price": 13274.401,
+        "broken_level": 13289.394,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-15T08:00:00+00:00"
+      },
+      {
+        "breakout_price": 13078.666,
+        "broken_level": 13086.84,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13102.178,
+        "broken_level": 13120.65,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2026-05-20T20:00:00+00:00"
+      }
+    ],
+    "dealing_ranges": [
+      {
+        "end_time": "2026-06-01T12:00:00+00:00",
+        "equilibrium": 13651.0255,
+        "high": 14303.784,
+        "low": 12998.267,
+        "range_size": 1305.5169999999998,
+        "start_time": "2026-05-07T16:00:00+00:00"
+      }
+    ],
+    "demand_zones": [
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-27T08:00:00+00:00",
+        "upper_bound": 13319.34
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-27T08:00:00+00:00",
+        "upper_bound": 13282.055
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-27T08:00:00+00:00",
+        "upper_bound": 13214.691
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-27T08:00:00+00:00",
+        "upper_bound": 13301.959
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T04:00:00+00:00",
+        "upper_bound": 13942.561
+      }
+    ],
+    "equal_highs_lows": [],
+    "fair_value_gaps": [
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13964.843,
+        "timestamp": "2026-05-30T12:00:00+00:00",
+        "upper_bound": 13990.358
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 13975.529,
+        "timestamp": "2026-05-30T20:00:00+00:00",
+        "upper_bound": 13990.358
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13975.529,
+        "timestamp": "2026-05-31T04:00:00+00:00",
+        "upper_bound": 13989.847
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14173.377,
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "upper_bound": 14188.6
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14239.444,
+        "timestamp": "2026-06-01T04:00:00+00:00",
+        "upper_bound": 14303.797
+      }
+    ],
+    "fibonacci_retracements": [
+      {
+        "is_bullish": true,
+        "range_size": 223.86000000000058,
+        "swing_high": 13942.561,
+        "swing_high_timestamp": "2026-05-28T04:00:00+00:00",
+        "swing_low": 13718.701,
+        "swing_low_timestamp": "2026-05-29T00:00:00+00:00"
+      }
+    ],
+    "inducement_events": [
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-22T20:00:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 13214.691,
+        "is_internal": true,
+        "timestamp": "2026-05-21T20:00:00+00:00"
+      }
+    ],
+    "liquidity_grabs": [],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 47.34200000000055,
+        "swept_level": 13120.33,
+        "timestamp": "2026-05-24T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 19.659999999999854,
+        "swept_level": 13017.927,
+        "timestamp": "2026-05-24T12:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 8.511000000000422,
+        "swept_level": 13251.856,
+        "timestamp": "2026-05-25T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 9.998999999999796,
+        "swept_level": 13475.508,
+        "timestamp": "2026-05-26T04:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 16.915000000000873,
+        "swept_level": 13981.211,
+        "timestamp": "2026-05-30T00:00:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 414.78700000000026,
+        "is_breaker": false,
+        "lower_bound": 13176.612,
+        "mitigated": false,
+        "timestamp": "2026-05-25T08:00:00+00:00",
+        "upper_bound": 13233.998
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 201.9940000000006,
+        "is_breaker": false,
+        "lower_bound": 13176.612,
+        "mitigated": false,
+        "timestamp": "2026-05-25T08:00:00+00:00",
+        "upper_bound": 13233.998
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 201.9940000000006,
+        "is_breaker": false,
+        "lower_bound": 13176.612,
+        "mitigated": false,
+        "timestamp": "2026-05-25T08:00:00+00:00",
+        "upper_bound": 13233.998
+      }
+    ],
+    "qm_levels": [
+      {
+        "direction": "BULLISH",
+        "h_price": 13531.28,
+        "h_timestamp": "2026-05-13T00:00:00+00:00",
+        "hh_price": 13642.475,
+        "hh_timestamp": "2026-05-27T04:00:00+00:00",
+        "qml_price": 13289.394,
+        "tested": false,
+        "timestamp": "2026-05-12T04:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13475.508,
+        "h_timestamp": "2026-05-14T08:00:00+00:00",
+        "hh_price": 13543.126,
+        "hh_timestamp": "2026-05-27T00:00:00+00:00",
+        "qml_price": 13256.549,
+        "tested": false,
+        "timestamp": "2026-05-13T20:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13301.959,
+        "h_timestamp": "2026-05-23T00:00:00+00:00",
+        "hh_price": 13431.654,
+        "hh_timestamp": "2026-05-26T08:00:00+00:00",
+        "qml_price": 13017.927,
+        "tested": false,
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      }
+    ],
+    "rs_flips": [
+      {
+        "breakout_price": 13768.617,
+        "flip_level": 13319.34,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-27T08:00:00+00:00"
+      },
+      {
+        "breakout_price": 13768.617,
+        "flip_level": 13282.055,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-27T08:00:00+00:00"
+      },
+      {
+        "breakout_price": 13768.617,
+        "flip_level": 13214.691,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-27T08:00:00+00:00"
+      },
+      {
+        "breakout_price": 13768.617,
+        "flip_level": 13301.959,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-27T08:00:00+00:00"
+      },
+      {
+        "breakout_price": 14060.852,
+        "flip_level": 13942.561,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-31T04:00:00+00:00"
+      }
+    ],
+    "sms_events": [
+      {
+        "direction": "BULLISH",
+        "failed_level": 13053.559,
+        "is_failure_swing": true,
+        "reversal_price": 13141.774,
+        "timestamp": "2026-05-17T16:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "failed_level": 12998.267,
+        "is_failure_swing": true,
+        "reversal_price": 13756.054,
+        "timestamp": "2026-05-29T00:00:00+00:00"
+      }
+    ],
+    "sr_flips": [
+      {
+        "breakout_price": 13033.808,
+        "flip_level": 13289.394,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-24T04:00:00+00:00"
+      },
+      {
+        "breakout_price": 13033.808,
+        "flip_level": 13256.549,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-24T04:00:00+00:00"
+      },
+      {
+        "breakout_price": 13033.808,
+        "flip_level": 13053.559,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-24T04:00:00+00:00"
+      },
+      {
+        "breakout_price": 13033.808,
+        "flip_level": 13086.84,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-24T04:00:00+00:00"
+      },
+      {
+        "breakout_price": 13033.808,
+        "flip_level": 13120.65,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-24T04:00:00+00:00"
+      }
+    ],
+    "supply_zones": [],
+    "swing_highs": [
+      {
+        "price": 13585.267,
+        "strength": 10,
+        "timestamp": "2026-05-11T16:00:00+00:00"
+      },
+      {
+        "price": 13531.28,
+        "strength": 10,
+        "timestamp": "2026-05-13T00:00:00+00:00"
+      },
+      {
+        "price": 13475.508,
+        "strength": 10,
+        "timestamp": "2026-05-14T08:00:00+00:00"
+      },
+      {
+        "price": 13319.34,
+        "strength": 10,
+        "timestamp": "2026-05-18T08:00:00+00:00"
+      },
+      {
+        "price": 13282.055,
+        "strength": 7,
+        "timestamp": "2026-05-20T08:00:00+00:00"
+      },
+      {
+        "price": 13214.691,
+        "strength": 3,
+        "timestamp": "2026-05-21T20:00:00+00:00"
+      },
+      {
+        "price": 13301.959,
+        "strength": 9,
+        "timestamp": "2026-05-23T00:00:00+00:00"
+      },
+      {
+        "price": 13942.561,
+        "strength": 10,
+        "timestamp": "2026-05-28T04:00:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 13289.394,
+        "strength": 8,
+        "timestamp": "2026-05-12T04:00:00+00:00"
+      },
+      {
+        "price": 13256.549,
+        "strength": 9,
+        "timestamp": "2026-05-13T20:00:00+00:00"
+      },
+      {
+        "price": 13053.559,
+        "strength": 10,
+        "timestamp": "2026-05-16T08:00:00+00:00"
+      },
+      {
+        "price": 13086.84,
+        "strength": 7,
+        "timestamp": "2026-05-17T16:00:00+00:00"
+      },
+      {
+        "price": 13120.65,
+        "strength": 5,
+        "timestamp": "2026-05-19T12:00:00+00:00"
+      },
+      {
+        "price": 13017.927,
+        "strength": 10,
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      },
+      {
+        "price": 12998.267,
+        "strength": 10,
+        "timestamp": "2026-05-24T12:00:00+00:00"
+      },
+      {
+        "price": 13718.701,
+        "strength": 8,
+        "timestamp": "2026-05-29T00:00:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T12:00:00+00:00",
+    "trend_direction": "BULLISH"
+  },
+  "H6": {
+    "bms_events": [
+      {
+        "breakout_price": 13419.981,
+        "broken_level": 13319.34,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 100.64,
+        "timestamp": "2026-05-26T12:00:00+00:00"
+      },
+      {
+        "breakout_price": 13419.981,
+        "broken_level": 13282.055,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 137.93,
+        "timestamp": "2026-05-26T12:00:00+00:00"
+      },
+      {
+        "breakout_price": 13419.981,
+        "broken_level": 13301.959,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 118.02,
+        "timestamp": "2026-05-26T12:00:00+00:00"
+      }
+    ],
+    "breaker_blocks": [],
+    "choch_events": [
+      {
+        "breakout_price": 13419.981,
+        "broken_level": 13282.055,
+        "direction": "BULLISH",
+        "is_minor": true,
+        "timestamp": "2026-05-26T12:00:00+00:00"
+      },
+      {
+        "breakout_price": 13419.981,
+        "broken_level": 13301.959,
+        "direction": "BULLISH",
+        "is_minor": false,
+        "timestamp": "2026-05-26T12:00:00+00:00"
+      }
+    ],
+    "dealing_ranges": [
+      {
+        "end_time": "2026-06-01T12:00:00+00:00",
+        "equilibrium": 13693.1715,
+        "high": 14388.076,
+        "low": 12998.267,
+        "range_size": 1389.8089999999993,
+        "start_time": "2026-05-02T18:00:00+00:00"
+      }
+    ],
+    "demand_zones": [
+      {
+        "broken": false,
+        "lower_bound": 13053.559,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-26T00:00:00+00:00",
+        "upper_bound": 13282.055
+      },
+      {
+        "broken": false,
+        "lower_bound": 13053.559,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-26T00:00:00+00:00",
+        "upper_bound": 13301.959
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-26T00:00:00+00:00",
+        "upper_bound": 13319.34
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-26T00:00:00+00:00",
+        "upper_bound": 13282.055
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-26T00:00:00+00:00",
+        "upper_bound": 13301.959
+      }
+    ],
+    "equal_highs_lows": [],
+    "fair_value_gaps": [
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13279.332,
+        "timestamp": "2026-05-26T00:00:00+00:00",
+        "upper_bound": 13392.858
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13613.214,
+        "timestamp": "2026-05-27T06:00:00+00:00",
+        "upper_bound": 13725.992
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13884.706,
+        "timestamp": "2026-05-29T18:00:00+00:00",
+        "upper_bound": 13894.567
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14064.152,
+        "timestamp": "2026-05-31T12:00:00+00:00",
+        "upper_bound": 14070.305
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14178.963,
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "upper_bound": 14283.666
+      }
+    ],
+    "fibonacci_retracements": [
+      {
+        "is_bullish": true,
+        "range_size": 223.86000000000058,
+        "swing_high": 13942.561,
+        "swing_high_timestamp": "2026-05-28T00:00:00+00:00",
+        "swing_low": 13718.701,
+        "swing_low_timestamp": "2026-05-29T00:00:00+00:00"
+      }
+    ],
+    "inducement_events": [],
+    "liquidity_grabs": [],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 19.659999999999854,
+        "swept_level": 13017.927,
+        "timestamp": "2026-05-24T12:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 8.511000000000422,
+        "swept_level": 13251.856,
+        "timestamp": "2026-05-25T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 64.87400000000162,
+        "swept_level": 13783.575,
+        "timestamp": "2026-05-29T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 16.915000000000873,
+        "swept_level": 13981.211,
+        "timestamp": "2026-05-30T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 16.50799999999981,
+        "swept_level": 14047.644,
+        "timestamp": "2026-05-31T06:00:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 400.22299999999996,
+        "is_breaker": false,
+        "lower_bound": 13019.758,
+        "mitigated": false,
+        "timestamp": "2026-05-24T06:00:00+00:00",
+        "upper_bound": 13105.114
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 400.22299999999996,
+        "is_breaker": false,
+        "lower_bound": 13019.758,
+        "mitigated": false,
+        "timestamp": "2026-05-24T06:00:00+00:00",
+        "upper_bound": 13105.114
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 400.22299999999996,
+        "is_breaker": false,
+        "lower_bound": 13019.758,
+        "mitigated": false,
+        "timestamp": "2026-05-24T06:00:00+00:00",
+        "upper_bound": 13105.114
+      }
+    ],
+    "qm_levels": [
+      {
+        "direction": "BULLISH",
+        "h_price": 13319.34,
+        "h_timestamp": "2026-05-18T06:00:00+00:00",
+        "hh_price": 13490.023,
+        "hh_timestamp": "2026-05-26T12:00:00+00:00",
+        "qml_price": 13053.559,
+        "tested": false,
+        "timestamp": "2026-05-16T06:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13301.959,
+        "h_timestamp": "2026-05-23T00:00:00+00:00",
+        "hh_price": 13490.023,
+        "hh_timestamp": "2026-05-26T12:00:00+00:00",
+        "qml_price": 13017.927,
+        "tested": false,
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      }
+    ],
+    "rs_flips": [
+      {
+        "breakout_price": 13419.981,
+        "flip_level": 13319.34,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-26T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13419.981,
+        "flip_level": 13282.055,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-26T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13419.981,
+        "flip_level": 13301.959,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-26T00:00:00+00:00"
+      }
+    ],
+    "sms_events": [
+      {
+        "direction": "BULLISH",
+        "failed_level": 12998.267,
+        "is_failure_swing": true,
+        "reversal_price": 13837.144,
+        "timestamp": "2026-05-29T00:00:00+00:00"
+      }
+    ],
+    "sr_flips": [
+      {
+        "breakout_price": 14093.283,
+        "flip_level": 14124.278,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-06T18:00:00+00:00"
+      }
+    ],
+    "supply_zones": [],
+    "swing_highs": [
+      {
+        "price": 14401.732,
+        "strength": 10,
+        "timestamp": "2026-05-04T00:00:00+00:00"
+      },
+      {
+        "price": 13319.34,
+        "strength": 9,
+        "timestamp": "2026-05-18T06:00:00+00:00"
+      },
+      {
+        "price": 13282.055,
+        "strength": 5,
+        "timestamp": "2026-05-20T06:00:00+00:00"
+      },
+      {
+        "price": 13301.959,
+        "strength": 7,
+        "timestamp": "2026-05-23T00:00:00+00:00"
+      },
+      {
+        "price": 13942.561,
+        "strength": 10,
+        "timestamp": "2026-05-28T00:00:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 14124.278,
+        "strength": 5,
+        "timestamp": "2026-05-05T00:00:00+00:00"
+      },
+      {
+        "price": 13289.394,
+        "strength": 9,
+        "timestamp": "2026-05-12T00:00:00+00:00"
+      },
+      {
+        "price": 13256.549,
+        "strength": 9,
+        "timestamp": "2026-05-13T18:00:00+00:00"
+      },
+      {
+        "price": 13053.559,
+        "strength": 10,
+        "timestamp": "2026-05-16T06:00:00+00:00"
+      },
+      {
+        "price": 13017.927,
+        "strength": 10,
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      },
+      {
+        "price": 12998.267,
+        "strength": 10,
+        "timestamp": "2026-05-24T12:00:00+00:00"
+      },
+      {
+        "price": 13718.701,
+        "strength": 7,
+        "timestamp": "2026-05-29T00:00:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T12:00:00+00:00",
+    "trend_direction": "BULLISH"
+  },
+  "H8": {
+    "bms_events": [
+      {
+        "breakout_price": 13456.422,
+        "broken_level": 13319.34,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 137.08,
+        "timestamp": "2026-05-26T16:00:00+00:00"
+      },
+      {
+        "breakout_price": 13456.422,
+        "broken_level": 13282.055,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 174.37,
+        "timestamp": "2026-05-26T16:00:00+00:00"
+      },
+      {
+        "breakout_price": 13456.422,
+        "broken_level": 13301.959,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 154.46,
+        "timestamp": "2026-05-26T16:00:00+00:00"
+      }
+    ],
+    "breaker_blocks": [],
+    "choch_events": [
+      {
+        "breakout_price": 13456.422,
+        "broken_level": 13319.34,
+        "direction": "BULLISH",
+        "is_minor": false,
+        "timestamp": "2026-05-26T16:00:00+00:00"
+      },
+      {
+        "breakout_price": 13456.422,
+        "broken_level": 13282.055,
+        "direction": "BULLISH",
+        "is_minor": true,
+        "timestamp": "2026-05-26T16:00:00+00:00"
+      },
+      {
+        "breakout_price": 13456.422,
+        "broken_level": 13301.959,
+        "direction": "BULLISH",
+        "is_minor": false,
+        "timestamp": "2026-05-26T16:00:00+00:00"
+      }
+    ],
+    "dealing_ranges": [
+      {
+        "end_time": "2026-05-31T16:00:00+00:00",
+        "equilibrium": 13713.166,
+        "high": 14388.076,
+        "low": 13038.256,
+        "range_size": 1349.8199999999997,
+        "start_time": "2026-04-29T16:00:00+00:00"
+      }
+    ],
+    "demand_zones": [
+      {
+        "broken": false,
+        "lower_bound": 13053.559,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "upper_bound": 13282.055
+      },
+      {
+        "broken": false,
+        "lower_bound": 13053.559,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "upper_bound": 13301.959
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "upper_bound": 13319.34
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "upper_bound": 13282.055
+      },
+      {
+        "broken": false,
+        "lower_bound": 13017.927,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "upper_bound": 13301.959
+      }
+    ],
+    "equal_highs_lows": [],
+    "fair_value_gaps": [
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13470.813,
+        "timestamp": "2026-05-26T16:00:00+00:00",
+        "upper_bound": 13523.242
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13630.611,
+        "timestamp": "2026-05-27T00:00:00+00:00",
+        "upper_bound": 13639.126
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13661.262,
+        "timestamp": "2026-05-27T08:00:00+00:00",
+        "upper_bound": 13725.992
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14087.378,
+        "timestamp": "2026-05-31T16:00:00+00:00",
+        "upper_bound": 14103.189
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14178.963,
+        "timestamp": "2026-06-01T00:00:00+00:00",
+        "upper_bound": 14273.705
+      }
+    ],
+    "fibonacci_retracements": [
+      {
+        "is_bullish": true,
+        "range_size": 303.6920000000009,
+        "swing_high": 13301.959,
+        "swing_high_timestamp": "2026-05-23T00:00:00+00:00",
+        "swing_low": 12998.267,
+        "swing_low_timestamp": "2026-05-24T08:00:00+00:00"
+      }
+    ],
+    "inducement_events": [
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-23T00:00:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 13282.055,
+        "is_internal": true,
+        "timestamp": "2026-05-20T08:00:00+00:00"
+      }
+    ],
+    "liquidity_grabs": [],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 19.90400000000045,
+        "swept_level": 13282.055,
+        "timestamp": "2026-05-23T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 19.659999999999854,
+        "swept_level": 13017.927,
+        "timestamp": "2026-05-24T08:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 8.511000000000422,
+        "swept_level": 13251.856,
+        "timestamp": "2026-05-25T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 64.87400000000162,
+        "swept_level": 13783.575,
+        "timestamp": "2026-05-29T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 16.915000000000873,
+        "swept_level": 13981.211,
+        "timestamp": "2026-05-30T00:00:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 422.6139999999996,
+        "is_breaker": false,
+        "lower_bound": 13033.808,
+        "mitigated": false,
+        "timestamp": "2026-05-24T00:00:00+00:00",
+        "upper_bound": 13182.97
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 422.6139999999996,
+        "is_breaker": false,
+        "lower_bound": 13033.808,
+        "mitigated": false,
+        "timestamp": "2026-05-24T00:00:00+00:00",
+        "upper_bound": 13182.97
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 422.6139999999996,
+        "is_breaker": false,
+        "lower_bound": 13033.808,
+        "mitigated": false,
+        "timestamp": "2026-05-24T00:00:00+00:00",
+        "upper_bound": 13182.97
+      }
+    ],
+    "qm_levels": [
+      {
+        "direction": "BULLISH",
+        "h_price": 13319.34,
+        "h_timestamp": "2026-05-18T08:00:00+00:00",
+        "hh_price": 13591.399,
+        "hh_timestamp": "2026-05-26T16:00:00+00:00",
+        "qml_price": 13053.559,
+        "tested": false,
+        "timestamp": "2026-05-16T08:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13301.959,
+        "h_timestamp": "2026-05-23T00:00:00+00:00",
+        "hh_price": 13591.399,
+        "hh_timestamp": "2026-05-26T16:00:00+00:00",
+        "qml_price": 13017.927,
+        "tested": false,
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      }
+    ],
+    "rs_flips": [
+      {
+        "breakout_price": 14375.384,
+        "flip_level": 13319.34,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 14375.384,
+        "flip_level": 13282.055,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 14375.384,
+        "flip_level": 13301.959,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T00:00:00+00:00"
+      }
+    ],
+    "sms_events": [],
+    "sr_flips": [],
+    "supply_zones": [],
+    "swing_highs": [
+      {
+        "price": 14401.732,
+        "strength": 10,
+        "timestamp": "2026-05-04T00:00:00+00:00"
+      },
+      {
+        "price": 13319.34,
+        "strength": 8,
+        "timestamp": "2026-05-18T08:00:00+00:00"
+      },
+      {
+        "price": 13282.055,
+        "strength": 3,
+        "timestamp": "2026-05-20T08:00:00+00:00"
+      },
+      {
+        "price": 13301.959,
+        "strength": 7,
+        "timestamp": "2026-05-23T00:00:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 13053.559,
+        "strength": 10,
+        "timestamp": "2026-05-16T08:00:00+00:00"
+      },
+      {
+        "price": 13017.927,
+        "strength": 10,
+        "timestamp": "2026-05-21T00:00:00+00:00"
+      },
+      {
+        "price": 12998.267,
+        "strength": 10,
+        "timestamp": "2026-05-24T08:00:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T08:00:00+00:00",
+    "trend_direction": "BULLISH"
+  },
+  "M1": {
+    "bms_events": [
+      {
+        "breakout_price": 14395.533,
+        "broken_level": 14390.167,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 5.37,
+        "timestamp": "2026-06-01T09:58:00+00:00"
+      },
+      {
+        "breakout_price": 14375.217,
+        "broken_level": 14366.834,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 8.38,
+        "timestamp": "2026-06-01T09:47:00+00:00"
+      },
+      {
+        "breakout_price": 14395.533,
+        "broken_level": 14375.701,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 19.83,
+        "timestamp": "2026-06-01T09:58:00+00:00"
+      }
+    ],
+    "breaker_blocks": [
+      {
+        "broken_timestamp": "2026-06-01T10:46:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 14366.626,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-06-01T09:56:00+00:00",
+        "timestamp": "2026-06-01T09:56:00+00:00",
+        "upper_bound": 14367.508
+      },
+      {
+        "broken_timestamp": "2026-06-01T11:29:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 14328.589,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-06-01T09:44:00+00:00",
+        "timestamp": "2026-06-01T09:44:00+00:00",
+        "upper_bound": 14329.405
+      },
+      {
+        "broken_timestamp": "2026-06-01T10:46:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 14366.626,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-06-01T09:56:00+00:00",
+        "timestamp": "2026-06-01T09:56:00+00:00",
+        "upper_bound": 14367.508
+      }
+    ],
+    "choch_events": [
+      {
+        "breakout_price": 14369.324,
+        "broken_level": 14369.439,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-06-01T08:34:00+00:00"
+      },
+      {
+        "breakout_price": 14356.98,
+        "broken_level": 14357.721,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2026-06-01T09:11:00+00:00"
+      },
+      {
+        "breakout_price": 14383.924,
+        "broken_level": 14384.285,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-06-01T10:25:00+00:00"
+      }
+    ],
+    "demand_zones": [
+      {
+        "broken": false,
+        "lower_bound": 14365.246,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T09:01:00+00:00",
+        "upper_bound": 14369.439
+      },
+      {
+        "broken": false,
+        "lower_bound": 14366.834,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T09:46:00+00:00",
+        "upper_bound": 14369.439
+      },
+      {
+        "broken": false,
+        "lower_bound": 14369.439,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T09:57:00+00:00",
+        "upper_bound": 14375.701
+      }
+    ],
+    "fair_value_gaps": [
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14344.883,
+        "timestamp": "2026-06-01T09:46:00+00:00",
+        "upper_bound": 14374.422
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14367.508,
+        "timestamp": "2026-06-01T09:57:00+00:00",
+        "upper_bound": 14394.676
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14385.2,
+        "timestamp": "2026-06-01T10:15:00+00:00",
+        "upper_bound": 14391.781
+      }
+    ],
+    "inducement_events": [
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-31T23:50:00+00:00",
+        "direction": "BULLISH",
+        "inducement_level": 14121.435,
+        "is_internal": true,
+        "timestamp": "2026-05-31T23:42:00+00:00"
+      }
+    ],
+    "liquidity_sweeps": [],
+    "mpl_levels": [],
+    "order_blocks": [
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 23.420000000000073,
+        "is_breaker": false,
+        "lower_bound": 14182.733,
+        "mitigated": false,
+        "timestamp": "2026-06-01T03:57:00+00:00",
+        "upper_bound": 14183.456
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 23.420000000000073,
+        "is_breaker": false,
+        "lower_bound": 14182.733,
+        "mitigated": false,
+        "timestamp": "2026-06-01T03:57:00+00:00",
+        "upper_bound": 14183.456
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 24.56500000000051,
+        "is_breaker": false,
+        "lower_bound": 14189.255,
+        "mitigated": false,
+        "timestamp": "2026-06-01T04:18:00+00:00",
+        "upper_bound": 14190.153
+      }
+    ],
+    "qm_levels": [
+      {
+        "direction": "BEARISH",
+        "h_price": 14366.834,
+        "h_timestamp": "2026-06-01T09:01:00+00:00",
+        "hh_price": 14375.701,
+        "hh_timestamp": "2026-06-01T09:46:00+00:00",
+        "qml_price": 14366.834,
+        "tested": false,
+        "timestamp": "2026-06-01T09:01:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 14329.47,
+        "h_timestamp": "2026-06-01T06:26:00+00:00",
+        "hh_price": 14339.051,
+        "hh_timestamp": "2026-06-01T07:16:00+00:00",
+        "qml_price": 14297.68,
+        "tested": false,
+        "timestamp": "2026-06-01T06:23:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 14390.167,
+        "h_timestamp": "2026-06-01T08:09:00+00:00",
+        "hh_price": 14395.533,
+        "hh_timestamp": "2026-06-01T09:57:00+00:00",
+        "qml_price": 14369.439,
+        "tested": false,
+        "timestamp": "2026-06-01T08:07:00+00:00"
+      }
+    ],
+    "rs_flips": [
+      {
+        "breakout_price": 14366.175,
+        "flip_level": 14365.246,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T09:01:00+00:00"
+      },
+      {
+        "breakout_price": 14375.217,
+        "flip_level": 14366.834,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T09:46:00+00:00"
+      },
+      {
+        "breakout_price": 14395.533,
+        "flip_level": 14375.701,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T09:57:00+00:00"
+      }
+    ],
+    "sms_events": [
+      {
+        "direction": "BEARISH",
+        "failed_level": 14339.152,
+        "is_failure_swing": true,
+        "reversal_price": 14333.969,
+        "timestamp": "2026-06-01T07:33:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 14390.167,
+        "is_failure_swing": true,
+        "reversal_price": 14364.851,
+        "timestamp": "2026-06-01T08:52:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 14395.883,
+        "is_failure_swing": true,
+        "reversal_price": 14392.663,
+        "timestamp": "2026-06-01T10:15:00+00:00"
+      }
+    ],
+    "sr_flips": [],
+    "supply_zones": [],
+    "swing_highs": [
+      {
+        "price": 14365.246,
+        "strength": 7,
+        "timestamp": "2026-06-01T08:52:00+00:00"
+      },
+      {
+        "price": 14366.834,
+        "strength": 10,
+        "timestamp": "2026-06-01T09:01:00+00:00"
+      },
+      {
+        "price": 14375.701,
+        "strength": 10,
+        "timestamp": "2026-06-01T09:46:00+00:00"
+      },
+      {
+        "price": 14395.883,
+        "strength": 10,
+        "timestamp": "2026-06-01T09:57:00+00:00"
+      },
+      {
+        "price": 14393.578,
+        "strength": 10,
+        "timestamp": "2026-06-01T10:15:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 14354.607,
+        "strength": 10,
+        "timestamp": "2026-06-01T08:52:00+00:00"
+      },
+      {
+        "price": 14357.721,
+        "strength": 5,
+        "timestamp": "2026-06-01T09:01:00+00:00"
+      },
+      {
+        "price": 14327.818,
+        "strength": 10,
+        "timestamp": "2026-06-01T09:45:00+00:00"
+      },
+      {
+        "price": 14366.128,
+        "strength": 10,
+        "timestamp": "2026-06-01T09:57:00+00:00"
+      },
+      {
+        "price": 14384.285,
+        "strength": 7,
+        "timestamp": "2026-06-01T10:15:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T12:35:00+00:00",
+    "trend_direction": "BEARISH"
+  },
+  "M15": {
+    "bms_events": [
+      {
+        "breakout_price": 13834.275,
+        "broken_level": 13846.387,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 12.11,
+        "timestamp": "2026-05-28T16:00:00+00:00"
+      },
+      {
+        "breakout_price": 13846.838,
+        "broken_level": 13855.146,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 8.31,
+        "timestamp": "2026-05-28T16:15:00+00:00"
+      },
+      {
+        "breakout_price": 13773.713,
+        "broken_level": 13783.575,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 9.86,
+        "timestamp": "2026-05-29T01:30:00+00:00"
+      },
+      {
+        "breakout_price": 13979.455,
+        "broken_level": 13990.358,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 10.9,
+        "timestamp": "2026-05-30T20:30:00+00:00"
+      },
+      {
+        "breakout_price": 14314.918,
+        "broken_level": 14327.818,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 12.9,
+        "timestamp": "2026-06-01T12:00:00+00:00"
+      }
+    ],
+    "breaker_blocks": [
+      {
+        "broken_timestamp": "2026-05-26T12:00:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 13431.455,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-26T09:15:00+00:00",
+        "timestamp": "2026-05-26T09:15:00+00:00",
+        "upper_bound": 13455.415
+      },
+      {
+        "broken_timestamp": "2026-05-28T11:15:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 13893.381,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-28T11:00:00+00:00",
+        "timestamp": "2026-05-28T11:00:00+00:00",
+        "upper_bound": 13924.246
+      },
+      {
+        "broken_timestamp": "2026-05-28T11:15:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 13893.381,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-28T11:00:00+00:00",
+        "timestamp": "2026-05-28T11:00:00+00:00",
+        "upper_bound": 13924.246
+      },
+      {
+        "broken_timestamp": "2026-05-29T05:00:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 13791.285,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-28T22:45:00+00:00",
+        "timestamp": "2026-05-28T22:45:00+00:00",
+        "upper_bound": 13821.717
+      },
+      {
+        "broken_timestamp": "2026-05-31T05:45:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 13990.358,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-30T17:45:00+00:00",
+        "timestamp": "2026-05-30T17:45:00+00:00",
+        "upper_bound": 14018.398
+      }
+    ],
+    "choch_events": [
+      {
+        "breakout_price": 13578.134,
+        "broken_level": 13578.521,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2026-05-27T02:00:00+00:00"
+      },
+      {
+        "breakout_price": 13846.838,
+        "broken_level": 13855.146,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-28T15:30:00+00:00"
+      },
+      {
+        "breakout_price": 13878.003,
+        "broken_level": 13887.42,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2026-05-30T11:00:00+00:00"
+      },
+      {
+        "breakout_price": 13979.455,
+        "broken_level": 13990.358,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-30T20:15:00+00:00"
+      },
+      {
+        "breakout_price": 14314.918,
+        "broken_level": 14327.818,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2026-06-01T11:45:00+00:00"
+      }
+    ],
+    "dealing_ranges": [
+      {
+        "end_time": "2026-06-01T12:30:00+00:00",
+        "equilibrium": 13714.422999999999,
+        "high": 14303.784,
+        "low": 13125.062,
+        "range_size": 1178.7219999999998,
+        "start_time": "2026-05-24T17:15:00+00:00"
+      }
+    ],
+    "demand_zones": [
+      {
+        "broken": false,
+        "lower_bound": 13934.404,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T18:30:00+00:00",
+        "upper_bound": 14087.378
+      },
+      {
+        "broken": false,
+        "lower_bound": 13934.404,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T18:30:00+00:00",
+        "upper_bound": 14118.228
+      },
+      {
+        "broken": false,
+        "lower_bound": 13934.404,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T01:15:00+00:00",
+        "upper_bound": 14178.963
+      },
+      {
+        "broken": false,
+        "lower_bound": 13934.404,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T04:15:00+00:00",
+        "upper_bound": 14239.444
+      },
+      {
+        "broken": false,
+        "lower_bound": 13934.404,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T09:45:00+00:00",
+        "upper_bound": 14390.167
+      }
+    ],
+    "equal_highs_lows": [
+      {
+        "liquidity_type": "EQUAL_HIGHS",
+        "price_level": 13974.099,
+        "swept": false,
+        "timestamps": [
+          "2026-05-30T22:15:00+00:00",
+          "2026-05-31T00:45:00+00:00"
+        ],
+        "tolerance_pips": 2,
+        "touch_count": 2
+      },
+      {
+        "liquidity_type": "EQUAL_LOWS",
+        "price_level": 13234.76,
+        "swept": false,
+        "timestamps": [
+          "2026-05-25T22:45:00+00:00",
+          "2026-05-26T00:15:00+00:00"
+        ],
+        "tolerance_pips": 2,
+        "touch_count": 2
+      },
+      {
+        "liquidity_type": "EQUAL_LOWS",
+        "price_level": 13809.467,
+        "swept": false,
+        "timestamps": [
+          "2026-05-28T19:30:00+00:00",
+          "2026-05-29T14:45:00+00:00"
+        ],
+        "tolerance_pips": 2,
+        "touch_count": 2
+      },
+      {
+        "liquidity_type": "EQUAL_LOWS",
+        "price_level": 13885.579,
+        "swept": false,
+        "timestamps": [
+          "2026-05-30T06:00:00+00:00",
+          "2026-05-30T09:15:00+00:00"
+        ],
+        "tolerance_pips": 2,
+        "touch_count": 2
+      },
+      {
+        "liquidity_type": "EQUAL_LOWS",
+        "price_level": 13990.358,
+        "swept": false,
+        "timestamps": [
+          "2026-05-30T17:45:00+00:00",
+          "2026-05-31T11:30:00+00:00"
+        ],
+        "tolerance_pips": 2,
+        "touch_count": 2
+      }
+    ],
+    "fair_value_gaps": [
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14328.046,
+        "timestamp": "2026-06-01T11:15:00+00:00",
+        "upper_bound": 14341.922
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14314.909,
+        "timestamp": "2026-06-01T11:30:00+00:00",
+        "upper_bound": 14328.046
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14303.784,
+        "timestamp": "2026-06-01T11:45:00+00:00",
+        "upper_bound": 14314.918
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14290.97,
+        "timestamp": "2026-06-01T12:00:00+00:00",
+        "upper_bound": 14303.797
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14278.527,
+        "timestamp": "2026-06-01T12:15:00+00:00",
+        "upper_bound": 14290.973
+      }
+    ],
+    "fibonacci_retracements": [
+      {
+        "is_bullish": false,
+        "range_size": 68.06500000000051,
+        "swing_high": 14395.883,
+        "swing_high_timestamp": "2026-06-01T09:45:00+00:00",
+        "swing_low": 14327.818,
+        "swing_low_timestamp": "2026-06-01T09:45:00+00:00"
+      }
+    ],
+    "inducement_events": [
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-26T10:00:00+00:00",
+        "direction": "BULLISH",
+        "inducement_level": 13429.457,
+        "is_internal": true,
+        "timestamp": "2026-05-26T08:30:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-27T02:00:00+00:00",
+        "direction": "BULLISH",
+        "inducement_level": 13578.521,
+        "is_internal": true,
+        "timestamp": "2026-05-27T00:15:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-24T20:30:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 13194.236,
+        "is_internal": true,
+        "timestamp": "2026-05-24T18:30:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-29T15:15:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 13867.281,
+        "is_internal": true,
+        "timestamp": "2026-05-29T13:30:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-29T19:30:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 13840.299,
+        "is_internal": true,
+        "timestamp": "2026-05-29T18:00:00+00:00"
+      }
+    ],
+    "liquidity_grabs": [],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 8.879000000000815,
+        "swept_level": 13429.457,
+        "timestamp": "2026-05-26T10:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 7.564000000000306,
+        "swept_level": 13810.891,
+        "timestamp": "2026-05-27T20:30:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 3.408000000001266,
+        "swept_level": 13809.467,
+        "timestamp": "2026-05-28T21:15:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 3.460000000000946,
+        "swept_level": 13732.967,
+        "timestamp": "2026-05-29T02:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 2.7990000000008877,
+        "swept_level": 13852.605,
+        "timestamp": "2026-05-29T09:30:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 93.74099999999999,
+        "is_breaker": false,
+        "lower_bound": 13869.798,
+        "mitigated": false,
+        "timestamp": "2026-05-30T11:15:00+00:00",
+        "upper_bound": 13882.154
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 59.402000000000044,
+        "is_breaker": false,
+        "lower_bound": 14011.361,
+        "mitigated": false,
+        "timestamp": "2026-05-31T13:00:00+00:00",
+        "upper_bound": 14023.749
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 32.54000000000087,
+        "is_breaker": false,
+        "lower_bound": 14163.302,
+        "mitigated": false,
+        "timestamp": "2026-06-01T00:45:00+00:00",
+        "upper_bound": 14172.245
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 98.90099999999984,
+        "is_breaker": false,
+        "lower_bound": 14192.443,
+        "mitigated": false,
+        "timestamp": "2026-06-01T04:00:00+00:00",
+        "upper_bound": 14205.315
+      },
+      {
+        "direction": "BEARISH",
+        "displacement_pips": 80.96500000000015,
+        "is_breaker": false,
+        "lower_bound": 14327.818,
+        "mitigated": false,
+        "timestamp": "2026-06-01T09:45:00+00:00",
+        "upper_bound": 14395.883
+      }
+    ],
+    "qm_levels": [
+      {
+        "direction": "BULLISH",
+        "h_price": 13869.898,
+        "h_timestamp": "2026-05-28T17:00:00+00:00",
+        "hh_price": 13880.103,
+        "hh_timestamp": "2026-05-29T10:15:00+00:00",
+        "qml_price": 13813.933,
+        "tested": false,
+        "timestamp": "2026-05-28T16:30:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13856.379,
+        "h_timestamp": "2026-05-28T19:45:00+00:00",
+        "hh_price": 13880.103,
+        "hh_timestamp": "2026-05-29T10:15:00+00:00",
+        "qml_price": 13809.467,
+        "tested": false,
+        "timestamp": "2026-05-28T19:30:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13826.098,
+        "h_timestamp": "2026-05-28T23:30:00+00:00",
+        "hh_price": 13831.124,
+        "hh_timestamp": "2026-05-29T05:15:00+00:00",
+        "qml_price": 13783.575,
+        "tested": false,
+        "timestamp": "2026-05-28T22:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13974.099,
+        "h_timestamp": "2026-05-30T22:15:00+00:00",
+        "hh_price": 13978.79,
+        "hh_timestamp": "2026-05-31T05:15:00+00:00",
+        "qml_price": 13936.534,
+        "tested": false,
+        "timestamp": "2026-05-30T21:45:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13975.529,
+        "h_timestamp": "2026-05-31T00:45:00+00:00",
+        "hh_price": 13978.79,
+        "hh_timestamp": "2026-05-31T05:15:00+00:00",
+        "qml_price": 13934.404,
+        "tested": false,
+        "timestamp": "2026-05-30T23:45:00+00:00"
+      }
+    ],
+    "rs_flips": [
+      {
+        "breakout_price": 14164.252,
+        "flip_level": 14087.378,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-31T18:30:00+00:00"
+      },
+      {
+        "breakout_price": 14164.252,
+        "flip_level": 14118.228,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-31T18:30:00+00:00"
+      },
+      {
+        "breakout_price": 14195.842,
+        "flip_level": 14178.963,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T01:15:00+00:00"
+      },
+      {
+        "breakout_price": 14291.344,
+        "flip_level": 14239.444,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T04:15:00+00:00"
+      },
+      {
+        "breakout_price": 14393.809,
+        "flip_level": 14390.167,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T09:45:00+00:00"
+      }
+    ],
+    "sms_events": [
+      {
+        "direction": "BEARISH",
+        "failed_level": 13901.891,
+        "is_failure_swing": true,
+        "reversal_price": 13860.099,
+        "timestamp": "2026-05-29T13:30:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 13884.706,
+        "is_failure_swing": true,
+        "reversal_price": 13837.45,
+        "timestamp": "2026-05-29T18:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 13998.126,
+        "is_failure_swing": true,
+        "reversal_price": 13972.997,
+        "timestamp": "2026-05-30T02:45:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 14047.644,
+        "is_failure_swing": true,
+        "reversal_price": 13966.647,
+        "timestamp": "2026-05-30T22:15:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 14064.152,
+        "is_failure_swing": true,
+        "reversal_price": 14051.296,
+        "timestamp": "2026-05-31T11:30:00+00:00"
+      }
+    ],
+    "sr_flips": [
+      {
+        "breakout_price": 13878.003,
+        "flip_level": 13887.42,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-30T10:45:00+00:00"
+      },
+      {
+        "breakout_price": 13979.455,
+        "flip_level": 13990.358,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-30T20:00:00+00:00"
+      },
+      {
+        "breakout_price": 13935.153,
+        "flip_level": 13936.534,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-30T23:30:00+00:00"
+      },
+      {
+        "breakout_price": 13928.855,
+        "flip_level": 13934.404,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-31T02:00:00+00:00"
+      },
+      {
+        "breakout_price": 14314.918,
+        "flip_level": 14327.818,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-06-01T11:30:00+00:00"
+      }
+    ],
+    "supply_zones": [
+      {
+        "broken": false,
+        "lower_bound": 13887.42,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-30T10:45:00+00:00",
+        "upper_bound": 13974.099
+      },
+      {
+        "broken": false,
+        "lower_bound": 13974.099,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-30T20:00:00+00:00",
+        "upper_bound": 13990.358
+      },
+      {
+        "broken": false,
+        "lower_bound": 13936.534,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-30T23:30:00+00:00",
+        "upper_bound": 13974.099
+      },
+      {
+        "broken": false,
+        "lower_bound": 13934.404,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T02:00:00+00:00",
+        "upper_bound": 13974.099
+      },
+      {
+        "broken": false,
+        "lower_bound": 13974.099,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T11:30:00+00:00",
+        "upper_bound": 14327.818
+      }
+    ],
+    "swing_highs": [
+      {
+        "price": 14118.228,
+        "strength": 10,
+        "timestamp": "2026-05-31T16:30:00+00:00"
+      },
+      {
+        "price": 14178.963,
+        "strength": 10,
+        "timestamp": "2026-05-31T18:45:00+00:00"
+      },
+      {
+        "price": 14239.444,
+        "strength": 10,
+        "timestamp": "2026-06-01T01:45:00+00:00"
+      },
+      {
+        "price": 14390.167,
+        "strength": 10,
+        "timestamp": "2026-06-01T08:00:00+00:00"
+      },
+      {
+        "price": 14395.883,
+        "strength": 10,
+        "timestamp": "2026-06-01T09:45:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 14010.237,
+        "strength": 10,
+        "timestamp": "2026-05-31T13:15:00+00:00"
+      },
+      {
+        "price": 14043.352,
+        "strength": 10,
+        "timestamp": "2026-05-31T16:00:00+00:00"
+      },
+      {
+        "price": 14070.305,
+        "strength": 10,
+        "timestamp": "2026-05-31T22:45:00+00:00"
+      },
+      {
+        "price": 14174.103,
+        "strength": 9,
+        "timestamp": "2026-06-01T03:45:00+00:00"
+      },
+      {
+        "price": 14327.818,
+        "strength": 5,
+        "timestamp": "2026-06-01T09:45:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T12:30:00+00:00",
+    "trend_direction": "BEARISH"
+  },
+  "M30": {
+    "bms_events": [
+      {
+        "breakout_price": 13963.539,
+        "broken_level": 13946.133,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 17.41,
+        "timestamp": "2026-05-30T12:30:00+00:00"
+      },
+      {
+        "breakout_price": 14195.842,
+        "broken_level": 14178.963,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 16.88,
+        "timestamp": "2026-06-01T02:00:00+00:00"
+      },
+      {
+        "breakout_price": 13096.713,
+        "broken_level": 13108.261,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 11.55,
+        "timestamp": "2026-05-24T02:00:00+00:00"
+      },
+      {
+        "breakout_price": 13057.71,
+        "broken_level": 13072.988,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 15.28,
+        "timestamp": "2026-05-24T07:30:00+00:00"
+      },
+      {
+        "breakout_price": 13821.948,
+        "broken_level": 13846.387,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 24.44,
+        "timestamp": "2026-05-28T16:30:00+00:00"
+      }
+    ],
+    "breaker_blocks": [
+      {
+        "broken_timestamp": "2026-05-30T05:30:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 13898.748,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-29T22:00:00+00:00",
+        "timestamp": "2026-05-29T22:00:00+00:00",
+        "upper_bound": 13923.738
+      },
+      {
+        "broken_timestamp": "2026-05-31T22:00:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 14096.433,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-31T21:30:00+00:00",
+        "timestamp": "2026-05-31T21:30:00+00:00",
+        "upper_bound": 14122.684
+      },
+      {
+        "broken_timestamp": "2026-05-23T19:00:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 13145.472,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-23T18:30:00+00:00",
+        "timestamp": "2026-05-23T18:30:00+00:00",
+        "upper_bound": 13189.573
+      },
+      {
+        "broken_timestamp": "2026-05-24T19:30:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 13141.638,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-24T03:30:00+00:00",
+        "timestamp": "2026-05-24T03:30:00+00:00",
+        "upper_bound": 13182.97
+      },
+      {
+        "broken_timestamp": "2026-05-29T10:30:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 13864.927,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-28T14:00:00+00:00",
+        "timestamp": "2026-05-28T14:00:00+00:00",
+        "upper_bound": 13889.759
+      }
+    ],
+    "choch_events": [
+      {
+        "breakout_price": 13978.79,
+        "broken_level": 13975.529,
+        "direction": "BULLISH",
+        "is_minor": true,
+        "timestamp": "2026-05-31T05:30:00+00:00"
+      },
+      {
+        "breakout_price": 13208.404,
+        "broken_level": 13213.523,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2026-05-23T10:30:00+00:00"
+      },
+      {
+        "breakout_price": 13145.549,
+        "broken_level": 13146.902,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-23T23:00:00+00:00"
+      },
+      {
+        "breakout_price": 13821.948,
+        "broken_level": 13846.387,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-28T16:00:00+00:00"
+      },
+      {
+        "breakout_price": 13878.003,
+        "broken_level": 13885.579,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-30T11:00:00+00:00"
+      }
+    ],
+    "dealing_ranges": [
+      {
+        "end_time": "2026-06-01T12:30:00+00:00",
+        "equilibrium": 13651.0255,
+        "high": 14303.784,
+        "low": 12998.267,
+        "range_size": 1305.5169999999998,
+        "start_time": "2026-05-22T12:00:00+00:00"
+      }
+    ],
+    "demand_zones": [
+      {
+        "broken": false,
+        "lower_bound": 13885.579,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-30T13:00:00+00:00",
+        "upper_bound": 13998.126
+      },
+      {
+        "broken": false,
+        "lower_bound": 13885.579,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-30T11:30:00+00:00",
+        "upper_bound": 13946.133
+      },
+      {
+        "broken": false,
+        "lower_bound": 13885.579,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T18:30:00+00:00",
+        "upper_bound": 14047.644
+      },
+      {
+        "broken": false,
+        "lower_bound": 13885.579,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T18:30:00+00:00",
+        "upper_bound": 13975.529
+      },
+      {
+        "broken": false,
+        "lower_bound": 13885.579,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-31T18:30:00+00:00",
+        "upper_bound": 14064.152
+      }
+    ],
+    "equal_highs_lows": [
+      {
+        "liquidity_type": "EQUAL_LOWS",
+        "price_level": 13146.902,
+        "swept": false,
+        "timestamps": [
+          "2026-05-23T15:30:00+00:00",
+          "2026-05-23T18:30:00+00:00"
+        ],
+        "tolerance_pips": 2,
+        "touch_count": 2
+      }
+    ],
+    "fair_value_gaps": [
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14366.834,
+        "timestamp": "2026-06-01T09:30:00+00:00",
+        "upper_bound": 14380.36
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14354.197,
+        "timestamp": "2026-06-01T10:30:00+00:00",
+        "upper_bound": 14380.36
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14328.046,
+        "timestamp": "2026-06-01T11:00:00+00:00",
+        "upper_bound": 14354.209
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14303.784,
+        "timestamp": "2026-06-01T11:30:00+00:00",
+        "upper_bound": 14328.046
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14278.527,
+        "timestamp": "2026-06-01T12:00:00+00:00",
+        "upper_bound": 14303.797
+      }
+    ],
+    "fibonacci_retracements": [
+      {
+        "is_bullish": false,
+        "range_size": 325.5779999999995,
+        "swing_high": 14395.883,
+        "swing_high_timestamp": "2026-06-01T09:30:00+00:00",
+        "swing_low": 14070.305,
+        "swing_low_timestamp": "2026-05-31T22:30:00+00:00"
+      }
+    ],
+    "inducement_events": [
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-30T11:30:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 13946.133,
+        "is_internal": true,
+        "timestamp": "2026-05-30T07:00:00+00:00"
+      }
+    ],
+    "liquidity_grabs": [],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 11.26600000000144,
+        "swept_level": 13182.97,
+        "timestamp": "2026-05-24T18:30:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 3.2839999999996508,
+        "swept_level": 13237.249,
+        "timestamp": "2026-05-24T21:30:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 8.511000000000422,
+        "swept_level": 13251.856,
+        "timestamp": "2026-05-25T00:30:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 9.72400000000016,
+        "swept_level": 13279.332,
+        "timestamp": "2026-05-26T01:30:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 2.959999999999127,
+        "swept_level": 13301.959,
+        "timestamp": "2026-05-26T02:30:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 140.85000000000036,
+        "is_breaker": false,
+        "lower_bound": 13247.186,
+        "mitigated": false,
+        "timestamp": "2026-05-26T01:00:00+00:00",
+        "upper_bound": 13261.378
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 93.40300000000025,
+        "is_breaker": false,
+        "lower_bound": 13041.626,
+        "mitigated": false,
+        "timestamp": "2026-05-24T14:30:00+00:00",
+        "upper_bound": 13065.538
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 159.98499999999876,
+        "is_breaker": false,
+        "lower_bound": 13868.806,
+        "mitigated": false,
+        "timestamp": "2026-05-30T11:00:00+00:00",
+        "upper_bound": 13884.857
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 94.73300000000017,
+        "is_breaker": false,
+        "lower_bound": 13868.806,
+        "mitigated": false,
+        "timestamp": "2026-05-30T11:00:00+00:00",
+        "upper_bound": 13884.857
+      }
+    ],
+    "qm_levels": [
+      {
+        "direction": "BEARISH",
+        "h_price": 13205.558,
+        "h_timestamp": "2026-05-22T14:00:00+00:00",
+        "hh_price": 13301.959,
+        "hh_timestamp": "2026-05-23T03:30:00+00:00",
+        "qml_price": 13205.558,
+        "tested": false,
+        "timestamp": "2026-05-22T14:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13091.428,
+        "h_timestamp": "2026-05-24T10:30:00+00:00",
+        "hh_price": 13170.408,
+        "hh_timestamp": "2026-05-24T16:30:00+00:00",
+        "qml_price": 13019.758,
+        "tested": false,
+        "timestamp": "2026-05-24T08:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13926.473,
+        "h_timestamp": "2026-05-28T11:00:00+00:00",
+        "hh_price": 13970.05,
+        "hh_timestamp": "2026-05-29T23:30:00+00:00",
+        "qml_price": 13846.387,
+        "tested": false,
+        "timestamp": "2026-05-28T07:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 13946.133,
+        "h_timestamp": "2026-05-30T07:00:00+00:00",
+        "hh_price": 13983.652,
+        "hh_timestamp": "2026-05-30T12:30:00+00:00",
+        "qml_price": 13885.579,
+        "tested": false,
+        "timestamp": "2026-05-30T06:00:00+00:00"
+      }
+    ],
+    "rs_flips": [
+      {
+        "breakout_price": 14028.791,
+        "flip_level": 13998.126,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-30T13:00:00+00:00"
+      },
+      {
+        "breakout_price": 13963.539,
+        "flip_level": 13946.133,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-30T11:30:00+00:00"
+      },
+      {
+        "breakout_price": 14178.963,
+        "flip_level": 14047.644,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-31T18:30:00+00:00"
+      },
+      {
+        "breakout_price": 14178.963,
+        "flip_level": 13975.529,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-31T18:30:00+00:00"
+      },
+      {
+        "breakout_price": 14178.963,
+        "flip_level": 14064.152,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-05-31T18:30:00+00:00"
+      }
+    ],
+    "sms_events": [
+      {
+        "direction": "BEARISH",
+        "failed_level": 13260.367,
+        "is_failure_swing": true,
+        "reversal_price": 13223.617,
+        "timestamp": "2026-05-25T09:30:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 13485.507,
+        "is_failure_swing": true,
+        "reversal_price": 13452.013,
+        "timestamp": "2026-05-26T12:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 13942.561,
+        "is_failure_swing": true,
+        "reversal_price": 13926.152,
+        "timestamp": "2026-05-28T11:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 13998.126,
+        "is_failure_swing": true,
+        "reversal_price": 13929.23,
+        "timestamp": "2026-05-30T07:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 14047.644,
+        "is_failure_swing": true,
+        "reversal_price": 13969.675,
+        "timestamp": "2026-05-31T00:30:00+00:00"
+      }
+    ],
+    "sr_flips": [
+      {
+        "breakout_price": 13015.331,
+        "flip_level": 13019.758,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-24T12:30:00+00:00"
+      },
+      {
+        "breakout_price": 13723.909,
+        "flip_level": 13725.992,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-29T02:00:00+00:00"
+      },
+      {
+        "breakout_price": 13792.729,
+        "flip_level": 13803.592,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-28T21:30:00+00:00"
+      },
+      {
+        "breakout_price": 13821.948,
+        "flip_level": 13846.387,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-28T15:30:00+00:00"
+      },
+      {
+        "breakout_price": 13878.003,
+        "flip_level": 13885.579,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-05-30T10:30:00+00:00"
+      }
+    ],
+    "supply_zones": [
+      {
+        "broken": false,
+        "lower_bound": 13019.758,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-24T12:30:00+00:00",
+        "upper_bound": 13205.558
+      },
+      {
+        "broken": false,
+        "lower_bound": 13205.558,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-29T02:00:00+00:00",
+        "upper_bound": 13725.992
+      },
+      {
+        "broken": false,
+        "lower_bound": 13205.558,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-28T21:30:00+00:00",
+        "upper_bound": 13803.592
+      },
+      {
+        "broken": false,
+        "lower_bound": 13205.558,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-28T15:30:00+00:00",
+        "upper_bound": 13846.387
+      },
+      {
+        "broken": false,
+        "lower_bound": 13205.558,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-05-30T10:30:00+00:00",
+        "upper_bound": 13885.579
+      }
+    ],
+    "swing_highs": [
+      {
+        "price": 14047.644,
+        "strength": 10,
+        "timestamp": "2026-05-30T14:00:00+00:00"
+      },
+      {
+        "price": 13975.529,
+        "strength": 5,
+        "timestamp": "2026-05-31T00:30:00+00:00"
+      },
+      {
+        "price": 14064.152,
+        "strength": 10,
+        "timestamp": "2026-05-31T07:30:00+00:00"
+      },
+      {
+        "price": 14178.963,
+        "strength": 10,
+        "timestamp": "2026-05-31T18:30:00+00:00"
+      },
+      {
+        "price": 14395.883,
+        "strength": 10,
+        "timestamp": "2026-06-01T09:30:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 13863.69,
+        "strength": 10,
+        "timestamp": "2026-05-30T11:30:00+00:00"
+      },
+      {
+        "price": 13871.743,
+        "strength": 10,
+        "timestamp": "2026-05-31T04:30:00+00:00"
+      },
+      {
+        "price": 13989.847,
+        "strength": 10,
+        "timestamp": "2026-05-31T11:30:00+00:00"
+      },
+      {
+        "price": 14043.352,
+        "strength": 9,
+        "timestamp": "2026-05-31T16:00:00+00:00"
+      },
+      {
+        "price": 14070.305,
+        "strength": 9,
+        "timestamp": "2026-05-31T22:30:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T12:30:00+00:00",
+    "trend_direction": "BULLISH"
+  },
+  "M5": {
+    "bms_events": [
+      {
+        "breakout_price": 14291.344,
+        "broken_level": 14239.444,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 51.9,
+        "timestamp": "2026-06-01T04:30:00+00:00"
+      },
+      {
+        "breakout_price": 14336.585,
+        "broken_level": 14329.47,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 7.11,
+        "timestamp": "2026-06-01T07:25:00+00:00"
+      },
+      {
+        "breakout_price": 14323.677,
+        "broken_level": 14327.818,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 4.14,
+        "timestamp": "2026-06-01T11:50:00+00:00"
+      }
+    ],
+    "breaker_blocks": [
+      {
+        "broken_timestamp": "2026-05-31T21:40:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 14111.267,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-31T18:25:00+00:00",
+        "timestamp": "2026-05-31T18:25:00+00:00",
+        "upper_bound": 14115.525
+      },
+      {
+        "broken_timestamp": "2026-05-31T21:40:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 14111.267,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-05-31T18:25:00+00:00",
+        "timestamp": "2026-05-31T18:25:00+00:00",
+        "upper_bound": 14115.525
+      },
+      {
+        "broken_timestamp": "2026-06-01T12:10:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 14293.416,
+        "mitigated": false,
+        "original_ob_timestamp": "2026-06-01T07:05:00+00:00",
+        "timestamp": "2026-06-01T07:05:00+00:00",
+        "upper_bound": 14297.577
+      }
+    ],
+    "choch_events": [
+      {
+        "breakout_price": 14046.797,
+        "broken_level": 14048.735,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-31T15:55:00+00:00"
+      },
+      {
+        "breakout_price": 14055.036,
+        "broken_level": 14058.147,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-31T15:45:00+00:00"
+      },
+      {
+        "breakout_price": 14143.693,
+        "broken_level": 14145.367,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2026-05-31T21:00:00+00:00"
+      }
+    ],
+    "demand_zones": [
+      {
+        "broken": false,
+        "lower_bound": 14145.367,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T07:15:00+00:00",
+        "upper_bound": 14323.56
+      },
+      {
+        "broken": false,
+        "lower_bound": 14145.367,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T07:15:00+00:00",
+        "upper_bound": 14329.47
+      },
+      {
+        "broken": false,
+        "lower_bound": 14145.367,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T09:55:00+00:00",
+        "upper_bound": 14390.167
+      }
+    ],
+    "fair_value_gaps": [
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14282.765,
+        "timestamp": "2026-06-01T12:20:00+00:00",
+        "upper_bound": 14287.003
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14278.527,
+        "timestamp": "2026-06-01T12:25:00+00:00",
+        "upper_bound": 14282.777
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14274.107,
+        "timestamp": "2026-06-01T12:30:00+00:00",
+        "upper_bound": 14278.531
+      }
+    ],
+    "inducement_events": [
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-30T23:15:00+00:00",
+        "direction": "BULLISH",
+        "inducement_level": 13956.042,
+        "is_internal": true,
+        "timestamp": "2026-05-30T22:40:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-31T07:05:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 14040.301,
+        "is_internal": true,
+        "timestamp": "2026-05-30T15:25:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2026-05-31T13:20:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 14042.715,
+        "is_internal": true,
+        "timestamp": "2026-05-31T12:35:00+00:00"
+      }
+    ],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 3.819999999999709,
+        "swept_level": 13891.24,
+        "timestamp": "2026-05-30T09:25:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 3.1459999999988213,
+        "swept_level": 14023.311,
+        "timestamp": "2026-05-30T15:25:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "BSL",
+        "sweep_pips": 3.118000000000393,
+        "swept_level": 14116.672,
+        "timestamp": "2026-05-31T18:20:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 25.110000000000582,
+        "is_breaker": false,
+        "lower_bound": 14155.247,
+        "mitigated": false,
+        "timestamp": "2026-06-01T01:05:00+00:00",
+        "upper_bound": 14159.141
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 98.90099999999984,
+        "is_breaker": false,
+        "lower_bound": 14192.443,
+        "mitigated": false,
+        "timestamp": "2026-06-01T04:10:00+00:00",
+        "upper_bound": 14196.55
+      },
+      {
+        "direction": "BEARISH",
+        "displacement_pips": 69.90099999999984,
+        "is_breaker": false,
+        "lower_bound": 14384.285,
+        "mitigated": false,
+        "timestamp": "2026-06-01T10:15:00+00:00",
+        "upper_bound": 14393.578
+      }
+    ],
+    "qm_levels": [
+      {
+        "direction": "BULLISH",
+        "h_price": 14024.869,
+        "h_timestamp": "2026-05-31T10:15:00+00:00",
+        "hh_price": 14031.912,
+        "hh_timestamp": "2026-05-31T11:30:00+00:00",
+        "qml_price": 13999.519,
+        "tested": false,
+        "timestamp": "2026-05-31T10:10:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 14080.101,
+        "h_timestamp": "2026-05-31T15:20:00+00:00",
+        "hh_price": 14092.065,
+        "hh_timestamp": "2026-05-31T16:20:00+00:00",
+        "qml_price": 14058.147,
+        "tested": false,
+        "timestamp": "2026-05-31T15:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 14173.377,
+        "h_timestamp": "2026-05-31T20:20:00+00:00",
+        "hh_price": 14180.357,
+        "hh_timestamp": "2026-06-01T01:15:00+00:00",
+        "qml_price": 14145.367,
+        "tested": false,
+        "timestamp": "2026-05-31T19:50:00+00:00"
+      }
+    ],
+    "rs_flips": [
+      {
+        "breakout_price": 14336.585,
+        "flip_level": 14323.56,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T07:15:00+00:00"
+      },
+      {
+        "breakout_price": 14336.585,
+        "flip_level": 14329.47,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T07:15:00+00:00"
+      },
+      {
+        "breakout_price": 14393.809,
+        "flip_level": 14390.167,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2026-06-01T09:55:00+00:00"
+      }
+    ],
+    "sms_events": [
+      {
+        "direction": "BEARISH",
+        "failed_level": 14087.378,
+        "is_failure_swing": true,
+        "reversal_price": 14076.477,
+        "timestamp": "2026-05-31T15:20:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 14118.228,
+        "is_failure_swing": true,
+        "reversal_price": 14112.679,
+        "timestamp": "2026-05-31T17:35:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 14178.963,
+        "is_failure_swing": true,
+        "reversal_price": 14169.63,
+        "timestamp": "2026-05-31T20:20:00+00:00"
+      }
+    ],
+    "sr_flips": [
+      {
+        "breakout_price": 14282.777,
+        "flip_level": 14283.666,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-06-01T12:20:00+00:00"
+      },
+      {
+        "breakout_price": 14287.003,
+        "flip_level": 14289.975,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-06-01T12:15:00+00:00"
+      },
+      {
+        "breakout_price": 14323.677,
+        "flip_level": 14327.818,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-06-01T11:30:00+00:00"
+      }
+    ],
+    "supply_zones": [
+      {
+        "broken": false,
+        "lower_bound": 14283.666,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T12:20:00+00:00",
+        "upper_bound": 14390.167
+      },
+      {
+        "broken": false,
+        "lower_bound": 14289.975,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T12:15:00+00:00",
+        "upper_bound": 14390.167
+      },
+      {
+        "broken": false,
+        "lower_bound": 14327.818,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-06-01T11:30:00+00:00",
+        "upper_bound": 14390.167
+      }
+    ],
+    "swing_highs": [
+      {
+        "price": 14239.444,
+        "strength": 10,
+        "timestamp": "2026-06-01T01:50:00+00:00"
+      },
+      {
+        "price": 14323.56,
+        "strength": 10,
+        "timestamp": "2026-06-01T05:25:00+00:00"
+      },
+      {
+        "price": 14329.47,
+        "strength": 10,
+        "timestamp": "2026-06-01T06:25:00+00:00"
+      },
+      {
+        "price": 14390.167,
+        "strength": 10,
+        "timestamp": "2026-06-01T08:05:00+00:00"
+      },
+      {
+        "price": 14395.883,
+        "strength": 10,
+        "timestamp": "2026-06-01T09:55:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 14174.103,
+        "strength": 10,
+        "timestamp": "2026-06-01T03:50:00+00:00"
+      },
+      {
+        "price": 14283.308,
+        "strength": 10,
+        "timestamp": "2026-06-01T04:55:00+00:00"
+      },
+      {
+        "price": 14283.666,
+        "strength": 10,
+        "timestamp": "2026-06-01T06:10:00+00:00"
+      },
+      {
+        "price": 14289.975,
+        "strength": 10,
+        "timestamp": "2026-06-01T07:10:00+00:00"
+      },
+      {
+        "price": 14327.818,
+        "strength": 9,
+        "timestamp": "2026-06-01T09:45:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T12:35:00+00:00",
+    "trend_direction": "BEARISH"
+  },
+  "MN1": {
+    "bms_events": [
+      {
+        "breakout_price": 18557.419,
+        "broken_level": 16768.566,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 1788.85,
+        "timestamp": "2024-09-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 21186.472,
+        "broken_level": 20155.714,
+        "confirmed": true,
+        "direction": "BULLISH",
+        "displacement_pips": 1030.76,
+        "timestamp": "2025-01-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 11375.054,
+        "broken_level": 12095.873,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 720.82,
+        "timestamp": "2023-02-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 18168.07,
+        "broken_level": 18936.921,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 768.85,
+        "timestamp": "2025-07-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 14507.719,
+        "broken_level": 15362.605,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 854.89,
+        "timestamp": "2026-04-01T00:00:00+00:00"
+      }
+    ],
+    "breaker_blocks": [
+      {
+        "broken_timestamp": "2023-01-01T00:00:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 9924.029,
+        "mitigated": false,
+        "original_ob_timestamp": "2020-11-01T00:00:00+00:00",
+        "timestamp": "2020-11-01T00:00:00+00:00",
+        "upper_bound": 11352.44
+      },
+      {
+        "broken_timestamp": "2023-01-01T00:00:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 9924.029,
+        "mitigated": false,
+        "original_ob_timestamp": "2020-11-01T00:00:00+00:00",
+        "timestamp": "2020-11-01T00:00:00+00:00",
+        "upper_bound": 11352.44
+      },
+      {
+        "broken_timestamp": "2026-02-01T00:00:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 15029.725,
+        "mitigated": false,
+        "original_ob_timestamp": "2024-06-01T00:00:00+00:00",
+        "timestamp": "2024-06-01T00:00:00+00:00",
+        "upper_bound": 16408.775
+      },
+      {
+        "broken_timestamp": "2026-02-01T00:00:00+00:00",
+        "direction": "BEARISH",
+        "lower_bound": 15029.725,
+        "mitigated": false,
+        "original_ob_timestamp": "2024-06-01T00:00:00+00:00",
+        "timestamp": "2024-06-01T00:00:00+00:00",
+        "upper_bound": 16408.775
+      },
+      {
+        "broken_timestamp": "2023-12-01T00:00:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 12220.256,
+        "mitigated": false,
+        "original_ob_timestamp": "2022-06-01T00:00:00+00:00",
+        "timestamp": "2022-06-01T00:00:00+00:00",
+        "upper_bound": 13700.675
+      }
+    ],
+    "choch_events": [
+      {
+        "breakout_price": 14813.182,
+        "broken_level": 14420.257,
+        "direction": "BULLISH",
+        "is_minor": false,
+        "timestamp": "2024-06-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 14813.182,
+        "broken_level": 14492.027,
+        "direction": "BULLISH",
+        "is_minor": false,
+        "timestamp": "2024-06-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 11375.054,
+        "broken_level": 12095.873,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2022-12-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 18168.07,
+        "broken_level": 18936.921,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2025-07-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 14507.719,
+        "broken_level": 15362.605,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2026-04-01T00:00:00+00:00"
+      }
+    ],
+    "dealing_ranges": [
+      {
+        "end_time": "2026-06-01T00:00:00+00:00",
+        "equilibrium": 15533.4825,
+        "high": 21949.878,
+        "low": 9117.087,
+        "range_size": 12832.791000000001,
+        "start_time": "2020-08-01T00:00:00+00:00"
+      }
+    ],
+    "demand_zones": [],
+    "equal_highs_lows": [],
+    "fair_value_gaps": [
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 16408.775,
+        "timestamp": "2024-07-01T00:00:00+00:00",
+        "upper_bound": 16575.54
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 17325.944,
+        "timestamp": "2024-08-01T00:00:00+00:00",
+        "upper_bound": 18113.591
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 20031.989,
+        "timestamp": "2025-04-01T00:00:00+00:00",
+        "upper_bound": 20263.246
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 18478.669,
+        "timestamp": "2025-05-01T00:00:00+00:00",
+        "upper_bound": 19878.497
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 17422.698,
+        "timestamp": "2025-11-01T00:00:00+00:00",
+        "upper_bound": 17471.259
+      }
+    ],
+    "fibonacci_retracements": [
+      {
+        "is_bullish": true,
+        "range_size": 6567.624,
+        "swing_high": 19565.891,
+        "swing_high_timestamp": "2025-10-01T00:00:00+00:00",
+        "swing_low": 12998.267,
+        "swing_low_timestamp": "2026-05-01T00:00:00+00:00"
+      }
+    ],
+    "inducement_events": [
+      {
+        "cleared": true,
+        "cleared_timestamp": "2021-05-01T00:00:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 11176.276,
+        "is_internal": true,
+        "timestamp": "2021-03-01T00:00:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2021-07-01T00:00:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 11480.794,
+        "is_internal": true,
+        "timestamp": "2021-05-01T00:00:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2023-07-01T00:00:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 10529.112,
+        "is_internal": true,
+        "timestamp": "2023-04-01T00:00:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2023-10-01T00:00:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 11403.828,
+        "is_internal": true,
+        "timestamp": "2023-08-01T00:00:00+00:00"
+      },
+      {
+        "cleared": false,
+        "cleared_timestamp": null,
+        "direction": "BEARISH",
+        "inducement_level": 19565.891,
+        "is_internal": true,
+        "timestamp": "2025-10-01T00:00:00+00:00"
+      }
+    ],
+    "liquidity_grabs": [],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 33.72400000000016,
+        "swept_level": 15388.885,
+        "timestamp": "2026-01-01T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 7.443999999999505,
+        "swept_level": 15362.605,
+        "timestamp": "2026-01-01T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 389.35699999999997,
+        "swept_level": 13983.678,
+        "timestamp": "2026-04-01T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 596.0540000000001,
+        "swept_level": 13594.321,
+        "timestamp": "2026-05-01T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "SSL",
+        "sweep_pips": 166.6830000000009,
+        "swept_level": 13164.95,
+        "timestamp": "2026-05-01T00:00:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [
+      {
+        "direction": "BEARISH",
+        "displacement_pips": 3062.5879999999997,
+        "is_breaker": false,
+        "lower_bound": 19404.548,
+        "mitigated": false,
+        "timestamp": "2024-11-01T00:00:00+00:00",
+        "upper_bound": 21230.658
+      },
+      {
+        "direction": "BEARISH",
+        "displacement_pips": 2914.979000000001,
+        "is_breaker": false,
+        "lower_bound": 15388.885,
+        "mitigated": false,
+        "timestamp": "2025-12-01T00:00:00+00:00",
+        "upper_bound": 17422.698
+      }
+    ],
+    "qm_levels": [
+      {
+        "direction": "BEARISH",
+        "h_price": 21234.816,
+        "h_timestamp": "2024-12-01T00:00:00+00:00",
+        "hh_price": 21949.878,
+        "hh_timestamp": "2025-04-01T00:00:00+00:00",
+        "qml_price": 21234.816,
+        "tested": false,
+        "timestamp": "2024-12-01T00:00:00+00:00"
+      }
+    ],
+    "rs_flips": [
+      {
+        "breakout_price": 12808.943,
+        "flip_level": 10529.112,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2023-11-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 12808.943,
+        "flip_level": 11403.828,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2023-11-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 18557.419,
+        "flip_level": 14420.257,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2024-08-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 18557.419,
+        "flip_level": 14492.027,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2024-08-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 18557.419,
+        "flip_level": 16768.566,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2024-08-01T00:00:00+00:00"
+      }
+    ],
+    "sms_events": [
+      {
+        "direction": "BULLISH",
+        "failed_level": 9117.087,
+        "is_failure_swing": true,
+        "reversal_price": 10636.203,
+        "timestamp": "2023-09-01T00:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 14645.258,
+        "is_failure_swing": true,
+        "reversal_price": 12587.296,
+        "timestamp": "2022-03-01T00:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 21949.878,
+        "is_failure_swing": true,
+        "reversal_price": 17855.041,
+        "timestamp": "2025-10-01T00:00:00+00:00"
+      }
+    ],
+    "sr_flips": [
+      {
+        "breakout_price": 15419.906,
+        "flip_level": 18936.921,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2025-11-01T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 15419.906,
+        "flip_level": 16467.384,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2025-11-01T00:00:00+00:00"
+      }
+    ],
+    "supply_zones": [
+      {
+        "broken": false,
+        "lower_bound": 18936.921,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2025-11-01T00:00:00+00:00",
+        "upper_bound": 21234.816
+      },
+      {
+        "broken": false,
+        "lower_bound": 16467.384,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2025-11-01T00:00:00+00:00",
+        "upper_bound": 21234.816
+      }
+    ],
+    "swing_highs": [
+      {
+        "price": 11403.828,
+        "strength": 3,
+        "timestamp": "2023-08-01T00:00:00+00:00"
+      },
+      {
+        "price": 14420.257,
+        "strength": 7,
+        "timestamp": "2023-12-01T00:00:00+00:00"
+      },
+      {
+        "price": 14492.027,
+        "strength": 7,
+        "timestamp": "2024-02-01T00:00:00+00:00"
+      },
+      {
+        "price": 16768.566,
+        "strength": 9,
+        "timestamp": "2024-05-01T00:00:00+00:00"
+      },
+      {
+        "price": 20155.714,
+        "strength": 10,
+        "timestamp": "2024-09-01T00:00:00+00:00"
+      },
+      {
+        "price": 21234.816,
+        "strength": 10,
+        "timestamp": "2024-12-01T00:00:00+00:00"
+      },
+      {
+        "price": 21949.878,
+        "strength": 10,
+        "timestamp": "2025-04-01T00:00:00+00:00"
+      },
+      {
+        "price": 19565.891,
+        "strength": 3,
+        "timestamp": "2025-10-01T00:00:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 9274.358,
+        "strength": 8,
+        "timestamp": "2023-01-01T00:00:00+00:00"
+      },
+      {
+        "price": 9117.087,
+        "strength": 10,
+        "timestamp": "2023-05-01T00:00:00+00:00"
+      },
+      {
+        "price": 9662.707,
+        "strength": 8,
+        "timestamp": "2023-09-01T00:00:00+00:00"
+      },
+      {
+        "price": 13164.95,
+        "strength": 7,
+        "timestamp": "2024-04-01T00:00:00+00:00"
+      },
+      {
+        "price": 18936.921,
+        "strength": 3,
+        "timestamp": "2025-01-01T00:00:00+00:00"
+      },
+      {
+        "price": 16467.384,
+        "strength": 5,
+        "timestamp": "2025-06-01T00:00:00+00:00"
+      },
+      {
+        "price": 15362.605,
+        "strength": 5,
+        "timestamp": "2025-11-01T00:00:00+00:00"
+      },
+      {
+        "price": 12998.267,
+        "strength": 7,
+        "timestamp": "2026-05-01T00:00:00+00:00"
+      }
+    ],
+    "timestamp": "2026-06-01T00:00:00+00:00",
+    "trend_direction": "BEARISH"
+  },
+  "W1": {
+    "bms_events": [
+      {
+        "breakout_price": 18340.21,
+        "broken_level": 18936.921,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 596.71,
+        "timestamp": "2025-05-25T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 19081.077,
+        "broken_level": 19624.43,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 543.35,
+        "timestamp": "2025-05-18T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 17263.892,
+        "broken_level": 17656.527,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 392.63,
+        "timestamp": "2025-11-16T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 17263.892,
+        "broken_level": 17623.627,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 359.74,
+        "timestamp": "2025-11-30T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 14842.696,
+        "broken_level": 15362.605,
+        "confirmed": true,
+        "direction": "BEARISH",
+        "displacement_pips": 519.91,
+        "timestamp": "2026-02-22T00:00:00+00:00"
+      }
+    ],
+    "breaker_blocks": [
+      {
+        "broken_timestamp": "2025-09-14T00:00:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 17730.433,
+        "mitigated": false,
+        "original_ob_timestamp": "2025-08-31T00:00:00+00:00",
+        "timestamp": "2025-08-31T00:00:00+00:00",
+        "upper_bound": 18448.957
+      },
+      {
+        "broken_timestamp": "2025-09-14T00:00:00+00:00",
+        "direction": "BULLISH",
+        "lower_bound": 17730.433,
+        "mitigated": false,
+        "original_ob_timestamp": "2025-08-31T00:00:00+00:00",
+        "timestamp": "2025-08-31T00:00:00+00:00",
+        "upper_bound": 18448.957
+      }
+    ],
+    "choch_events": [
+      {
+        "breakout_price": 18340.21,
+        "broken_level": 18936.921,
+        "direction": "BEARISH",
+        "is_minor": false,
+        "timestamp": "2025-05-25T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 19081.077,
+        "broken_level": 19624.43,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2025-05-18T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 20345.813,
+        "broken_level": 20538.227,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2025-05-04T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 17263.892,
+        "broken_level": 17656.527,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2025-11-16T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 17263.892,
+        "broken_level": 17623.627,
+        "direction": "BEARISH",
+        "is_minor": true,
+        "timestamp": "2025-11-16T00:00:00+00:00"
+      }
+    ],
+    "dealing_ranges": [
+      {
+        "end_time": "2026-05-31T00:00:00+00:00",
+        "equilibrium": 15533.4825,
+        "high": 21949.878,
+        "low": 9117.087,
+        "range_size": 12832.791000000001,
+        "start_time": "2021-08-22T00:00:00+00:00"
+      }
+    ],
+    "demand_zones": [
+      {
+        "broken": false,
+        "lower_bound": 11267.868,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2023-11-05T00:00:00+00:00",
+        "upper_bound": 13535.474
+      },
+      {
+        "broken": false,
+        "lower_bound": 13535.474,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2024-05-05T00:00:00+00:00",
+        "upper_bound": 14420.257
+      },
+      {
+        "broken": false,
+        "lower_bound": 13535.474,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2024-05-05T00:00:00+00:00",
+        "upper_bound": 14492.027
+      },
+      {
+        "broken": false,
+        "lower_bound": 13535.474,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2024-05-05T00:00:00+00:00",
+        "upper_bound": 14420.934
+      },
+      {
+        "broken": false,
+        "lower_bound": 13535.474,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2024-08-11T00:00:00+00:00",
+        "upper_bound": 16768.566
+      }
+    ],
+    "equal_highs_lows": [
+      {
+        "liquidity_type": "EQUAL_HIGHS",
+        "price_level": 14420.257,
+        "swept": false,
+        "timestamps": [
+          "2023-12-17T00:00:00+00:00",
+          "2024-03-17T00:00:00+00:00"
+        ],
+        "tolerance_pips": 2,
+        "touch_count": 2
+      }
+    ],
+    "fair_value_gaps": [
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 15110.952,
+        "timestamp": "2026-02-08T00:00:00+00:00",
+        "upper_bound": 15285.971
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 14876.763,
+        "timestamp": "2026-03-08T00:00:00+00:00",
+        "upper_bound": 14909.261
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 14759.786,
+        "timestamp": "2026-03-22T00:00:00+00:00",
+        "upper_bound": 14909.261
+      },
+      {
+        "direction": "BEARISH",
+        "filled": false,
+        "lower_bound": 13319.34,
+        "timestamp": "2026-05-10T00:00:00+00:00",
+        "upper_bound": 13751.116
+      },
+      {
+        "direction": "BULLISH",
+        "filled": false,
+        "lower_bound": 13319.34,
+        "timestamp": "2026-05-24T00:00:00+00:00",
+        "upper_bound": 13871.743
+      }
+    ],
+    "fibonacci_retracements": [
+      {
+        "is_bullish": false,
+        "range_size": 1150.393,
+        "swing_high": 14744.714,
+        "swing_high_timestamp": "2026-04-19T00:00:00+00:00",
+        "swing_low": 13594.321,
+        "swing_low_timestamp": "2026-04-12T00:00:00+00:00"
+      }
+    ],
+    "inducement_events": [
+      {
+        "cleared": true,
+        "cleared_timestamp": "2023-10-29T00:00:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 11267.868,
+        "is_internal": true,
+        "timestamp": "2023-10-08T00:00:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2024-04-21T00:00:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 14420.934,
+        "is_internal": true,
+        "timestamp": "2024-03-17T00:00:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2025-03-02T00:00:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 21028.701,
+        "is_internal": true,
+        "timestamp": "2025-02-09T00:00:00+00:00"
+      },
+      {
+        "cleared": true,
+        "cleared_timestamp": "2025-09-14T00:00:00+00:00",
+        "direction": "BEARISH",
+        "inducement_level": 18577.42,
+        "is_internal": true,
+        "timestamp": "2025-08-10T00:00:00+00:00"
+      },
+      {
+        "cleared": false,
+        "cleared_timestamp": null,
+        "direction": "BEARISH",
+        "inducement_level": 14744.714,
+        "is_internal": true,
+        "timestamp": "2026-04-19T00:00:00+00:00"
+      }
+    ],
+    "liquidity_grabs": [],
+    "liquidity_sweeps": [
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 407.616,
+        "swept_level": 14337.098,
+        "timestamp": "2026-04-19T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 493.8639999999996,
+        "swept_level": 14196.737,
+        "timestamp": "2026-04-26T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDH_SWEEP",
+        "sweep_pips": 74.19499999999971,
+        "swept_level": 14327.537,
+        "timestamp": "2026-05-03T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 35.63199999999961,
+        "swept_level": 13053.559,
+        "timestamp": "2026-05-17T00:00:00+00:00"
+      },
+      {
+        "closed_back_inside": true,
+        "liquidity_type": "PDL_SWEEP",
+        "sweep_pips": 19.659999999999854,
+        "swept_level": 13017.927,
+        "timestamp": "2026-05-24T00:00:00+00:00"
+      }
+    ],
+    "mpl_levels": [],
+    "order_blocks": [
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 4373.269999999999,
+        "is_breaker": false,
+        "lower_bound": 9794.923,
+        "mitigated": false,
+        "timestamp": "2023-08-27T00:00:00+00:00",
+        "upper_bound": 10463.631
+      },
+      {
+        "direction": "BULLISH",
+        "displacement_pips": 1478.5529999999999,
+        "is_breaker": false,
+        "lower_bound": 9678.012,
+        "mitigated": false,
+        "timestamp": "2023-06-18T00:00:00+00:00",
+        "upper_bound": 10201.627
+      },
+      {
+        "direction": "BEARISH",
+        "displacement_pips": 3152.8460000000014,
+        "is_breaker": false,
+        "lower_bound": 20745.725,
+        "mitigated": false,
+        "timestamp": "2025-04-06T00:00:00+00:00",
+        "upper_bound": 21493.056
+      },
+      {
+        "direction": "BEARISH",
+        "displacement_pips": 2411.9789999999994,
+        "is_breaker": false,
+        "lower_bound": 20745.725,
+        "mitigated": false,
+        "timestamp": "2025-04-06T00:00:00+00:00",
+        "upper_bound": 21493.056
+      },
+      {
+        "direction": "BEARISH",
+        "displacement_pips": 2461.7429999999986,
+        "is_breaker": false,
+        "lower_bound": 16623.341,
+        "mitigated": false,
+        "timestamp": "2025-12-28T00:00:00+00:00",
+        "upper_bound": 17304.439
+      }
+    ],
+    "qm_levels": [
+      {
+        "direction": "BULLISH",
+        "h_price": 13447.969,
+        "h_timestamp": "2022-08-14T00:00:00+00:00",
+        "hh_price": 14173.582,
+        "hh_timestamp": "2023-12-31T00:00:00+00:00",
+        "qml_price": 12464.107,
+        "tested": false,
+        "timestamp": "2022-08-07T00:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 12198.329,
+        "h_timestamp": "2022-11-20T00:00:00+00:00",
+        "hh_price": 12567.528,
+        "hh_timestamp": "2023-11-19T00:00:00+00:00",
+        "qml_price": 11238.857,
+        "tested": false,
+        "timestamp": "2022-10-30T00:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 10529.112,
+        "h_timestamp": "2023-03-26T00:00:00+00:00",
+        "hh_price": 11171.297,
+        "hh_timestamp": "2023-07-30T00:00:00+00:00",
+        "qml_price": 9470.082,
+        "tested": false,
+        "timestamp": "2023-02-19T00:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 11403.828,
+        "h_timestamp": "2023-07-30T00:00:00+00:00",
+        "hh_price": 12438.267,
+        "hh_timestamp": "2023-11-12T00:00:00+00:00",
+        "qml_price": 9669.417,
+        "tested": false,
+        "timestamp": "2023-07-02T00:00:00+00:00"
+      },
+      {
+        "direction": "BULLISH",
+        "h_price": 14420.934,
+        "h_timestamp": "2024-03-17T00:00:00+00:00",
+        "hh_price": 15722.716,
+        "hh_timestamp": "2024-05-05T00:00:00+00:00",
+        "qml_price": 13535.474,
+        "tested": false,
+        "timestamp": "2024-02-25T00:00:00+00:00"
+      }
+    ],
+    "rs_flips": [
+      {
+        "breakout_price": 12405.567,
+        "flip_level": 11267.868,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2023-11-05T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 15722.716,
+        "flip_level": 14420.257,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2024-05-05T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 15722.716,
+        "flip_level": 14492.027,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2024-05-05T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 15722.716,
+        "flip_level": 14420.934,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2024-05-05T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 17615.008,
+        "flip_level": 16768.566,
+        "new_role": "SUPPORT",
+        "previous_role": "RESISTANCE",
+        "timestamp": "2024-08-11T00:00:00+00:00"
+      }
+    ],
+    "sms_events": [
+      {
+        "direction": "BEARISH",
+        "failed_level": 11403.828,
+        "is_failure_swing": true,
+        "reversal_price": 10808.181,
+        "timestamp": "2023-10-08T00:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 14492.027,
+        "is_failure_swing": true,
+        "reversal_price": 13974.698,
+        "timestamp": "2024-03-17T00:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 21234.816,
+        "is_failure_swing": true,
+        "reversal_price": 20173.083,
+        "timestamp": "2025-02-09T00:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 21949.878,
+        "is_failure_swing": true,
+        "reversal_price": 17864.975,
+        "timestamp": "2025-07-20T00:00:00+00:00"
+      },
+      {
+        "direction": "BEARISH",
+        "failed_level": 19565.891,
+        "is_failure_swing": true,
+        "reversal_price": 16373.779,
+        "timestamp": "2025-12-14T00:00:00+00:00"
+      }
+    ],
+    "sr_flips": [
+      {
+        "breakout_price": 16592.5696,
+        "flip_level": 20538.227,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2025-06-22T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 16228.723,
+        "flip_level": 16467.384,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2025-11-09T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 16228.723,
+        "flip_level": 17656.527,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2025-11-09T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 16228.723,
+        "flip_level": 17623.627,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2025-11-09T00:00:00+00:00"
+      },
+      {
+        "breakout_price": 13852.772,
+        "flip_level": 15362.605,
+        "new_role": "RESISTANCE",
+        "previous_role": "SUPPORT",
+        "timestamp": "2026-04-05T00:00:00+00:00"
+      }
+    ],
+    "supply_zones": [
+      {
+        "broken": false,
+        "lower_bound": 18577.42,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2025-06-22T00:00:00+00:00",
+        "upper_bound": 20538.227
+      },
+      {
+        "broken": false,
+        "lower_bound": 16467.384,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2025-11-09T00:00:00+00:00",
+        "upper_bound": 18577.42
+      },
+      {
+        "broken": false,
+        "lower_bound": 17656.527,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2025-11-09T00:00:00+00:00",
+        "upper_bound": 18577.42
+      },
+      {
+        "broken": false,
+        "lower_bound": 17623.627,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2025-11-09T00:00:00+00:00",
+        "upper_bound": 18577.42
+      },
+      {
+        "broken": false,
+        "lower_bound": 15362.605,
+        "strength": 1,
+        "test_count": 0,
+        "tested": false,
+        "timestamp": "2026-04-05T00:00:00+00:00",
+        "upper_bound": 18577.42
+      }
+    ],
+    "swing_highs": [
+      {
+        "price": 21690.533,
+        "strength": 10,
+        "timestamp": "2025-03-16T00:00:00+00:00"
+      },
+      {
+        "price": 21949.878,
+        "strength": 10,
+        "timestamp": "2025-04-13T00:00:00+00:00"
+      },
+      {
+        "price": 18584.143,
+        "strength": 5,
+        "timestamp": "2025-07-20T00:00:00+00:00"
+      },
+      {
+        "price": 18577.42,
+        "strength": 3,
+        "timestamp": "2025-08-10T00:00:00+00:00"
+      },
+      {
+        "price": 19565.891,
+        "strength": 10,
+        "timestamp": "2025-10-05T00:00:00+00:00"
+      },
+      {
+        "price": 17422.698,
+        "strength": 7,
+        "timestamp": "2025-12-14T00:00:00+00:00"
+      },
+      {
+        "price": 15434.628,
+        "strength": 5,
+        "timestamp": "2026-03-15T00:00:00+00:00"
+      },
+      {
+        "price": 14744.714,
+        "strength": 3,
+        "timestamp": "2026-04-19T00:00:00+00:00"
+      }
+    ],
+    "swing_lows": [
+      {
+        "price": 18936.921,
+        "strength": 7,
+        "timestamp": "2025-01-12T00:00:00+00:00"
+      },
+      {
+        "price": 19624.43,
+        "strength": 3,
+        "timestamp": "2025-02-16T00:00:00+00:00"
+      },
+      {
+        "price": 20538.227,
+        "strength": 3,
+        "timestamp": "2025-03-30T00:00:00+00:00"
+      },
+      {
+        "price": 16467.384,
+        "strength": 10,
+        "timestamp": "2025-06-29T00:00:00+00:00"
+      },
+      {
+        "price": 17656.527,
+        "strength": 3,
+        "timestamp": "2025-08-17T00:00:00+00:00"
+      },
+      {
+        "price": 17623.627,
+        "strength": 3,
+        "timestamp": "2025-09-14T00:00:00+00:00"
+      },
+      {
+        "price": 15362.605,
+        "strength": 10,
+        "timestamp": "2025-11-30T00:00:00+00:00"
+      },
+      {
+        "price": 13594.321,
+        "strength": 10,
+        "timestamp": "2026-04-12T00:00:00+00:00"
+      }
+    ],
+    "timestamp": "2026-05-31T00:00:00+00:00",
+    "trend_direction": "BEARISH"
+  }
+}

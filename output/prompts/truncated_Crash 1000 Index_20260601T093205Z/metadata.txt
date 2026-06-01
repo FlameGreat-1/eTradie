@@ -1,6 +1,0 @@
-finish_reason: MAX_TOKENS
-output_tokens: 1202
-input_tokens: 101783
-duration_ms: 154795.86015799578
-model: gemini-3.5-flash
-max_output_tokens: 32768

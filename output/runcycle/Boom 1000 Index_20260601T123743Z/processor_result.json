@@ -1,0 +1,256 @@
+{
+  "analysis_id": "BOOM 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_14361.8505_f14239ca",
+  "confidence": 0.85,
+  "confluence_score": 9,
+  "direction": "SHORT",
+  "entry_price": 14367.72975,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_boom1000_20260601_1235_f8a2",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+          "doc_id": "master_rulebook.md",
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+          "doc_id": "trading_style_rules.md",
+          "section": "4. Permitted Setup Types"
+        },
+        {
+          "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+          "doc_id": "trading_style_rules.md",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+            "doc_id": "master_rulebook.md",
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+            "doc_id": "trading_style_rules.md",
+            "section": "4. Permitted Setup Types"
+          },
+          {
+            "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+            "doc_id": "trading_style_rules.md",
+            "section": "6. Risk Management Rules"
+          }
+        ],
+        "query_summary": "SMC and SnD confluence rules, risk management, and timeframe alignment.",
+        "strategy_used": "RAG semantic search",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Neutral/missing macro data treated as aligned/non-blocking.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "Bearish trade aligns perfectly with dominant MN1, W1, and D1 bearish trend.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF BOS or CHoCH confirmed",
+          "notes": "M30 and M15 have confirmed bearish CHoCH and BMS, validating pro-trend reversal.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "M15 Order Block (14327.818 - 14395.883) and FVG (14365.246 - 14373.609) present.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "BSL sweep of 5.01 pips above 14390.167 confirmed.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "Neutral/missing COT data treated as aligned.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Wyckoff phase",
+          "notes": "Distribution and markdown phase confirmed on LTF.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "No high-impact news events active.",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "Constructed structural targets offer up to 4.60R, exceeding the 1:3 intraday minimum.",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 9
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "Neutral speculative positioning",
+      "week_over_week": null
+    },
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        14327.818,
+        14395.883
+      ],
+      "evidence": [
+        {
+          "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+          "content_preview": "All trades must originate from one or more of the following frameworks: SMC: SH+BMS+RTO...",
+          "doc_id": "smc_framework.md",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "OB",
+      "zone_id": "BOOM 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_14361.8505_f14239ca"
+    },
+    "entry_zone": {
+      "high": 14373.609,
+      "low": 14361.8505
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The Boom 1000 Index is in a dominant HTF bearish trend across MN1, W1, and D1. While the MTF (H12-H1) experienced a bullish retracement, the LTF (M30, M15, M5, M1) has confirmed a bearish structural shift (CHoCH and BMS), signaling a pro-trend reversal. We identified a high-confluence M15 SH+BMS+CHOCH+FVG+OB+OTE+RTO bearish setup (candidate_id: BOOM 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_14361.8505_f14239ca) with a BSL sweep of 5.01 pips above 14390.167. We place a LIMIT order at the entry price of 14361.8505, with a structural stop loss at 14402.6895 (above the OB upper bound of 14395.883). Our targets are structured to run from liquidity to liquidity, with TP1 at 14280.0, TP2 at 14200.0, and TP3 at 14174.103 (the major M15 swing low), offering an excellent risk-to-reward ratio of 4.60R.",
+    "htf_bias": {
+      "key_levels": [
+        13594.321,
+        13702.873
+      ],
+      "notes": "HTF trend is strongly bearish across MN1, W1, and D1. D1 has confirmed bearish CHoCH and BMS events.",
+      "structure": "bearish"
+    },
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        13885.579,
+        13975.529
+      ],
+      "notes": "MTF has shifted bearish on M30 and M15, confirming a pro-trend reversal from the H12-H1 bullish retracement.",
+      "structure": "choch_bearish"
+    },
+    "pair": "Boom 1000 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+        "doc_id": "master_rulebook.md",
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+        "doc_id": "trading_style_rules.md",
+        "section": "4. Permitted Setup Types"
+      },
+      {
+        "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+        "doc_id": "trading_style_rules.md",
+        "section": "6. Risk Management Rules"
+      }
+    ],
+    "rr_ratio": 4.6,
+    "session": "LONDON_NY_OVERLAP",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup...",
+          "doc_id": "trading_style_rules.md",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 14402.6895,
+      "reason": "Placed above the M15 Order Block upper bound of 14395.883 with a protective offset to avoid stop hunts."
+    },
+    "take_profits": [
+      {
+        "basis": "Nearest structural support and M15 FVG fill zone",
+        "level": 14280,
+        "size_pct": 40
+      },
+      {
+        "basis": "H1 Order Block and FVG mitigation level",
+        "level": 14200,
+        "size_pct": 30
+      },
+      {
+        "basis": "Major swing low / sell-side liquidity pool on M15",
+        "level": 14174.103,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-06-01T12:35:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [
+        {
+          "chunk_id": "5bc4fda9-2747-4d60-9b49-0302b4169d40",
+          "content_preview": "Wyckoff Phase Guide | wyckoff_guide.md | Phase identification...",
+          "doc_id": "wyckoff_guide.md",
+          "rule_id": null,
+          "section": "REFERENCED RAG DOCUMENTS"
+        }
+      ],
+      "phase": "distribution"
+    }
+  },
+  "reasoning": "The Boom 1000 Index is in a dominant HTF bearish trend across MN1, W1, and D1. While the MTF (H12-H1) experienced a bullish retracement, the LTF (M30, M15, M5, M1) has confirmed a bearish structural shift (CHoCH and BMS), signaling a pro-trend reversal. We identified a high-confluence M15 SH+BMS+CHOCH+FVG+OB+OTE+RTO bearish setup (candidate_id: BOOM 1000 INDEX_SH_BMS_RTO_BEARISH_BEARISH_14361.8505_f14239ca) with a BSL sweep of 5.01 pips above 14390.167. We place a LIMIT order at the entry price of 14361.8505, with a structural stop loss at 14402.6895 (above the OB upper bound of 14395.883). Our targets are structured to run from liquidity to liquidity, with TP1 at 14280.0, TP2 at 14200.0, and TP3 at 14174.103 (the major M15 swing low), offering an excellent risk-to-reward ratio of 4.60R.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 4.6,
+  "session": "LONDON_NY_OVERLAP",
+  "setup_type": "OB",
+  "stop_loss": 14402.6895,
+  "symbol": "Boom 1000 Index",
+  "take_profit": 14174.103,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}
