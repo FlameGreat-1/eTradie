@@ -345,6 +345,21 @@ async def internal_rag_retrieve(
         raise HTTPException(status_code=503, detail="RAG not initialized")
 
     user_id = (request.headers.get("X-User-Id") or getattr(body, "user_id", "") or "").strip()
+
+    cache = getattr(container, "cache", None)
+    if cache is not None and user_id:
+        try:
+            pulse = PulsePublisher(
+                cache=cache, user_id=user_id, symbol=body.symbol or ""
+            )
+        except Exception:  # noqa: BLE001 - pulse must never break retrieval
+            pulse = NoOpPulse()
+    else:
+        pulse = NoOpPulse()
+
+    await pulse.emit(
+        "GERMINATING", "Querying rulebook knowledge base", source="rag"
+    )
     try:
         bundle = await container.rag_orchestrator.retrieve_context(
             body.query_text,
@@ -377,6 +392,12 @@ async def internal_rag_retrieve(
             risk_environment=body.risk_environment,
         )
 
+        await pulse.emit(
+            "GERMINATING",
+            "Knowledge retrieval complete",
+            source="rag",
+            completed=True,
+        )
         if hasattr(bundle, "model_dump"):
             return bundle.model_dump(mode="json")
         return {"context_bundle": str(bundle)}
