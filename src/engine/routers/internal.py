@@ -240,6 +240,31 @@ async def internal_macro_collect(
     """
     container: Container = request.app.state.container
 
+    # Pulse publisher for the user's SSE channel. The macro call is
+    # cycle-scoped (not per-symbol), so the symbol label is "macro".
+    # Falls back to NoOpPulse when cache/user_id is unavailable.
+    user_id = (request.headers.get("X-User-Id") or "").strip()
+    cache = getattr(container, "cache", None)
+    if cache is not None and user_id:
+        try:
+            pulse = PulsePublisher(cache=cache, user_id=user_id, symbol="macro")
+        except Exception:  # noqa: BLE001 - pulse must never break collection
+            pulse = NoOpPulse()
+    else:
+        pulse = NoOpPulse()
+
+    # Human-readable sub-step labels for each collector. Shown after the
+    # CLAUDING verb as the macro row's text swaps in-place per collector.
+    _collector_labels = {
+        "central_bank": "Polling central bank feeds & rate decisions",
+        "cot": "Fetching CFTC COT positioning",
+        "economic": "Harvesting economic releases",
+        "calendar": "Loading high-impact event calendar",
+        "dxy": "Computing DXY momentum",
+        "intermarket": "Analyzing intermarket correlations",
+        "sentiment": "Deriving market sentiment",
+    }
+
     collector_map = {
         "central_bank": container.cb_collector,
         "cot": container.cot_collector,
@@ -250,7 +275,22 @@ async def internal_macro_collect(
         "sentiment": container.sentiment_collector,
     }
 
-    tasks = {name: c.collect() for name, c in collector_map.items()}
+    async def _collect_one(name: str, collector):
+        """Run one collector, emitting a CLAUDING pulse on start and on
+        completion. The pulse is best-effort; collection behaviour and
+        per-collector isolation are unchanged.
+        """
+        label = _collector_labels.get(name, name)
+        await pulse.emit("CLAUDING", label, source="macro")
+        result = await collector.collect()
+        await pulse.emit(
+            "CLAUDING", f"{label} \u2014 done", source="macro", completed=True
+        )
+        return result
+
+    tasks = {
+        name: _collect_one(name, c) for name, c in collector_map.items()
+    }
     raw_results = await asyncio.gather(
         *tasks.values(),
         return_exceptions=True,
