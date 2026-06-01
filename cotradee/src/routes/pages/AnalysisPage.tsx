@@ -12,6 +12,32 @@ import AnalysisCountdown from '@/components/ui/AnalysisCountdown';
 
 const PAGE_SIZE = 15;
 
+/**
+ * Human-readable labels for the backend analysis status enum so the
+ * feed never shows raw developer tokens (pipeline_error, no_setup,
+ * llm_error, insufficient_data, ...) to a non-developer user. Any value
+ * not listed falls back to a title-cased, de-underscored form so a
+ * future backend status still renders cleanly instead of leaking raw.
+ */
+const STATUS_LABELS: Record<string, string> = {
+  success: 'Completed',
+  no_setup: 'No setup',
+  insufficient_data: 'Insufficient data',
+  pipeline_error: "Couldn't complete",
+  processor_error: "Couldn't complete",
+  llm_error: "Couldn't complete",
+  timeout: 'Timed out',
+};
+
+function formatStatus(status?: string): string {
+  if (!status) return '—';
+  const known = STATUS_LABELS[status];
+  if (known) return known;
+  // Generic fallback: "some_status" -> "Some status". Never the raw token.
+  const spaced = status.replace(/_/g, ' ').trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 type AnalysisRow = {
   analysis_id?: string;
   pair?: string;
@@ -140,7 +166,7 @@ export default function AnalysisPage() {
                     : 'text-content-muted'
                 }`}
               >
-                {String(a.status ?? '-')}
+                {formatStatus(a.status)}
               </span>
               <span className="text-content-muted font-medium truncate">{String(a.trading_style ?? '')}</span>
               <span className="text-right text-content-muted font-medium">
@@ -235,12 +261,10 @@ export default function AnalysisPage() {
                 <Field label="Grade" value={a.setup_grade ?? '—'} />
                 <Field
                   label="Status"
-                  value={a.status ?? '—'}
+                  value={formatStatus(a.status)}
                   valueClass={
                     a.status === 'success'
                       ? 'text-success'
-                      : a.status === 'no_setup'
-                      ? 'text-content-muted'
                       : 'text-content-muted'
                   }
                 />
