@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
-	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/querybuilder"
 )
 
