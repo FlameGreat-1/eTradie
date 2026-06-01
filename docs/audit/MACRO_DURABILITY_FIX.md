@@ -50,25 +50,51 @@ enriched dataset the writer produced (no per-collector SQL reassembly =
 no drift, no DB/logic mix-up), survives Redis flush + restart, and is a
 single indexed read (blazing fast).
 
+## Additional verified root cause (scheduler vs cache TTL)
+
+Scheduler intervals (engine/macro/scheduler_jobs.py + main.py) bind to
+`refresh()` and are LONG: COT/sentiment 604800s (7d), intermarket 86400s
+(1d), dxy 14400s (4h). The Redis `cache_ttl` is far shorter. So between
+scheduler runs the request-path `collect()` almost always cache-misses ->
+old `_read_from_db` returned None -> empty dataset. The durable snapshot
+bridges this gap: the scheduler writes it on each (infrequent) refresh and
+every miss in between serves it.
+
+Second half: the lifespan startup warmup called `collect()` (read-through),
+so on a COLD start it warmed NOTHING real (no cache, no snapshot) and the
+first true fetch waited for the scheduler interval. Fixed in S7 by warming
+with `refresh()`.
+
 ## Step plan (each = one commit)
 
 - [x] S0  Tracker (this file).
-- [ ] S1  macro_snapshot schema (SQLAlchemy table) + Alembic migration.
-- [ ] S2  MacroSnapshotRepository (get_latest_json / upsert_json by namespace).
-- [ ] S3  BaseCollector: inject snapshot repo; add _persist_snapshot() +
-          generic _read_from_db() default that rehydrates via cache_model;
-          call _persist_snapshot() in the success path.
-- [ ] S4  Wire snapshot persistence into each _do_collect (or centralise in
-          base) for all 7 collectors; remove the 7 stub _read_from_db.
-- [ ] S5  Fix cot _empty_dataset() (valid fields) + audit all 7 empties.
-- [ ] S6  Container/DI: pass the snapshot repo/db into collectors.
-- [ ] S7  Eager cache warm on engine startup (one refresh per collector)
-          so the first post-deploy cycle never hits a cold cache.
+- [x] S1  macro_snapshots schema + register + migration 0031.
+- [x] S2  MacroSnapshotRepository (get_payload / upsert_payload).
+- [x] S3  BaseCollector: _persist_snapshot() + generic snapshot-backed
+          _read_from_db(); persist on collect() + refresh() success;
+          datetime/UTC import fix.
+- [x] S4  Removed all 7 stub _read_from_db overrides (inherit base).
+- [x] S5  Fixed cot _empty_dataset() (was reports=/sources= -> valid
+          COTDataSet()); audited all 7 empties (valid).
+- [x] S6  DI: collectors already receive self._db; no change needed
+          (verified in dependencies.py _build_collectors).
+- [x] S7  Startup warmup switched collect() -> refresh() so a fresh
+          deploy fetches + persists snapshot at boot.
 - [ ] S8  Tests: request-path miss returns last-good snapshot (not empty)
-          for COT + one market-data collector + calendar.
+          for COT + a MarketDataSet collector + calendar + sentiment(dict).
 - [ ] S9  Final consistency pass; update this tracker -> DONE.
 
 ## Progress marker
 
-COMPLETED: S0.
-NEXT: S1 (schema + migration).
+COMPLETED: S0-S7.
+NEXT: S8 (tests), then S9 (final pass).
+
+Key files changed:
+  - src/engine/macro/storage/schemas/snapshot.py (new)
+  - src/engine/macro/storage/schemas/__init__.py (register)
+  - src/engine/shared/db/migrations/versions/0031_macro_snapshots.py (new)
+  - src/engine/macro/storage/repositories/snapshot/snapshot.py (new)
+  - src/engine/macro/collectors/base.py (persist + read-through + imports)
+  - src/engine/macro/collectors/{cot,dxy,intermarket,calendar,
+    economic_data,sentiment,central_bank}/collector.py (drop stub)
+  - src/engine/main.py (warmup refresh)
