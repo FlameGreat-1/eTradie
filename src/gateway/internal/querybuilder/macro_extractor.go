@@ -242,14 +242,31 @@ func extractCentralBank(data map[string]interface{}) map[string]interface{} {
 		}
 	}
 
+	// rate_decisions is ordered newest-first and may contain a multi-year
+	// history of one decision per policy step. Two invariants matter here:
+	//   1. A RateDecision carries no tone, so it must NOT clobber the
+	//      fed_tone/ecb_tone the speeches/forward_guidance loop already set
+	//      (that tone drives deriveUSDBias -> macro_bias_usd). We only set a
+	//      bank's tone from a decision that actually has a non-empty tone and
+	//      only when no tone exists for that bank yet.
+	//   2. The "current" rate change is the NEWEST decision per bank. Because
+	//      the slice is newest-first, we record the direction from the FIRST
+	//      decision seen for each bank and ignore older ones, so a four-year
+	//      history does not overwrite the latest move with a stale one.
+	rateChangeSeen := map[string]bool{}
 	for _, decision := range getSliceOfMaps(data, "rate_decisions") {
 		bank := strings.ToUpper(getStrDefault(decision, "bank", ""))
 		tone := strings.ToUpper(getStrDefault(decision, "tone", ""))
 		key := strings.ToLower(bank) + "_tone"
-		signals[key] = tone
+		if tone != "" {
+			if existing, exists := signals[key]; !exists || existing == "" {
+				signals[key] = tone
+			}
+		}
 
 		rateChange := getFloatFromEither(decision, "rate_change_bps", "change")
-		if rateChange != 0 {
+		if rateChange != 0 && !rateChangeSeen[bank] {
+			rateChangeSeen[bank] = true
 			signals["has_rate_change"] = true
 			signals["rate_change_bank"] = bank
 			if rateChange > 0 {

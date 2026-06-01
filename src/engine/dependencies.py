@@ -26,6 +26,12 @@ from engine.macro.providers.central_bank.boc_rss import BOCRSSProvider
 from engine.macro.providers.central_bank.boe_rss import BOERSSProvider
 from engine.macro.providers.central_bank.boj_rss import BOJRSSProvider
 from engine.macro.providers.central_bank.ecb_rss import ECBRSSProvider
+from engine.macro.providers.central_bank.fed_rate import (
+    BOERateProvider,
+    BOJRateProvider,
+    ECBRateProvider,
+    FedRateProvider,
+)
 from engine.macro.providers.central_bank.fed_rss import FedRSSProvider
 from engine.macro.providers.central_bank.rba_rss import RBARSSProvider
 from engine.macro.providers.central_bank.rbnz_rss import RBNZRSSProvider
@@ -237,18 +243,51 @@ class Container:
         r = self.rss_parser
 
         self.fed_provider = FedRSSProvider(r, feed_url=s.fed_rss_url)
+        # FRED-sourced numeric Fed funds target rate. Lives alongside the RSS
+        # CB providers (it is a central-bank provider emitting a RateDecision)
+        # so the CentralBankCollector populates rate_current/rate_previous the
+        # RSS headlines can never supply.
+        self.fed_rate_provider = FedRateProvider(
+            h,
+            base_url=s.fred_base_url,
+            api_key=s.fred_api_key,
+        )
         self.ecb_provider = ECBRSSProvider(r, feed_url=s.ecb_rss_url)
+        # FRED-sourced ECB Deposit Facility Rate, the EUR policy rate markets
+        # watch. Pairs with fed_rate_provider so the LLM has the Fed-ECB
+        # differential that drives EURUSD.
+        self.ecb_rate_provider = ECBRateProvider(
+            h,
+            base_url=s.fred_base_url,
+            api_key=s.fred_api_key,
+        )
         self.boe_provider = BOERSSProvider(r, feed_url=s.boe_rss_url)
+        # FRED-sourced UK Bank Rate, pairs with the RSS tone for GBP.
+        self.boe_rate_provider = BOERateProvider(
+            h,
+            base_url=s.fred_base_url,
+            api_key=s.fred_api_key,
+        )
         self.boj_provider = BOJRSSProvider(r, feed_url=s.boj_rss_url)
+        # FRED-sourced BoJ policy rate, pairs with the RSS tone for JPY.
+        self.boj_rate_provider = BOJRateProvider(
+            h,
+            base_url=s.fred_base_url,
+            api_key=s.fred_api_key,
+        )
         self.rba_provider = RBARSSProvider(r, feed_url=s.rba_rss_url)
         self.boc_provider = BOCRSSProvider(r, feed_url=s.boc_rss_url)
         self.rbnz_provider = RBNZRSSProvider(r, feed_url=s.rbnz_rss_url)
         self.snb_provider = SNBRSSProvider(r, feed_url=s.snb_rss_url)
         for p in (
             self.fed_provider,
+            self.fed_rate_provider,
             self.ecb_provider,
+            self.ecb_rate_provider,
             self.boe_provider,
+            self.boe_rate_provider,
             self.boj_provider,
+            self.boj_rate_provider,
             self.rba_provider,
             self.boc_provider,
             self.rbnz_provider,
@@ -301,9 +340,13 @@ class Container:
         self.cb_collector = CentralBankCollector(
             [
                 self.fed_provider,
+                self.fed_rate_provider,
                 self.ecb_provider,
+                self.ecb_rate_provider,
                 self.boe_provider,
+                self.boe_rate_provider,
                 self.boj_provider,
+                self.boj_rate_provider,
                 self.rba_provider,
                 self.boc_provider,
                 self.rbnz_provider,
