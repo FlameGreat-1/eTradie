@@ -37,6 +37,65 @@ const MODAL_DISPATCH_MAP: Record<string, string> = {
 };
 
 /**
+ * WARNING/ERROR event types that are OPERATIONAL — caused by backend /
+ * infrastructure conditions the end user cannot act on, and whose raw
+ * `message` carries internal plumbing (HTTP status codes, engine_http
+ * error chains, Python exception text). These must NEVER be toasted to
+ * a normal trader.
+ *
+ * They are NOT dropped: they still drive query invalidations
+ * (eventMap.ts) and reach component subscribers + the realtime feed, so
+ * an operator/admin surface and the logs retain the full detail. Only
+ * the generic destructive toast is suppressed for them.
+ */
+const OPERATIONAL_SUPPRESSED_TYPES: ReadonlySet<string> = new Set([
+  'PROCESSOR_LLM_FAILED',
+  'RAG_RETRIEVAL_FAILED',
+  'TA_COLLECTION_FAILED',
+  'MACRO_COLLECTION_FAILED',
+  'EXECUTION_CALL_FAILED',
+  'MANAGEMENT_HANDOFF_FAILED',
+  'CYCLE_FAILED',
+]);
+
+/**
+ * Friendly, non-technical copy for the WARNING/ERROR events a normal
+ * user SHOULD see and can act on. The toast renders this curated copy
+ * instead of the raw event type / raw backend message, so the user is
+ * never shown internal error strings.
+ *
+ * Any WARNING/ERROR type that is neither here nor in
+ * OPERATIONAL_SUPPRESSED_TYPES falls back to a generic, non-technical
+ * message (see handleEvent) rather than leaking event internals.
+ */
+const USER_TOAST_COPY: Record<string, { title: string; description: string }> = {
+  EXECUTION_REJECTED: {
+    title: 'Order not placed',
+    description: 'Your broker did not accept the order. No position was opened.',
+  },
+  ORDER_EXPIRED: {
+    title: 'Setup expired',
+    description: 'The entry window passed before price reached your zone, so the order was cancelled.',
+  },
+  DAILY_LIMIT_LOCKED: {
+    title: 'Daily loss limit reached',
+    description: 'Trading is paused for the rest of the day to protect your account.',
+  },
+  WEEKLY_PAUSED: {
+    title: 'Weekly drawdown limit reached',
+    description: 'Trading is paused for the rest of the week to protect your account.',
+  },
+  BROKER_DISCONNECTED: {
+    title: 'Broker disconnected',
+    description: 'We lost the connection to your broker. Reconnecting automatically.',
+  },
+  GUARD_WARNING: {
+    title: 'Trade caution',
+    description: 'A setup passed with a caution flag. Review before it executes.',
+  },
+};
+
+/**
  * Single global realtime broadcaster.
  *
  * Mounts ONE WebSocket to the gateway notifications endpoint for the
@@ -95,12 +154,24 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         } catch {
           /* SSR or non-DOM env: dispatch is a best-effort optimisation */
         }
-      } else if (event.severity === 'WARNING' || event.severity === 'ERROR') {
-        // Show generic destructive toast for any other WARNING / ERROR
-        // event that does not have a dedicated modal.
+      } else if (
+        (event.severity === 'WARNING' || event.severity === 'ERROR') &&
+        !OPERATIONAL_SUPPRESSED_TYPES.has(event.type as string)
+      ) {
+        // Curated, user-facing copy only. We NEVER render the raw
+        // event.type or the raw backend message to a normal user,
+        // because backend failure messages contain internal plumbing
+        // (HTTP status, engine_http chains, exception text). Operational
+        // backend failures are suppressed above; everything else gets a
+        // friendly mapping, with a non-technical generic fallback for
+        // any unmapped type so nothing internal ever leaks.
+        const copy = USER_TOAST_COPY[event.type as string] ?? {
+          title: 'Something needs your attention',
+          description: 'Open your dashboard for the latest status.',
+        };
         toast({
-          title: event.type.replace(/_/g, ' '),
-          description: event.message || 'An important event occurred.',
+          title: copy.title,
+          description: copy.description,
           variant: 'destructive',
         });
       }
