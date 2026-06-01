@@ -995,6 +995,25 @@ func condReason(cond bool, ifTrue, ifFalse string) string {
 	return ifFalse
 }
 
+// isInsufficientData reports whether a processor error represents the
+// engine's benign "insufficient_data" condition (empty RAG retrieval,
+// empty TA, or no SMC/SnD candidates) rather than a genuine LLM failure.
+//
+// The engine's /internal/processor/process handler returns HTTP 400 with
+// the JSON contract body {"error":"insufficient_data", ...}. The gateway's
+// EngineHTTPClient embeds that (redacted, truncated) body into the error
+// string. The token "insufficient_data" is the engine-side contract value,
+// is short and non-sensitive (so it survives redaction + the 200-char
+// truncation), and never appears in genuine LLM-failure errors (timeout,
+// provider quota, schema violation, truncation), so the match is
+// deterministic with no false positives.
+func isInsufficientData(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "insufficient_data")
+}
+
 func (o *Orchestrator) processSymbol(
 	ctx context.Context,
 	tracker *CycleTracker,
