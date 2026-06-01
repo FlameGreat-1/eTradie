@@ -718,8 +718,13 @@ async def rerun_analysis(
             query_parts.append("quantitative easing asset purchases")
         elif action == "qt":
             query_parts.append("quantitative tightening balance sheet reduction")
-    if macro_signals["has_rate_decision"]:
+    if macro_signals["has_rate_decision"] or macro_signals.get("has_rate_change"):
         query_parts.append("rate decision interest rate")
+    if macro_signals.get("has_rate_change"):
+        bank = macro_signals.get("rate_change_bank", "")
+        direction = macro_signals.get("rate_change_direction", "")
+        if bank and direction:
+            query_parts.append(f"{bank} rate {direction}")
     if macro_signals["has_nfp"]:
         query_parts.append("NFP non-farm payrolls")
     if macro_signals["has_cpi"]:
@@ -779,7 +784,8 @@ async def rerun_analysis(
             has_snd_candidates=ta_signals["has_snd"],
             has_macro_data=macro_signals["has_macro_data"],
             has_cot_data=macro_signals["has_cot_data"],
-            has_rate_decision=macro_signals["has_rate_decision"],
+            has_rate_decision=macro_signals["has_rate_decision"]
+            or macro_signals.get("has_rate_change", False),
             has_high_impact_event=macro_signals["has_high_impact_event"],
             has_dxy_data=macro_signals["has_dxy_data"],
             has_qe_qt=macro_signals["has_qe_qt"],

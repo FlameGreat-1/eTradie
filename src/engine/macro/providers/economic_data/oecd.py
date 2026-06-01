@@ -165,6 +165,32 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
 
         return self._parse_sdmx_response(raw, cfg)
 
+    @staticmethod
+    def _parse_period(time_period: str) -> datetime:
+        """Parse an OECD TIME_PERIOD into a UTC datetime.
+
+        Handles both monthly (YYYY-MM) and quarterly (YYYY-Qn) periods.
+        Quarterly maps to the quarter's first month (Q1->Jan, Q2->Apr,
+        Q3->Jul, Q4->Oct). Anything unparseable falls back to now(UTC).
+        """
+        tp = (time_period or "").strip().upper()
+        # Quarterly: YYYY-Q1 .. YYYY-Q4
+        if "-Q" in tp:
+            try:
+                year_str, q_str = tp.split("-Q", 1)
+                quarter = int(q_str)
+                if 1 <= quarter <= 4:
+                    month = (quarter - 1) * 3 + 1
+                    return datetime(int(year_str), month, 1, tzinfo=UTC)
+            except (ValueError, TypeError):
+                return datetime.now(UTC)
+            return datetime.now(UTC)
+        # Monthly: YYYY-MM
+        try:
+            return datetime.fromisoformat(f"{tp}-01").replace(tzinfo=UTC)
+        except (ValueError, TypeError):
+            return datetime.now(UTC)
+
     def _parse_sdmx_response(
         self, raw: Any, cfg: dict[str, Any]
     ) -> list[EconomicRelease]:
@@ -236,12 +262,7 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
             currency = _COUNTRY_CURRENCY_MAP[country_code]
             country_name = _COUNTRY_NAMES.get(country_code, country_code)
 
-            try:
-                release_time = datetime.fromisoformat(f"{time_period}-01").replace(
-                    tzinfo=UTC
-                )
-            except (ValueError, TypeError):
-                release_time = datetime.now(UTC)
+            release_time = self._parse_period(time_period)
 
             # Note: `currency` is still resolved above for SDMX parsing
             # but no longer attached to the LLM-facing EconomicRelease.

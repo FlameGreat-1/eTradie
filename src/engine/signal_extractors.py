@@ -23,6 +23,9 @@ def derive_macro_signals(macro: dict) -> dict:
         "has_macro_data": False,
         "has_cot_data": False,
         "has_rate_decision": False,
+        "has_rate_change": False,
+        "rate_change_bank": "",
+        "rate_change_direction": "",
         "has_high_impact_event": False,
         "has_dxy_data": False,
         "has_qe_qt": False,
@@ -36,12 +39,34 @@ def derive_macro_signals(macro: dict) -> dict:
         "risk_environment": "",
         "dxy_momentum": "",
         "cot_extremes": [],
+        # Tone per bank, keyed <bank>_tone for all eight G10 banks, matching
+        # the gateway's extractCentralBank output. fed_tone/ecb_tone are kept
+        # explicit below for the query-text builder; the rest live under the
+        # same <bank>_tone convention.
         "fed_tone": "",
         "ecb_tone": "",
+        "boe_tone": "",
+        "boj_tone": "",
+        "rba_tone": "",
+        "boc_tone": "",
+        "rbnz_tone": "",
+        "snb_tone": "",
         "qe_qt_action": "",
         "qe_qt_bank": "",
         "balance_sheet_direction": "",
     }
+
+    def _set_bank_tone(bank: str, tone: str) -> None:
+        """Set <bank>_tone only when tone is non-empty and not already set.
+
+        Mirrors the gateway's clobber-safe rule so a tone-less RateDecision
+        never wipes a tone the speeches/guidance already established.
+        """
+        if not bank or not tone:
+            return
+        key = f"{bank.lower()}_tone"
+        if key in signals and not signals[key]:
+            signals[key] = tone
 
     # Central bank signals.
     cb = macro.get("central_bank")
@@ -52,11 +77,8 @@ def derive_macro_signals(macro: dict) -> dict:
                 if not isinstance(item, dict):
                     continue
                 bank = (item.get("bank") or "").upper()
-                tone = (item.get("tone") or "NEUTRAL").upper()
-                if bank == "FED" and not signals["fed_tone"]:
-                    signals["fed_tone"] = tone
-                elif bank == "ECB" and not signals["ecb_tone"]:
-                    signals["ecb_tone"] = tone
+                tone = (item.get("tone") or "").upper()
+                _set_bank_tone(bank, tone)
                 policy = (item.get("monetary_policy_action") or "NONE").upper()
                 if policy in ("QE", "QT"):
                     signals["has_qe_qt"] = True
@@ -76,21 +98,28 @@ def derive_macro_signals(macro: dict) -> dict:
                 signals["balance_sheet_direction"] = (
                     "EXPANDING" if action_type == "QE" else "CONTRACTING"
                 )
+        rate_change_seen: set[str] = set()
         for decision in cb.get("rate_decisions") or []:
             if not isinstance(decision, dict):
                 continue
             bank = (decision.get("bank") or "").upper()
-            tone = (decision.get("tone") or "NEUTRAL").upper()
-            if bank == "FED":
-                signals["fed_tone"] = tone
-            elif bank == "ECB":
-                signals["ecb_tone"] = tone
+            tone = (decision.get("tone") or "").upper()
+            _set_bank_tone(bank, tone)
             bps = decision.get("rate_change_bps") or decision.get("change") or 0
             try:
-                if float(bps) != 0:
-                    signals["has_rate_decision"] = True
+                bps_val = float(bps)
             except (ValueError, TypeError):
-                pass
+                bps_val = 0.0
+            # rate_decisions is newest-first; record the change direction from
+            # the FIRST (newest) nonzero decision per bank so a multi-year
+            # history does not overwrite the latest move with a stale one.
+            # has_rate_change is the gateway's rate-CHANGE flag; the
+            # calendar-driven has_rate_decision is set in the calendar block.
+            if bps_val != 0 and bank not in rate_change_seen:
+                rate_change_seen.add(bank)
+                signals["has_rate_change"] = True
+                signals["rate_change_bank"] = bank
+                signals["rate_change_direction"] = "hike" if bps_val > 0 else "cut"
             policy = (decision.get("monetary_policy_action") or "NONE").upper()
             if policy in ("QE", "QT"):
                 signals["has_qe_qt"] = True

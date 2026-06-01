@@ -98,6 +98,10 @@ class Settings(BaseSettings):
     fred_api_key: str = Field(default="", description="FRED (St. Louis Fed) API key")
     fred_base_url: str = "https://api.stlouisfed.org/fred"
 
+    # Yahoo Finance chart API — gold/silver spot-futures (free, no key).
+    # FRED has no usable metals series; Yahoo GC=F/SI=F do.
+    yahoo_finance_base_url: str = "https://query1.finance.yahoo.com"
+
     # OECD Data Explorer — non-US economic data (free, no key required)
     oecd_api_base_url: str = "https://sdmx.oecd.org/public/rest/data"
 
@@ -119,14 +123,6 @@ class Settings(BaseSettings):
     # guard inert.
     forexfactory_calendar_url: str = (
         "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
-    )
-
-    # ── Commodity Proxy URLs (free, no API key) ───────────────────────
-    iron_ore_price_url: str = (
-        "https://markets.businessinsider.com/commodities/iron-ore-price"
-    )
-    dairy_gdt_price_url: str = (
-        "https://www.globaldairytrade.info/en/gdt-events/summary-results/"
     )
 
     # ── Polling Intervals (seconds) ──────────────────────────

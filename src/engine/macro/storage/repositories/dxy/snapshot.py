@@ -22,22 +22,6 @@ class DXYRepository(BaseRepository[DXYSnapshotRow]):
         result = await self.execute_query(stmt)
         return result[0] if result else None
 
-    async def get_history(
-        self,
-        *,
-        since: datetime,
-        limit: int = 100,
-    ) -> Sequence[DXYSnapshotRow]:
-        stmt = (
-            select(self.model)
-            .where(
-                self.model.analyzed_at >= since,
-            )
-            .order_by(self.model.analyzed_at.desc())
-            .limit(limit)
-        )
-        return await self.execute_query(stmt)
-
     async def get_recent_values(
         self,
         limit: int = 20,
