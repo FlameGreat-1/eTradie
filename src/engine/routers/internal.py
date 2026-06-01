@@ -474,6 +474,22 @@ async def internal_processor_process(
 
     try:
         processor_input = ProcessorInput(**body.processor_input)
+
+        cache = getattr(container, "cache", None)
+        _proc_symbol = getattr(processor_input, "symbol", "") or ""
+        if cache is not None and user_id:
+            try:
+                _proc_pulse = PulsePublisher(
+                    cache=cache, user_id=user_id, symbol=_proc_symbol
+                )
+            except Exception:  # noqa: BLE001 - pulse must never break the LLM call
+                _proc_pulse = NoOpPulse()
+        else:
+            _proc_pulse = NoOpPulse()
+        await _proc_pulse.emit(
+            "REASONING", "AI processor analyzing setup", source="processor"
+        )
+
         result = await processor.process(
             processor_input,
             user_id=user.user_id,
