@@ -22,22 +22,6 @@ class IntermarketRepository(BaseRepository[IntermarketSnapshotRow]):
         result = await self.execute_query(stmt)
         return result[0] if result else None
 
-    async def get_daily_history(
-        self,
-        *,
-        since: datetime,
-        limit: int = 30,
-    ) -> Sequence[IntermarketSnapshotRow]:
-        stmt = (
-            select(self.model)
-            .where(
-                self.model.snapshot_at >= since,
-            )
-            .order_by(self.model.snapshot_at.desc())
-            .limit(limit)
-        )
-        return await self.execute_query(stmt)
-
     async def upsert_snapshot(
         self,
         *,

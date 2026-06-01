@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Sequence
 
 from sqlalchemy import func, select
 
