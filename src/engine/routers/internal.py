@@ -183,13 +183,32 @@ async def internal_ta_analyze(
             "overall_trend": "NEUTRAL",
         }
 
+    def _build_pulse(symbol: str):
+        """Per-symbol pulse publisher for the gateway-driven path.
+
+        The gateway already forwards X-User-Id, so we can broadcast on
+        the user's private SSE channel exactly like the manual rerun
+        endpoint. Falls back to NoOpPulse when the cache is missing so
+        a transient cache outage never affects analysis.
+        """
+        cache = getattr(container, "cache", None)
+        if cache is None or not user_id:
+            return NoOpPulse()
+        try:
+            return PulsePublisher(cache=cache, user_id=user_id, symbol=symbol)
+        except Exception:  # noqa: BLE001 - pulse must never break analysis
+            return NoOpPulse()
+
     async def _analyze_one(symbol: str) -> dict:
         async with semaphore:
+            pulse = _build_pulse(symbol)
+            await pulse.emit("LOADING", f"Preparing analysis for {symbol}")
             try:
                 return await container.ta_orchestrator.analyze(
                     symbol=symbol,
                     broker_client=user_broker,
                     user_id=user_id,
+                    pulse=pulse,
                 )
             except Exception as exc:  # noqa: BLE001 - per-symbol isolation
                 return _error_result(symbol, exc)
