@@ -156,17 +156,18 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
     };
   }
 
-  // If the stream switches to a new symbol, or signals the start of a new analysis 
-  // with a 'status' frame, we must reset the progressively accumulated text.
-  const isNewStream = frame.type === 'status' || (frame.symbol && state.symbol && frame.symbol !== state.symbol);
-  const currentReasoning = isNewStream ? '' : state.reasoning;
-  const currentAnalysisId = isNewStream ? null : state.analysisId;
-  // Reset pulses on new stream start.
-  const currentPulses = isNewStream ? [] : state.pulses;
+  // A 'status' frame signals the start of a fresh reasoning stream, so
+  // we reset the progressively accumulated reasoning text. Pulses are
+  // symbol-scoped and owned solely by the pulse branch above; the
+  // status/reasoning/final/error cases must NOT clear them or a
+  // concurrently-analysed symbol's rows would be erased.
+  const isNewReasoning = frame.type === 'status';
+  const currentReasoning = isNewReasoning ? '' : state.reasoning;
+  const currentAnalysisId = isNewReasoning ? null : state.analysisId;
 
   switch (frame.type) {
     case 'status':
-      return { ...state, isStreaming: true, symbol, status: frame.message, error: null, reasoning: currentReasoning, analysisId: currentAnalysisId, pulses: currentPulses };
+      return { ...state, isStreaming: true, symbol, status: frame.message, error: null, reasoning: currentReasoning, analysisId: currentAnalysisId };
     case 'reasoning_chunk':
       return {
         ...state,
@@ -176,14 +177,17 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
         status: 'Generating AI Strategy...',
         error: null,
         analysisId: currentAnalysisId,
-        pulses: currentPulses,
       };
     case 'final':
-      // Keep the final reasoning on screen; the overlay stays visible
-      // until the user dismisses it or a new cycle replaces the state.
-      return { ...state, isStreaming: false, symbol, status: 'Analysis Complete', error: null, reasoning: currentReasoning, analysisId: currentAnalysisId, pulses: currentPulses };
+      // Per-symbol completion marker on a shared per-user channel.
+      // Keep the reasoning on screen and the stream alive (other
+      // symbols may still be processing); only update the status label.
+      // isStreaming stays true until the transport closes or an error
+      // frame arrives, so the live indicators keep animating for any
+      // still-in-flight symbol.
+      return { ...state, symbol, status: 'Analysis Complete', error: null, reasoning: currentReasoning, analysisId: currentAnalysisId };
     case 'error':
-      return { ...state, isStreaming: false, symbol, status: 'Error', error: frame.message, reasoning: currentReasoning, analysisId: currentAnalysisId, pulses: currentPulses };
+      return { ...state, isStreaming: false, symbol, status: 'Error', error: frame.message, reasoning: currentReasoning, analysisId: currentAnalysisId };
     default:
       return state;
   }
