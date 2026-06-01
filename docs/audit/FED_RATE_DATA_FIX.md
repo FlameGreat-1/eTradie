@@ -36,29 +36,43 @@ model, and the collector's rate-decision branch were effectively dead code.
 
 ## Fix
 
-Added `FedRateProvider` (`providers/central_bank/fed_rate.py`) sourcing the
-authoritative machine-readable target rate the Fed publishes via FRED:
+Added a reusable `BaseFREDRateProvider` (`providers/central_bank/fed_rate.py`)
+sourcing the authoritative machine-readable policy rate the central banks
+publish via FRED, with two concrete providers:
 
-- `DFEDTARU` -- Federal Funds Target Range, Upper Limit (headline ceiling).
-- `DFEDTARL` -- Federal Funds Target Range, Lower Limit.
+- `FedRateProvider` -- US Fed funds target *range*: `DFEDTARU` (upper limit /
+  headline ceiling) + `DFEDTARL` (lower limit, logged for context).
+- `ECBRateProvider` -- ECB Deposit Facility Rate `ECBDFR` (the EUR policy rate
+  markets watch; no range, so no lower series).
 
-These daily series only step on an FOMC decision, so the most recent change in
-the upper-limit series IS the latest rate decision. The provider finds the two
-most recent distinct levels and emits a single `RateDecision` with the current
-rate, the previous rate, the bps change, and the effective decision date.
+These daily series only step on a policy decision, so each level transition IS
+a real decision. The provider fetches ~4 years (1500 daily obs), compresses the
+series to its distinct level transitions, and emits ONE `RateDecision` per
+decision, ordered newest-first. So `rate_decisions` now carries the full
+hiking/cutting *trajectory* (e.g. 0.25 -> 5.50 across 2022-23, then cuts to
+3.75), with element 0 being the current rate. The LLM can reason about where
+we are in the cycle, and -- with both Fed and ECB present -- about the Fed-ECB
+differential that drives EURUSD.
 
 Wired into the `CentralBankCollector` provider list in `dependencies.py`
-(reusing the existing `fred_api_key` / `fred_base_url` settings). No collector
-or gateway changes were required -- the existing `RateDecision` categorization
-and opaque gateway forwarding carry the data to the LLM unchanged.
+(reusing the existing `fred_api_key` / `fred_base_url` settings). No
+model/dataset/migration/collector/gateway/prompt changes were required -- the
+existing `RateDecision` categorization, the DB upsert (deduped per
+`decision_date`), the cache/snapshot durability, and the gateway's opaque
+forwarding of `macro_analysis` (serialised generically in
+`processor/prompts/system_prompt.py::build_user_message`) all carry the full
+series to the LLM unchanged.
 
 ## Scope / limitations
 
-- US only. Other central banks have no equivalent free structured target-rate
-  series, so they keep providing tone/QE-QT from RSS. (ECB rate could later be
-  added from ECB SDW; out of scope here.)
-- When the FRED key is unset or the series is unavailable, the provider returns
-  no decision (non-fatal): the tone-only signal remains intact.
-- A flat-rate window (no change in the lookback) reports the current level with
-  `rate_change_bps = 0` so the LLM still receives the authoritative current
-  rate.
+- Fed + ECB only. Other central banks have no equivalent free structured
+  target-rate series on FRED, so they keep providing tone/QE-QT from RSS.
+- When the FRED key is unset or a series is unavailable, that provider returns
+  no decisions (non-fatal): the tone-only signal remains intact.
+- The oldest level in the lookback window is anchored with
+  `rate_previous == rate_current` and `0` bps (no prior reference inside the
+  window), so the LLM always has the earliest level in the series.
+- EFFR (NY Fed effective rate) was deliberately NOT added: it is a lagging
+  daily average that only moves with the target range and carries no
+  independent tradeable signal between FOMC decisions. The target range is the
+  correct rate datum for the platform.
