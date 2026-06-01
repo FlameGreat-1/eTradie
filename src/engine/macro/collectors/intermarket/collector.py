@@ -173,6 +173,7 @@ class IntermarketCollector(BaseCollector):
 
         snapshot = _merge_snapshots(snapshots)
 
+        correlation_signals: dict[str, Any] | None = None
         if snapshot:
             correlation_signals = _compute_correlation_signals(snapshot)
 
@@ -202,6 +203,7 @@ class IntermarketCollector(BaseCollector):
             snapshots=[snapshot] if snapshot else [],
             latest=snapshot,
             sources=[p.provider_name for p in self._providers],
+            correlation_signals=correlation_signals,
             collected_at=datetime.now(UTC),
         )
         await self._cache.set(
