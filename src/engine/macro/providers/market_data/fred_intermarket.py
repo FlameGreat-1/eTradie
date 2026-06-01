@@ -38,15 +38,16 @@ from engine.macro.providers.market_data.base import BaseMarketDataProvider
 
 logger = get_logger(__name__)
 
-# snapshot field -> FRED series id (placeholder line; replaced below). All operator-verified to return real values.
+# snapshot field -> FRED series id. All operator-verified to return real values.
 #
 # Daily series: DTWEXBGS, DGS2/10/30, VIXCLS, SP500, DCOILWTICO, DHHNGSP.
 # Monthly IMF series (slower cadence, fine for macro context): PIORECRUSDM
 # (iron ore, $/tonne), PCOPPUSDM (copper, $/tonne).
 #
-# Intentionally absent (no verified FRED source -> left None, never guessed):
-# gold, silver, dairy. Note IR14260 was rejected as a "gold" source: it returns
-# ~271 which is NOT a gold price.
+# Gold and silver come from the Yahoo metals provider (FRED has no usable
+# series for them). Dairy has no verified source and is left None (never
+# guessed). IR14260 was rejected as a "gold" source: it returns ~271, which is
+# NOT a gold price.
 _SERIES: dict[str, str] = {
     "dxy_value": "DTWEXBGS",
     "us2y_yield": "DGS2",
