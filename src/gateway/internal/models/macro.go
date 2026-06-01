@@ -14,6 +14,13 @@ type MacroResult struct {
 	CollectedAt time.Time              `json:"collected_at"`
 	DurationMs  float64                `json:"duration_ms"`
 	Errors      map[string]string      `json:"errors"`
+
+	// FromCache is true when served from the Redis cache rather than
+	// freshly collected by the engine. Not persisted (json:"-"). The
+	// orchestrator reads it to emit a truthful "served from cache"
+	// pulse instead of the per-collector CLAUDING feed, which only runs
+	// on a cache miss.
+	FromCache bool `json:"-"`
 }
 
 // datasetNames is the ordered list of macro dataset field names.

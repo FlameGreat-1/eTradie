@@ -125,6 +125,7 @@ func (c *MacroCollector) getFromCache(ctx context.Context, traceID string) *mode
 	c.log.Info().
 		Str("trace_id", traceID).
 		Msg("macro_result_served_from_cache")
+	result.FromCache = true
 	return &result
 }
 
