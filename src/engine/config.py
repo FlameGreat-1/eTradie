@@ -111,8 +111,15 @@ class Settings(BaseSettings):
     rbnz_rss_url: str = "https://www.rbnz.govt.nz/rss/news"
     snb_rss_url: str = "https://www.snb.ch/en/mmr/reference/rss_en/source/rss_en.rss"
 
-    # ── RSS Feed URLs — Economic Calendar ─────────────────────────────
-    investing_calendar_rss_url: str = "https://www.investing.com/rss/news_285.rss"
+    # ── Economic Calendar ─────────────────────────────────────────────
+    # Forex Factory official weekly calendar JSON (faireconomy CDN, no key).
+    # Carries scheduled FUTURE event times + impact + currency, which the
+    # news-blackout guard requires. Replaced the Investing.com news RSS feed,
+    # whose event_time was the article publish time (always past), leaving the
+    # guard inert.
+    forexfactory_calendar_url: str = (
+        "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+    )
 
     # ── Commodity Proxy URLs (free, no API key) ───────────────────────
     iron_ore_price_url: str = (

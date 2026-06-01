@@ -19,8 +19,8 @@ from engine.macro.collectors.dxy.collector import DXYCollector
 from engine.macro.collectors.economic_data.collector import EconomicDataCollector
 from engine.macro.collectors.intermarket.collector import IntermarketCollector
 from engine.macro.collectors.sentiment.collector import SentimentCollector
-from engine.macro.providers.calendar.investing_rss import (
-    InvestingRSSCalendarProvider,
+from engine.macro.providers.calendar.forexfactory import (
+    ForexFactoryCalendarProvider,
 )
 from engine.macro.providers.central_bank.boc_rss import BOCRSSProvider
 from engine.macro.providers.central_bank.boe_rss import BOERSSProvider
@@ -357,11 +357,11 @@ class Container:
         for p in (self.twelve_data_provider, self.commodity_proxy_provider):
             self.registry.register(p)
 
-        self.investing_cal_provider = InvestingRSSCalendarProvider(
-            r,
-            feed_url=s.investing_calendar_rss_url,
+        self.forexfactory_cal_provider = ForexFactoryCalendarProvider(
+            h,
+            feed_url=s.forexfactory_calendar_url,
         )
-        self.registry.register(self.investing_cal_provider)
+        self.registry.register(self.forexfactory_cal_provider)
 
     def _build_collectors(self) -> None:
         s = self.settings
@@ -407,7 +407,7 @@ class Container:
         )
         self.economic_collector.cache_ttl = s.cache_ttl_economic_data
 
-        self.calendar_collector = CalendarCollector([self.investing_cal_provider], c, d)
+        self.calendar_collector = CalendarCollector([self.forexfactory_cal_provider], c, d)
         self.calendar_collector.cache_ttl = s.cache_ttl_calendar
 
         self.dxy_collector = DXYCollector(

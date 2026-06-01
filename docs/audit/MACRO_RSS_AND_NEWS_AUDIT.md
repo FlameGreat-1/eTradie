@@ -52,16 +52,18 @@ Why this is NOT patched in code here (honest scope):
   safe code patch, so it is tracked here for an explicit owner decision rather
   than guessed.
 
-Required remediation (for the owner):
-1. Replace `INVESTING_CALENDAR_RSS_URL` with a feed/API that carries scheduled
-   FUTURE event times (and ideally explicit impact + currency fields).
-2. Update `InvestingRSSCalendarProvider` (or a new structured provider) to set
-   `event_time` to the scheduled event time, not the article publish time.
-3. Keep the gateway guard as-is -- it is correct and already fails closed on
-   missing data.
+## Finding 10 -- RESOLVED
 
-Interim safety posture until then: the guard fails closed only when the
-calendar dataset is ABSENT. Operators who want hard safety today can disable
-the calendar collector (so calendar is nil -> guard locks out, fail-closed) or
-accept that news lockout is not enforced. This trade-off must be an explicit
-operator decision.
+Replaced the Investing.com news-RSS calendar source with
+`ForexFactoryCalendarProvider`, which consumes Forex Factory's official weekly
+calendar JSON (`https://nfs.faireconomy.media/ff_calendar_thisweek.json`).
+Each entry carries the real SCHEDULED event time (ISO-8601 with tz offset,
+normalised to UTC), the currency, and the impact (High/Medium/Low; "Holiday"
+mapped to LOW so a market holiday never trips the HIGH-impact lockout). Entries
+for unsupported currency codes (e.g. CNY) are skipped.
+
+With real future event times, `EvaluateNewsWindow` now computes a correct
+positive `minutesUntil` and the high-impact news lockout fires as designed. The
+gateway guard was unchanged -- it was always correct and only lacked real data.
+The dead `InvestingRSSCalendarProvider` and its `investing_calendar_rss_url`
+config were removed.
