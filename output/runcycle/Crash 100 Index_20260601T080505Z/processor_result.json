@@ -1,0 +1,235 @@
+{
+  "analysis_id": "CRASH 100 INDEX_QML_KILLER_TYPE1_BEARISH_100719.805",
+  "confidence": 0.85,
+  "confluence_score": 8,
+  "direction": "SHORT",
+  "entry_price": 100723.82149999999,
+  "execution_mode": "LIMIT",
+  "grade": "A",
+  "ltf_confirmed": false,
+  "raw_response": {
+    "_llm_model": "gemini-3.5-flash",
+    "_llm_provider": "gemini",
+    "analysis_id": "analysis_crash100_20260601_0803_a1b2",
+    "audit": {
+      "citations": [
+        {
+          "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+          "doc_id": "master_rulebook.md",
+          "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+        },
+        {
+          "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+          "doc_id": "trading_style_rules.md",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "retrieval": {
+        "chunks_returned": [
+          {
+            "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+            "doc_id": "master_rulebook.md",
+            "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+          },
+          {
+            "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+            "doc_id": "trading_style_rules.md",
+            "section": "6. Risk Management Rules"
+          }
+        ],
+        "query_summary": "Retrieve rules for SMC and SnD confluence, risk management, and trading style constraints.",
+        "strategy_used": "Vector search with metadata filtering",
+        "top_k": 8
+      }
+    },
+    "confidence": "HIGH",
+    "confluence_score": {
+      "factors": [
+        {
+          "name": "Macro bias alignment",
+          "notes": "Aligned/neutral for synthetic index",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "HTF structure aligned",
+          "notes": "D1 and H12 are bearish, overall trend is bearish",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "MTF structure aligned",
+          "notes": "M30 and M15 are bearish",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Valid Structural Entry Support",
+          "notes": "M1 bearish supply zone and order block present",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Liquidity sweep into entry zone",
+          "notes": "M1 BSL sweep detected",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "COT alignment",
+          "notes": "N/A for synthetic index",
+          "present": false,
+          "value": 0
+        },
+        {
+          "name": "Wyckoff phase",
+          "notes": "Markdown phase supported",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "No high-impact news",
+          "notes": "No news for synthetic indices",
+          "present": true,
+          "value": 1
+        },
+        {
+          "name": "Minimum R:R achievable",
+          "notes": "6.77R achievable to TP3",
+          "present": true,
+          "value": 1
+        }
+      ],
+      "score": 8
+    },
+    "cot_signal": {
+      "evidence": [],
+      "extreme_flag": false,
+      "summary": "N/A for synthetic indices",
+      "week_over_week": null
+    },
+    "created_at": "2026-06-01T08:03:00Z",
+    "direction": "SHORT",
+    "dxy_bias": {
+      "direction": "NEUTRAL",
+      "evidence": []
+    },
+    "entry_setup": {
+      "bounds": [
+        100710.795,
+        100727.838
+      ],
+      "evidence": [
+        {
+          "chunk_id": "c1aa7cf1-d59f-4b16-9bcc-1c8d4707e8df",
+          "content_preview": "SnD: QML + SR/RS Flip + Fakeout patterns",
+          "doc_id": "snd_framework.md",
+          "rule_id": "STYLE-SETUP-001",
+          "section": "4. Permitted Setup Types"
+        }
+      ],
+      "quality": "A",
+      "type": "SnD",
+      "zone_id": "CRASH 100 INDEX_QML_KILLER_TYPE1_BEARISH_100719.805"
+    },
+    "entry_zone": {
+      "high": 100727.838,
+      "low": 100719.805
+    },
+    "event_risk": [],
+    "execution_mode": "LIMIT",
+    "explainable_reasoning": "The Crash 100 Index is in a dominant HTF bearish trend (D1 and H12 are bearish). Price has pulled back into a D1 bearish FVG (100664.964 to 100936.482), representing a high-probability Pro-Trend Reversal zone. On the lower timeframes, structure has shifted bearish with M30, M15, M5, and M1 all aligned bearish. A high-conviction SnD candidate has printed on the M1 timeframe: CRASH 100 INDEX_QML_KILLER_TYPE1_BEARISH_100719.805. This pattern is a verified QML+MPL+SR_FLIP+FAKEOUT+MARUBOZU setup with 11 confluences. The entry price is set at 100719.805, with a structural stop loss placed at 100731.245 (above the fakeout level and QML price). The take profit targets are constructed structurally: TP1 at 100694.902 (M1 swing low), TP2 at 100685.485 (the candidate's target), and TP3 at 100642.255 (M1 major swing low), achieving a highly favorable 6.77R ratio. This setup meets all mandatory confluence requirements and is graded as an A setup.",
+    "htf_bias": {
+      "key_levels": [
+        100377.495,
+        101348.961
+      ],
+      "notes": "D1 and H12 are bearish. Price is reacting off a D1 bearish FVG.",
+      "structure": "bearish"
+    },
+    "id": "d3b07384-d113-4b16-9bcc-1c8d4707e8df",
+    "ltf_confirmed": false,
+    "macro_bias": {
+      "base_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      },
+      "quote_currency": {
+        "bias": "NEUTRAL",
+        "evidence": []
+      }
+    },
+    "mtf_bias": {
+      "key_levels": [
+        100857.021,
+        100978.326
+      ],
+      "notes": "M30 and M15 are bearish, aligning with the HTF bearish trend.",
+      "structure": "bearish"
+    },
+    "pair": "Crash 100 Index",
+    "proceed_to_module_b": "YES",
+    "rag_sources": [
+      {
+        "chunk_id": "13390f2c-9042-4b40-8319-6d154323f03a",
+        "doc_id": "master_rulebook.md",
+        "section": "SECTION 4 \u2014 GLOBAL CONFLUENCE FRAMEWORK"
+      },
+      {
+        "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+        "doc_id": "trading_style_rules.md",
+        "section": "6. Risk Management Rules"
+      }
+    ],
+    "rr_ratio": 6.77,
+    "session": "LONDON_OPEN",
+    "setup_grade": "A",
+    "stop_loss": {
+      "evidence": [
+        {
+          "chunk_id": "6b6e48f7-47e8-4a71-8e29-99fdc8b6ced8",
+          "content_preview": "SL must be structural \u2014 placed beyond the invalidation level of the setup",
+          "doc_id": "trading_style_rules.md",
+          "rule_id": "STYLE-RISK-003",
+          "section": "6. Risk Management Rules"
+        }
+      ],
+      "price": 100731.245,
+      "reason": "Placed above the fakeout level and QML price to ensure structural invalidation."
+    },
+    "take_profits": [
+      {
+        "basis": "M1 swing low",
+        "level": 100694.902,
+        "size_pct": 40
+      },
+      {
+        "basis": "Candidate target level",
+        "level": 100685.485,
+        "size_pct": 30
+      },
+      {
+        "basis": "M1 major swing low",
+        "level": 100642.255,
+        "size_pct": 30
+      }
+    ],
+    "timestamp": "2026-06-01T08:03:00Z",
+    "trading_style": "INTRADAY",
+    "wyckoff_phase": {
+      "evidence": [],
+      "phase": "markdown"
+    }
+  },
+  "reasoning": "The Crash 100 Index is in a dominant HTF bearish trend (D1 and H12 are bearish). Price has pulled back into a D1 bearish FVG (100664.964 to 100936.482), representing a high-probability Pro-Trend Reversal zone. On the lower timeframes, structure has shifted bearish with M30, M15, M5, and M1 all aligned bearish. A high-conviction SnD candidate has printed on the M1 timeframe: CRASH 100 INDEX_QML_KILLER_TYPE1_BEARISH_100719.805. This pattern is a verified QML+MPL+SR_FLIP+FAKEOUT+MARUBOZU setup with 11 confluences. The entry price is set at 100719.805, with a structural stop loss placed at 100731.245 (above the fakeout level and QML price). The take profit targets are constructed structurally: TP1 at 100694.902 (M1 swing low), TP2 at 100685.485 (the candidate's target), and TP3 at 100642.255 (M1 major swing low), achieving a highly favorable 6.77R ratio. This setup meets all mandatory confluence requirements and is graded as an A setup.",
+  "rejection_rules": [],
+  "risk_percentage": 1,
+  "rr_ratio": 6.77,
+  "session": "LONDON_OPEN",
+  "setup_type": "SnD",
+  "stop_loss": 100731.245,
+  "symbol": "Crash 100 Index",
+  "take_profit": 100642.255,
+  "trade_valid": true,
+  "trading_style": "INTRADAY"
+}
