@@ -10,6 +10,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useNotificationsSocket } from './useNotificationsSocket';
 import { applyEventInvalidations } from './eventMap';
+import { presentUserEvent } from './eventPresentation';
 import { RealtimeContext, type RealtimeContextValue } from './context';
 import type { RealtimeEvent } from './types';
 import { toast } from '@/hooks/useToast';
@@ -96,13 +97,21 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
           /* SSR or non-DOM env: dispatch is a best-effort optimisation */
         }
       } else if (event.severity === 'WARNING' || event.severity === 'ERROR') {
-        // Show generic destructive toast for any other WARNING / ERROR
-        // event that does not have a dedicated modal.
-        toast({
-          title: event.type.replace(/_/g, ' '),
-          description: event.message || 'An important event occurred.',
-          variant: 'destructive',
-        });
+        // Curated, user-facing copy only — NEVER the raw event.type or
+        // raw backend message (those carry internal plumbing). The
+        // shared presenter suppresses operational/infra failures from
+        // the toast (isOperational) and maps everything else to
+        // friendly copy, with a non-technical generic fallback so
+        // nothing internal can leak. Single source of truth shared
+        // with the notifications dropdown.
+        const presented = presentUserEvent(event.type as string, event.severity);
+        if (!presented.isOperational) {
+          toast({
+            title: presented.title,
+            description: presented.description,
+            variant: 'destructive',
+          });
+        }
       }
 
       // 3. Fan out to component subscribers.

@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Inbox, AlertTriangle, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { useRecentEvents } from '@/features/alerts/api/events';
+import { presentUserEvent } from '@/features/realtime/eventPresentation';
 import { formatRelativeTime } from '@/utils/formatters';
 
 const LAST_SEEN_KEY = 'notifications_last_seen_id';
@@ -34,8 +35,15 @@ function getEventTime(e: EventLike): string | undefined {
   return e.created_at ?? e.timestamp;
 }
 
-function getEventTitle(e: EventLike): string {
-  return e.title ?? e.type ?? 'Event';
+/**
+ * User-facing copy for a stored event. NEVER returns the raw event type
+ * or raw backend message — those carry internal plumbing (HTTP status,
+ * engine_http chains, exception text). Delegates to the shared presenter
+ * so the dropdown and the live toast render identical friendly copy.
+ */
+function presentEvent(e: EventLike): { title: string; description: string } {
+  const presented = presentUserEvent(e.type, e.severity);
+  return { title: presented.title, description: presented.description };
 }
 
 function severityIcon(sev?: string) {
@@ -261,6 +269,7 @@ function NotificationsPanelInner() {
                   const isUnread =
                     !lastSeenId ||
                     eventList.findIndex((x) => getEventId(x) === lastSeenId) > idx;
+                  const presented = presentEvent(e);
                   return (
                     <li
                       key={id}
@@ -272,7 +281,7 @@ function NotificationsPanelInner() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] font-bold text-content truncate uppercase tracking-tight">
-                            {getEventTitle(e)}
+                            {presented.title}
                           </span>
                           {e.symbol && (
                             <span className="text-[9px] font-black text-content-muted px-1.5 py-0.5 rounded bg-surface-3 uppercase">
@@ -280,11 +289,9 @@ function NotificationsPanelInner() {
                             </span>
                           )}
                         </div>
-                        {e.message && (
-                          <p className="text-[11px] font-medium text-content-secondary mt-1 line-clamp-2">
-                            {e.message}
-                          </p>
-                        )}
+                        <p className="text-[11px] font-medium text-content-secondary mt-1 line-clamp-2">
+                          {presented.description}
+                        </p>
                         <span className="text-[9px] font-black uppercase tracking-widest text-content-muted mt-2 inline-block">
                           {formatRelativeTime(getEventTime(e))}
                         </span>
