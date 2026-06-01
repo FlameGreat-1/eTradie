@@ -41,6 +41,9 @@ import { useAuth } from '@/features/auth';
  * updating sub-step message.
  */
 export interface PulseEntry {
+  /** Symbol this row belongs to. Concurrent multi-symbol cycles keep
+   *  distinct rows so one symbol's phase never overwrites another's. */
+  symbol: string;
   /** Hacker-verb category (SHARDING, DETECTING, CLAUDING, …). */
   phase: string;
   /** Current sub-step text that updates in-place. */
@@ -124,20 +127,21 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
     const startingFresh = !state.isStreaming;
     const basePulses = startingFresh ? [] : state.pulses;
 
+    const pulseSymbol = frame.symbol ?? state.symbol ?? '';
     const existing = basePulses.findIndex(
-      (p) => p.phase === phase && p.source === source,
+      (p) => p.symbol === pulseSymbol && p.phase === phase && p.source === source,
     );
     let nextPulses: PulseEntry[];
     if (existing >= 0) {
-      // In-place update: swap the sub-step text.
+      // In-place update: swap the sub-step text for this symbol's row.
       nextPulses = basePulses.map((p, i) =>
         i === existing ? { ...p, message, completed } : p,
       );
     } else {
-      // New phase row.
+      // New phase row scoped to this symbol.
       nextPulses = [
         ...basePulses,
-        { phase, message, source, completed, seq: ++_pulseSeq },
+        { symbol: pulseSymbol, phase, message, source, completed, seq: ++_pulseSeq },
       ];
     }
     return {
