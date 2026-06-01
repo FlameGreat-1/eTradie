@@ -126,7 +126,6 @@ def _patch_snapshot_repo(monkeypatch):
 # ── Tests ───────────────────────────────────────────────────────────────
 
 
-@pytest.mark.asyncio
 async def test_cache_miss_serves_last_good_snapshot_not_empty():
     """Cache miss + persisted snapshot -> rehydrated dataset, never empty."""
     _FakeSnapshotRepo.payload_by_namespace = {
@@ -140,7 +139,6 @@ async def test_cache_miss_serves_last_good_snapshot_not_empty():
     assert result.value == 42  # last-good snapshot, NOT the empty value 0
 
 
-@pytest.mark.asyncio
 async def test_cache_miss_dict_collector_returns_raw_snapshot():
     """cache_model unset (sentiment): raw snapshot dict is returned as-is."""
     _FakeSnapshotRepo.payload_by_namespace = {
@@ -153,7 +151,6 @@ async def test_cache_miss_dict_collector_returns_raw_snapshot():
     assert result == {"hello": "persisted"}
 
 
-@pytest.mark.asyncio
 async def test_cold_start_no_snapshot_falls_back_to_empty():
     """No cache, no snapshot -> _empty_dataset() exactly once."""
     c = _ModelCollector([], _FakeCache(), _FakeDB())
@@ -164,7 +161,6 @@ async def test_cold_start_no_snapshot_falls_back_to_empty():
     assert result.value == 0  # empty fallback
 
 
-@pytest.mark.asyncio
 async def test_force_refresh_persists_snapshot():
     """refresh() (force) runs _do_collect and persists the snapshot."""
     c = _ModelCollector([], _FakeCache(), _FakeDB(), do_collect_value=7)
