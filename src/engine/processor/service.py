@@ -347,7 +347,28 @@ class AnalysisProcessor(ProcessorPort):
             prompts_dir.mkdir(parents=True, exist_ok=True)
             (prompts_dir / "system_prompt.txt").write_text(system_prompt, encoding="utf-8")
             (prompts_dir / "user_message.txt").write_text(user_message, encoding="utf-8")
-            logger.info("prompt_payload_saved", extra={"directory": str(prompts_dir), "symbol": symbol, "trace_id": trace_id})
+            # Diagnostic: identify WHICH invocation produced this dump so
+            # duplicate dumps for a single trigger can be correlated.
+            _meta = context.metadata if isinstance(context.metadata, dict) else {}
+            (prompts_dir / "meta.txt").write_text(
+                "trace_id: {tid}\n"
+                "source: {src}\n"
+                "user_id: {uid}\n"
+                "symbol: {sym}\n"
+                "model: {model}\n"
+                "max_output_tokens: {mot}\n"
+                "prompt_hash: {ph}\n".format(
+                    tid=trace_id or "",
+                    src=_meta.get("source", ""),
+                    uid=user_id,
+                    sym=symbol,
+                    model=self._config.model_name,
+                    mot=self._config.max_output_tokens,
+                    ph=prompt_hash,
+                ),
+                encoding="utf-8",
+            )
+            logger.info("prompt_payload_saved", extra={"directory": str(prompts_dir), "symbol": symbol, "trace_id": trace_id, "source": _meta.get("source", "")})
         except Exception as exc:
             logger.error("failed_to_save_prompt_payload", extra={"error": str(exc), "symbol": symbol, "trace_id": trace_id})
 
