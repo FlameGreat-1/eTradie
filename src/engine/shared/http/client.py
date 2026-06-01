@@ -179,13 +179,6 @@ class HttpClient:
         }
         self._circuits_lock = Lock()
 
-    async def _get_circuit(self, provider_name: str) -> _CircuitBreaker:
-        """Get or create a circuit breaker for the specific provider."""
-        async with self._circuits_lock:
-            if provider_name not in self._circuits:
-                self._circuits[provider_name] = _CircuitBreaker(**self._circuit_kwargs)
-            return self._circuits[provider_name]
-
         logger.info(
             "http_client_initialized",
             extra={
@@ -194,6 +187,13 @@ class HttpClient:
                 "max_response_size": max_response_size,
             },
         )
+
+    async def _get_circuit(self, provider_name: str) -> _CircuitBreaker:
+        """Get or create a circuit breaker for the specific provider."""
+        async with self._circuits_lock:
+            if provider_name not in self._circuits:
+                self._circuits[provider_name] = _CircuitBreaker(**self._circuit_kwargs)
+            return self._circuits[provider_name]
 
     @staticmethod
     def _validate_url(url: str) -> None:
