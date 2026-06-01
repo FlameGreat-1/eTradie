@@ -338,6 +338,9 @@ class TAOrchestrator:
 
             if pulse:
                 await pulse.emit(
+                    "ACTIONING", "Analysis results persisted", completed=True
+                )
+                await pulse.emit(
                     "FERMENTING",
                     f"TA complete — {len(all_smc)} SMC, {len(all_snd)} SnD candidates",
                     completed=True,
