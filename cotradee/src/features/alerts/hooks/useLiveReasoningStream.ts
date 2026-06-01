@@ -180,12 +180,13 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
       };
     case 'final':
       // Per-symbol completion marker on a shared per-user channel.
-      // Keep the reasoning on screen and the stream alive (other
-      // symbols may still be processing); only update the status label.
-      // isStreaming stays true until the transport closes or an error
-      // frame arrives, so the live indicators keep animating for any
-      // still-in-flight symbol.
-      return { ...state, symbol, status: 'Analysis Complete', error: null, reasoning: currentReasoning, analysisId: currentAnalysisId };
+      // Settle isStreaming=false so a single-symbol run stops its live
+      // indicator and shows "Analysis Complete". Pulses are NOT cleared
+      // and the transport is NOT closed: if another symbol in a
+      // multi-symbol cycle is still working, its next pulse/status
+      // frame flips isStreaming back to true (both branches set
+      // isStreaming:true), re-activating the indicator.
+      return { ...state, isStreaming: false, symbol, status: 'Analysis Complete', error: null, reasoning: currentReasoning, analysisId: currentAnalysisId };
     case 'error':
       return { ...state, isStreaming: false, symbol, status: 'Error', error: frame.message, reasoning: currentReasoning, analysisId: currentAnalysisId };
     default:
