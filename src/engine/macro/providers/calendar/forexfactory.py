@@ -142,6 +142,9 @@ class ForexFactoryCalendarProvider(BaseCalendarProvider):
             currency=currency,
             event_time=event_time,
             impact=impact,
+            forecast=str(row.get("forecast", "") or "").strip(),
+            previous=str(row.get("previous", "") or "").strip(),
+            actual=str(row.get("actual", "") or "").strip(),
             source="forexfactory",
         )
 
