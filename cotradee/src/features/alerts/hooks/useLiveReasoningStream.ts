@@ -319,13 +319,20 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
 
           for (const frame of parseSSEBatch(batch)) {
             dispatch({ kind: 'frame', frame });
-            if (frame.type === 'final' || frame.type === 'error') {
+            if (frame.type === 'final') {
+              // Per-symbol completion: refetch the analysis feed so the
+              // new row appears, but KEEP the stream open — other
+              // symbols in a multi-symbol cycle may still be streaming.
               onCompleteRef.current?.();
-              // Close the HTTP side so the server can release its
-              // writer. The outer effect will re-open for the next
-              // cycle. Do NOT reset state here: the reasoning text
-              // must remain on screen until the user dismisses the
-              // overlay.
+              continue;
+            }
+            if (frame.type === 'error') {
+              onCompleteRef.current?.();
+              // error is terminal for the connection. Close the HTTP
+              // side so the server can release its writer. The outer
+              // effect re-opens for the next cycle. Do NOT reset state
+              // here: the reasoning/error stays on screen until the
+              // user dismisses the overlay.
               controller.abort();
               return;
             }
