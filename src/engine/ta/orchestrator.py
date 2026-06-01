@@ -981,8 +981,10 @@ class TAOrchestrator:
             all_sms = sms_bullish + sms_bearish
 
             # ── SMC zones ────────────────────────────────────────────
+            await _p("SHIMMING", f"{tfv} scanning fair value gaps")
             fvgs = self._fvg_detector.detect_fvgs(sequence)
 
+            await _p("SHIMMING", f"{tfv} identifying institutional order blocks")
             order_blocks = []
             for bms_event in all_bms:
                 if bms_event.direction == Direction.BULLISH:
@@ -1021,6 +1023,7 @@ class TAOrchestrator:
                         },
                     )
 
+            await _p("SHIMMING", f"{tfv} detecting breaker blocks")
             breaker_blocks = []
             for ob in order_blocks:
                 breaker = self._breaker_detector.detect_breaker_from_ob(
@@ -1031,6 +1034,7 @@ class TAOrchestrator:
                     breaker_blocks.append(breaker)
 
             # ── SMC liquidity / inducement ───────────────────────────
+            await _p("PONTIFICATING", f"{tfv} detecting inducements")
             inducement_bullish = self._inducement_detector.detect_bullish_inducement(
                 sequence,
                 swing_lows,
@@ -1041,6 +1045,7 @@ class TAOrchestrator:
             )
             all_inducements = inducement_bullish + inducement_bearish
 
+            await _p("PONTIFICATING", f"{tfv} scanning liquidity sweeps")
             liquidity_sweeps = self._sweep_analyzer.detect_sweeps_in_sequence(
                 sequence,
                 swing_highs,
@@ -1066,6 +1071,7 @@ class TAOrchestrator:
                 swing_highs,
             )
 
+            await _p("PONTIFICATING", f"{tfv} mapping QML/QMH levels")
             qml_levels = self._qm_detector.detect_qml(
                 sequence,
                 swing_highs,
@@ -1079,6 +1085,7 @@ class TAOrchestrator:
             all_qm_levels = qml_levels + qmh_levels
 
             # ── SnD supply/demand zones ──────────────────────────────
+            await _p("PONTIFICATING", f"{tfv} building supply/demand zones")
             supply_zones = []
             demand_zones = []
             for qml in qml_levels:
@@ -1104,6 +1111,7 @@ class TAOrchestrator:
                     demand_zones.append(dz)
 
             # ── Fibonacci retracements ───────────────────────────────
+            await _p("PONTIFICATING", f"{tfv} calculating fibonacci retracements")
             fibonacci_retracements = []
             if swing_highs and swing_lows:
                 latest_high = self._swing_analyzer.get_latest_swing_high(
@@ -1122,6 +1130,7 @@ class TAOrchestrator:
                     fibonacci_retracements.append(fib)
 
             # ── Dealing ranges (from session data) ───────────────────
+            await _p("PONTIFICATING", f"{tfv} extracting session dealing ranges")
             dealing_ranges = []
             for session in (Session.ASIA, Session.LONDON, Session.NEW_YORK):
                 session_range = self._session_analyzer.extract_session_range(
