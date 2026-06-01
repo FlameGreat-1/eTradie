@@ -38,9 +38,20 @@ def _entry_guid(entry: Any) -> str:
 
 
 class RSSParser:
+    """Stateless RSS fetch + parse.
+
+    Each call returns the FULL current feed (bounded by ``max_entries``).
+    The parser deliberately keeps NO cross-call state: the macro RSS
+    collectors are point-in-time snapshot producers whose dataset, cache
+    entry, and durable snapshot REPLACE the previous value on every poll,
+    so they must see the complete feed each time. De-duplication for
+    persistence is handled downstream by each collector's natural-key
+    upsert (e.g. calendar: event_name+currency+event_time; central bank:
+    bank+title+event_timestamp), not here.
+    """
+
     def __init__(self, http_client: HttpClient) -> None:
         self._http = http_client
-        self._seen_guids: set[str] = set()
 
     async def fetch_and_parse(
         self,
@@ -69,9 +80,6 @@ class RSSParser:
         entries: list[RSSEntry] = []
         for entry in feed.entries[:max_entries]:
             guid = _entry_guid(entry)
-            if guid in self._seen_guids:
-                continue
-            self._seen_guids.add(guid)
 
             entries.append(
                 RSSEntry(
@@ -90,9 +98,6 @@ class RSSParser:
             "rss_fetched",
             url=url,
             total_entries=len(feed.entries),
-            new_entries=len(entries),
+            parsed_entries=len(entries),
         )
         return entries
-
-    def reset_seen(self) -> None:
-        self._seen_guids.clear()
