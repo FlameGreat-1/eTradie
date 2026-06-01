@@ -83,12 +83,20 @@ with `refresh()`.
 - [x] S8  Tests: tests/macro/collectors/test_read_through_durability.py
           (cache-miss-serves-snapshot, dict path, cold-start-empty,
           refresh-persists, cot _empty_dataset valid). asyncio_mode=auto.
-- [ ] S9  Final consistency pass + open MR; verify diffs; tracker -> DONE.
+- [x] S9  Final consistency pass; MR !49 opened; all diffs verified.
 
 ## Progress marker
 
-COMPLETED: S0-S8.
-NEXT: S9 (open MR, verify all diffs landed, run engine test + alembic).
+DONE: S0-S9. All work landed on branch fix/macro-readthrough-durability
+and opened as MR !49 -> main. Diffs verified via the MR.
+
+Remaining operator action after merge:
+  - run `alembic upgrade head` to apply migration 0031 (macro_snapshots).
+  - redeploy the engine so the startup refresh() warm + read-through take
+    effect.
+First boot after deploy fetches all 7 datasets and persists snapshots;
+from then on every analysis cycle serves COT (and all macro) from cache
+or the durable snapshot, never empty, with zero API calls on the hot path.
 
 ## S9 verification checklist (must confirm before marking DONE)
 - macro_snapshots migration 0031 chains from 0030 (latest) -> yes.
