@@ -1,30 +1,30 @@
-"""Fed funds target-rate provider sourced from FRED.
+"""FRED-sourced central-bank policy-rate provider (Fed + ECB).
 
-The central-bank RSS providers (fed_rss.py and siblings) parse press-release
-headlines: they can classify tone (HAWKISH/DOVISH/NEUTRAL) and QE/QT, but an
-RSS title never carries the numeric policy rate, so they can never construct a
-``RateDecision``. That left ``rate_current`` / ``rate_previous`` /
-``rate_change_bps`` permanently empty on the CentralBankDataSet -- structured
-fields the LLM was meant to reason over but never received.
+The RSS central-bank providers parse press-release headlines: they classify
+tone (HAWKISH/DOVISH/NEUTRAL) and QE/QT, but an RSS title never carries the
+numeric policy rate, so they can never construct a ``RateDecision``. That left
+``rate_current`` / ``rate_previous`` / ``rate_change_bps`` permanently empty on
+the CentralBankDataSet -- structured fields the LLM was meant to reason over
+but never received.
 
-This provider closes that gap using the authoritative machine-readable source
-the Fed itself publishes through FRED:
+This module closes that gap using the authoritative machine-readable series the
+central banks publish through FRED, and goes one step further: instead of a
+single latest decision it emits the FULL sequence of distinct rate changes over
+a multi-year window (newest first). Each policy step becomes one
+``RateDecision`` in the dataset's ``rate_decisions`` list, so the LLM can see
+the entire hiking/cutting trajectory (e.g. 0.25 -> 5.50 across 2022-23, then a
+cut cycle down to 3.75) and reason about where we are in the cycle, not just
+the current level. The first element is always the current rate.
 
-  - ``DFEDTARU`` -- Federal Funds Target Range, Upper Limit (the headline
-    ceiling, e.g. 3.75 for a 3.50-3.75 range).
-  - ``DFEDTARL`` -- Federal Funds Target Range, Lower Limit (e.g. 3.50).
+Series used:
+  - Fed: ``DFEDTARU`` (target range upper limit -- the headline ceiling) and
+    ``DFEDTARL`` (lower limit, logged for context).
+  - ECB: ``ECBDFR`` (Deposit Facility Rate -- the rate markets watch for EUR).
 
-These are daily series whose *level* only moves on an FOMC decision, so the
-most recent change in the upper-limit series is, by construction, the latest
-rate decision. We fetch a short recent window of each, find the two most
-recent distinct levels, and emit a single ``RateDecision`` carrying the
-current rate, the previous rate, and the basis-point change.
-
-Only the United States is covered: the other central banks do not expose an
-equivalent free, structured target-rate series, so they continue to provide
-tone/QE-QT from their RSS feeds. Treated as a central-bank provider (not an
-economic-data provider) because its output is a ``RateDecision`` consumed by
-the CentralBankCollector, which the gateway forwards to the LLM untouched.
+These are daily series whose *level* only steps on a policy decision, so each
+level transition in the series IS a real decision. Failure is non-fatal: the
+CentralBankCollector skips a provider that raises, and a missing FRED key simply
+yields no rate decisions, leaving the tone-only signal intact.
 
 FRED API docs: https://fred.stlouisfed.org/docs/api/fred/
 """
@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Optional
 
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
@@ -43,31 +43,29 @@ from engine.macro.providers.base import BaseProvider
 
 logger = get_logger(__name__)
 
-# Federal Funds target *range* series. The Fed has published a target range
-# (rather than a single point target) since December 2008; the upper limit is
-# the headline ceiling quoted as "the Fed funds rate".
-_SERIES_UPPER = "DFEDTARU"
-_SERIES_LOWER = "DFEDTARL"
-
-# Observations to pull per series. The series are daily and only step on an
-# FOMC decision, so a ~140-day window comfortably spans at least two distinct
-# levels (FOMC meets eight times a year, roughly every 6-7 weeks) while
-# keeping the payload tiny.
-_OBSERVATION_LIMIT = "140"
+# ~4 years of daily observations. The series only step on a policy decision, so
+# this window comfortably spans a full hike+cut cycle (~32 meetings) while the
+# payload remains a few KB. FRED caps a single request well above this.
+_DEFAULT_LOOKBACK_DAYS = "1500"
 
 
-class FedRateProvider(BaseProvider):
-    """Fetch the current FOMC target rate + latest change from FRED.
+class BaseFREDRateProvider(BaseProvider):
+    """Emit the multi-year sequence of policy-rate decisions for one bank.
 
-    Emits a list containing a single ``RateDecision`` (or an empty list when
-    the data is unavailable / the API key is unset). Failure is non-fatal:
-    the CentralBankCollector skips a provider that raises, and a missing key
-    simply yields no rate decision, leaving the tone-only signal intact.
+    Subclasses set ``bank``, ``provider_name``, the FRED ``upper_series`` (the
+    headline rate), and optionally a ``lower_series`` (logged for range
+    context, e.g. the Fed target-range floor). ECB has no range, so it sets
+    ``lower_series = None``.
+
+    ``fetch()`` returns a list of ``RateDecision`` ordered newest-first: one
+    entry per distinct level change within the lookback window. An empty list
+    is returned when the key is unset or the series has no usable data.
     """
 
-    provider_name = "fed_rate"
     category = ProviderCategory.CENTRAL_BANK
-    bank = CentralBank.FED
+    bank: CentralBank
+    upper_series: str
+    lower_series: Optional[str] = None
 
     def __init__(self, http_client: HttpClient, *, base_url: str, api_key: str) -> None:
         super().__init__()
@@ -80,43 +78,51 @@ class FedRateProvider(BaseProvider):
 
         if not self._api_key:
             logger.warning(
-                "fed_rate_api_key_missing",
-                extra={"action": "skipping FedRateProvider - no FRED API key configured"},
+                "fred_rate_api_key_missing",
+                extra={
+                    "provider": self.provider_name,
+                    "action": "skipping - no FRED API key configured",
+                },
             )
             return []
 
         try:
-            upper = await self._fetch_series(_SERIES_UPPER)
-            lower = await self._fetch_series(_SERIES_LOWER)
+            upper = await self._fetch_series(self.upper_series)
+            lower = (
+                await self._fetch_series(self.lower_series)
+                if self.lower_series
+                else []
+            )
 
-            decision = self._build_rate_decision(upper, lower)
-            if decision is None:
+            decisions = self._build_history(upper, lower)
+            if not decisions:
                 logger.warning(
-                    "fed_rate_no_decision",
+                    "fred_rate_no_decisions",
                     extra={
+                        "provider": self.provider_name,
                         "upper_points": len(upper),
-                        "lower_points": len(lower),
                     },
                 )
-                self._record_success(time.monotonic() - start)
-                return []
-
             self._record_success(time.monotonic() - start)
-            return [decision]
+            return decisions
         except Exception as exc:
             self._record_failure(time.monotonic() - start, type(exc).__name__)
             logger.error(
-                "fed_rate_fetch_failed",
-                extra={"error": str(exc), "error_type": type(exc).__name__},
+                "fred_rate_fetch_failed",
+                extra={
+                    "provider": self.provider_name,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                },
             )
             raise
 
     async def _fetch_series(self, series_id: str) -> list[tuple[datetime, float]]:
         """Return recent (date, level) observations for a FRED series, newest first.
 
-        Missing/placeholder observations (FRED encodes these as ".") are
-        skipped. The list preserves FRED's descending sort order so the first
-        element is the most recent reading.
+        Missing observations (FRED encodes these as ".") are skipped. FRED's
+        descending sort order is preserved so element 0 is the most recent
+        reading.
         """
         raw = await self._http.get(
             f"{self._base_url}/series/observations",
@@ -127,7 +133,7 @@ class FedRateProvider(BaseProvider):
                 "api_key": self._api_key,
                 "file_type": "json",
                 "sort_order": "desc",
-                "limit": _OBSERVATION_LIMIT,
+                "limit": _DEFAULT_LOOKBACK_DAYS,
             },
         )
         observations = raw.get("observations", []) if isinstance(raw, dict) else []
@@ -137,77 +143,78 @@ class FedRateProvider(BaseProvider):
             value = self._parse_float(obs.get("value"))
             if value is None:
                 continue
-            ts = self._parse_date(obs.get("date"))
-            points.append((ts, value))
+            points.append((self._parse_date(obs.get("date")), value))
         return points
 
-    def _build_rate_decision(
+    def _build_history(
         self,
         upper: list[tuple[datetime, float]],
         lower: list[tuple[datetime, float]],
-    ) -> RateDecision | None:
-        """Derive the latest RateDecision from the upper/lower target-range series.
+    ) -> list[RateDecision]:
+        """Compress a daily level series into its distinct rate decisions.
 
-        The upper limit is the headline rate. ``rate_current`` is the most
-        recent level; ``rate_previous`` is the most recent *distinct* prior
-        level; ``rate_change_bps`` is the move between them, expressed in
-        basis points (1 percentage point = 100 bps). ``decision_date`` is the
-        date the current level first took effect (the changeover date), which
-        is the actual FOMC decision date for that level.
+        The upper series is the headline rate. Walking newest -> oldest, every
+        point where the level differs from the next-older level marks a
+        decision: the new level took effect on that date. We emit one
+        ``RateDecision`` per such transition with:
+          - rate_current   = the level after the change,
+          - rate_previous  = the level before the change,
+          - rate_change_bps = (current - previous) * 100, rounded,
+          - decision_date  = the first date the new level was observed.
 
-        Returns ``None`` when there are not enough observations to establish a
-        current level (e.g. an empty series response).
+        The list is newest-first, so element 0 is the current rate. When the
+        oldest level in the window has no prior point, we still emit a final
+        entry for it with rate_previous == rate_current and 0 bps so the LLM
+        always has the earliest anchor level. A genuinely empty series yields
+        an empty list.
         """
         if not upper:
-            return None
+            return []
 
-        current_level = upper[0][1]
+        # Collapse the daily series to (effective_date, level) transitions.
+        # upper is newest-first; iterate oldest-first to find the date each
+        # level first took effect, then reverse to newest-first.
+        oldest_first = list(reversed(upper))
+        transitions: list[tuple[datetime, float]] = []
+        for ts, level in oldest_first:
+            if not transitions or transitions[-1][1] != level:
+                transitions.append((ts, level))
 
-        # Walk back to the first observation whose level differs from the
-        # current one: that boundary is the most recent rate change. The
-        # observation *just after* the boundary (chronologically the first
-        # day at the new level) carries the decision's effective date.
-        previous_level: float | None = None
-        decision_date = upper[0][0]
-        for i in range(1, len(upper)):
-            ts, level = upper[i]
-            if level != current_level:
-                previous_level = level
-                # upper[i-1] is the first day at the current level.
-                decision_date = upper[i - 1][0]
-                break
+        # transitions is now oldest-first, one entry per distinct level with
+        # the date it began. Build decisions newest-first.
+        decisions: list[RateDecision] = []
+        for i in range(len(transitions) - 1, -1, -1):
+            eff_date, level = transitions[i]
+            if i > 0:
+                prev_level = transitions[i - 1][1]
+                change_bps = int(round((level - prev_level) * 100))
+            else:
+                # Oldest level in the window: no prior reference inside the
+                # lookback. Anchor it with a zero-change self-reference.
+                prev_level = level
+                change_bps = 0
+            decisions.append(
+                RateDecision(
+                    bank=self.bank,
+                    rate_current=level,
+                    rate_previous=prev_level,
+                    rate_change_bps=change_bps,
+                    decision_date=eff_date,
+                )
+            )
 
-        # No change within the window: the rate has been flat. Report the
-        # current level with a zero-bps change and no distinct previous level
-        # so the LLM still receives the authoritative current rate.
-        if previous_level is None:
-            previous_level = current_level
-            change_bps = 0
-        else:
-            change_bps = int(round((current_level - previous_level) * 100))
-
-        # Annotate the current level with its range lower bound when available
-        # (logged for operator visibility; the LLM consumes the numeric
-        # rate_current/rate_previous which track the headline upper limit).
-        lower_level = lower[0][1] if lower else None
+        current_lower = lower[0][1] if lower else None
         logger.info(
-            "fed_rate_decision_built",
+            "fred_rate_history_built",
             extra={
-                "rate_current": current_level,
-                "rate_previous": previous_level,
-                "rate_change_bps": change_bps,
-                "range_lower": lower_level,
-                "decision_date": decision_date.isoformat(),
+                "provider": self.provider_name,
+                "bank": self.bank.value,
+                "decisions": len(decisions),
+                "rate_current": decisions[0].rate_current if decisions else None,
+                "range_lower": current_lower,
             },
         )
-
-        return RateDecision(
-            bank=self.bank,
-            rate_current=current_level,
-            rate_previous=previous_level,
-            rate_change_bps=change_bps,
-            decision_date=decision_date,
-        )
+        return decisions
 
     @staticmethod
     def _parse_float(val: Any) -> float | None:
@@ -224,3 +231,32 @@ class FedRateProvider(BaseProvider):
             return datetime.fromisoformat(str(val)).replace(tzinfo=UTC)
         except (ValueError, TypeError):
             return datetime.now(UTC)
+
+
+class FedRateProvider(BaseFREDRateProvider):
+    """US Federal Funds target rate from FRED.
+
+    Uses the target *range* (the Fed has published a range, not a single point
+    target, since December 2008). The upper limit is the headline ceiling
+    quoted as "the Fed funds rate"; the lower limit is logged for context.
+    """
+
+    provider_name = "fed_rate"
+    bank = CentralBank.FED
+    upper_series = "DFEDTARU"
+    lower_series = "DFEDTARL"
+
+
+class ECBRateProvider(BaseFREDRateProvider):
+    """ECB Deposit Facility Rate from FRED (series ECBDFR).
+
+    The deposit facility rate is the ECB's effective policy floor and the rate
+    markets track for the euro, so the Fed-ECB spread the LLM can now compute
+    is the dominant macro driver of EURUSD. The ECB sets a single rate (no
+    range), so there is no lower series.
+    """
+
+    provider_name = "ecb_rate"
+    bank = CentralBank.ECB
+    upper_series = "ECBDFR"
+    lower_series = None
