@@ -1049,6 +1049,8 @@ func (o *Orchestrator) processSymbol(
 	// Phase 3: RAG retrieval.
 	phaseStart = time.Now()
 
+	sp.Emit(ctx, "GERMINATING", "Retrieving rulebook knowledge", "rag", false)
+
 	ragCtx, ragCancel := context.WithTimeout(ctx, time.Duration(o.cfg.RAGTimeoutSeconds)*time.Second)
 	defer ragCancel()
 	ragCtx, ragSpan := observability.StartSpan(ragCtx, "pipeline.rag_retrieval",
@@ -1157,6 +1159,8 @@ func (o *Orchestrator) processSymbol(
 
 	// Phase 5: Processor LLM.
 	phaseStart = time.Now()
+
+	sp.Emit(ctx, "REASONING", "Engaging AI processor", "processor", false)
 
 	procCtx, procCancel := context.WithTimeout(ctx, time.Duration(o.cfg.ProcessorTimeoutSeconds)*time.Second)
 	defer procCancel()
@@ -1371,6 +1375,7 @@ func (o *Orchestrator) processSymbol(
 
 	// Phase 6: Guards + Routing.
 	phaseStart = time.Now()
+	sp.Emit(ctx, "ACTIONING", "Evaluating guards & routing decision", "processor", true)
 	routeCtx, routeSpan := observability.StartSpan(ctx, "pipeline.guards_and_routing",
 		attribute.String("symbol", symbol),
 		attribute.Bool("trade_valid", processorOutput.TradeValid),
