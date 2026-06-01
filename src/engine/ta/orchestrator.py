@@ -207,7 +207,7 @@ class TAOrchestrator:
             for tf, seq in sequences.items():
                 if pulse:
                     await pulse.emit("DETECTING", f"Analyzing {tf.value} market structure")
-                snapshot = self._build_enriched_snapshot(seq)
+                snapshot = await self._build_enriched_snapshot(seq, pulse=pulse)
                 if snapshot is not None:
                     snapshots[tf] = snapshot
 
