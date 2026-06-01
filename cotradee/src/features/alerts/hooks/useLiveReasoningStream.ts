@@ -120,11 +120,15 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
   if (frame.type === 'pulse') {
     const { phase, message, source, completed } = frame;
 
-    // First pulse of a fresh run: the hook may have hydrated stale
-    // "Analysis Complete" status/reasoning/analysisId from the last DB
-    // analysis. Reset that carried-over state so the terminal starts
-    // clean instead of showing the previous cycle's frozen result.
-    const startingFresh = !state.isStreaming;
+    // Fresh run vs between-symbol lull:
+    //   - Fresh run: the overlay was showing a DB-hydrated past
+    //     analysis (no live pulse rows yet). Clear the carried-over
+    //     status/reasoning/analysisId and start clean.
+    //   - Between-symbol lull: a per-symbol `final` set isStreaming=false
+    //     but pulse rows already exist; a still-running sibling symbol's
+    //     pulse must NOT wipe those rows.
+    // Keying on pulses.length (not isStreaming) distinguishes the two.
+    const startingFresh = state.pulses.length === 0;
     const basePulses = startingFresh ? [] : state.pulses;
 
     const pulseSymbol = frame.symbol ?? state.symbol ?? '';
