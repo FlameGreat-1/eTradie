@@ -1,0 +1,7 @@
+trace_id: bf5841653bb1c811119aa8c9c642e80d
+source: 
+user_id: 7dc981b8ca5f742faae571c26bda9ae7
+symbol: XAUUSD
+model: gemini-3.5-flash
+max_output_tokens: 32768
+prompt_hash: 50870a3098023aa1cbc561af01992ded

@@ -372,7 +372,7 @@ docker exec etradie-postgres psql -U etradie -d etradie -c "DELETE FROM auth_use
 
 
 
-docker exec etradie-postgres psql -U etradie -d etradie -c "UPDATE auth_users SET role = 'admin' WHERE email = 'emex992@gmail.com';"
+docker exec etradie-postgres psql -U etradie -d etradie -c "UPDATE auth_users SET role = 'admin' WHERE email = 'softverse.com@gmail.com';"
 
 
 
@@ -382,7 +382,7 @@ All table names verified. Here is the full, finalized command list with `emex992
 #### Promote a user to pro_managed
 
 ```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "INSERT INTO billing_subscriptions (user_id, tier, status, updated_at) SELECT id, 'pro_managed', 'active', NOW() FROM auth_users WHERE email = 'emex992@gmail.com' ON CONFLICT (user_id) DO UPDATE SET tier = EXCLUDED.tier, status = EXCLUDED.status, updated_at = NOW(); UPDATE auth_sessions SET revoked = TRUE WHERE user_id = (SELECT id FROM auth_users WHERE email = 'emex992@gmail.com');"
+docker exec etradie-postgres psql -U etradie -d etradie -c "INSERT INTO billing_subscriptions (user_id, tier, status, updated_at) SELECT id, 'pro_managed', 'active', NOW() FROM auth_users WHERE email = 'softverse.com@gmail.com' ON CONFLICT (user_id) DO UPDATE SET tier = EXCLUDED.tier, status = EXCLUDED.status, updated_at = NOW(); UPDATE auth_sessions SET revoked = TRUE WHERE user_id = (SELECT id FROM auth_users WHERE email = 'softverse.com@gmail.com');"
 ```
 
 #### Promote a user to pro_byok
