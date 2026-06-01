@@ -28,6 +28,7 @@ from engine.shared.exceptions import (
 )
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
+    PROCESSOR_INSUFFICIENT_DATA_TOTAL,
     PROCESSOR_RUN_DURATION,
     PROCESSOR_RUN_TOTAL,
 )
@@ -779,6 +780,9 @@ class AnalysisProcessor(ProcessorPort):
     ) -> None:
         """Validate that the context has sufficient data for analysis."""
         if not context.ta_analysis:
+            PROCESSOR_INSUFFICIENT_DATA_TOTAL.labels(
+                processor=PROCESSOR_NAME, reason="empty_ta",
+            ).inc()
             raise ProcessorInsufficientDataError(
                 "ProcessorInput has empty ta_analysis",
                 details={"symbol": context.symbol, "trace_id": trace_id},
@@ -789,12 +793,18 @@ class AnalysisProcessor(ProcessorPort):
             ta.get("snd_candidates")
         )
         if not has_candidates:
+            PROCESSOR_INSUFFICIENT_DATA_TOTAL.labels(
+                processor=PROCESSOR_NAME, reason="no_candidates",
+            ).inc()
             raise ProcessorInsufficientDataError(
                 "ProcessorInput has no SMC or SnD candidates",
                 details={"symbol": context.symbol, "trace_id": trace_id},
             )
 
         if not context.retrieved_knowledge:
+            PROCESSOR_INSUFFICIENT_DATA_TOTAL.labels(
+                processor=PROCESSOR_NAME, reason="empty_rag",
+            ).inc()
             raise ProcessorInsufficientDataError(
                 "ProcessorInput has empty retrieved_knowledge",
                 details={"symbol": context.symbol, "trace_id": trace_id},
