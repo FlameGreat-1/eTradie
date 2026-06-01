@@ -929,14 +929,23 @@ class TAOrchestrator:
         inducements, QML/QMH, SR/RS flips, MPL, supply/demand zones,
         fibonacci retracements, dealing ranges, equal highs/lows).
         """
+        tfv = sequence.timeframe.value
+
+        async def _p(phase: str, message: str) -> None:
+            """Fire-and-forget pulse helper. No-op when pulse is None."""
+            if pulse is not None:
+                await pulse.emit(phase, message)
+
         try:
             # ── Swing detection ──────────────────────────────────────
+            await _p("DETECTING", f"{tfv} detecting swing highs/lows")
             swing_highs = self._swing_analyzer.detect_swing_highs(sequence)
             swing_lows = self._swing_analyzer.detect_swing_lows(sequence)
 
             # ── SMC structure events ─────────────────────────────────
             # Bullish BMS = price breaks above a previous swing HIGH.
             # Bearish BMS = price breaks below a previous swing LOW.
+            await _p("DETECTING", f"{tfv} detecting break of market structure")
             bms_bullish = self._bms_detector.detect_bullish_bms(
                 sequence,
                 swing_highs,
@@ -949,6 +958,7 @@ class TAOrchestrator:
 
             # Bullish ChoCH = price breaks above a minor swing HIGH.
             # Bearish ChoCH = price breaks below a minor swing LOW.
+            await _p("DETECTING", f"{tfv} detecting change of character")
             choch_bullish = self._choch_detector.detect_bullish_choch(
                 sequence,
                 swing_highs,
@@ -959,6 +969,7 @@ class TAOrchestrator:
             )
             all_choch = choch_bullish + choch_bearish
 
+            await _p("DETECTING", f"{tfv} detecting shift in market structure")
             sms_bullish = self._sms_detector.detect_bullish_sms(
                 sequence,
                 swing_lows,
