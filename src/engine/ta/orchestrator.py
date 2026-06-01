@@ -913,9 +913,11 @@ class TAOrchestrator:
 
     # ── Per-timeframe structural detection + enriched snapshot ────────
 
-    def _build_enriched_snapshot(
+    async def _build_enriched_snapshot(
         self,
         sequence: CandleSequence,
+        *,
+        pulse=None,
     ) -> Optional[TechnicalSnapshot]:
         """
         Run ALL per-timeframe structural detection and build a fully
