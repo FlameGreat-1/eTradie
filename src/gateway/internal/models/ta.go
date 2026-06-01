@@ -22,6 +22,14 @@ type TAResult struct {
 	SymbolResults []TASymbolResult `json:"symbol_results"`
 	CollectedAt   time.Time        `json:"collected_at"`
 	DurationMs    float64          `json:"duration_ms"`
+
+	// FromCache is true when this result was served from the Redis
+	// cache rather than freshly computed by the engine. Not persisted
+	// (json:"-") so it never round-trips through the cache. The
+	// orchestrator reads it to emit a truthful "served from cache"
+	// pulse instead of the granular detection feed, which only runs on
+	// a cache miss.
+	FromCache bool `json:"-"`
 }
 
 // HasCandidates returns true if any successful symbol has SMC or SnD candidates.

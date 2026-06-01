@@ -436,8 +436,21 @@ func (o *Orchestrator) executePipeline(
 	wg.Wait()
 
 	if p != nil {
-		p.Emit(ctx, "SHARDING", "TA data collection complete", "ta", true)
-		p.Emit(ctx, "CLAUDING", "Macro intelligence complete", "macro", true)
+		// On a cache hit the engine HTTP call was skipped, so its
+		// granular pulses never fired. Tell the user the truth (served
+		// from cache) rather than implying a full sweep ran. On a cache
+		// miss the engine already streamed the granular feed and the
+		// normal completion marker is accurate.
+		taMsg := "TA data collection complete"
+		if taResult != nil && taResult.FromCache {
+			taMsg = "TA served from cache (fresh)"
+		}
+		macroMsg := "Macro intelligence complete"
+		if macroResult != nil && macroResult.FromCache {
+			macroMsg = "Macro served from cache (fresh)"
+		}
+		p.Emit(ctx, "SHARDING", taMsg, "ta", true)
+		p.Emit(ctx, "CLAUDING", macroMsg, "macro", true)
 	}
 
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseCollectParallel.String()).Observe(time.Since(phaseStart).Seconds())

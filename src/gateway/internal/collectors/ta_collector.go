@@ -155,6 +155,7 @@ func (c *TACollector) getFromCache(ctx context.Context, userID string, symbols [
 		Strs("symbols", symbols).
 		Str("trace_id", traceID).
 		Msg("ta_result_served_from_cache")
+	result.FromCache = true
 	return &result
 }
 
