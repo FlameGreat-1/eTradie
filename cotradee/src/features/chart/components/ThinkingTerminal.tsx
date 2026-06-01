@@ -55,7 +55,7 @@ function ThinkingTerminalInner({ pulses, isActive }: ThinkingTerminalProps) {
       >
         {pulses.map((entry) => (
           <div
-            key={`${entry.source}-${entry.phase}-${entry.seq}`}
+            key={`${entry.symbol}-${entry.source}-${entry.phase}-${entry.seq}`}
             className={`thinking-terminal__row ${entry.completed ? 'thinking-terminal__row--done' : 'thinking-terminal__row--active'}`}
           >
             {/* Status indicator */}

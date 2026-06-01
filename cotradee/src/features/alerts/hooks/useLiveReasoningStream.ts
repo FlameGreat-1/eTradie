@@ -41,6 +41,9 @@ import { useAuth } from '@/features/auth';
  * updating sub-step message.
  */
 export interface PulseEntry {
+  /** Symbol this row belongs to. Concurrent multi-symbol cycles keep
+   *  distinct rows so one symbol's phase never overwrites another's. */
+  symbol: string;
   /** Hacker-verb category (SHARDING, DETECTING, CLAUDING, …). */
   phase: string;
   /** Current sub-step text that updates in-place. */
@@ -117,27 +120,46 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
   if (frame.type === 'pulse') {
     const { phase, message, source, completed } = frame;
 
-    // First pulse of a fresh run: the hook may have hydrated stale
-    // "Analysis Complete" status/reasoning/analysisId from the last DB
-    // analysis. Reset that carried-over state so the terminal starts
-    // clean instead of showing the previous cycle's frozen result.
-    const startingFresh = !state.isStreaming;
-    const basePulses = startingFresh ? [] : state.pulses;
+    // Fresh run vs between-symbol lull:
+    //   - Fresh run: the overlay was showing a DB-hydrated past
+    //     analysis (no live pulse rows yet). Clear the carried-over
+    //     status/reasoning/analysisId and start clean.
+    //   - Between-symbol lull: a per-symbol `final` set isStreaming=false
+    //     but pulse rows already exist; a still-running sibling symbol's
+    //     pulse must NOT wipe those rows.
+    const pulseSymbol = frame.symbol ?? state.symbol ?? '';
 
+    // Fresh-run reset:
+    //   - No live rows yet  -> overlay showed a DB-hydrated analysis;
+    //     clear the carried-over status/reasoning/analysisId.
+    //   - LOADING pulse     -> reliable start-of-cycle marker. Clear the
+    //     previous run's lingering rows FOR THIS SYMBOL only (the engine
+    //     emits a per-symbol LOADING), preserving any concurrent
+    //     symbol's live rows in a multi-symbol cycle.
+    const startingFresh = state.pulses.length === 0;
+    const isCycleStart = frame.phase === 'LOADING';
+    let basePulses: PulseEntry[];
+    if (startingFresh) {
+      basePulses = [];
+    } else if (isCycleStart) {
+      basePulses = state.pulses.filter((p) => p.symbol !== pulseSymbol);
+    } else {
+      basePulses = state.pulses;
+    }
     const existing = basePulses.findIndex(
-      (p) => p.phase === phase && p.source === source,
+      (p) => p.symbol === pulseSymbol && p.phase === phase && p.source === source,
     );
     let nextPulses: PulseEntry[];
     if (existing >= 0) {
-      // In-place update: swap the sub-step text.
+      // In-place update: swap the sub-step text for this symbol's row.
       nextPulses = basePulses.map((p, i) =>
         i === existing ? { ...p, message, completed } : p,
       );
     } else {
-      // New phase row.
+      // New phase row scoped to this symbol.
       nextPulses = [
         ...basePulses,
-        { phase, message, source, completed, seq: ++_pulseSeq },
+        { symbol: pulseSymbol, phase, message, source, completed, seq: ++_pulseSeq },
       ];
     }
     return {
@@ -152,17 +174,18 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
     };
   }
 
-  // If the stream switches to a new symbol, or signals the start of a new analysis 
-  // with a 'status' frame, we must reset the progressively accumulated text.
-  const isNewStream = frame.type === 'status' || (frame.symbol && state.symbol && frame.symbol !== state.symbol);
-  const currentReasoning = isNewStream ? '' : state.reasoning;
-  const currentAnalysisId = isNewStream ? null : state.analysisId;
-  // Reset pulses on new stream start.
-  const currentPulses = isNewStream ? [] : state.pulses;
+  // A 'status' frame signals the start of a fresh reasoning stream, so
+  // we reset the progressively accumulated reasoning text. Pulses are
+  // symbol-scoped and owned solely by the pulse branch above; the
+  // status/reasoning/final/error cases must NOT clear them or a
+  // concurrently-analysed symbol's rows would be erased.
+  const isNewReasoning = frame.type === 'status';
+  const currentReasoning = isNewReasoning ? '' : state.reasoning;
+  const currentAnalysisId = isNewReasoning ? null : state.analysisId;
 
   switch (frame.type) {
     case 'status':
-      return { ...state, isStreaming: true, symbol, status: frame.message, error: null, reasoning: currentReasoning, analysisId: currentAnalysisId, pulses: currentPulses };
+      return { ...state, isStreaming: true, symbol, status: frame.message, error: null, reasoning: currentReasoning, analysisId: currentAnalysisId };
     case 'reasoning_chunk':
       return {
         ...state,
@@ -172,14 +195,18 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
         status: 'Generating AI Strategy...',
         error: null,
         analysisId: currentAnalysisId,
-        pulses: currentPulses,
       };
     case 'final':
-      // Keep the final reasoning on screen; the overlay stays visible
-      // until the user dismisses it or a new cycle replaces the state.
-      return { ...state, isStreaming: false, symbol, status: 'Analysis Complete', error: null, reasoning: currentReasoning, analysisId: currentAnalysisId, pulses: currentPulses };
+      // Per-symbol completion marker on a shared per-user channel.
+      // Settle isStreaming=false so a single-symbol run stops its live
+      // indicator and shows "Analysis Complete". Pulses are NOT cleared
+      // and the transport is NOT closed: if another symbol in a
+      // multi-symbol cycle is still working, its next pulse/status
+      // frame flips isStreaming back to true (both branches set
+      // isStreaming:true), re-activating the indicator.
+      return { ...state, isStreaming: false, symbol, status: 'Analysis Complete', error: null, reasoning: currentReasoning, analysisId: currentAnalysisId };
     case 'error':
-      return { ...state, isStreaming: false, symbol, status: 'Error', error: frame.message, reasoning: currentReasoning, analysisId: currentAnalysisId, pulses: currentPulses };
+      return { ...state, isStreaming: false, symbol, status: 'Error', error: frame.message, reasoning: currentReasoning, analysisId: currentAnalysisId };
     default:
       return state;
   }
@@ -311,13 +338,20 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
 
           for (const frame of parseSSEBatch(batch)) {
             dispatch({ kind: 'frame', frame });
-            if (frame.type === 'final' || frame.type === 'error') {
+            if (frame.type === 'final') {
+              // Per-symbol completion: refetch the analysis feed so the
+              // new row appears, but KEEP the stream open — other
+              // symbols in a multi-symbol cycle may still be streaming.
               onCompleteRef.current?.();
-              // Close the HTTP side so the server can release its
-              // writer. The outer effect will re-open for the next
-              // cycle. Do NOT reset state here: the reasoning text
-              // must remain on screen until the user dismisses the
-              // overlay.
+              continue;
+            }
+            if (frame.type === 'error') {
+              onCompleteRef.current?.();
+              // error is terminal for the connection. Close the HTTP
+              // side so the server can release its writer. The outer
+              // effect re-opens for the next cycle. Do NOT reset state
+              // here: the reasoning/error stays on screen until the
+              // user dismisses the overlay.
               controller.abort();
               return;
             }
