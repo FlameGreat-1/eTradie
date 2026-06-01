@@ -116,23 +116,40 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
   // Handle pulse frames: update existing phase row in-place or append new.
   if (frame.type === 'pulse') {
     const { phase, message, source, completed } = frame;
-    const existing = state.pulses.findIndex(
+
+    // First pulse of a fresh run: the hook may have hydrated stale
+    // "Analysis Complete" status/reasoning/analysisId from the last DB
+    // analysis. Reset that carried-over state so the terminal starts
+    // clean instead of showing the previous cycle's frozen result.
+    const startingFresh = !state.isStreaming;
+    const basePulses = startingFresh ? [] : state.pulses;
+
+    const existing = basePulses.findIndex(
       (p) => p.phase === phase && p.source === source,
     );
     let nextPulses: PulseEntry[];
     if (existing >= 0) {
       // In-place update: swap the sub-step text.
-      nextPulses = state.pulses.map((p, i) =>
+      nextPulses = basePulses.map((p, i) =>
         i === existing ? { ...p, message, completed } : p,
       );
     } else {
       // New phase row.
       nextPulses = [
-        ...state.pulses,
+        ...basePulses,
         { phase, message, source, completed, seq: ++_pulseSeq },
       ];
     }
-    return { ...state, isStreaming: true, symbol, pulses: nextPulses, error: null };
+    return {
+      ...state,
+      isStreaming: true,
+      symbol,
+      pulses: nextPulses,
+      error: null,
+      status: startingFresh ? 'Analyzing\u2026' : state.status,
+      reasoning: startingFresh ? '' : state.reasoning,
+      analysisId: startingFresh ? null : state.analysisId,
+    };
   }
 
   // If the stream switches to a new symbol, or signals the start of a new analysis 
@@ -207,6 +224,9 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
   useEffect(() => {
     // If we're already streaming something live, don't overwrite it with DB state.
     if (state.isStreaming) return;
+    // A finished live run leaves isStreaming=false but keeps its pulse
+    // rows on screen; never overwrite that with a hydrated DB analysis.
+    if (state.pulses.length > 0) return;
 
     const latest = latestAnalyses?.analyses?.[0];
     if (!latest) return;
@@ -233,7 +253,7 @@ export function useLiveReasoningStream(onComplete?: () => void): LiveStreamState
         status: 'Analysis Complete',
       },
     });
-  }, [latestAnalyses, state.isStreaming, state.analysisId]);
+  }, [latestAnalyses, state.isStreaming, state.analysisId, state.pulses.length]);
 
   const controllerRef = useRef<AbortController | null>(null);
   const reconnectAttemptsRef = useRef(0);
