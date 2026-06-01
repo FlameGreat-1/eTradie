@@ -238,6 +238,16 @@ class IntermarketCollector(BaseCollector):
 
             async with self._db.session() as session:
                 repo = IntermarketRepository(session)
+                # Read the prior snapshot BEFORE upserting the new one so the
+                # trend comparison uses the previous cycle's values. Best-effort:
+                # a read failure simply omits trends (no prior -> empty).
+                try:
+                    previous = await repo.get_latest()
+                except Exception:
+                    previous = None
+                trend_signals = _compute_trend_signals(snapshot, previous)
+                if trend_signals:
+                    correlation_signals.update(trend_signals)
                 await repo.upsert_snapshot(
                     snapshot_data={
                         "gold_price": snapshot.gold_price,
