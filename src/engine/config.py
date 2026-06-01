@@ -89,6 +89,11 @@ class Settings(BaseSettings):
     )
     # CFTC DEA HTML page — primary COT source (always accessible, no token)
     cftc_dea_url: str = "https://www.cftc.gov/dea/futures/deacmesf.htm"
+    # CFTC DEA Traders-in-Financial-Futures (TFF) report — leveraged funds +
+    # asset-manager positioning. Same always-accessible host as cftc_dea_url;
+    # the Socrata API was retired (403). Scraped best-effort by the COT
+    # collector to populate the TFF fields.
+    cftc_dea_tff_url: str = "https://www.cftc.gov/dea/futures/financial_lf.htm"
 
     # Twelve Data — primary market data provider
     twelvedata_api_key: str = Field(default="", description="TwelveData API key")
