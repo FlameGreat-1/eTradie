@@ -40,6 +40,9 @@ class CalendarCollector(BaseCollector):
                     "currency": event.currency.value,
                     "event_time": event.event_time,
                     "impact": event.impact.value,
+                    "forecast": event.forecast,
+                    "previous": event.previous,
+                    "actual": event.actual,
                     "source": event.source,
                 }
                 for event in all_events
@@ -48,7 +51,9 @@ class CalendarCollector(BaseCollector):
                 await repo.bulk_upsert(
                     rows,
                     index_elements=["event_name", "currency", "event_time"],
-                    update_fields=["source", "impact"],
+                    update_fields=[
+                        "source", "impact", "forecast", "previous", "actual",
+                    ],
                 )
 
         dataset = CalendarDataSet(
