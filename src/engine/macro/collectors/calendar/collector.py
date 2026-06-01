@@ -67,8 +67,5 @@ class CalendarCollector(BaseCollector):
         return dataset
 
 
-    async def _read_from_db(self):
-        return None
-
-    def _empty_dataset(self):
+    def _empty_dataset(self) -> CalendarDataSet:
         return CalendarDataSet(events=[], sources=[], collected_at=datetime.now(UTC))

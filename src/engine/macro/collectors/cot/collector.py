@@ -199,8 +199,5 @@ class COTCollector(BaseCollector):
         return dataset
 
 
-    async def _read_from_db(self):
-        return None
-
-    def _empty_dataset(self):
-        return COTDataSet(reports=[], sources=[], collected_at=datetime.now(UTC))
+    def _empty_dataset(self) -> COTDataSet:
+        return COTDataSet(collected_at=datetime.now(UTC))
