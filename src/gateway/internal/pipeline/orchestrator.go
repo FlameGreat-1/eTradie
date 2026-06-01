@@ -541,7 +541,7 @@ func (o *Orchestrator) executePipeline(
 			}
 			defer func() { <-sem }()
 
-			output := o.processSymbol(ctx, tracker, symResult, macroResult)
+			output := o.processSymbol(ctx, tracker, symResult, macroResult, userID)
 
 			outputsMu.Lock()
 			outputs = append(outputs, output)
@@ -1019,9 +1019,18 @@ func (o *Orchestrator) processSymbol(
 	tracker *CycleTracker,
 	symResult *models.TASymbolResult,
 	macroResult *models.MacroResult,
+	userID string,
 ) *models.GatewayOutput {
 	traceID := tracker.TraceID()
 	symbol := symResult.Symbol
+
+	// Per-symbol pulse publisher for the Thinking Terminal. nil when
+	// pulse broadcasting is disabled or the user is unknown; pulse.Emit
+	// is nil-safe so every call below is a no-op in that case.
+	var sp *pulse.Publisher
+	if o.redisRaw != nil && userID != "" {
+		sp = pulse.NewPublisher(o.redisRaw, userID, symbol, o.log)
+	}
 
 	effectiveMacroResult := macroResult
 	if routing.Is247Market(symbol) {
@@ -1039,6 +1048,8 @@ func (o *Orchestrator) processSymbol(
 
 	// Phase 3: RAG retrieval.
 	phaseStart = time.Now()
+
+	sp.Emit(ctx, "GERMINATING", "Retrieving rulebook knowledge", "rag", false)
 
 	ragCtx, ragCancel := context.WithTimeout(ctx, time.Duration(o.cfg.RAGTimeoutSeconds)*time.Second)
 	defer ragCancel()
@@ -1148,6 +1159,8 @@ func (o *Orchestrator) processSymbol(
 
 	// Phase 5: Processor LLM.
 	phaseStart = time.Now()
+
+	sp.Emit(ctx, "REASONING", "Engaging AI processor", "processor", false)
 
 	procCtx, procCancel := context.WithTimeout(ctx, time.Duration(o.cfg.ProcessorTimeoutSeconds)*time.Second)
 	defer procCancel()
@@ -1362,6 +1375,7 @@ func (o *Orchestrator) processSymbol(
 
 	// Phase 6: Guards + Routing.
 	phaseStart = time.Now()
+	sp.Emit(ctx, "ACTIONING", "Evaluating guards & routing decision", "processor", true)
 	routeCtx, routeSpan := observability.StartSpan(ctx, "pipeline.guards_and_routing",
 		attribute.String("symbol", symbol),
 		attribute.Bool("trade_valid", processorOutput.TradeValid),
