@@ -61,13 +61,17 @@ rerun now produces the same RAG query as the live pipeline.
 OECD quarterly periods (YYYY-Qn, e.g. GDP) failed ISO parsing and fell back to
 now(UTC). Added explicit YYYY-Qn -> quarter-start-month handling.
 
-### Finding D (LOW) -- DOCUMENTED, not changed
-Several macro repositories (calendar, COT, DXY, sentiment) carry read-methods
-with no current caller (collectors only write; reads come from cache/snapshot).
-The economic repo was already cleaned of these in 2026-05. These are inert
-(never invoked -> zero runtime cost) standard repository accessors. They are NOT
-deleted here: confirming zero callers across the entire tree (incl. tests) is
-not possible with full certainty from the available tooling, and deleting a
-method referenced by a test would break CI -- a real risk traded for cosmetic
-gain. Left as a tracked low-priority cleanup for an owner who can run a full
-repo-wide reference check.
+### Finding D (LOW) -- FIXED: removed uncalled repo read-methods
+Verified every runtime consumer (collectors, analysis router, gateway news
+guard, retention pruner, helpers, health/admin) -- zero callers. Removed:
+  - COTRepository: get_latest_by_currency, get_latest_all_currencies,
+    get_wow_pair, get_history (kept get_previous_net, get_52_week_net_range).
+  - DXYRepository: get_history, get_daily_history
+    (kept get_latest, get_recent_values, upsert_snapshot).
+  - IntermarketRepository: get_daily_history (kept get_latest, upsert_snapshot).
+  - CalendarRepository: get_upcoming, get_high_impact_within_window,
+    get_by_currency (now write-only via bulk_upsert).
+  - SentimentRepository: get_latest_by_currency, get_all_latest (write-only).
+Unused imports cleaned in each file. Matches the 2026-05 economic-repo cleanup.
+If CI surfaces a test referencing a removed method, that test covered dead code
+and should be removed with it.
