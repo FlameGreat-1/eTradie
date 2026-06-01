@@ -44,8 +44,9 @@ from engine.macro.providers.cot.cftc_dea import CFTCDEAProvider
 from engine.macro.providers.cot.cftc_dea_tff import CFTCDEATFFProvider
 from engine.macro.providers.economic_data.fred import FREDEconomicProvider
 from engine.macro.providers.economic_data.oecd import OECDEconomicProvider
-from engine.macro.providers.market_data.commodity_proxy import CommodityProxyProvider
-from engine.macro.providers.market_data.twelve_data import TwelveDataProvider
+from engine.macro.providers.market_data.fred_intermarket import (
+    FREDIntermarketProvider,
+)
 from engine.macro.providers.registry import ProviderRegistry
 from engine.macro.providers.sentiment.cot_derived import COTDerivedSentimentProvider
 
@@ -344,18 +345,12 @@ class Container:
         for p in (self.fred_provider, self.oecd_provider):
             self.registry.register(p)
 
-        self.twelve_data_provider = TwelveDataProvider(
+        self.fred_intermarket_provider = FREDIntermarketProvider(
             h,
-            base_url=s.twelvedata_base_url,
-            api_key=s.twelvedata_api_key,
+            base_url=s.fred_base_url,
+            api_key=s.fred_api_key,
         )
-        self.commodity_proxy_provider = CommodityProxyProvider(
-            h,
-            iron_ore_url=s.iron_ore_price_url,
-            dairy_gdt_url=s.dairy_gdt_price_url,
-        )
-        for p in (self.twelve_data_provider, self.commodity_proxy_provider):
-            self.registry.register(p)
+        self.registry.register(self.fred_intermarket_provider)
 
         self.forexfactory_cal_provider = ForexFactoryCalendarProvider(
             h,
@@ -411,14 +406,14 @@ class Container:
         self.calendar_collector.cache_ttl = s.cache_ttl_calendar
 
         self.dxy_collector = DXYCollector(
-            [self.twelve_data_provider],
+            [self.fred_intermarket_provider],
             c,
             d,
         )
         self.dxy_collector.cache_ttl = s.cache_ttl_dxy
 
         self.intermarket_collector = IntermarketCollector(
-            [self.twelve_data_provider, self.commodity_proxy_provider],
+            [self.fred_intermarket_provider],
             c,
             d,
         )
