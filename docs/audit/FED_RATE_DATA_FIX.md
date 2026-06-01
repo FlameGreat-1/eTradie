@@ -73,10 +73,18 @@ All built on the shared `BaseFREDRateProvider`:
 | ECB  | `ECBRateProvider` | `ECBDFR` |
 | BOE  | `BOERateProvider` | `BOERUKM` |
 | BOJ  | `BOJRateProvider` | `IRSTCB01JPM156N` |
+| RBA  | `RBARateProvider` | `IRSTCB01AUM156N` |
+| BOC  | `BOCRateProvider` | `IRSTCB01CAM156N` |
+| RBNZ | `RBNZRateProvider` | `IRSTCB01NZM156N` |
+| SNB  | `SNBRateProvider` | `IRSTCB01CHM156N` |
 
-This gives the LLM the rate level + multi-year trajectory for USD, EUR, GBP and
-JPY, and therefore the cross-bank differentials that drive EURUSD, GBPUSD and
-USDJPY.
+All eight G10 central banks now emit real `RateDecision` data, giving the LLM
+the rate level + multi-year trajectory for USD, EUR, GBP, JPY, AUD, CAD, NZD
+and CHF, and therefore the cross-bank differentials that drive every major
+and commodity pair. The non-Fed/ECB/BOE banks use the OECD
+`IRSTCB01<CC>M156N` central-bank-policy-rate family (monthly cadence, so their
+decision dates land on month-start rather than the exact meeting day -- the
+cleanest free machine-readable source for those rates).
 
 ## Gateway fix (extractCentralBank)
 
@@ -96,9 +104,14 @@ the empty-`rate_decisions` world had hidden:
 
 ## Scope / limitations
 
-- Fed + ECB + BOE + BOJ. The remaining banks (RBA, BOC, RBNZ, SNB) have no
-  equally clean free FRED policy-rate series wired yet, so they keep providing
-  tone/QE-QT from RSS. Adding them later is a one-line subclass each.
+- All eight G10 banks (Fed, ECB, BOE, BOJ, RBA, BOC, RBNZ, SNB) now emit real
+  rate decisions in addition to their RSS tone/QE-QT.
+- The OECD-family series (every bank except Fed/ECB/BOE) are MONTHLY, so a
+  decision's `decision_date` is the month the new level first appears, not the
+  precise meeting day. Acceptable for macro-bias reasoning; exact meeting-day
+  precision would require a per-bank native source.
+- When the FRED key is unset or a series is unavailable, that provider no-ops
+  (non-fatal); the bank's RSS tone signal remains intact.
 - When the FRED key is unset or a series is unavailable, that provider returns
   no decisions (non-fatal): the tone-only signal remains intact.
 - The oldest level in the lookback window is anchored with

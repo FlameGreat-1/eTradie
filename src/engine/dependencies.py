@@ -27,10 +27,14 @@ from engine.macro.providers.central_bank.boe_rss import BOERSSProvider
 from engine.macro.providers.central_bank.boj_rss import BOJRSSProvider
 from engine.macro.providers.central_bank.ecb_rss import ECBRSSProvider
 from engine.macro.providers.central_bank.fed_rate import (
+    BOCRateProvider,
     BOERateProvider,
     BOJRateProvider,
     ECBRateProvider,
     FedRateProvider,
+    RBARateProvider,
+    RBNZRateProvider,
+    SNBRateProvider,
 )
 from engine.macro.providers.central_bank.fed_rss import FedRSSProvider
 from engine.macro.providers.central_bank.rba_rss import RBARSSProvider
@@ -276,9 +280,25 @@ class Container:
             api_key=s.fred_api_key,
         )
         self.rba_provider = RBARSSProvider(r, feed_url=s.rba_rss_url)
+        # FRED-sourced RBA cash rate, pairs with the RSS tone for AUD.
+        self.rba_rate_provider = RBARateProvider(
+            h, base_url=s.fred_base_url, api_key=s.fred_api_key,
+        )
         self.boc_provider = BOCRSSProvider(r, feed_url=s.boc_rss_url)
+        # FRED-sourced BoC policy rate, pairs with the RSS tone for CAD.
+        self.boc_rate_provider = BOCRateProvider(
+            h, base_url=s.fred_base_url, api_key=s.fred_api_key,
+        )
         self.rbnz_provider = RBNZRSSProvider(r, feed_url=s.rbnz_rss_url)
+        # FRED-sourced RBNZ Official Cash Rate, pairs with the RSS tone for NZD.
+        self.rbnz_rate_provider = RBNZRateProvider(
+            h, base_url=s.fred_base_url, api_key=s.fred_api_key,
+        )
         self.snb_provider = SNBRSSProvider(r, feed_url=s.snb_rss_url)
+        # FRED-sourced SNB policy rate, pairs with the RSS tone for CHF.
+        self.snb_rate_provider = SNBRateProvider(
+            h, base_url=s.fred_base_url, api_key=s.fred_api_key,
+        )
         for p in (
             self.fed_provider,
             self.fed_rate_provider,
@@ -289,9 +309,13 @@ class Container:
             self.boj_provider,
             self.boj_rate_provider,
             self.rba_provider,
+            self.rba_rate_provider,
             self.boc_provider,
+            self.boc_rate_provider,
             self.rbnz_provider,
+            self.rbnz_rate_provider,
             self.snb_provider,
+            self.snb_rate_provider,
         ):
             self.registry.register(p)
 
@@ -348,9 +372,13 @@ class Container:
                 self.boj_provider,
                 self.boj_rate_provider,
                 self.rba_provider,
+                self.rba_rate_provider,
                 self.boc_provider,
+                self.boc_rate_provider,
                 self.rbnz_provider,
+                self.rbnz_rate_provider,
                 self.snb_provider,
+                self.snb_rate_provider,
             ],
             c,
             d,
