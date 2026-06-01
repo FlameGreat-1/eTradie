@@ -207,7 +207,7 @@ class TAOrchestrator:
             for tf, seq in sequences.items():
                 if pulse:
                     await pulse.emit("DETECTING", f"Analyzing {tf.value} market structure")
-                snapshot = self._build_enriched_snapshot(seq)
+                snapshot = await self._build_enriched_snapshot(seq, pulse=pulse)
                 if snapshot is not None:
                     snapshots[tf] = snapshot
 
@@ -913,9 +913,11 @@ class TAOrchestrator:
 
     # ── Per-timeframe structural detection + enriched snapshot ────────
 
-    def _build_enriched_snapshot(
+    async def _build_enriched_snapshot(
         self,
         sequence: CandleSequence,
+        *,
+        pulse=None,
     ) -> Optional[TechnicalSnapshot]:
         """
         Run ALL per-timeframe structural detection and build a fully
@@ -927,14 +929,23 @@ class TAOrchestrator:
         inducements, QML/QMH, SR/RS flips, MPL, supply/demand zones,
         fibonacci retracements, dealing ranges, equal highs/lows).
         """
+        tfv = sequence.timeframe.value
+
+        async def _p(phase: str, message: str) -> None:
+            """Fire-and-forget pulse helper. No-op when pulse is None."""
+            if pulse is not None:
+                await pulse.emit(phase, message)
+
         try:
             # ── Swing detection ──────────────────────────────────────
+            await _p("DETECTING", f"{tfv} detecting swing highs/lows")
             swing_highs = self._swing_analyzer.detect_swing_highs(sequence)
             swing_lows = self._swing_analyzer.detect_swing_lows(sequence)
 
             # ── SMC structure events ─────────────────────────────────
             # Bullish BMS = price breaks above a previous swing HIGH.
             # Bearish BMS = price breaks below a previous swing LOW.
+            await _p("DETECTING", f"{tfv} detecting break of market structure")
             bms_bullish = self._bms_detector.detect_bullish_bms(
                 sequence,
                 swing_highs,
@@ -947,6 +958,7 @@ class TAOrchestrator:
 
             # Bullish ChoCH = price breaks above a minor swing HIGH.
             # Bearish ChoCH = price breaks below a minor swing LOW.
+            await _p("DETECTING", f"{tfv} detecting change of character")
             choch_bullish = self._choch_detector.detect_bullish_choch(
                 sequence,
                 swing_highs,
@@ -957,6 +969,7 @@ class TAOrchestrator:
             )
             all_choch = choch_bullish + choch_bearish
 
+            await _p("DETECTING", f"{tfv} detecting shift in market structure")
             sms_bullish = self._sms_detector.detect_bullish_sms(
                 sequence,
                 swing_lows,
@@ -968,8 +981,10 @@ class TAOrchestrator:
             all_sms = sms_bullish + sms_bearish
 
             # ── SMC zones ────────────────────────────────────────────
+            await _p("SHIMMING", f"{tfv} scanning fair value gaps")
             fvgs = self._fvg_detector.detect_fvgs(sequence)
 
+            await _p("SHIMMING", f"{tfv} identifying institutional order blocks")
             order_blocks = []
             for bms_event in all_bms:
                 if bms_event.direction == Direction.BULLISH:
@@ -1008,6 +1023,7 @@ class TAOrchestrator:
                         },
                     )
 
+            await _p("SHIMMING", f"{tfv} detecting breaker blocks")
             breaker_blocks = []
             for ob in order_blocks:
                 breaker = self._breaker_detector.detect_breaker_from_ob(
@@ -1018,6 +1034,7 @@ class TAOrchestrator:
                     breaker_blocks.append(breaker)
 
             # ── SMC liquidity / inducement ───────────────────────────
+            await _p("PONTIFICATING", f"{tfv} detecting inducements")
             inducement_bullish = self._inducement_detector.detect_bullish_inducement(
                 sequence,
                 swing_lows,
@@ -1028,6 +1045,7 @@ class TAOrchestrator:
             )
             all_inducements = inducement_bullish + inducement_bearish
 
+            await _p("PONTIFICATING", f"{tfv} scanning liquidity sweeps")
             liquidity_sweeps = self._sweep_analyzer.detect_sweeps_in_sequence(
                 sequence,
                 swing_highs,
@@ -1053,6 +1071,7 @@ class TAOrchestrator:
                 swing_highs,
             )
 
+            await _p("PONTIFICATING", f"{tfv} mapping QML/QMH levels")
             qml_levels = self._qm_detector.detect_qml(
                 sequence,
                 swing_highs,
@@ -1066,6 +1085,7 @@ class TAOrchestrator:
             all_qm_levels = qml_levels + qmh_levels
 
             # ── SnD supply/demand zones ──────────────────────────────
+            await _p("PONTIFICATING", f"{tfv} building supply/demand zones")
             supply_zones = []
             demand_zones = []
             for qml in qml_levels:
@@ -1091,6 +1111,7 @@ class TAOrchestrator:
                     demand_zones.append(dz)
 
             # ── Fibonacci retracements ───────────────────────────────
+            await _p("PONTIFICATING", f"{tfv} calculating fibonacci retracements")
             fibonacci_retracements = []
             if swing_highs and swing_lows:
                 latest_high = self._swing_analyzer.get_latest_swing_high(
@@ -1109,6 +1130,7 @@ class TAOrchestrator:
                     fibonacci_retracements.append(fib)
 
             # ── Dealing ranges (from session data) ───────────────────
+            await _p("PONTIFICATING", f"{tfv} extracting session dealing ranges")
             dealing_ranges = []
             for session in (Session.ASIA, Session.LONDON, Session.NEW_YORK):
                 session_range = self._session_analyzer.extract_session_range(
