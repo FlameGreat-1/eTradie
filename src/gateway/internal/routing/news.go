@@ -44,11 +44,24 @@ func ParseSymbolCurrencies(symbol string) []string {
 		return nil
 	}
 	s := strings.ToUpper(strings.TrimSpace(symbol))
-	if len(s) != 6 {
+	s = strings.ReplaceAll(s, "/", "")
+	s = strings.ReplaceAll(s, "_", "")
+
+	var base, quote string
+	switch {
+	case len(s) == 6:
+		base, quote = s[0:3], s[3:6]
+	case len(s) == 7 && (strings.HasPrefix(s, "XAU") || strings.HasPrefix(s, "XAG")):
+		// Metals against a fiat may appear as a 7-char symbol; the
+		// base is the 3-char metal code, mirroring engine parse_pair.
+		base, quote = s[0:3], s[3:]
+	default:
 		return nil
 	}
-	base := s[0:3]
-	quote := s[3:6]
+
+	if len(quote) != 3 {
+		return nil
+	}
 	if base == quote {
 		return []string{base}
 	}
