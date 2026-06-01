@@ -80,14 +80,26 @@ with `refresh()`.
           (verified in dependencies.py _build_collectors).
 - [x] S7  Startup warmup switched collect() -> refresh() so a fresh
           deploy fetches + persists snapshot at boot.
-- [ ] S8  Tests: request-path miss returns last-good snapshot (not empty)
-          for COT + a MarketDataSet collector + calendar + sentiment(dict).
-- [ ] S9  Final consistency pass; update this tracker -> DONE.
+- [x] S8  Tests: tests/macro/collectors/test_read_through_durability.py
+          (cache-miss-serves-snapshot, dict path, cold-start-empty,
+          refresh-persists, cot _empty_dataset valid). asyncio_mode=auto.
+- [ ] S9  Final consistency pass + open MR; verify diffs; tracker -> DONE.
 
 ## Progress marker
 
-COMPLETED: S0-S7.
-NEXT: S8 (tests), then S9 (final pass).
+COMPLETED: S0-S8.
+NEXT: S9 (open MR, verify all diffs landed, run engine test + alembic).
+
+## S9 verification checklist (must confirm before marking DONE)
+- macro_snapshots migration 0031 chains from 0030 (latest) -> yes.
+- collectors construct with self._db already (no DI change) -> yes.
+- scheduler refresh() persists snapshot via base success path -> yes.
+- startup warmup uses refresh() not collect() -> yes (S7).
+- all 7 _read_from_db stubs removed -> yes (S4).
+- cot _empty_dataset valid COTDataSet -> yes (S5).
+- base.py imports datetime/UTC and MacroSnapshotRepository -> yes (S3).
+- gateway side (MacroResult.COT -> buildMacroSection 'cot' -> extractCOT
+  'latest_positions') unchanged and already correct -> yes.
 
 Key files changed:
   - src/engine/macro/storage/schemas/snapshot.py (new)
