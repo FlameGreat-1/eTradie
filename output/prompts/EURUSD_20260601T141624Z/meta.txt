@@ -1,0 +1,7 @@
+trace_id: 5b380696a5ebc9f837a2742ddec7f8e3
+source: 
+user_id: 7dc981b8ca5f742faae571c26bda9ae7
+symbol: EURUSD
+model: gemini-3.5-flash
+max_output_tokens: 32768
+prompt_hash: 1616a23c25e032f0a9c9be45afbe4f66
