@@ -121,6 +121,11 @@ class CentralBankCollector(BaseCollector):
                     if isinstance(event, RateDecision)
                     else None
                 )
+                rate_change_bps = (
+                    event.rate_change_bps
+                    if isinstance(event, RateDecision)
+                    else None
+                )
 
                 rows.append(
                     {
@@ -143,6 +148,7 @@ class CentralBankCollector(BaseCollector):
                         "balance_sheet_direction": balance_sheet_dir,
                         "rate_current": rate_current,
                         "rate_previous": rate_previous,
+                        "rate_change_bps": rate_change_bps,
                         "source_url": getattr(event, "source_url", ""),
                         "event_timestamp": event_ts,
                     }
@@ -157,7 +163,7 @@ class CentralBankCollector(BaseCollector):
                     update_fields=[
                         "content", "speaker", "tone", "tone_score",
                         "policy_action", "balance_sheet_direction",
-                        "rate_current", "rate_previous",
+                        "rate_current", "rate_previous", "rate_change_bps",
                         "source_url", "event_type",
                     ],
                 )

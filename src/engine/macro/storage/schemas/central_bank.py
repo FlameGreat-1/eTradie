@@ -31,6 +31,7 @@ class CentralBankEventRow(Base):
     )
     rate_current: Mapped[float | None] = mapped_column(nullable=True)
     rate_previous: Mapped[float | None] = mapped_column(nullable=True)
+    rate_change_bps: Mapped[int | None] = mapped_column(nullable=True)
     source_url: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     event_timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
