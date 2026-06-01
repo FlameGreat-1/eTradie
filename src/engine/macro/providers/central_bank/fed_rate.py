@@ -288,3 +288,57 @@ class BOJRateProvider(BaseFREDRateProvider):
     bank = CentralBank.BOJ
     upper_series = "IRSTCB01JPM156N"
     lower_series = None
+
+
+class RBARateProvider(BaseFREDRateProvider):
+    """Reserve Bank of Australia cash rate from FRED (series IRSTCB01AUM156N).
+
+    OECD-published central-bank policy rate for Australia. Gives AUD pairs the
+    Australia-vs-US differential that drives AUDUSD. Single rate, no range.
+    """
+
+    provider_name = "rba_rate"
+    bank = CentralBank.RBA
+    upper_series = "IRSTCB01AUM156N"
+    lower_series = None
+
+
+class BOCRateProvider(BaseFREDRateProvider):
+    """Bank of Canada policy rate from FRED (series IRSTCB01CAM156N).
+
+    OECD-published central-bank policy rate for Canada. Gives CAD pairs the
+    Canada-vs-US differential that drives USDCAD. Single rate, no range.
+    """
+
+    provider_name = "boc_rate"
+    bank = CentralBank.BOC
+    upper_series = "IRSTCB01CAM156N"
+    lower_series = None
+
+
+class RBNZRateProvider(BaseFREDRateProvider):
+    """Reserve Bank of New Zealand Official Cash Rate from FRED
+    (series IRSTCB01NZM156N).
+
+    OECD-published central-bank policy rate for New Zealand. Gives NZD pairs
+    the NZ-vs-US differential that drives NZDUSD. Single rate, no range.
+    """
+
+    provider_name = "rbnz_rate"
+    bank = CentralBank.RBNZ
+    upper_series = "IRSTCB01NZM156N"
+    lower_series = None
+
+
+class SNBRateProvider(BaseFREDRateProvider):
+    """Swiss National Bank policy rate from FRED (series IRSTCB01CHM156N).
+
+    OECD-published central-bank policy rate for Switzerland. Gives CHF pairs
+    the Switzerland-vs-US differential that drives USDCHF. Single rate, no
+    range.
+    """
+
+    provider_name = "snb_rate"
+    bank = CentralBank.SNB
+    upper_series = "IRSTCB01CHM156N"
+    lower_series = None
