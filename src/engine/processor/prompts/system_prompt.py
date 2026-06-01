@@ -464,7 +464,7 @@ def build_user_message(context: ProcessorInput) -> str:
     _STRIP_KEYS = {
         # DB / collector metadata
         "id", "created_at", "snapshot_at", "collected_at",
-        "sources", "assessed_at", "source_url", "summary",
+        "sources", "source", "assessed_at", "source_url", "summary",
         # Text fields that duplicate structural context
         "reasoning", "description", "entry_reasoning",
         # Pydantic computed-field duplicates of `direction`
@@ -572,6 +572,14 @@ def build_user_message(context: ProcessorInput) -> str:
     clean_ta = _clean_dict(context.ta_analysis) if context.ta_analysis else {}
     clean_macro = _clean_dict(context.macro_analysis) if context.macro_analysis else {}
 
+    # Calendar compaction (LLM payload only). The collector/DB/news-guard keep
+    # the flat events list with a per-event currency -- the gateway's
+    # EvaluateNewsWindow and extractCalendar depend on that shape and are NOT
+    # touched. Here, purely for the LLM, regroup the events under their
+    # currency so "currency" is stated once per group instead of repeated on
+    # every event (the per-event "source" was already removed via _STRIP_KEYS).
+    _compact_calendar_for_llm(clean_macro)
+
     # Restore LTF-first -> HTF-last snapshot ordering.
     #
     # The TA orchestrator inserts snapshots in this order in
@@ -636,6 +644,41 @@ def build_user_message(context: ProcessorInput) -> str:
         "metadata": clean_metadata,
     }
     return orjson.dumps(payload, option=orjson.OPT_INDENT_2).decode()
+
+
+def _compact_calendar_for_llm(clean_macro: Any) -> None:
+    """Regroup calendar events by currency in-place for the LLM payload.
+
+    Transforms macro_analysis.calendar.events (a flat list, each event
+    carrying its own "currency") into macro_analysis.calendar.events_by_currency
+    (a dict keyed by currency, with the redundant per-event "currency" removed).
+    This is an LLM-token optimisation ONLY: it runs on the cleaned copy that
+    feeds build_user_message and never touches the collector dataset, the DB,
+    the durable snapshot, the gateway news guard, or the gateway extractor --
+    all of which continue to consume the original flat events list.
+
+    No-ops safely when calendar/events is absent or not the expected shape.
+    """
+    if not isinstance(clean_macro, dict):
+        return
+    calendar = clean_macro.get("calendar")
+    if not isinstance(calendar, dict):
+        return
+    events = calendar.get("events")
+    if not isinstance(events, list) or not events:
+        return
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        currency = str(event.get("currency", "")).strip().upper() or "UNKNOWN"
+        compact = {k: v for k, v in event.items() if k != "currency"}
+        grouped.setdefault(currency, []).append(compact)
+
+    if grouped:
+        calendar["events_by_currency"] = grouped
+        calendar.pop("events", None)
 
 
 def compute_prompt_hash(system_prompt: str, user_message: str) -> str:
