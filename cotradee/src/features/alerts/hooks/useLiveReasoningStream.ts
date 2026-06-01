@@ -127,16 +127,25 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
     //   - Between-symbol lull: a per-symbol `final` set isStreaming=false
     //     but pulse rows already exist; a still-running sibling symbol's
     //     pulse must NOT wipe those rows.
-    // Keying on pulses.length (not isStreaming) distinguishes the two.
-    // A LOADING pulse is the reliable start-of-cycle marker (both the
-    // gateway auto-cycle and the engine TA path emit it first), so it
-    // also forces a clean reset to clear a previous run's lingering
-    // completed rows on a fresh rerun.
-    const isCycleStart = frame.phase === 'LOADING';
-    const startingFresh = state.pulses.length === 0 || isCycleStart;
-    const basePulses = startingFresh ? [] : state.pulses;
-
     const pulseSymbol = frame.symbol ?? state.symbol ?? '';
+
+    // Fresh-run reset:
+    //   - No live rows yet  -> overlay showed a DB-hydrated analysis;
+    //     clear the carried-over status/reasoning/analysisId.
+    //   - LOADING pulse     -> reliable start-of-cycle marker. Clear the
+    //     previous run's lingering rows FOR THIS SYMBOL only (the engine
+    //     emits a per-symbol LOADING), preserving any concurrent
+    //     symbol's live rows in a multi-symbol cycle.
+    const startingFresh = state.pulses.length === 0;
+    const isCycleStart = frame.phase === 'LOADING';
+    let basePulses: PulseEntry[];
+    if (startingFresh) {
+      basePulses = [];
+    } else if (isCycleStart) {
+      basePulses = state.pulses.filter((p) => p.symbol !== pulseSymbol);
+    } else {
+      basePulses = state.pulses;
+    }
     const existing = basePulses.findIndex(
       (p) => p.symbol === pulseSymbol && p.phase === phase && p.source === source,
     );
