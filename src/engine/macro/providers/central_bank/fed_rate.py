@@ -260,3 +260,31 @@ class ECBRateProvider(BaseFREDRateProvider):
     bank = CentralBank.ECB
     upper_series = "ECBDFR"
     lower_series = None
+
+
+class BOERateProvider(BaseFREDRateProvider):
+    """Bank of England official Bank Rate from FRED (series BOERUKM).
+
+    The Bank Rate is the BoE's single policy rate (no range). Gives GBP pairs
+    the UK-vs-US/EU rate differential.
+    """
+
+    provider_name = "boe_rate"
+    bank = CentralBank.BOE
+    upper_series = "BOERUKM"
+    lower_series = None
+
+
+class BOJRateProvider(BaseFREDRateProvider):
+    """Bank of Japan policy rate from FRED (series IRSTCB01JPM156N).
+
+    OECD-published immediate/policy interbank rate for Japan -- the standard
+    machine-readable proxy for the BoJ's policy stance. Gives JPY pairs the
+    Japan-vs-US/EU differential that, together with the carry dynamic, drives
+    USDJPY. The BoJ sets a single rate, so there is no lower series.
+    """
+
+    provider_name = "boj_rate"
+    bank = CentralBank.BOJ
+    upper_series = "IRSTCB01JPM156N"
+    lower_series = None
