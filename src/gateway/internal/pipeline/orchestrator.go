@@ -436,6 +436,10 @@ func (o *Orchestrator) executePipeline(
 	wg.Wait()
 
 	if p != nil {
+		// Settle the gateway LOADING row (source="gateway") opened above.
+		// It is distinct from the engine's per-symbol LOADING row
+		// (source="ta"); without this it would stay active forever.
+		p.Emit(ctx, "LOADING", "Analysis cycle initialised", "gateway", true)
 		// On a cache hit the engine HTTP call was skipped, so its
 		// granular pulses never fired. Tell the user the truth (served
 		// from cache) rather than implying a full sweep ran. On a cache
@@ -1388,7 +1392,7 @@ func (o *Orchestrator) processSymbol(
 
 	// Phase 6: Guards + Routing.
 	phaseStart = time.Now()
-	sp.Emit(ctx, "ACTIONING", "Evaluating guards & routing decision", "processor", true)
+	sp.Emit(ctx, "ACTIONING", "Evaluating guards & routing decision", "processor", false)
 	routeCtx, routeSpan := observability.StartSpan(ctx, "pipeline.guards_and_routing",
 		attribute.String("symbol", symbol),
 		attribute.Bool("trade_valid", processorOutput.TradeValid),
@@ -1397,6 +1401,14 @@ func (o *Orchestrator) processSymbol(
 	routeResult := o.router.Route(routeCtx, processorOutput, symResult, macroResult, preLLMRoute.GuardResult, traceID)
 	routeSpan.End()
 	observability.GatewayPhaseDuration.WithLabelValues(constants.PhaseEvaluatingGuards.String()).Observe(time.Since(phaseStart).Seconds())
+
+	// Terminal ACTIONING marker reporting the REAL pipeline outcome
+	// after routing/execution ran. Without this the terminal appeared
+	// to end at "Evaluating guards & routing decision" with no sign of
+	// the decision. The outcome string is the gateway's own
+	// constants.Outcome* value (trade_approved / rejected_by_guard /
+	// no_setup / insufficient_data / pipeline_error).
+	sp.Emit(ctx, "ACTIONING", fmt.Sprintf("Cycle complete: %s", routeResult.Outcome), "processor", true)
 
 	return &models.GatewayOutput{
 		CycleStatus:     constants.StatusCompleted,
