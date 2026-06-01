@@ -26,7 +26,10 @@ from engine.macro.providers.central_bank.boc_rss import BOCRSSProvider
 from engine.macro.providers.central_bank.boe_rss import BOERSSProvider
 from engine.macro.providers.central_bank.boj_rss import BOJRSSProvider
 from engine.macro.providers.central_bank.ecb_rss import ECBRSSProvider
-from engine.macro.providers.central_bank.fed_rate import FedRateProvider
+from engine.macro.providers.central_bank.fed_rate import (
+    ECBRateProvider,
+    FedRateProvider,
+)
 from engine.macro.providers.central_bank.fed_rss import FedRSSProvider
 from engine.macro.providers.central_bank.rba_rss import RBARSSProvider
 from engine.macro.providers.central_bank.rbnz_rss import RBNZRSSProvider
@@ -248,6 +251,14 @@ class Container:
             api_key=s.fred_api_key,
         )
         self.ecb_provider = ECBRSSProvider(r, feed_url=s.ecb_rss_url)
+        # FRED-sourced ECB Deposit Facility Rate, the EUR policy rate markets
+        # watch. Pairs with fed_rate_provider so the LLM has the Fed-ECB
+        # differential that drives EURUSD.
+        self.ecb_rate_provider = ECBRateProvider(
+            h,
+            base_url=s.fred_base_url,
+            api_key=s.fred_api_key,
+        )
         self.boe_provider = BOERSSProvider(r, feed_url=s.boe_rss_url)
         self.boj_provider = BOJRSSProvider(r, feed_url=s.boj_rss_url)
         self.rba_provider = RBARSSProvider(r, feed_url=s.rba_rss_url)
@@ -258,6 +269,7 @@ class Container:
             self.fed_provider,
             self.fed_rate_provider,
             self.ecb_provider,
+            self.ecb_rate_provider,
             self.boe_provider,
             self.boj_provider,
             self.rba_provider,
@@ -314,6 +326,7 @@ class Container:
                 self.fed_provider,
                 self.fed_rate_provider,
                 self.ecb_provider,
+                self.ecb_rate_provider,
                 self.boe_provider,
                 self.boj_provider,
                 self.rba_provider,
