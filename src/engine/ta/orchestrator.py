@@ -179,6 +179,10 @@ class TAOrchestrator:
 
         try:
             # ── Phase 1: Fetch candles for every timeframe ───────────
+            # Settle the LOADING row opened by the internal/rerun handler
+            # so it shows done once the real candle sweep begins.
+            if pulse:
+                await pulse.emit("LOADING", "Initialisation complete", completed=True)
             sequences: dict[Timeframe, CandleSequence] = {}
             for tf in all_timeframes:
                 if pulse:
