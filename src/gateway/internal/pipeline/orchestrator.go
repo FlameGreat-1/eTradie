@@ -1144,6 +1144,48 @@ func (o *Orchestrator) processSymbol(
 	if err != nil {
 		observability.SetSpanError(procSpan, err)
 		procSpan.End()
+
+		// Insufficient-data is a benign, expected per-symbol condition
+		// (empty RAG retrieval, empty TA, or no SMC/SnD candidates), NOT
+		// an LLM failure: the engine returns HTTP 400 with the stable
+		// contract value {"error":"insufficient_data"} and the LLM is
+		// never called. Surfacing it as PROCESSOR_LLM_FAILED/SeverityError
+		// and marking the symbol PIPELINE_ERROR mislabels a no-data result,
+		// over-alarms the user, and pollutes the failure metrics. Route it
+		// like the pre-LLM guard path: an informational ANALYSIS_COMPLETE
+		// (trade_valid=false) plus a benign OutcomeInsufficientData output.
+		// The engine independently counts the precise reason via
+		// etradie_processor_insufficient_data_total{reason}.
+		if isInsufficientData(err) {
+			observability.GatewayNoSetupTotal.WithLabelValues("insufficient_data").Inc()
+
+			o.transport.Publish(ctx,
+				alert.NewEvent(alert.SourceGateway, alert.TypeAnalysisComplete, alert.SeverityInfo,
+					fmt.Sprintf("Analysis complete for %s: insufficient data (no setup)", symbol)).
+					WithUserID(auth.UserIDFromContext(ctx)).
+					WithSymbol(symbol).
+					WithTraceID(traceID).
+					WithDetails(map[string]interface{}{
+						"trade_valid": false,
+						"reason":      "insufficient_data",
+					}),
+			)
+
+			o.log.Info().
+				Str("symbol", symbol).
+				Str("trace_id", traceID).
+				Msg("processor_insufficient_data_no_setup")
+
+			return &models.GatewayOutput{
+				CycleStatus:  constants.StatusCompleted,
+				CycleOutcome: constants.OutcomeInsufficientData,
+				PhaseReached: constants.PhaseCompleted,
+				Symbol:       symbol,
+				DurationMs:   tracker.ElapsedMs(),
+				TraceID:      traceID,
+			}
+		}
+
 		observability.GatewayStageErrors.WithLabelValues(constants.StageProcessorLLM.String(), "error").Inc()
 
 		o.transport.Publish(ctx,
