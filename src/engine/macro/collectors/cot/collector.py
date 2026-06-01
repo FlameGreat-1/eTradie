@@ -68,10 +68,39 @@ class COTCollector(BaseCollector):
     cache_namespace = "cot"
     cache_model = COTDataSet
 
+    def __init__(self, providers, cache, db, *, tff_provider=None) -> None:
+        super().__init__(providers, cache, db)
+        # Optional best-effort source for Traders-in-Financial-Futures
+        # (leveraged funds + asset managers) positions. The primary COT
+        # provider (CFTC DEA futures-only HTML scraper) does not expose TFF,
+        # so this dedicated provider is the only way has_tff_data becomes
+        # true. Kept SEPARATE from the failover provider list so it never
+        # interferes with the proven legacy-position fetch: a TFF failure
+        # leaves the core COT data fully intact.
+        self._tff_provider = tff_provider
+
     async def _do_collect(self) -> COTDataSet:
         report = await self._fetch_with_failover(self._providers)
         positions = report.positions if report else []
         tff_positions = report.tff_positions if report else []
+
+        # Best-effort TFF enrichment from the dedicated provider. Any failure
+        # (network, parse, or an upstream outage) falls back to whatever the
+        # primary report carried, so the core COT signal is never degraded by
+        # a TFF outage.
+        if self._tff_provider is not None:
+            try:
+                tff_report = await self._tff_provider.fetch()
+                if tff_report and tff_report.tff_positions:
+                    tff_positions = tff_report.tff_positions
+            except Exception as exc:
+                logger.warning(
+                    "cot_tff_enrichment_skipped",
+                    provider=getattr(
+                        self._tff_provider, "provider_name", "unknown"
+                    ),
+                    error=str(exc),
+                )
 
         enriched: list[COTPositionEnriched] = []
         previous_positions: list[COTPosition] = []
