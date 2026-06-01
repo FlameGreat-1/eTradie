@@ -292,6 +292,7 @@ class TAOrchestrator:
             # ── Phase 6: Align adjacent snapshots ────────────────────
             if pulse:
                 await pulse.emit("SHIMMING", "Zone scanning complete", completed=True)
+                await pulse.emit("PONTIFICATING", "Liquidity & confirmation complete", completed=True)
                 await pulse.emit("FERMENTING", "Performing multi-timeframe trend alignment")
             alignments: dict[str, dict] = {}
             ordered_tfs = [tf for tf in all_timeframes if tf in snapshots]
