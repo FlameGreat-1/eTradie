@@ -63,7 +63,6 @@ type MacroSignals struct {
 	CommodityCurrenciesWeak bool
 	RiskYieldCurveInverted  bool
 	RiskVIXLevel            *float64
-	RiskReasoning           []string
 
 	GoldPrice          *float64
 	SilverPrice        *float64
@@ -173,7 +172,6 @@ func ExtractMacroSignals(result *models.MacroResult) *MacroSignals {
 		CommodityCurrenciesWeak: getOptBool(sent, "commodity_currencies_weak"),
 		RiskYieldCurveInverted:  getOptBool(sent, "risk_yield_curve_inverted"),
 		RiskVIXLevel:            getOptFloat(sent, "vix_level"),
-		RiskReasoning:           getOptStrSlice(sent, "risk_reasoning"),
 
 		GoldPrice:          getOptFloat(inter, "gold_price"),
 		SilverPrice:        getOptFloat(inter, "silver_price"),
@@ -467,7 +465,6 @@ func extractSentiment(data map[string]interface{}) map[string]interface{} {
 		out["commodity_currencies_weak"] = getOptBool(riskAssessment, "commodity_currencies_weak")
 		out["risk_yield_curve_inverted"] = getOptBool(riskAssessment, "yield_curve_inverted")
 		out["vix_level"] = riskAssessment["vix_level"]
-		out["risk_reasoning"] = riskAssessment["reasoning"]
 	}
 
 	return out
