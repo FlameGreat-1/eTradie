@@ -391,7 +391,19 @@ class ReversalBuilder:
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sweep.swept_level
-        stop_loss = sweep.sweep_low - (self.config.turtle_soup_min_sl_pips * pip_val)
+        # SL beyond the swept extreme (the real invalidation of a turtle
+        # soup), using the timeframe-aware structural buffer.  The turtle
+        # minimum is preserved as an additional floor.
+        structural_sl = compute_structural_stop_loss(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            direction=Direction.BULLISH,
+            invalidation_level=sweep.sweep_low,
+        )
+        turtle_min_sl = sweep.sweep_low - (
+            self.config.turtle_soup_min_sl_pips * pip_val
+        )
+        stop_loss = min(structural_sl, turtle_min_sl)
         take_profit = self._find_nearest_bsl_target(
             entry_price, swing_highs or [], pip_val,
             stop_loss=stop_loss,
@@ -461,7 +473,19 @@ class ReversalBuilder:
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sweep.swept_level
-        stop_loss = sweep.sweep_high + (self.config.turtle_soup_min_sl_pips * pip_val)
+        # SL beyond the swept extreme (the real invalidation of a turtle
+        # soup), using the timeframe-aware structural buffer.  The turtle
+        # minimum is preserved as an additional floor.
+        structural_sl = compute_structural_stop_loss(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            direction=Direction.BEARISH,
+            invalidation_level=sweep.sweep_high,
+        )
+        turtle_min_sl = sweep.sweep_high + (
+            self.config.turtle_soup_min_sl_pips * pip_val
+        )
+        stop_loss = max(structural_sl, turtle_min_sl)
         take_profit = self._find_nearest_ssl_target(
             entry_price, swing_lows or [], pip_val,
             stop_loss=stop_loss,
