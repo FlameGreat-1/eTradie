@@ -214,6 +214,24 @@ func (t *Trade) LotSizeForTP(pct int32) float64 {
 	return t.TotalLotSize * float64(pct) / 100.0
 }
 
+// BrokerTakeProfit returns the take-profit price the broker should hold
+// for this position: the FINAL target (TP3), falling back to TP2 then
+// TP1. A position-level broker TP closes the entire remaining volume
+// when hit, so it MUST be the last target; software handles the TP1/TP2
+// partials inside that bracket. Returns 0 only when no target is set.
+//
+// Used by break-even / trailing so an SL move PRESERVES the broker TP
+// (passing 0 to ModifyPosition would clear it at the broker).
+func (t *Trade) BrokerTakeProfit() float64 {
+	if t.TP3Price > 0 {
+		return t.TP3Price
+	}
+	if t.TP2Price > 0 {
+		return t.TP2Price
+	}
+	return t.TP1Price
+}
+
 // DurationMinutes returns how long the trade has been open.
 func (t *Trade) DurationMinutes() int {
 	end := t.ClosedAt

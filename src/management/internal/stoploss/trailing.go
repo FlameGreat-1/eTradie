@@ -119,8 +119,10 @@ func (e *TrailingEngine) Evaluate(ctx context.Context, trade *types.Trade, check
 		return false, nil
 	}
 
-	// Execute the modification at the broker.
-	if err := e.bp.ModifyPosition(ctx, brokerID, newSL, 0); err != nil {
+	// Execute the modification at the broker. Preserve the broker's
+	// FINAL-target TP (TP3) on the SL move; passing 0 would clear the
+	// broker take-profit (TRADE_ACTION_SLTP tp=0).
+	if err := e.bp.ModifyPosition(ctx, brokerID, newSL, trade.BrokerTakeProfit()); err != nil {
 		return false, err
 	}
 

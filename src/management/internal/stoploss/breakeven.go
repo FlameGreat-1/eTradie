@@ -173,7 +173,9 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 		newSL = entryPrice - bufferPips*pipSize
 	}
 
-	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, 0); err != nil {
+	// Preserve the broker's FINAL-target TP (TP3) on the SL move; passing
+	// 0 here would clear the broker take-profit (TRADE_ACTION_SLTP tp=0).
+	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, trade.BrokerTakeProfit()); err != nil {
 		return false, err
 	}
 
@@ -258,7 +260,8 @@ func (e *BreakevenEngine) applyTimeTightening(ctx context.Context, trade *types.
 		return false, nil
 	}
 
-	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, 0); err != nil {
+	// Preserve the broker's FINAL-target TP (TP3) on the SL move.
+	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, trade.BrokerTakeProfit()); err != nil {
 		return false, err
 	}
 
