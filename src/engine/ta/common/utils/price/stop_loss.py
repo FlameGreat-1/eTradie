@@ -86,34 +86,80 @@ def timeframe_floor_pips(timeframe: Timeframe) -> float:
 
 # --- Timeframe-scaled minimum take-profit R:R ------------------------
 #
-# An LTF target and an HTF target cannot share the same reward-to-risk
-# floor: an M5 scalp draws to the nearest LTF liquidity pool, while a
-# D1 swing must reach a far HTF draw.  This floor is applied to the TP
-# selectors so the nearest qualifying structural target is timeframe-
-# appropriate.  It is a *floor* (minimum acceptable R:R), not a fixed
-# target -- the actual TP is still a real structural liquidity level.
+# IMPORTANT: these values are reward-to-risk MULTIPLES (R), NOT pips.
+# A value of 3.0 means the take-profit must be at least 3x the SL
+# distance away from entry (a 1:3 R:R floor).  The actual TP is always
+# a real structural liquidity level; this only filters out targets too
+# close to clear the floor.
+#
+# An LTF target and an HTF target cannot share the same R:R floor: an
+# M5 entry draws to the nearest LTF liquidity pool, while a D1 entry
+# must reach a far HTF draw.  This table scales the floor up with the
+# timeframe.
+#
+# CRITICAL CONSISTENCY RULE: this floor must NEVER sit below the
+# rulebook's lowest per-style minimum R:R (Scalping = 1:2, Section 7.3
+# / STYLE-RR-001).  The candidate-build TA layer does not yet know the
+# active trading style, so the safe lower bound here is the lowest
+# style minimum (2.0).  The authoritative per-style gate is still the
+# processor validator (_validate_rr_ratio against MIN_RR_*); see
+# resolve_min_tp_rr() for how the two combine.
+_LOWEST_STYLE_MIN_RR: float = 2.0  # Scalping 1:2 -- rulebook Section 7.3
+
 TIMEFRAME_MIN_TP_RR: dict[Timeframe, float] = {
-    Timeframe.M1: 1.0,
-    Timeframe.M5: 1.0,
-    Timeframe.M15: 1.5,
-    Timeframe.M30: 1.5,
-    Timeframe.H1: 2.0,
-    Timeframe.H3: 2.5,
-    Timeframe.H4: 3.0,
-    Timeframe.H6: 3.0,
-    Timeframe.H8: 3.0,
-    Timeframe.H12: 3.5,
-    Timeframe.D1: 4.0,
+    Timeframe.M1: 2.0,
+    Timeframe.M5: 2.0,
+    Timeframe.M15: 2.5,
+    Timeframe.M30: 2.5,
+    Timeframe.H1: 3.0,
+    Timeframe.H3: 3.0,
+    Timeframe.H4: 3.5,
+    Timeframe.H6: 3.5,
+    Timeframe.H8: 4.0,
+    Timeframe.H12: 4.0,
+    Timeframe.D1: 5.0,
     Timeframe.W1: 5.0,
     Timeframe.MN1: 5.0,
 }
 
-_DEFAULT_MIN_TP_RR: float = 1.0
-
 
 def timeframe_min_tp_rr(timeframe: Timeframe) -> float:
-    """Return the timeframe-scaled minimum take-profit reward-to-risk."""
-    return TIMEFRAME_MIN_TP_RR.get(timeframe, _DEFAULT_MIN_TP_RR)
+    """Return the timeframe-scaled minimum take-profit reward-to-risk MULTIPLE.
+
+    This is an R multiple (e.g. 3.0 == 1:3 R:R), never a pip distance.
+    It is floored at the lowest rulebook per-style minimum so it can
+    never undershoot the style gate enforced downstream.
+    """
+    return max(
+        _LOWEST_STYLE_MIN_RR,
+        TIMEFRAME_MIN_TP_RR.get(timeframe, _LOWEST_STYLE_MIN_RR),
+    )
+
+
+def resolve_min_tp_rr(
+    timeframe: Timeframe,
+    style_min_rr: Optional[float] = None,
+) -> float:
+    """Combine the per-style minimum R:R with the timeframe floor.
+
+    The take-profit floor is ``max(style_min_rr, timeframe_min_rr)``:
+
+    * ``style_min_rr`` is the rulebook's per-style minimum (Section 7.3
+      / STYLE-RR-001): Scalping 2.0, Intraday 3.0, Swing 3.0,
+      Positional 5.0.  It is the HARD floor -- the timeframe value may
+      only RAISE the bar above it, never lower it.
+    * ``timeframe_min_rr`` widens the floor when the candidate's own
+      timeframe demands a larger draw than the active style requires
+      (e.g. a D1 candidate inside a Swing trade).
+
+    When ``style_min_rr`` is None (the candidate-build TA layer does
+    not yet know the active style), only the timeframe floor applies --
+    and that floor is itself never below the lowest style minimum.
+    """
+    tf_floor = timeframe_min_tp_rr(timeframe)
+    if style_min_rr is None:
+        return tf_floor
+    return max(float(style_min_rr), tf_floor)
 
 
 def structural_buffer(
