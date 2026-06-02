@@ -69,13 +69,52 @@ driven from above the gateway handler.
       `ReadHeaderTimeout: 10s` slow-loris guard, so a long analysis
       response is not killed by the server write deadline.
       (commit: gateway WriteTimeout)
-- [ ] **Step 3** – Engine idempotency: honour `X-Idempotency-Key` on
-      `/internal/processor/process` with a short-TTL Redis dedupe so a
-      duplicate processor call returns the first result instead of
-      re-billing the LLM. Gateway adapter forwards the key.
+- [~] **Step 3** – Engine idempotency. DONE so far:
+      - `src/engine/processor/idempotency.py` (single-flight + result
+        cache, keyed on sha256(user_id:symbol:prompt_hash), fail-open).
+      - `LLMDuplicateSuppressedError` in `llm/errors.py`.
+      - 409 `llm_duplicate_suppressed` mapping in `routers/internal.py`.
+      REMAINING (wiring into `service.py::_execute`):
+        1. Imports: `ProcessorIdempotency`, `compute_digest`,
+           `LLMDuplicateSuppressedError`.
+        2. After `prompt_hash = compute_prompt_hash(...)` (and the
+           prompt dump): if `self._cache` is set, build the guard,
+           `digest = compute_digest(user_id=..., symbol=..., prompt_hash=...)`.
+           - `cached = await guard.check_cached(digest, trace_id=...)`;
+             if not None -> `return cached` (skip LLM entirely).
+           - `handle = await guard.acquire(digest, trace_id=...)`.
+             If `handle is None` (duplicate): `owner_result =
+             await guard.await_result(digest, trace_id=...)`; if not
+             None `return owner_result`, else raise
+             `LLMDuplicateSuppressedError(...)`.
+        3. Wrap the post-acquire body (metering -> LLM -> parse -> map)
+           in `try/finally`; in `finally` call `await guard.release(
+           handle, trace_id=...)` when `handle` is not None. This MUST
+           release on every exit (success, truncation raise, parse
+           raise, BYOK quota raise) so the single-flight lock never
+           blocks a legitimate retry for the lock TTL.
+        4. Immediately before `return processor_output` (success path,
+           status SUCCESS or NO_SETUP), call
+           `await guard.store_result(digest, processor_output,
+           trace_id=...)`. NEVER store on an error path.
+        NOTE: the safe way to add the try/finally without a fragile
+        400-line string edit is to extract the metering->map core of
+        `_execute` into a private `_run_pipeline(...)` helper and have
+        `_execute` call it inside the guard's try/finally. Implement via
+        a full, verified rewrite of `_execute` + new helper, not blind
+        partial edits.
+        The gateway already mints `X-Idempotency-Key` per call
+        (`engine_http.go`); no gateway change is required for Step 3
+        because the dedupe key is derived server-side from the prompt,
+        which is strictly stronger (covers distinct-cycle duplicates,
+        not just same-request replays).
 - [ ] **Step 4** – Gateway cancellation propagation: `RunCycle` /
       `processSymbol` honour the inbound request context so an abandoned
-      connection cancels the LLM call.
+      connection cancels the LLM call. The HTTP handler passes
+      `r.Context()` into `RunCycle` already; verify the per-phase
+      `context.WithTimeout` chain derives from it (it does) and that the
+      processor adapter's `PostJSONNoRetry` is called with that ctx so a
+      client disconnect cancels the in-flight engine call.
 
 ## Notes
 
