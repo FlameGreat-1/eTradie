@@ -142,6 +142,164 @@ All five findings landed on branch `audit/execution-management-hardening`.
 Next step: open the MR from that branch into `main` and run CI.
 
 
+================================================================================
+## EXECUTION + MANAGEMENT END-TO-END FLOW AUDIT (POST SL/TP FIX, MR !75)
+================================================================================
+
+Scope: full live path traced and verified against actual source on `main`:
+ProcessorOutput (Python output_mapper) -> gateway guards -> BuildExecuteRequest
+-> execution ExecuteTrade (validate -> size -> build -> execute, incl. the new
+Step-2 min-stop check) -> MT5 bridge -> instant watcher / LIMIT TTL ->
+NotifyExecutionCompleted -> RegisterFilledTradeRequest -> RegisterFilledTrade
+-> in-memory Trade -> monitoring worker (SL -> TP -> BE -> trail) -> broker;
+plus management restart-restore (main.go), journal repository/schema/models,
+takeprofit executor, breakeven/trailing engines, invalidators, EOD.
+
+VERDICT: the LIVE happy-path is correctly wired. The system is NOT yet fully
+production-ready: there are confirmed money-affecting correctness bugs on the
+restart/persistence path and in synthetic-instrument SL math. Every item below
+is backed by code that was read, not assumed.
+
+Status legend: [ ] open  [~] partial  [x] done
+
+--------------------------------------------------------------------------------
+### EM-C1 (CRITICAL) TP partial-close percentages are destroyed on restart
+--------------------------------------------------------------------------------
+Evidence chain (all verified):
+  - journal/repository.go SchemaSQL: management_trades has NO tp1_pct/tp2_pct/
+    tp3_pct columns.
+  - journal/models.go TradeRecord: NO TP*Pct fields.
+  - journal/repository.go InsertTrade / GetActiveTrades / GetAllActiveTrades /
+    GetTradeByBrokerOrderID: pct never written or read.
+  - cmd/management/main.go restoreTradeFromRecord: rebuilds Trade WITHOUT
+    setting TP1Pct/TP2Pct/TP3Pct -> Go zero-value 0.
+  - takeprofit/executor.go: closeVol = totalLot * tpPct / 100.0.
+Consequence: after ANY management restart, restored trades have tpPct = 0 ->
+closeVol = 0 -> ClosePartial(brokerID, 0). TP1 and TP2 partial closes silently
+close ZERO lots. Only TP3 (fullClose -> ClosePosition) works. Because the
+broker only ever holds TP1 as its order TP (see EM-M1), a restarted trade past
+TP1 has neither a working broker TP nor a working software partial.
+Fix: add tp1_pct/tp2_pct/tp3_pct columns + idempotent migration; add fields to
+TradeRecord; write/read in InsertTrade + all SELECTs; set them in
+restoreTradeFromRecord.
+Status: [ ]
+
+--------------------------------------------------------------------------------
+### EM-C2 (CRITICAL) Point/Digits destroyed on restart -> BE/trailing SL math wrong
+--------------------------------------------------------------------------------
+Evidence: RegisterFilledTrade stamps trade.Point/Digits (from gateway
+symbol_info), but they are NOT persisted (schema/TradeRecord/InsertTrade omit
+them) and NOT restored in restoreTradeFromRecord. After restart trade.Point = 0
+-> breakeven.go falls back to tradePoint = 0.0001. For synthetics/indices whose
+real point differs, BE/trailing SL is computed on the wrong scale.
+Fix: persist + restore point and digits alongside the trade.
+Status: [ ]
+
+--------------------------------------------------------------------------------
+### EM-H1 (HIGH) Breakeven buffer uses FX-only pip model; wrong on synthetics
+--------------------------------------------------------------------------------
+Evidence: stoploss/breakeven.go:
+  newSL = entryPrice +/- bufferPips * (tradePoint * 10)  // "1 pip = 10 points"
+Hardcoded FX convention. The rest of the system (Python get_pip_value, execution
+sizing) treats synthetics with pip = 1.0 and uses the broker's real point. On
+Crash/Boom/Volatility/index symbols this yields a near-zero buffer -> breakeven
+lands effectively at raw entry with no spread cushion -> trades get knocked to
+BE by spread/noise. Cross-instrument inconsistency.
+Fix: derive the BE/trailing buffer from a synthetic-aware pip value (same source
+as execution sizing) rather than tradePoint*10. Validate per instrument class.
+Status: [ ]
+
+--------------------------------------------------------------------------------
+### EM-H2 (HIGH) Trailing stop is fractional, not structural (rulebook mismatch)
+--------------------------------------------------------------------------------
+Evidence: stoploss/trailing.go trails a fixed fraction of the move from entry
+(trailFractionForStyle) and documents in-code that it lacks candle/swing data,
+while citing the swing-based rulebook rule (STYLE-MGMT-002 / 9.2). Behaviour
+does not match documented intent; on synthetics a fixed-fraction trail can give
+back large open profit.
+Fix: feed structural swing levels to Module C (e.g. via the candle-closed alert
+or a dedicated lookup) and trail behind the last swing, OR explicitly downgrade
+the documented contract to match the implementation. Decide deliberately.
+Status: [ ]
+
+--------------------------------------------------------------------------------
+### EM-M1 (MEDIUM) Broker holds only SL + TP1; TP2/TP3/BE/trailing are software-only
+--------------------------------------------------------------------------------
+Evidence: execution mt5/bridge.go and watcher fireMarketOrder send only
+TakeProfit = TP1Price to the broker; takeprofit/executor.go closes TP2/TP3 by
+polling tick prices. There is no broker-side OCO bracket for TP2/TP3.
+Consequence: a Module C outage/restart degrades a live position to broker-SL +
+broker-TP1 only (and, combined with EM-C1/EM-C2, even TP1 management is broken
+after restart). Acceptable ONLY with hardened Module C HA, which is not
+evidenced.
+Fix: either place a broker-side bracket for the runner, or document + harden
+Module C HA (and resolve EM-C1/EM-C2 so restart restores full state).
+Status: [ ]
+
+--------------------------------------------------------------------------------
+### EM-M2 (MEDIUM) Instant-fill entry differs from sized/validated entry
+--------------------------------------------------------------------------------
+Evidence: sizing and check14MinStopDistance use EntryPrice() = entry-zone
+midpoint, but INSTANT mode fills at market (fireMarketOrder Price = 0) anywhere
+in the zone +/- overshoot tolerance. Realized risk (fill->SL) can differ from
+the validated/sized risk (midpoint->SL). The min-stop floor is still sound; the
+risk amount is approximate on instant fills.
+Fix: recompute risk/lot from the actual fill price post-fill, or tighten
+overshoot tolerance, or document the accepted variance.
+Status: [ ]
+
+--------------------------------------------------------------------------------
+### EM-L1 (LOW/STRUCTURAL) ProcessorOutput contract is triplicated by hand
+--------------------------------------------------------------------------------
+Evidence: the ProcessorOutput contract is hand-maintained in three places:
+proto/engine/v1/engine.proto, gateway models/processor.go, and Python
+processor/models/io.py, synchronized only by `make contract-check`. A silent
+rename/removal drops a field to zero downstream on money-bearing values (SL/TP/
+pct/style). The Python output_mapper reshapes raw LLM JSON (entry_zone ->
+midpoint+low/high, take_profits[] -> TP1/2/3 price+pct, stop_loss.price, derived
+trade_valid/risk%/confidence-float); SL/TP NUMBERS pass through unchanged but
+the shape boundary is a drift risk.
+Fix: enforce contract-check in CI as a hard gate (fail the pipeline on drift);
+consider generating one side from the proto.
+Status: [ ]
+
+--------------------------------------------------------------------------------
+### EM-V1 (VERIFY) MT5 order_send SL/TP attachment not yet code-verified
+--------------------------------------------------------------------------------
+The Go side forwards stop_loss/take_profit to the Python bridge
+/internal/broker/place_order, but src/engine/routers/broker_bridge.py (the
+actual MT5 order_send call) was NOT read in this pass. MUST confirm SL/TP are
+attached to the broker order (and synthetic pip handling) before live. If that
+endpoint drops SL/TP, every trade is naked at the broker and only software-
+managed.
+Status: [ ]
+
+--------------------------------------------------------------------------------
+### Verified CORRECT (no action) — recorded for completeness
+--------------------------------------------------------------------------------
+  - Live SL/TP/pct/style/grade flow ProcessorOutput -> execution -> gateway
+    NotifyExecutionCompleted -> RegisterFilledTradeRequest -> Trade: complete
+    and consistent on the happy path.
+  - New min-stop guard check14MinStopDistance runs before sizing, fails OPEN on
+    missing/invalid PipSize, rejects zero/negative SL distance.
+  - Idempotency via GetTradeByBrokerOrderID on both execution and management.
+  - Restart-restore mechanism IS wired in main.go (GetAllActiveTrades, 30-day
+    service tokens, re-register) — the mechanism exists; the restored field set
+    is lossy (EM-C1/EM-C2).
+  - TP closeVol > remaining clamping + realized-pct journaling handle LLM pct
+    drift well.
+  - Worker evaluation order SL -> TP -> BE -> trail and the checkPrice <= 0
+    half-tick guard are correct.
+  - Multi-tenant user_id scoping is consistent on every journal query.
+  - Invalidators (structural/macro/exposure/news) gate on direction and close
+    via ClosePosition with R-multiple PnL; their math relies on risk_amount /
+    slDist which ARE persisted, so it survives restart.
+  - Intraday EOD hard-close (16:30 UTC) is wired via the EOD scheduler.
+
+Priority order to fix: EM-C1, EM-C2 (restart persistence) first; then EM-H1
+(synthetic BE pip); then EM-V1 verification; then EM-M1/EM-H2/EM-M2/EM-L1.
+
+
 
 
 THIS IS ARE SOME OF THE REASONING I COPIED SO THAT YOU WILL UNDERSTAND WHAT YOU WERE DOING BEFORE THE SESSION ENDED:
