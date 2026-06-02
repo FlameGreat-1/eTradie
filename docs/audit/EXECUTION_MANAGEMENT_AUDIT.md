@@ -442,3 +442,35 @@ CANDLE_CLOSED alert (src/alert/event.go) carries NO swing levels, so a
 true swing trail needs a new candle fetch into Module C (the EA exposes a
 CANDLES command, so it is feasible as a future enhancement) — not a silent
 claim. No price/value is hardcoded anywhere in these fixes.
+
+--------------------------------------------------------------------------------
+### SL-management scenarios — end-to-end trace (verified active)
+--------------------------------------------------------------------------------
+Worker (monitoring/worker.go) calls be.Evaluate then trail.Evaluate every
+tick, in order SL -> TP -> BE -> trail. All three SL behaviours traced:
+  1. Standard break-even (breakeven.go Evaluate): scalping triggers at 60%
+     of distance to TP1 (ScalpBEThreshold); intraday/swing/positional
+     trigger when price reaches TP1. Moves SL to entry +/- SpreadBufferPips
+     * PipSize. ACTIVE.
+  2. Intraday 3-hour time-tighten (breakeven.go applyTimeTightening):
+     intraday branch, when TP1 not reached within IntradayBETimeoutHours;
+     SL tightened to IntradaySLReductionPct of original risk. ACTIVE.
+  3. Post-BE fractional trail (trailing.go Evaluate): returns early unless
+     BreakevenSet; trails trailFractionForStyle of the move, +0.10 after
+     TP1, tighten-only. ACTIVE (depends on #1 having set BreakevenSet,
+     which is now persisted -> survives restart).
+All three now call ModifyPosition with BrokerTakeProfit() (not 0).
+
+EM-C3 FOLLOW-UP (regression I introduced + fixed in the same MR):
+re-sending TP3 on every SL move risked the EA rejecting the whole modify
+when price neared TP3 (ValidateStopLevels gates SL+TP together). Fixed in
+ZeroMQ_EA.mq5 HandlePositionModify: SL and TP are now validated
+INDEPENDENTLY; a too-close/zero TP preserves the position's existing TP
+and the SL move always proceeds. MetaApi modifies SL/TP as independent
+fields, so both backends are safe.
+
+EM-V1 FULLY VERIFIED to the EA: HandleOrderSend attaches request.sl +
+request.tp on OrderSend (market + pending); HandlePositionModify,
+HandlePositionClosePartial, HandlePositionClose, ValidateStopLevels and
+NormalizePrice all read. Native ZMQ + MetaApi + broker_bridge.py all
+confirmed to carry SL/TP. No EA layer left unread.
