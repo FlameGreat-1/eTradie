@@ -125,6 +125,23 @@ func (o *Order) IdentityCtx(parent context.Context) context.Context {
 	return ctx
 }
 
+// BrokerTakeProfit returns the take-profit price to attach to the broker
+// order: the FINAL target (TP3), falling back to TP2 then TP1 when higher
+// targets are not set. A position-level broker TP closes the entire
+// remaining volume when hit, so it MUST be the last target -- otherwise
+// the broker would close the whole position at TP1 and the software
+// TP1/TP2 partials + break-even + trailing would never run. Returns 0
+// only when no target is set (caller then places no broker TP).
+func (o *Order) BrokerTakeProfit() float64 {
+	if o.TP3Price > 0 {
+		return o.TP3Price
+	}
+	if o.TP2Price > 0 {
+		return o.TP2Price
+	}
+	return o.TP1Price
+}
+
 // Lock acquires the write lock.
 func (o *Order) Lock() { o.mu.Lock() }
 

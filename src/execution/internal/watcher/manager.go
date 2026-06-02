@@ -998,12 +998,15 @@ func (w *Watcher) tryConfirmAndFire(ctx context.Context) bool {
 // final, irreversible step. Any error here is critical.
 func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	placement := &models.OrderPlacement{
-		Symbol:     w.order.Symbol,
-		Direction:  constants.BrokerDirection(w.order.Direction),
-		OrderType:  string(constants.BrokerOrderMarket),
-		Price:      0, // Market order — broker fills at best available.
-		StopLoss:   w.order.StopLoss,
-		TakeProfit: w.order.TP1Price,
+		Symbol:    w.order.Symbol,
+		Direction: constants.BrokerDirection(w.order.Direction),
+		OrderType: string(constants.BrokerOrderMarket),
+		Price:     0, // Market order — broker fills at best available.
+		StopLoss:  w.order.StopLoss,
+		// Attach the FINAL target (TP3) to the broker, not TP1: a
+		// position-level TP closes the whole position, so the broker TP
+		// must sit beyond the software TP1/TP2 partials (CRITICAL).
+		TakeProfit: w.order.BrokerTakeProfit(),
 		LotSize:    w.order.LotSize,
 		Comment:    w.order.AnalysisID,
 	}

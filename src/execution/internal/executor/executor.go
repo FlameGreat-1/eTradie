@@ -121,12 +121,15 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 	defer cancel()
 
 	placement := &models.OrderPlacement{
-		Symbol:     order.Symbol,
-		Direction:  constants.BrokerDirection(order.Direction),
-		OrderType:  string(constants.BrokerOrderLimit),
-		Price:      order.EntryPrice,
-		StopLoss:   order.StopLoss,
-		TakeProfit: order.TP1Price,
+		Symbol:    order.Symbol,
+		Direction: constants.BrokerDirection(order.Direction),
+		OrderType: string(constants.BrokerOrderLimit),
+		Price:     order.EntryPrice,
+		StopLoss:  order.StopLoss,
+		// Attach the FINAL target (TP3) to the broker, not TP1: a
+		// position-level TP closes the whole position, so the broker TP
+		// must sit beyond the software TP1/TP2 partials (CRITICAL).
+		TakeProfit: order.BrokerTakeProfit(),
 		LotSize:    order.LotSize,
 		Comment:    order.AnalysisID,
 	}
