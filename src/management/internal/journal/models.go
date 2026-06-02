@@ -16,13 +16,24 @@ type TradeRecord struct {
 	StopLoss        float64    `db:"stop_loss"`
 	InitialSL       float64    `db:"initial_sl"`
 	TP1Price        float64    `db:"tp1_price"`
+	TP1Pct          int32      `db:"tp1_pct"`
 	TP2Price        float64    `db:"tp2_price"`
+	TP2Pct          int32      `db:"tp2_pct"`
 	TP3Price        float64    `db:"tp3_price"`
+	TP3Pct          int32      `db:"tp3_pct"`
 	TotalLotSize    float64    `db:"total_lot_size"`
+	RemainingLotSize float64   `db:"remaining_lot_size"`
 	GrossPnL        float64    `db:"gross_pnl"`
 	RMultiple       float64    `db:"r_multiple"`
 	RiskAmount      float64    `db:"risk_amount"`
 	RiskPercent     float64    `db:"risk_percent"`
+	RRRatio         float64    `db:"rr_ratio"`
+	Point           float64    `db:"point"`
+	Digits          int        `db:"digits"`
+	TP1Hit          bool       `db:"tp1_hit"`
+	TP2Hit          bool       `db:"tp2_hit"`
+	TP3Hit          bool       `db:"tp3_hit"`
+	BreakevenSet    bool       `db:"breakeven_set"`
 	ConfluenceScore float64    `db:"confluence_score"`
 	Grade           string     `db:"grade"`
 	SetupType       string     `db:"setup_type"`
