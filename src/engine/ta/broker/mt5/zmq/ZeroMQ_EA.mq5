@@ -1153,20 +1153,41 @@ string HandlePositionModify(CJAVal &cmd)
       return "{\"success\":false,\"error\":\"Position not found: " + IntegerToString(ticket) + "\"}";
    }
 
-   string symbol = PositionGetString(POSITION_SYMBOL);
-   long   type   = PositionGetInteger(POSITION_TYPE);
-   double price  = PositionGetDouble(POSITION_PRICE_CURRENT);
+   string symbol     = PositionGetString(POSITION_SYMBOL);
+   long   type       = PositionGetInteger(POSITION_TYPE);
+   double price      = PositionGetDouble(POSITION_PRICE_CURRENT);
+   double current_tp = PositionGetDouble(POSITION_TP);
 
    // Normalize prices
    sl = NormalizePrice(symbol, sl);
    tp = NormalizePrice(symbol, tp);
 
-   // Validate stop levels
    ENUM_ORDER_TYPE order_type = (type == POSITION_TYPE_BUY) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
-   if(!ValidateStopLevels(symbol, order_type, price, sl, tp))
+
+   // Validate SL and TP INDEPENDENTLY so TP proximity can never block an
+   // SL move. A break-even / trailing SL adjustment re-sends the broker
+   // bracket TP (the final target) on every move; late in a winning trade
+   // the unchanged TP sits close to price and would fail the broker's
+   // stops_level check. Rejecting the whole modify there would FREEZE the
+   // stop. So:
+   //   - SL is validated on its own (an invalid SL is a real error).
+   //   - If the requested TP is invalid (too close) or zero, PRESERVE the
+   //     position's existing TP rather than rejecting or clearing it.
+   if(!ValidateStopLevels(symbol, order_type, price, sl, 0))
    {
-      Log(LOG_ERROR, "Modify rejected - invalid stop levels for ticket: " + IntegerToString(ticket));
-      return "{\"success\":false,\"error\":\"Stop levels too close to market price\"}";
+      Log(LOG_ERROR, "Modify rejected - invalid SL for ticket: " + IntegerToString(ticket));
+      return "{\"success\":false,\"error\":\"Stop loss too close to market price\"}";
+   }
+
+   double effective_tp = tp;
+   if(tp <= 0 || !ValidateStopLevels(symbol, order_type, price, 0, tp))
+   {
+      // Requested TP missing or too close: keep the existing broker TP so
+      // the bracket is preserved and the SL move still proceeds.
+      effective_tp = current_tp;
+      if(tp > 0)
+         Log(LOG_WARN, "Requested TP too close for ticket " + IntegerToString(ticket) +
+             "; preserving existing TP " + DoubleToString(current_tp, 5));
    }
 
    MqlTradeRequest request = {};
@@ -1176,7 +1197,7 @@ string HandlePositionModify(CJAVal &cmd)
    request.position = (ulong)ticket;
    request.symbol   = symbol;
    request.sl       = sl;
-   request.tp       = tp;
+   request.tp       = effective_tp;
 
    if(!OrderSend(request, result))
    {
