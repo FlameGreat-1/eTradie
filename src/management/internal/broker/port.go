@@ -21,6 +21,17 @@ type TickPrice struct {
 	Ask float64
 }
 
+// SymbolInfo holds the instrument metadata the management engine needs
+// for pip-scale math (break-even buffer, trailing). Sourced from the
+// engine's /internal/broker/symbol_info endpoint — the SAME source the
+// execution sizing engine uses — so the pip model stays consistent
+// across modules.
+type SymbolInfo struct {
+	Symbol string
+	Point  float64
+	Digits int
+}
+
 // PositionInfo holds broker-reported position state.
 type PositionInfo struct {
 	Symbol       string
@@ -66,6 +77,12 @@ type Port interface {
 	// GetPosition returns the current broker state of a specific position.
 	// Used to verify position still exists and get current unrealized P&L.
 	GetPosition(ctx context.Context, ticket string) (*PositionInfo, error)
+
+	// GetSymbolInfo returns instrument metadata (point, digits) for a
+	// symbol. Used to self-heal a managed trade whose broker point was
+	// not captured at registration (reconciler-imported / pre-migration
+	// rows) so break-even / trailing pip math runs on the correct scale.
+	GetSymbolInfo(ctx context.Context, symbol string) (*SymbolInfo, error)
 
 	// GetPositions returns ALL open positions at the broker.
 	// Used by the startup reconciler to discover orphaned positions

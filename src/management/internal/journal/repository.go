@@ -343,6 +343,33 @@ func (r *Repository) UpdateTradeRuntime(ctx context.Context, userID, tradeID str
 	return nil
 }
 
+// UpdateTradePointDigits persists a self-healed broker point/digits onto
+// the managed-trade row so the heal survives the next restart (audit
+// EM-C2). Scoped by user_id. A non-positive point is ignored to avoid
+// overwriting a good value with a bad fetch.
+func (r *Repository) UpdateTradePointDigits(ctx context.Context, userID, tradeID string, point float64, digits int) error {
+	if userID == "" {
+		return fmt.Errorf("update point/digits for trade %s: user_id must not be empty", tradeID)
+	}
+	if point <= 0 {
+		return nil
+	}
+
+	_, err := r.pool.Exec(ctx, `
+		UPDATE management_trades SET
+			point = $3,
+			digits = $4,
+			updated_at = NOW()
+		WHERE trade_id = $1 AND user_id = $2`,
+		tradeID, userID, point, digits,
+	)
+	if err != nil {
+		observability.JournalWriteFailures.Inc()
+		return fmt.Errorf("update point/digits for trade %s: %w", tradeID, err)
+	}
+	return nil
+}
+
 // UpdateTradePartial records a partial close by incrementing the counter.
 func (r *Repository) UpdateTradePartial(ctx context.Context, userID, tradeID string, realizedPnL float64) error {
 	if userID == "" {

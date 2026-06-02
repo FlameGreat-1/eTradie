@@ -76,6 +76,28 @@ func (s *Stream) GetTickPrice(ctx context.Context, symbol string) (*TickPrice, e
 	}, nil
 }
 
+// GetSymbolInfo fetches instrument metadata from the engine's
+// /internal/broker/symbol_info endpoint. Only point + digits are needed
+// by the management engine today; the endpoint returns the full MT5
+// specification but we decode just what we use.
+func (s *Stream) GetSymbolInfo(ctx context.Context, symbol string) (*SymbolInfo, error) {
+	var resp struct {
+		Symbol string  `json:"symbol"`
+		Point  float64 `json:"point"`
+		Digits int     `json:"digits"`
+	}
+
+	if err := s.get(ctx, fmt.Sprintf("/internal/broker/symbol_info?symbol=%s", url.QueryEscape(symbol)), &resp); err != nil {
+		return nil, fmt.Errorf("get symbol info for %s: %w", symbol, err)
+	}
+
+	return &SymbolInfo{
+		Symbol: resp.Symbol,
+		Point:  resp.Point,
+		Digits: resp.Digits,
+	}, nil
+}
+
 func (s *Stream) GetPosition(ctx context.Context, ticket string) (*PositionInfo, error) {
 	var resp struct {
 		Symbol       string  `json:"symbol"`

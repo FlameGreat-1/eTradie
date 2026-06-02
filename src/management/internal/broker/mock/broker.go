@@ -19,6 +19,7 @@ type Broker struct {
 	mu        sync.RWMutex
 	positions map[string]*broker.PositionInfo
 	prices    map[string]*broker.TickPrice
+	symbols   map[string]*broker.SymbolInfo
 	log       zerolog.Logger
 }
 
@@ -27,8 +28,27 @@ func NewBroker() *Broker {
 	return &Broker{
 		positions: make(map[string]*broker.PositionInfo),
 		prices:    make(map[string]*broker.TickPrice),
+		symbols:   make(map[string]*broker.SymbolInfo),
 		log:       observability.Logger("mock_broker"),
 	}
+}
+
+// SetSymbolInfo sets simulated instrument metadata for testing.
+func (b *Broker) SetSymbolInfo(symbol string, point float64, digits int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.symbols[symbol] = &broker.SymbolInfo{Symbol: symbol, Point: point, Digits: digits}
+}
+
+// GetSymbolInfo returns simulated instrument metadata. Defaults to a
+// 5-digit FX instrument (point 0.00001) when no override is set.
+func (b *Broker) GetSymbolInfo(_ context.Context, symbol string) (*broker.SymbolInfo, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if si, ok := b.symbols[symbol]; ok {
+		return si, nil
+	}
+	return &broker.SymbolInfo{Symbol: symbol, Point: 0.00001, Digits: 5}, nil
 }
 
 // SetTickPrice sets a simulated tick price for testing.
