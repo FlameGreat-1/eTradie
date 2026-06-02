@@ -432,9 +432,15 @@ fmt: ## Format Go and Python code
 vet: ## Go vet
 	go vet ./src/gateway/... ./src/execution/... ./src/management/...
 
-contract-check: ## Validate Processor proto constraints against Python engine
+contract-check: ## Validate Processor proto constraints against Python engine (HARD GATE; mirrors CI)
 	echo -e "$(BLUE)Validating processor contract (engine.proto <-> Python)...$(NC)"
-	python3 scripts/validate_processor_contract.py || echo "$(YELLOW)Warning: validation missing...$(NC)"
+	@# Hard gate (audit EM-L1): a non-zero exit MUST fail the target so
+	@# local `make lint` matches the CI lint job, which runs this same
+	@# validator directly and blocks test/build on failure. Do NOT
+	@# swallow the exit code — a silent drift drops a money-bearing field
+	@# (SL/TP/pct/style) to zero downstream.
+	python3 scripts/validate_processor_contract.py
+	echo -e "$(GREEN)✓ Processor contract is in sync$(NC)"
 
 lint: vet fmt contract-check ## Run all linters
 	echo -e "$(GREEN)✓ Linting passed$(NC)"
