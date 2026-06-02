@@ -69,7 +69,14 @@ driven from above the gateway handler.
       `ReadHeaderTimeout: 10s` slow-loris guard, so a long analysis
       response is not killed by the server write deadline.
       (commit: gateway WriteTimeout)
-- [~] **Step 3** – Engine idempotency. DONE so far:
+- [x] **Step 3** – Engine idempotency. COMPLETE:
+      - Wired into `service.py` via `_execute_guarded` (thin wrapper;
+        `_execute` unchanged). check_cached -> acquire (single-flight)
+        -> run `_execute` + store_result + release-in-finally; duplicate
+        path awaits the owner's result or raises
+        `LLMDuplicateSuppressedError`. Guard skipped when cache/user_id
+        absent. (commit: wire idempotency guard)
+      Scaffolding (earlier commits):
       - `src/engine/processor/idempotency.py` (single-flight + result
         cache, keyed on sha256(user_id:symbol:prompt_hash), fail-open).
       - `LLMDuplicateSuppressedError` in `llm/errors.py`.
@@ -108,13 +115,15 @@ driven from above the gateway handler.
         because the dedupe key is derived server-side from the prompt,
         which is strictly stronger (covers distinct-cycle duplicates,
         not just same-request replays).
-- [ ] **Step 4** – Gateway cancellation propagation: `RunCycle` /
-      `processSymbol` honour the inbound request context so an abandoned
-      connection cancels the LLM call. The HTTP handler passes
-      `r.Context()` into `RunCycle` already; verify the per-phase
-      `context.WithTimeout` chain derives from it (it does) and that the
-      processor adapter's `PostJSONNoRetry` is called with that ctx so a
-      client disconnect cancels the in-flight engine call.
+- [x] **Step 4** – Gateway cancellation propagation. COMPLETE:
+      Context already propagated end-to-end (handleRunCycle ->
+      RunCycle -> executePipeline -> processSymbol -> processor.Process
+      -> engine PostJSONNoRetry via http.NewRequestWithContext). Added a
+      parent-cancellation branch in `runSingleAttempt`: when `ctx.Err()`
+      is set (client/proxy disconnected) the cycle stops with no retry
+      and no spurious CYCLE_FAILED alert, distinct from the cycle's own
+      DeadlineExceeded (still retryable). (commit: stop cleanly on
+      client cancellation)
 
 ## Current branch state (fix/duplicate-llm-cycle-calls)
 
