@@ -352,9 +352,12 @@ Commit steps (each step compiles as a unit):
           journal.UpdateTradePointDigits. trailing.go has no pip-buffer
           term (it trails a fraction of the move), so EM-H1 does not apply
           there; its concern is EM-H2 (S6).
-  [ ] S4  EM-C1 (LIMIT path, CRITICAL): execution watcher detects LIMIT
-          fill and calls NotifyExecutionCompleted(order) with full intent;
-          reconciler import downgraded to manual/external fallback only
+  [x] S4  EM-C1 (LIMIT path, CRITICAL): runLimitTTL now runs a fast
+          fillTicker + checkLimitFillAndHandoff; on fill it stamps the
+          real position ticket and calls NotifyExecutionCompleted with
+          full intent (idempotent downstream). matchFilledPosition
+          correlates by AnalysisID then unambiguous symbol+direction.
+          Reconciler import remains the manual/external fallback.
   [ ] S5  EM-M1: broker-side bracket decision + startup volume reconcile
   [ ] S6  EM-H2: structural trail wiring vs documented contract
   [ ] S7  EM-M2: recompute risk/lot from actual instant fill price
