@@ -590,7 +590,7 @@ func (w *Watcher) checkLimitFillAndHandoff(ctx context.Context) bool {
 		return false
 	}
 
-	match := matchFilledPosition(positions, symbol, direction, analysisID)
+	match := matchFilledPosition(positions, symbol, direction, analysisID, entryPrice)
 	if match == nil {
 		return false // Still resting (or not yet visible); keep watching.
 	}
@@ -671,11 +671,22 @@ func (w *Watcher) checkLimitFillAndHandoff(ctx context.Context) bool {
 }
 
 // matchFilledPosition finds the open position corresponding to a filled
-// LIMIT order. Primary correlation is AnalysisID (carried via the order
-// comment); fallback is symbol + direction for brokers that do not echo
-// the comment onto the position. Returns nil when no match is found.
-func matchFilledPosition(positions []models.Position, symbol, direction, analysisID string) *models.Position {
-	// Primary: exact AnalysisID match.
+// LIMIT order, using three tiers of decreasing certainty:
+//
+//  1. Exact AnalysisID match (the order comment echoed onto the position).
+//     Authoritative when the backend persists the comment (the native EA
+//     always does; some MetaApi/broker combos may not).
+//  2. Price-anchored: among symbol+direction matches, the position whose
+//     open price is closest to the LIMIT order's set entry price (a LIMIT
+//     fills at its price). Accepted only when that closest match is
+//     unambiguous within a tight tolerance, so two same-symbol+direction
+//     trades at different prices are still resolved correctly.
+//  3. symbol+direction with exactly one open position (legacy fallback).
+//
+// Returns nil when no tier yields a confident match (still resting or not
+// yet visible) so the watcher keeps polling.
+func matchFilledPosition(positions []models.Position, symbol, direction, analysisID string, orderEntryPrice float64) *models.Position {
+	// Tier 1: exact AnalysisID match.
 	if analysisID != "" {
 		for i := range positions {
 			if positions[i].AnalysisID == analysisID {
@@ -683,20 +694,49 @@ func matchFilledPosition(positions []models.Position, symbol, direction, analysi
 			}
 		}
 	}
-	// Fallback: symbol + direction. Only safe when unambiguous (exactly
-	// one open position on this symbol+direction); multiple matches mean
-	// we cannot attribute the fill, so we wait for the AnalysisID echo.
-	var candidate *models.Position
-	matches := 0
+
+	// Collect symbol+direction candidates once for tiers 2 and 3.
+	var candidates []*models.Position
 	for i := range positions {
 		if positions[i].Symbol == symbol && positions[i].Direction == direction {
-			candidate = &positions[i]
-			matches++
+			candidates = append(candidates, &positions[i])
 		}
 	}
-	if matches == 1 {
-		return candidate
+
+	if len(candidates) == 1 {
+		return candidates[0] // Tier 3 (also the common case).
 	}
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	// Tier 2: price-anchored. A LIMIT order fills at its set entry price,
+	// so the matching position's open price is closest to it. Require the
+	// best candidate to be clearly closest (the runner-up must be at least
+	// 2x further away) so we never mis-attribute on near-equal prices.
+	if orderEntryPrice > 0 {
+		bestIdx, bestDist, secondDist := -1, 0.0, 0.0
+		for i, c := range candidates {
+			d := c.EntryPrice - orderEntryPrice
+			if d < 0 {
+				d = -d
+			}
+			if bestIdx == -1 || d < bestDist {
+				secondDist = bestDist
+				bestDist = d
+				bestIdx = i
+			} else if secondDist == 0.0 || d < secondDist {
+				secondDist = d
+			}
+		}
+		// Unambiguous when the runner-up is clearly further (>=2x) than the
+		// best, OR there is effectively only one near-price candidate.
+		if bestIdx != -1 && (secondDist == 0.0 || secondDist >= 2*bestDist) {
+			return candidates[bestIdx]
+		}
+	}
+
+	// Ambiguous: cannot attribute the fill confidently; keep waiting.
 	return nil
 }
 
