@@ -341,13 +341,17 @@ Full end-to-end re-trace completed and verified against source on `main`
 
 Commit steps (each step compiles as a unit):
   [x] S0  audit tracker (this section)
-  [ ] S1  EM-C1/C2 write+restore: grpc_server InsertTrade + main restore
-  [ ] S2  EM-C1 runtime persistence: call UpdateTradeRuntime from
+  [x] S1  EM-C1/C2 write+restore: grpc_server InsertTrade + main restore
+  [x] S2  EM-C1 runtime persistence: call UpdateTradeRuntime from
           takeprofit/executor.go (post-partial) and stoploss/breakeven.go
-          (post-BE + post-time-tighten)
-  [ ] S3  EM-H1: synthetic/digits-aware pip helper in management constants;
-          use it in breakeven.go and trailing.go; EM-C2 self-heal of Point
-          from broker GetPosition when Point==0 (breakeven + restore)
+          (post-BE). Time-tighten only moves SL -> UpdateTradeSL suffices.
+  [x] S3  EM-H1: PipSize(symbol,point,digits) helper in management
+          constants (mirrors execution bridge.go); used in breakeven.go
+          buffer. EM-C2 self-heal of Point/Digits via NEW broker
+          GetSymbolInfo (symbol_info endpoint; position has no point) +
+          journal.UpdateTradePointDigits. trailing.go has no pip-buffer
+          term (it trails a fraction of the move), so EM-H1 does not apply
+          there; its concern is EM-H2 (S6).
   [ ] S4  EM-C1 (LIMIT path, CRITICAL): execution watcher detects LIMIT
           fill and calls NotifyExecutionCompleted(order) with full intent;
           reconciler import downgraded to manual/external fallback only
