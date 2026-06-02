@@ -36,8 +36,27 @@ from __future__ import annotations
 
 from typing import Optional
 
+from engine.shared.risk import (
+    LOWEST_STYLE_MIN_RR as _LOWEST_STYLE_MIN_RR,
+    STYLE_MIN_TP_RR,
+    style_min_tp_rr,
+)
 from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import Direction, Timeframe, TIMEFRAME_MINUTES
+
+# Re-exported for existing TA callers that import these names from this
+# module.  The canonical definitions live in engine.shared.risk.
+__all__ = [
+    "STYLE_MIN_TP_RR",
+    "style_min_tp_rr",
+    "TIMEFRAME_SL_FLOOR_PIPS",
+    "TIMEFRAME_MIN_TP_RR",
+    "timeframe_floor_pips",
+    "timeframe_min_tp_rr",
+    "resolve_min_tp_rr",
+    "structural_buffer",
+    "compute_structural_stop_loss",
+]
 
 # --- Timeframe-scaled minimum SL buffer (in pips) ---------------------
 #
@@ -99,32 +118,10 @@ def timeframe_floor_pips(timeframe: Timeframe) -> float:
 #
 # CRITICAL CONSISTENCY RULE: this floor must NEVER sit below the
 # rulebook's lowest per-style minimum R:R (Scalping = 1:2, Section 7.3
-# / STYLE-RR-001).  The candidate-build TA layer does not yet know the
-# active trading style, so the safe lower bound here is the lowest
-# style minimum (2.0).  The authoritative per-style gate is still the
-# processor validator (_validate_rr_ratio against MIN_RR_*); see
-# resolve_min_tp_rr() for how the two combine.
-_LOWEST_STYLE_MIN_RR: float = 2.0  # Scalping 1:2 -- rulebook Section 7.3
-
-# Per-style minimum R:R, mirroring the rulebook (Section 7.3 /
-# STYLE-RR-001).  Kept here so the TA candidate layer and the
-# processor validator share ONE source of truth and cannot drift.
-# The processor's engine.processor.constants.MIN_RR_* are the same
-# numbers from the processor side; both must stay equal.
-STYLE_MIN_TP_RR: dict[str, float] = {
-    "SCALPING": 2.0,
-    "INTRADAY": 3.0,
-    "SWING": 3.0,
-    "POSITIONAL": 5.0,
-}
-
-
-def style_min_tp_rr(style: Optional[str]) -> Optional[float]:
-    """Return the rulebook per-style minimum R:R, or None if unknown."""
-    if style is None:
-        return None
-    return STYLE_MIN_TP_RR.get(style.strip().upper())
-
+# / STYLE-RR-001), imported as _LOWEST_STYLE_MIN_RR from
+# engine.shared.risk.  The authoritative per-style gate is the
+# processor validator (_validate_rr_ratio); see resolve_min_tp_rr()
+# for how the style and timeframe floors combine.
 TIMEFRAME_MIN_TP_RR: dict[Timeframe, float] = {
     Timeframe.M1: 2.0,
     Timeframe.M5: 2.0,
