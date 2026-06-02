@@ -66,16 +66,47 @@ static_resources:
                     - name: backend
                       domains: ["*"]
                       routes:
+                        # Long-running, NON-IDEMPOTENT analysis POSTs.
+                        # These trigger a full TA+Macro+RAG+LLM cycle
+                        # (~140s) that spends LLM tokens. They MUST NOT
+                        # be retried by the proxy: a per-try timeout that
+                        # fires mid-cycle would replay the POST and stack
+                        # another full LLM call while the gateway keeps
+                        # running the orphaned cycle. Generous timeout,
+                        # no per_try_timeout, zero retries.
+                        - match:
+                            prefix: "/api/v1/cycle/run"
+                          route:
+                            cluster: gateway_cluster
+                            timeout: 600s
+                            idle_timeout: 600s
+                            retry_policy:
+                              num_retries: 0
+                        - match:
+                            prefix: "/api/analysis/rerun"
+                          route:
+                            cluster: gateway_cluster
+                            timeout: 600s
+                            idle_timeout: 600s
+                            retry_policy:
+                              num_retries: 0
+
+                        # All other routes go to gateway. Timeout raised
+                        # above the slow-tail of normal calls; retries
+                        # restricted to safe connect-level failures.
+                        # "reset" is intentionally dropped so a reset on
+                        # a mutating POST is not replayed; the analysis
+                        # POSTs above are already fully excluded.
                         - match:
                             prefix: "/"
                           route:
                             cluster: gateway_cluster
-                            timeout: 30s
+                            timeout: 120s
                             idle_timeout: 60s
                             retry_policy:
-                              retry_on: "5xx,reset,connect-failure,refused-stream"
+                              retry_on: "connect-failure,refused-stream"
                               num_retries: 3
-                              per_try_timeout: 10s
+                              per_try_timeout: 60s
                               retry_host_predicate:
                                 - name: envoy.retry_host_predicates.previous_hosts
                               host_selection_retry_max_attempts: 5

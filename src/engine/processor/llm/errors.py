@@ -127,3 +127,18 @@ class LLMTransientError(LLMError):
     pass
 
 
+class LLMDuplicateSuppressedError(LLMError):
+    """This analysis call is a duplicate and was deliberately not run.
+
+    Raised by the idempotency guard when an identical call (same
+    user_id + symbol + prompt_hash) is already in flight or just
+    completed, and this caller therefore must NOT issue its own LLM
+    call. It is not a failure of the analysis -- the authoritative
+    result is being produced by the in-flight owner. The router maps it
+    to HTTP 409 with code "llm_duplicate_suppressed"; it is never
+    retried.
+    """
+
+    pass
+
+
