@@ -1,5 +1,7 @@
 package constants
 
+import "strings"
+
 // TradingStyle from Rulebook Section 2.4.
 type TradingStyle string
 
@@ -73,6 +75,49 @@ var TPSplitByStyle = map[TradingStyle][3]int32{
 	StyleIntraday:   {40, 30, 30},
 	StyleSwing:      {30, 30, 40},
 	StylePositional: {25, 25, 50},
+}
+
+// SyntheticSymbolMarkers are the case-insensitive substrings that identify
+// Deriv-style synthetic instruments. Kept in one place so the pip model is
+// defined once and stays in lockstep with the execution sizing engine
+// (src/execution/internal/broker/mt5/bridge.go GetInstrumentInfo).
+var SyntheticSymbolMarkers = []string{
+	"VOLATILITY", "BOOM", "CRASH", "STEP", "JUMP", "V75", "DEX", "RANGE",
+}
+
+// IsSyntheticSymbol reports whether symbol is a synthetic index whose pip
+// is one full index point (1.0) rather than an FX fraction.
+func IsSyntheticSymbol(symbol string) bool {
+	upper := strings.ToUpper(symbol)
+	for _, m := range SyntheticSymbolMarkers {
+		if strings.Contains(upper, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// PipSize returns the price distance of one pip for the instrument, using
+// the SAME convention as the execution sizing engine
+// (mt5/bridge.go GetInstrumentInfo):
+//
+//   - synthetic indices            => 1.0 (one full index point)
+//   - 2-digit instruments (metals) => point   (1 pip = 1 point)
+//   - 3/5-digit FX                 => point*10 (1 pip = 10 points)
+//
+// When point <= 0 the caller has no broker metadata; PipSize returns 0 so
+// the caller can decide on a fallback (it never silently invents a scale).
+func PipSize(symbol string, point float64, digits int) float64 {
+	if IsSyntheticSymbol(symbol) {
+		return 1.0
+	}
+	if point <= 0 {
+		return 0
+	}
+	if digits <= 2 {
+		return point
+	}
+	return point * 10
 }
 
 // Break-even rules from Rulebook Section 9.1.
