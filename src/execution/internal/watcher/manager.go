@@ -501,15 +501,27 @@ func (w *Watcher) run(parentCtx context.Context, onDone func(string)) {
 	w.runInstant(ctx)
 }
 
-// runLimitTTL is the run loop for LIMIT orders. It simply waits for
-// the TTL timeout or external disarm, then cancels the broker order.
+// runLimitTTL is the run loop for LIMIT orders. It enforces the TTL
+// timeout, cancels ahead of news, AND detects when the resting order
+// fills at the broker so the filled position is handed off to Module C
+// with its FULL trade intent (TP1/2/3 pct, rr, risk, style) instead of
+// being lossily imported by the management reconciler (audit EM-C1).
+//
+// Two cadences run concurrently:
+//   - fillTicker (fast, PollIntervalMs; min 1s): detect the fill quickly
+//     so Module C starts TP2/TP3/break-even/trailing management with
+//     minimal latency. The broker already holds SL+TP1 in the meantime.
+//   - newsTicker (1 minute): news lockout + liveness, unchanged cadence.
 func (w *Watcher) runLimitTTL(ctx context.Context) {
-	// Check every minute if the order was filled externally (e.g., by
-	// the broker). If the order no longer exists at the broker, we can
-	// stop early instead of waiting for the full TTL.
-	checkInterval := 1 * time.Minute
-	ticker := time.NewTicker(checkInterval)
-	defer ticker.Stop()
+	fillInterval := time.Duration(w.cfg.PollIntervalMs) * time.Millisecond
+	if fillInterval < time.Second {
+		fillInterval = time.Second
+	}
+	fillTicker := time.NewTicker(fillInterval)
+	defer fillTicker.Stop()
+
+	newsTicker := time.NewTicker(1 * time.Minute)
+	defer newsTicker.Stop()
 
 	for {
 		select {
@@ -523,7 +535,14 @@ func (w *Watcher) runLimitTTL(ctx context.Context) {
 		case <-w.done:
 			w.log.Info().Msg("limit_watcher_disarmed_externally")
 			return
-		case <-ticker.C:
+		case <-fillTicker.C:
+			// Detect a broker-side fill and hand the filled position off
+			// to Module C. Returns true when the order has filled (or a
+			// fatal handoff condition occurred) and the watcher must stop.
+			if w.checkLimitFillAndHandoff(ctx) {
+				return
+			}
+		case <-newsTicker.C:
 			// Periodic liveness log so operators know the watcher is alive.
 			w.log.Debug().
 				Str("broker_order_id", w.order.BrokerOrderID).
@@ -541,6 +560,144 @@ func (w *Watcher) runLimitTTL(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// checkLimitFillAndHandoff polls the broker's open positions and, when
+// the resting LIMIT order has filled, hands the filled position off to
+// the Gateway (and thus Module C) carrying the order's FULL trade
+// intent. Returns true when the watcher should stop (filled and handed
+// off). A transient broker error is logged and ignored (false) so a
+// blip never tears down a still-resting order.
+//
+// Fill correlation is by AnalysisID (the order was placed with
+// Comment = AnalysisID, which MT5 carries onto the resulting position),
+// falling back to symbol + direction when the broker does not echo the
+// comment. The matched position's broker ticket becomes the trade's
+// BrokerOrderID downstream; Module C's RegisterFilledTrade is idempotent
+// on (user_id, broker_order_id) so a racing reconciler import is a no-op.
+func (w *Watcher) checkLimitFillAndHandoff(ctx context.Context) bool {
+	w.order.RLock()
+	authCtx := w.order.IdentityCtx(ctx)
+	symbol := w.order.Symbol
+	direction := string(w.order.Direction)
+	analysisID := w.order.AnalysisID
+	entryPrice := w.order.EntryPrice
+	w.order.RUnlock()
+
+	positions, err := w.broker.GetPositions(authCtx)
+	if err != nil {
+		w.log.Warn().Err(err).Str("symbol", symbol).Msg("limit_watcher_fill_check_failed")
+		return false
+	}
+
+	match := matchFilledPosition(positions, symbol, direction, analysisID)
+	if match == nil {
+		return false // Still resting (or not yet visible); keep watching.
+	}
+
+	// Slippage relative to the intended limit entry price.
+	var slippage float64
+	if entryPrice > 0 {
+		slippage = match.EntryPrice - entryPrice
+	}
+
+	// Stamp the real position ticket so the handoff + any later disarm
+	// reference the position, not the (now-consumed) pending order.
+	w.order.Lock()
+	w.order.BrokerOrderID = match.OrderID
+	w.order.Unlock()
+
+	w.log.Info().
+		Str("symbol", symbol).
+		Str("broker_order_id", match.OrderID).
+		Str("analysis_id", analysisID).
+		Float64("fill_price", match.EntryPrice).
+		Float64("slippage", slippage).
+		Float64("lot_size", match.LotSize).
+		Msg("limit_order_fill_detected_handing_off")
+
+	observability.OrderPlacementTotal.WithLabelValues(string(constants.ModeLimit), "filled").Inc()
+
+	// Hand off to the Gateway with the FULL order context (carries
+	// TP1/2/3 price+pct, rr, risk, style, setup) - identical contract to
+	// the INSTANT path. The broker already holds SL+TP1 from placeLimit.
+	if w.gateway != nil {
+		if herr := w.gateway.NotifyExecutionCompleted(authCtx, w.order, match.OrderID, match.EntryPrice, slippage); herr != nil {
+			w.log.Error().Err(herr).
+				Str("symbol", symbol).
+				Str("broker_order_id", match.OrderID).
+				Msg("limit_fill_handoff_failed")
+			// The position exists and is protected by broker SL+TP1; the
+			// management reconciler will import it as the fallback. Stop
+			// the watcher regardless - re-notifying on the next tick would
+			// duplicate the handoff attempt for an already-open position.
+			if w.transport != nil {
+				w.transport.Publish(authCtx,
+					alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityWarning,
+						fmt.Sprintf("Limit order filled for %s but Module C handoff failed; reconciler will adopt it", symbol)).
+						WithUserID(w.order.UserID).
+						WithSymbol(symbol).
+						WithDetail("broker_order_id", match.OrderID).
+						WithDetail("analysis_id", analysisID),
+				)
+			}
+			return true
+		}
+	}
+
+	// Audit the fill (same as the instant path).
+	w.audit.LogOrderPlaced(authCtx, w.order)
+
+	if w.transport != nil {
+		w.transport.Publish(authCtx,
+			alert.NewEvent(alert.SourceExecution, alert.TypeOrderPlaced, alert.SeverityInfo,
+				fmt.Sprintf("Limit order FILLED for %s at %.5f", symbol, match.EntryPrice)).
+				WithUserID(w.order.UserID).
+				WithSymbol(symbol).
+				WithDirection(direction).
+				WithDetails(map[string]interface{}{
+					"order_id":        w.order.OrderID,
+					"broker_order_id": match.OrderID,
+					"fill_price":      match.EntryPrice,
+					"slippage":        slippage,
+					"lot_size":        match.LotSize,
+					"watcher_id":      w.order.WatcherID,
+					"analysis_id":     analysisID,
+				}),
+		)
+	}
+
+	return true
+}
+
+// matchFilledPosition finds the open position corresponding to a filled
+// LIMIT order. Primary correlation is AnalysisID (carried via the order
+// comment); fallback is symbol + direction for brokers that do not echo
+// the comment onto the position. Returns nil when no match is found.
+func matchFilledPosition(positions []models.Position, symbol, direction, analysisID string) *models.Position {
+	// Primary: exact AnalysisID match.
+	if analysisID != "" {
+		for i := range positions {
+			if positions[i].AnalysisID == analysisID {
+				return &positions[i]
+			}
+		}
+	}
+	// Fallback: symbol + direction. Only safe when unambiguous (exactly
+	// one open position on this symbol+direction); multiple matches mean
+	// we cannot attribute the fill, so we wait for the AnalysisID echo.
+	var candidate *models.Position
+	matches := 0
+	for i := range positions {
+		if positions[i].Symbol == symbol && positions[i].Direction == direction {
+			candidate = &positions[i]
+			matches++
+		}
+	}
+	if matches == 1 {
+		return candidate
+	}
+	return nil
 }
 
 // checkNewsAndCancel asks the Gateway whether news is imminent for this
@@ -841,12 +998,15 @@ func (w *Watcher) tryConfirmAndFire(ctx context.Context) bool {
 // final, irreversible step. Any error here is critical.
 func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	placement := &models.OrderPlacement{
-		Symbol:     w.order.Symbol,
-		Direction:  constants.BrokerDirection(w.order.Direction),
-		OrderType:  string(constants.BrokerOrderMarket),
-		Price:      0, // Market order — broker fills at best available.
-		StopLoss:   w.order.StopLoss,
-		TakeProfit: w.order.TP1Price,
+		Symbol:    w.order.Symbol,
+		Direction: constants.BrokerDirection(w.order.Direction),
+		OrderType: string(constants.BrokerOrderMarket),
+		Price:     0, // Market order — broker fills at best available.
+		StopLoss:  w.order.StopLoss,
+		// Attach the FINAL target (TP3) to the broker, not TP1: a
+		// position-level TP closes the whole position, so the broker TP
+		// must sit beyond the software TP1/TP2 partials (CRITICAL).
+		TakeProfit: w.order.BrokerTakeProfit(),
 		LotSize:    w.order.LotSize,
 		Comment:    w.order.AnalysisID,
 	}
@@ -889,8 +1049,32 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	}
 
 	// SUCCESS — order filled.
+	//
+	// EM-M2: re-derive the realized risk from the ACTUAL fill price. The
+	// order was sized + min-stop-validated against the entry-zone midpoint
+	// (w.order.EntryPrice), but a market fill lands anywhere in the zone
+	// +/- overshoot tolerance, so the realized SL distance (fill -> SL)
+	// differs from the sized distance (midpoint -> SL). Risk scales
+	// linearly with SL distance at a fixed lot size, so rescaling
+	// RiskAmount by the distance ratio is exact and needs no pip metadata.
+	// Read the sized distance BEFORE mutating anything; skip on degenerate
+	// inputs so a bad tick never zeroes the risk.
 	w.order.Lock()
 	w.order.BrokerOrderID = result.BrokerOrderID
+	if result.FillPrice > 0 && w.order.StopLoss > 0 {
+		sizedDist := w.order.EntryPrice - w.order.StopLoss
+		if sizedDist < 0 {
+			sizedDist = -sizedDist
+		}
+		realizedDist := result.FillPrice - w.order.StopLoss
+		if realizedDist < 0 {
+			realizedDist = -realizedDist
+		}
+		if sizedDist > 0 && realizedDist > 0 && w.order.RiskAmount > 0 {
+			w.order.RiskAmount = w.order.RiskAmount * (realizedDist / sizedDist)
+		}
+	}
+	realizedRisk := w.order.RiskAmount
 	w.order.Unlock()
 
 	w.log.Info().
@@ -898,6 +1082,7 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 		Float64("fill_price", result.FillPrice).
 		Float64("slippage", result.Slippage).
 		Float64("lot_size", w.order.LotSize).
+		Float64("realized_risk_amount", realizedRisk).
 		Msg("watcher_market_order_filled")
 
 	observability.OrderPlacementTotal.WithLabelValues("INSTANT", "filled").Inc()

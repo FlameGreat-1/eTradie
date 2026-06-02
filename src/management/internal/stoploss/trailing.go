@@ -13,20 +13,28 @@ import (
 	"github.com/flamegreat-1/etradie/src/management/pkg/types"
 )
 
-// TrailingEngine implements the style-adaptive trailing stop logic
-// from Rulebook Section 9.2. After break-even is set, the trailing
-// engine moves SL behind the price using swing lows/highs on the
-// appropriate timeframe for each trading style.
+// TrailingEngine implements a style-adaptive, high-water-mark trailing
+// stop. After break-even is set, it moves SL behind price by protecting
+// a configurable FRACTION of the favourable move from entry, tightening
+// only (never widening) and tightening further once TP1 is hit.
 //
-// The trailing logic uses the most recent swing structure:
-//   - For BUY trades: trail below the most recent swing low on the style's TF.
-//   - For SELL trades: trail above the most recent swing high on the style's TF.
+// DELIBERATE CONTRACT DECISION (audit EM-H2):
+// Rulebook Section 9.2 (STYLE-MGMT-002) specifies a SWING-based trail
+// (trail behind the last swing low/high on the style's timeframe). Module
+// C does not receive candle/swing structure today (that is Module A's
+// domain and is not streamed here), so a genuinely swing-based trail
+// would require a new structural data feed into Module C. Rather than
+// claim swing behaviour we do not implement, this engine's CONTRACT is
+// the fractional model below; it is the standard institutional fallback
+// when swing data is not streamed in real time. Upgrading to a true
+// swing trail (feed the candle-closed alert's swing levels into Module C)
+// is a tracked future enhancement, not a silent gap.
 //
-// Since we don't have direct access to candle structure here (that's
-// Module A's domain), the trailing engine approximates by tracking the
-// best price reached (high-water mark) and trailing at a configurable
-// fraction of the move from entry. This is the standard institutional
-// approach when swing data isn't streamed in real-time.
+// Fractional model:
+//   - BUY:  newSL = price - (1-fraction) * (price - entry)
+//   - SELL: newSL = price + (1-fraction) * (entry - price)
+// where fraction is trailFractionForStyle(style, tp1Hit). Higher fraction
+// = tighter trail = more locked profit.
 type TrailingEngine struct {
 	bp          broker.Port
 	journal     *journal.Repository
@@ -111,8 +119,10 @@ func (e *TrailingEngine) Evaluate(ctx context.Context, trade *types.Trade, check
 		return false, nil
 	}
 
-	// Execute the modification at the broker.
-	if err := e.bp.ModifyPosition(ctx, brokerID, newSL, 0); err != nil {
+	// Execute the modification at the broker. Preserve the broker's
+	// FINAL-target TP (TP3) on the SL move; passing 0 would clear the
+	// broker take-profit (TRADE_ACTION_SLTP tp=0).
+	if err := e.bp.ModifyPosition(ctx, brokerID, newSL, trade.BrokerTakeProfit()); err != nil {
 		return false, err
 	}
 

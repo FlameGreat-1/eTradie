@@ -386,6 +386,11 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 		ticket := t.BrokerOrderID
 		dbSL := t.StopLoss
 		dbTP := t.TP1Price
+		dbRemaining := t.RemainingLotSize
+		tp1Hit := t.TP1Hit
+		tp2Hit := t.TP2Hit
+		tp3Hit := t.TP3Hit
+		breakevenSet := t.BreakevenSet
 		tradeID := t.TradeID
 		symbol := t.Symbol
 		t.RUnlock()
@@ -397,6 +402,33 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 			s.mgr.HandleExternalClose(ctx, t)
 			s.mgr.RemoveTrade(tradeID)
 			continue
+		}
+
+		// EM-M1: the broker is the source of truth for the open volume.
+		// A partial close that fired at the broker while Module C was down
+		// or lagging leaves dbRemaining stale; adopt the broker volume so
+		// software TP sizing works off the real remaining lot. The
+		// vanished-position branch above already handles the fully-closed
+		// case, so only strictly positive broker volumes are adopted here.
+		const lotEpsilon = 0.0009 // below the 0.01 min lot step
+		if bPos.Volume > 0 {
+			delta := dbRemaining - bPos.Volume
+			if delta < 0 {
+				delta = -delta
+			}
+			if delta > lotEpsilon {
+				s.log.Warn().
+					Str("ticket", ticket).
+					Float64("engine_remaining", dbRemaining).
+					Float64("broker_volume", bPos.Volume).
+					Msg("remaining_volume_drift_adopting_broker_truth")
+				t.Lock()
+				t.RemainingLotSize = bPos.Volume
+				t.Unlock()
+				if err := s.repo.UpdateTradeRuntime(ctx, s.userID, tradeID, bPos.Volume, bPos.StopLoss, tp1Hit, tp2Hit, tp3Hit, breakevenSet); err != nil {
+					s.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_runtime_volume_reconcile_failed")
+				}
+			}
 		}
 
 		if bPos.StopLoss != dbSL || bPos.TakeProfit != dbTP {

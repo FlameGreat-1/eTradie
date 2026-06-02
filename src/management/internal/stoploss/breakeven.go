@@ -53,11 +53,49 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 	openedAt := trade.OpenedAt
 	initialSL := trade.InitialSL
 	userID := trade.UserID
+	symbol := trade.Symbol
+	digits := trade.Digits
 	tradePoint := trade.Point // Read broker point
-	if tradePoint <= 0 {
-		tradePoint = 0.0001 // Fallback
-	}
 	trade.RUnlock()
+
+	// EM-C2 self-heal: a trade restored from a pre-migration row (or a
+	// reconciler-imported one) can have Point==0. Fetch the real point +
+	// digits from the broker symbol_info ONCE, stamp + persist them so
+	// BE/trailing math runs on the correct scale instead of a hardcoded
+	// FX fallback. (The /internal/broker/position response carries no
+	// point/digits, so symbol_info is the correct source.)
+	if tradePoint <= 0 {
+		if si, serr := e.bp.GetSymbolInfo(ctx, symbol); serr == nil && si != nil && si.Point > 0 {
+			tradePoint = si.Point
+			trade.Lock()
+			trade.Point = si.Point
+			if si.Digits > 0 {
+				trade.Digits = si.Digits
+				digits = si.Digits
+			}
+			trade.Unlock()
+			if err := e.journal.UpdateTradePointDigits(ctx, userID, trade.TradeID, si.Point, si.Digits); err != nil {
+				e.log.Error().Err(err).Str("trade_id", trade.TradeID).Msg("journal_point_self_heal_failed")
+			}
+		}
+	}
+
+	// Canonical pip size (synthetic/digits-aware). Falls back to the FX
+	// 5-digit convention only when the broker point is genuinely unknown.
+	pipSize := constants.PipSize(symbol, tradePoint, digits)
+	if pipSize <= 0 {
+		if tradePoint > 0 {
+			pipSize = tradePoint * 10
+		} else {
+			pipSize = 0.0001 * 10
+		}
+	}
+	// pointForFallback is the raw point used only for the no-SL/no-TP
+	// synthesized target below; keep it non-zero for safety.
+	pointForFallback := tradePoint
+	if pointForFallback <= 0 {
+		pointForFallback = 0.0001
+	}
 
 	triggered := false
 
@@ -74,9 +112,9 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 		} else {
 			// No SL and no TP. Default to a 500 point move.
 			if isLong {
-				tp1Price = entryPrice + 500*tradePoint
+				tp1Price = entryPrice + 500*pointForFallback
 			} else {
-				tp1Price = entryPrice - 500*tradePoint
+				tp1Price = entryPrice - 500*pointForFallback
 			}
 		}
 	}
@@ -130,26 +168,40 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 	bufferPips := constants.SpreadBufferPips
 	newSL := entryPrice
 	if isLong {
-		newSL = entryPrice + bufferPips*(tradePoint*10) // 1 pip = 10 points
+		newSL = entryPrice + bufferPips*pipSize
 	} else {
-		newSL = entryPrice - bufferPips*(tradePoint*10)
+		newSL = entryPrice - bufferPips*pipSize
 	}
 
-	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, 0); err != nil {
+	// Preserve the broker's FINAL-target TP (TP3) on the SL move; passing
+	// 0 here would clear the broker take-profit (TRADE_ACTION_SLTP tp=0).
+	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, trade.BrokerTakeProfit()); err != nil {
 		return false, err
 	}
 
-	// Update trade state.
+	// Update trade state. Snapshot the post-mutation runtime values under
+	// the same write lock so the durable runtime row matches memory.
 	trade.Lock()
 	trade.StopLoss = newSL
 	trade.BreakevenSet = true
 	trade.Status = constants.StatusBreakeven
 	trade.SLMoves++
+	snapRemaining := trade.RemainingLotSize
+	snapTP1Hit := trade.TP1Hit
+	snapTP2Hit := trade.TP2Hit
+	snapTP3Hit := trade.TP3Hit
 	trade.Unlock()
 
-	// Persist.
+	// Persist the SL move (records the sl_adjustments counter).
 	if err := e.journal.UpdateTradeSL(ctx, userID, trade.TradeID, newSL); err != nil {
 		e.log.Error().Err(err).Str("trade_id", trade.TradeID).Msg("journal_sl_update_failed")
+	}
+
+	// Persist the break-even flag + SL so a restart restores BreakevenSet
+	// (audit EM-C1): trailing only activates after break-even, so a lost
+	// flag silently disables trailing on the restored trade.
+	if err := e.journal.UpdateTradeRuntime(ctx, userID, trade.TradeID, snapRemaining, newSL, snapTP1Hit, snapTP2Hit, snapTP3Hit, true); err != nil {
+		e.log.Error().Err(err).Str("trade_id", trade.TradeID).Msg("journal_runtime_update_failed")
 	}
 	if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
 		UserID:    userID,
@@ -208,7 +260,8 @@ func (e *BreakevenEngine) applyTimeTightening(ctx context.Context, trade *types.
 		return false, nil
 	}
 
-	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, 0); err != nil {
+	// Preserve the broker's FINAL-target TP (TP3) on the SL move.
+	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, trade.BrokerTakeProfit()); err != nil {
 		return false, err
 	}
 
