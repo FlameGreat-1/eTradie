@@ -84,6 +84,38 @@ def timeframe_floor_pips(timeframe: Timeframe) -> float:
     return TIMEFRAME_SL_FLOOR_PIPS.get(timeframe, _DEFAULT_FLOOR_PIPS)
 
 
+# --- Timeframe-scaled minimum take-profit R:R ------------------------
+#
+# An LTF target and an HTF target cannot share the same reward-to-risk
+# floor: an M5 scalp draws to the nearest LTF liquidity pool, while a
+# D1 swing must reach a far HTF draw.  This floor is applied to the TP
+# selectors so the nearest qualifying structural target is timeframe-
+# appropriate.  It is a *floor* (minimum acceptable R:R), not a fixed
+# target -- the actual TP is still a real structural liquidity level.
+TIMEFRAME_MIN_TP_RR: dict[Timeframe, float] = {
+    Timeframe.M1: 1.0,
+    Timeframe.M5: 1.0,
+    Timeframe.M15: 1.5,
+    Timeframe.M30: 1.5,
+    Timeframe.H1: 2.0,
+    Timeframe.H3: 2.5,
+    Timeframe.H4: 3.0,
+    Timeframe.H6: 3.0,
+    Timeframe.H8: 3.0,
+    Timeframe.H12: 3.5,
+    Timeframe.D1: 4.0,
+    Timeframe.W1: 5.0,
+    Timeframe.MN1: 5.0,
+}
+
+_DEFAULT_MIN_TP_RR: float = 1.0
+
+
+def timeframe_min_tp_rr(timeframe: Timeframe) -> float:
+    """Return the timeframe-scaled minimum take-profit reward-to-risk."""
+    return TIMEFRAME_MIN_TP_RR.get(timeframe, _DEFAULT_MIN_TP_RR)
+
+
 def structural_buffer(
     *,
     symbol: str,
