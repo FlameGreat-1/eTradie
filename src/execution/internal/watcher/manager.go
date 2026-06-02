@@ -1046,8 +1046,32 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	}
 
 	// SUCCESS — order filled.
+	//
+	// EM-M2: re-derive the realized risk from the ACTUAL fill price. The
+	// order was sized + min-stop-validated against the entry-zone midpoint
+	// (w.order.EntryPrice), but a market fill lands anywhere in the zone
+	// +/- overshoot tolerance, so the realized SL distance (fill -> SL)
+	// differs from the sized distance (midpoint -> SL). Risk scales
+	// linearly with SL distance at a fixed lot size, so rescaling
+	// RiskAmount by the distance ratio is exact and needs no pip metadata.
+	// Read the sized distance BEFORE mutating anything; skip on degenerate
+	// inputs so a bad tick never zeroes the risk.
 	w.order.Lock()
 	w.order.BrokerOrderID = result.BrokerOrderID
+	if result.FillPrice > 0 && w.order.StopLoss > 0 {
+		sizedDist := w.order.EntryPrice - w.order.StopLoss
+		if sizedDist < 0 {
+			sizedDist = -sizedDist
+		}
+		realizedDist := result.FillPrice - w.order.StopLoss
+		if realizedDist < 0 {
+			realizedDist = -realizedDist
+		}
+		if sizedDist > 0 && realizedDist > 0 && w.order.RiskAmount > 0 {
+			w.order.RiskAmount = w.order.RiskAmount * (realizedDist / sizedDist)
+		}
+	}
+	realizedRisk := w.order.RiskAmount
 	w.order.Unlock()
 
 	w.log.Info().
@@ -1055,6 +1079,7 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 		Float64("fill_price", result.FillPrice).
 		Float64("slippage", result.Slippage).
 		Float64("lot_size", w.order.LotSize).
+		Float64("realized_risk_amount", realizedRisk).
 		Msg("watcher_market_order_filled")
 
 	observability.OrderPlacementTotal.WithLabelValues("INSTANT", "filled").Inc()
