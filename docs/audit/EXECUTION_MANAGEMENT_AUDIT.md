@@ -306,3 +306,55 @@ I'll start with Step 1 now (the schema + model — the foundation). Let me recon
 Before I write Step 1, I want to confirm one detail to avoid a guess: whether a journal method exists to update runtime state mid-trade (so I don't create a duplicate). I read `repository.go` fully earlier — it has `UpdateTradeClose`, `UpdateTradeSL`, `UpdateTradePartial`. There is no runtime-state persistence for `tp1_hit/breakeven/remaining`. So `UpdateTradeSL` should also persist nothing extra; I'll add a focused `UpdateTradeRuntime`. 
 
 Let me update the tracking section in the audit doc first (so progress is recoverable if the chat ends), then immediately do Step 1's schema+model+queries commit.
+
+
+================================================================================
+## IMPLEMENTATION TRACKER (fix/execution-management-hardening)
+================================================================================
+
+Full end-to-end re-trace completed and verified against source on `main`
+(not assumed). Confirmed facts that shape the fix:
+
+  - Proto RegisterFilledTradeRequest carries tp1/2/3_pct, point, digits,
+    rr_ratio (fields 6-26). Getters exist and compile.
+  - Gateway NotifyExecutionCompleted populates the full request AND fetches
+    live point/digits from /internal/broker/symbol_info. Real values flow.
+  - Execution INSTANT fill -> watcher.fireMarketOrder (broker gets SL+TP1)
+    -> gateway -> management RegisterFilledTrade. Full intent reaches C.
+  - Execution LIMIT fill -> executor.placeLimit (broker gets SL+TP1) -> TTL
+    watcher only. ON FILL THERE IS NO NotifyExecutionCompleted. The trade
+    reaches C ONLY via management StateReconciler orphan-import, which sets
+    tp*_pct=0, no TP2/TP3, point=0, style=INTRADAY, risk=0. => EM-C1/EM-C2
+    hit EVERY limit trade in steady state, not only after restart.
+  - Journal layer (models.go, repository.go incl. UpdateTradeRuntime) is
+    MERGED and complete; UpdateTradeRuntime is not yet called anywhere.
+  - grpc_server.RegisterFilledTrade InsertTrade{} omits tp*_pct, point,
+    digits, rr_ratio, remaining_lot_size, flags (write-path loss).
+  - main.restoreTradeFromRecord omits the same and hard-codes
+    RemainingLotSize=TotalLotSize (restore-path loss).
+  - breakeven.go buffer uses point*10 (FX-only). Canonical model proven in
+    execution mt5/bridge.go GetInstrumentInfo: pip=point*10 for digits>2,
+    pip=point for digits<=2, pip=1.0 for synthetics.
+  - EM-V1 VERIFIED: MetaApi place_order sends stopLoss/takeProfit; ZMQ
+    place_order sends stop_loss/take_profit. Filled orders carry broker
+    SL+TP1. Only TP1 broker-side (EM-M1 confirmed; not naked).
+
+Commit steps (each step compiles as a unit):
+  [x] S0  audit tracker (this section)
+  [ ] S1  EM-C1/C2 write+restore: grpc_server InsertTrade + main restore
+  [ ] S2  EM-C1 runtime persistence: call UpdateTradeRuntime from
+          takeprofit/executor.go (post-partial) and stoploss/breakeven.go
+          (post-BE + post-time-tighten)
+  [ ] S3  EM-H1: synthetic/digits-aware pip helper in management constants;
+          use it in breakeven.go and trailing.go; EM-C2 self-heal of Point
+          from broker GetPosition when Point==0 (breakeven + restore)
+  [ ] S4  EM-C1 (LIMIT path, CRITICAL): execution watcher detects LIMIT
+          fill and calls NotifyExecutionCompleted(order) with full intent;
+          reconciler import downgraded to manual/external fallback only
+  [ ] S5  EM-M1: broker-side bracket decision + startup volume reconcile
+  [ ] S6  EM-H2: structural trail wiring vs documented contract
+  [ ] S7  EM-M2: recompute risk/lot from actual instant fill price
+  [ ] S8  EM-L1: make contract-check a hard CI gate
+  [ ] S9  flip statuses in findings above; open MR
+
+Progress note: S0 done. Next: S1.
