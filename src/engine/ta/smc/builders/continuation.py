@@ -3,6 +3,7 @@ from typing import Optional
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
+from engine.ta.common.utils.price.stop_loss import compute_structural_stop_loss
 from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
@@ -530,34 +531,39 @@ class ContinuationBuilder:
         direction: Direction,
         protective_level: Optional[float],
     ) -> float:
-        """Compute SL at the pattern's structural invalidation level.
+        """Compute SL beyond the pattern's REAL structural invalidation.
 
-        Buffer is a percentage of the OB's own range (Option A policy;
-        see ``config.ob_sl_buffer_range_pct``).  The SL is clamped so
-        it is never tighter than the OB edge -- if ``protective_level``
-        sits inside the OB (rare but possible), the SL falls back to
-        the OB edge plus buffer.  When ``protective_level`` is None
-        (e.g. SH_BMS_RTO emitted without an associated sweep), the SL
-        uses the OB edge directly with the same buffer (permissive
-        fallback; keeps the candidate in the pipeline).
+        ``protective_level`` is the genuine invalidation price for a
+        SH_BMS_RTO continuation: the liquidity-sweep extreme
+        (``sweep_low`` for longs, ``sweep_high`` for shorts).  The SL
+        is seated beyond it via the shared timeframe-aware helper, with
+        the OB edge used only as an inner guard.  When no sweep is
+        present the OB edge becomes the invalidation anchor (still
+        buffered structurally by timeframe).
+
+        The buffer is no longer a flat fraction of the OB range; it is
+        the timeframe-scaled structural buffer (see
+        ``engine.ta.common.utils.price.stop_loss``).
         """
-        ob_range = ob.upper_bound - ob.lower_bound
-        buffer = ob_range * self.config.ob_sl_buffer_range_pct
-
-        if direction == Direction.BULLISH:
-            ob_edge_sl = ob.lower_bound - buffer
-            if protective_level is None:
-                return ob_edge_sl
-            structural_sl = protective_level - buffer
-            # Clamp: never tighter than OB edge.
-            return min(structural_sl, ob_edge_sl)
-
-        ob_edge_sl = ob.upper_bound + buffer
-        if protective_level is None:
-            return ob_edge_sl
-        structural_sl = protective_level + buffer
-        # Clamp: never tighter than OB edge.
-        return max(structural_sl, ob_edge_sl)
+        invalidation_level = (
+            protective_level
+            if protective_level is not None
+            else (
+                ob.lower_bound
+                if direction == Direction.BULLISH
+                else ob.upper_bound
+            )
+        )
+        ob_inner_edge = (
+            ob.lower_bound if direction == Direction.BULLISH else ob.upper_bound
+        )
+        return compute_structural_stop_loss(
+            symbol=ob.symbol,
+            timeframe=ob.timeframe,
+            direction=direction,
+            invalidation_level=invalidation_level,
+            ob_inner_edge=ob_inner_edge,
+        )
 
     @staticmethod
     def _get_swing_highs_from_sequence(sequence: CandleSequence) -> list:
