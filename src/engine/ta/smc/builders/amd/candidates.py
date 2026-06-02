@@ -3,6 +3,7 @@ from typing import Optional
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
+from engine.ta.common.utils.price.stop_loss import compute_structural_stop_loss
 from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.swing import SwingHigh, SwingLow
 from engine.ta.models.candidate import SMCCandidate
@@ -475,28 +476,34 @@ class AMDCandidateBuilder:
         direction: Direction,
         protective_level: Optional[float],
     ) -> float:
-        """Compute SL at the pattern's structural invalidation level.
+        """Compute SL beyond the pattern's REAL structural invalidation.
 
-        See ContinuationBuilder._compute_structural_stop_loss for the
-        full contract.  For AMD the protective level is the Asian
-        range extreme on the manipulation side (low for bullish,
-        high for bearish).
+        For AMD ``protective_level`` is the Asian-range extreme on the
+        manipulation side (low for bullish, high for bearish) -- the
+        true invalidation of the distribution thesis.  The SL is seated
+        beyond it via the shared timeframe-aware helper, with the OB
+        edge as an inner guard.  When ``protective_level`` is None the
+        OB edge becomes the anchor (still buffered structurally).
         """
-        ob_range = ob.upper_bound - ob.lower_bound
-        buffer = ob_range * self.config.ob_sl_buffer_range_pct
-
-        if direction == Direction.BULLISH:
-            ob_edge_sl = ob.lower_bound - buffer
-            if protective_level is None:
-                return ob_edge_sl
-            structural_sl = protective_level - buffer
-            return min(structural_sl, ob_edge_sl)
-
-        ob_edge_sl = ob.upper_bound + buffer
-        if protective_level is None:
-            return ob_edge_sl
-        structural_sl = protective_level + buffer
-        return max(structural_sl, ob_edge_sl)
+        invalidation_level = (
+            protective_level
+            if protective_level is not None
+            else (
+                ob.lower_bound
+                if direction == Direction.BULLISH
+                else ob.upper_bound
+            )
+        )
+        ob_inner_edge = (
+            ob.lower_bound if direction == Direction.BULLISH else ob.upper_bound
+        )
+        return compute_structural_stop_loss(
+            symbol=ob.symbol,
+            timeframe=ob.timeframe,
+            direction=direction,
+            invalidation_level=invalidation_level,
+            ob_inner_edge=ob_inner_edge,
+        )
 
     def _find_nearest_bsl_target(
         self,
