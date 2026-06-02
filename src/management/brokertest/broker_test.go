@@ -23,7 +23,7 @@ func TestStream_GetTickPrice(t *testing.T) {
 		"ask":  1.10257,
 		"time": int64(1711200060),
 	}
-	stream := broker.NewStream(srv.URL(), 5000)
+	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
 
 	tick, err := stream.GetTickPrice(context.Background(), "EURUSD")
 
@@ -43,7 +43,7 @@ func TestStream_GetTickPrice_BrokerDown(t *testing.T) {
 
 	srv.TickPriceResponse = map[string]interface{}{"detail": "Broker unavailable"}
 	srv.TickPriceStatusCode = 502
-	stream := broker.NewStream(srv.URL(), 5000)
+	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
 
 	_, err := stream.GetTickPrice(context.Background(), "EURUSD")
 
@@ -70,7 +70,7 @@ func TestStream_GetPosition(t *testing.T) {
 		"profit":        25.0,
 		"ticket":        int64(12345678),
 	}
-	stream := broker.NewStream(srv.URL(), 5000)
+	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
 
 	pos, err := stream.GetPosition(context.Background(), "12345678")
 
@@ -106,7 +106,7 @@ func TestStream_GetPosition_SELL(t *testing.T) {
 		"profit":        40.0,
 		"ticket":        int64(87654321),
 	}
-	stream := broker.NewStream(srv.URL(), 5000)
+	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
 
 	pos, err := stream.GetPosition(context.Background(), "87654321")
 
@@ -121,7 +121,7 @@ func TestStream_GetPosition_NotFound(t *testing.T) {
 
 	srv.PositionResponse = map[string]interface{}{"detail": "Position unavailable"}
 	srv.PositionStatusCode = 502
-	stream := broker.NewStream(srv.URL(), 5000)
+	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
 
 	_, err := stream.GetPosition(context.Background(), "99999999")
 
@@ -141,7 +141,7 @@ func TestClient_ModifyPosition_Success(t *testing.T) {
 		"success": true,
 		"error":   "",
 	}
-	client := broker.NewClient(srv.URL(), 5000)
+	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
 	err := client.ModifyPosition(context.Background(), "12345678", 1.09800, 1.11000)
 
@@ -164,7 +164,7 @@ func TestClient_ModifyPosition_BrokerRejects(t *testing.T) {
 		"success": false,
 		"error":   "Invalid stop loss level",
 	}
-	client := broker.NewClient(srv.URL(), 5000)
+	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
 	err := client.ModifyPosition(context.Background(), "12345678", 1.12000, 1.11000)
 
@@ -178,7 +178,7 @@ func TestClient_ModifyPosition_HttpError(t *testing.T) {
 
 	srv.ModifyPositionResponse = map[string]interface{}{"detail": "Broker unavailable"}
 	srv.ModifyPositionStatusCode = 502
-	client := broker.NewClient(srv.URL(), 5000)
+	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
 	err := client.ModifyPosition(context.Background(), "12345678", 1.09800, 1.11000)
 
@@ -199,7 +199,7 @@ func TestClient_ClosePartial_Success(t *testing.T) {
 		"close_price": 1.10500,
 		"error":       "",
 	}
-	client := broker.NewClient(srv.URL(), 5000)
+	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
 	err := client.ClosePartial(context.Background(), "12345678", 0.04)
 
@@ -222,7 +222,7 @@ func TestClient_ClosePartial_BrokerRejects(t *testing.T) {
 		"close_price": 0.0,
 		"error":       "Volume exceeds position size",
 	}
-	client := broker.NewClient(srv.URL(), 5000)
+	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
 	err := client.ClosePartial(context.Background(), "12345678", 999.0)
 
@@ -236,7 +236,7 @@ func TestClient_ClosePartial_HttpError(t *testing.T) {
 
 	srv.ClosePartialResponse = map[string]interface{}{"detail": "Broker unavailable"}
 	srv.ClosePartialStatusCode = 502
-	client := broker.NewClient(srv.URL(), 5000)
+	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
 	err := client.ClosePartial(context.Background(), "12345678", 0.04)
 
@@ -257,7 +257,7 @@ func TestClient_ClosePosition_Success(t *testing.T) {
 		"close_price": 1.10500,
 		"error":       "",
 	}
-	client := broker.NewClient(srv.URL(), 5000)
+	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
 	err := client.ClosePosition(context.Background(), "12345678")
 
@@ -279,7 +279,7 @@ func TestClient_ClosePosition_BrokerRejects(t *testing.T) {
 		"close_price": 0.0,
 		"error":       "Position already closed",
 	}
-	client := broker.NewClient(srv.URL(), 5000)
+	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
 	err := client.ClosePosition(context.Background(), "12345678")
 
@@ -296,7 +296,7 @@ func TestMT5Broker_Composite(t *testing.T) {
 	defer srv.Close()
 
 	// MT5Broker composes Client + Stream into a single broker.Port.
-	mb := broker.NewMT5Broker(srv.URL(), 5000)
+	mb := broker.NewMT5Broker(srv.URL(), 5000, "test-secret")
 
 	// Verify it satisfies the Port interface by calling methods from both.
 	srv.TickPriceResponse = map[string]interface{}{
