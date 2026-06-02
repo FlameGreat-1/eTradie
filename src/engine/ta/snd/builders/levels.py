@@ -41,7 +41,10 @@ from engine.ta.common.utils.price.math import (
     calculate_price_from_pips,
     get_pip_value,
 )
-from engine.ta.common.utils.price.stop_loss import timeframe_floor_pips
+from engine.ta.common.utils.price.stop_loss import (
+    resolve_min_tp_rr,
+    timeframe_floor_pips,
+)
 from engine.ta.constants import Direction, Timeframe
 
 logger = get_logger(__name__)
@@ -74,7 +77,7 @@ def compute_trade_levels(
     entry_price: float,
     structural_extreme: Optional[float],
     sl_buffer_pips: float,
-    risk_reward: float = 3.0,
+    risk_reward: Optional[float] = None,
     timeframe: Optional[Timeframe] = None,
     logger_event_prefix: str = "snd_builder",
 ) -> Optional[TradeLevels]:
@@ -132,6 +135,16 @@ def compute_trade_levels(
         return None
     if not _is_non_negative_finite(sl_buffer_pips):
         return None
+
+    # TP reward-to-risk MULTIPLE.  Resolve from the timeframe floor
+    # (never below the rulebook's lowest style minimum) unless an
+    # explicit risk_reward was supplied by the caller.  Falls back to
+    # 3.0 (legacy SnD default) only when neither is available.
+    if risk_reward is None:
+        if timeframe is not None:
+            risk_reward = resolve_min_tp_rr(timeframe)
+        else:
+            risk_reward = 3.0
     if not _is_positive_finite(risk_reward):
         return None
     if structural_extreme is not None and not _is_positive_finite(
