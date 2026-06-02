@@ -139,17 +139,29 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 		return false, err
 	}
 
-	// Update trade state.
+	// Update trade state. Snapshot the post-mutation runtime values under
+	// the same write lock so the durable runtime row matches memory.
 	trade.Lock()
 	trade.StopLoss = newSL
 	trade.BreakevenSet = true
 	trade.Status = constants.StatusBreakeven
 	trade.SLMoves++
+	snapRemaining := trade.RemainingLotSize
+	snapTP1Hit := trade.TP1Hit
+	snapTP2Hit := trade.TP2Hit
+	snapTP3Hit := trade.TP3Hit
 	trade.Unlock()
 
-	// Persist.
+	// Persist the SL move (records the sl_adjustments counter).
 	if err := e.journal.UpdateTradeSL(ctx, userID, trade.TradeID, newSL); err != nil {
 		e.log.Error().Err(err).Str("trade_id", trade.TradeID).Msg("journal_sl_update_failed")
+	}
+
+	// Persist the break-even flag + SL so a restart restores BreakevenSet
+	// (audit EM-C1): trailing only activates after break-even, so a lost
+	// flag silently disables trailing on the restored trade.
+	if err := e.journal.UpdateTradeRuntime(ctx, userID, trade.TradeID, snapRemaining, newSL, snapTP1Hit, snapTP2Hit, snapTP3Hit, true); err != nil {
+		e.log.Error().Err(err).Str("trade_id", trade.TradeID).Msg("journal_runtime_update_failed")
 	}
 	if err := e.journal.InsertEvent(ctx, &journal.TradeEvent{
 		UserID:    userID,

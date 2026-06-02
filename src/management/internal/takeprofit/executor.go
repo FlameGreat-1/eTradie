@@ -130,7 +130,8 @@ func (e *Executor) executeTP(
 		}
 	}
 
-	// Update trade state.
+	// Update trade state. Snapshot the post-mutation runtime values under
+	// the same write lock so the durable runtime row matches memory.
 	trade.Lock()
 	switch eventType {
 	case constants.EventTP1Hit:
@@ -147,11 +148,24 @@ func (e *Executor) executeTP(
 		trade.RemainingLotSize = 0
 		trade.Status = constants.StatusClosed
 	}
+	snapRemaining := trade.RemainingLotSize
+	snapSL := trade.StopLoss
+	snapTP1Hit := trade.TP1Hit
+	snapTP2Hit := trade.TP2Hit
+	snapTP3Hit := trade.TP3Hit
+	snapBE := trade.BreakevenSet
 	trade.Unlock()
 
-	// Persist partial.
+	// Persist partial (gross_pnl + partial_closes counter).
 	if err := e.journal.UpdateTradePartial(ctx, userID, tradeID, pnl); err != nil {
 		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_partial_failed")
+	}
+
+	// Persist the worker runtime state so a restart resumes with the
+	// correct remaining volume and TP-hit flags (audit EM-C1). Without
+	// this, a restored trade re-arms an already-closed TP leg.
+	if err := e.journal.UpdateTradeRuntime(ctx, userID, tradeID, snapRemaining, snapSL, snapTP1Hit, snapTP2Hit, snapTP3Hit, snapBE); err != nil {
+		e.log.Error().Err(err).Str("trade_id", tradeID).Msg("journal_runtime_update_failed")
 	}
 
 	// Compute the REALIZED percentage from the actual closed volume
