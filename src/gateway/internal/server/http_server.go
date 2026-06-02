@@ -216,10 +216,26 @@ func NewHTTPServer(
 	}
 
 	s.server = &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
-		Handler:      corsMiddleware(allowedOrigins, authHandler.CSRFHeader())(mux),
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 120 * time.Second,
+		Addr:    fmt.Sprintf(":%d", cfg.HTTPPort),
+		Handler: corsMiddleware(allowedOrigins, authHandler.CSRFHeader())(mux),
+		// ReadHeaderTimeout bounds the time to read request headers and
+		// is the slow-loris guard on the read path. ReadTimeout bounds
+		// the full request read (headers + body).
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		// WriteTimeout is intentionally 0 (no global write deadline).
+		//
+		// A single connection-wide write deadline cannot be scoped per
+		// route, so any value low enough to be a useful slow-client
+		// guard (e.g. 120s) also kills the gateway's legitimately
+		// long-lived responses: POST /api/v1/cycle/run runs a full
+		// TA+Macro+RAG+LLM cycle bounded by CycleTimeoutSeconds (up to
+		// 900s), plus the notifications/long-poll surfaces. Per-request
+		// duration is already bounded where it matters by the
+		// orchestrator's context.WithTimeout(CycleTimeoutSeconds) and by
+		// each phase's own context deadline, so request duration is
+		// controlled without a blunt server-wide write deadline.
+		WriteTimeout: 0,
 		IdleTimeout:  60 * time.Second,
 	}
 

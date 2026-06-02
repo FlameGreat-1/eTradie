@@ -59,14 +59,16 @@ driven from above the gateway handler.
 ## Remediation steps & status
 
 - [x] **Step 0** – Tracking doc (this file).
-- [ ] **Step 1** – Envoy: dedicated no-retry, long-timeout route for the
+- [x] **Step 1** – Envoy: dedicated no-retry, long-timeout route for the
       non-idempotent analysis POSTs (`/api/v1/cycle/run`,
       `/api/analysis/rerun`); raise catch-all route timeout/per-try above
       worst-case cycle; drop `cancelled` from local `retry_on`. Both
-      local and production configs.
-- [ ] **Step 2** – Gateway HTTP server: align `WriteTimeout` with the
-      real cycle budget so a long analysis response is not killed by the
-      server write deadline.
+      local and production configs. (commit: envoy no-retry analysis POSTs)
+- [x] **Step 2** – Gateway HTTP server: `WriteTimeout: 0` (duration
+      bounded by the orchestrator per-cycle context instead) +
+      `ReadHeaderTimeout: 10s` slow-loris guard, so a long analysis
+      response is not killed by the server write deadline.
+      (commit: gateway WriteTimeout)
 - [ ] **Step 3** – Engine idempotency: honour `X-Idempotency-Key` on
       `/internal/processor/process` with a short-TTL Redis dedupe so a
       duplicate processor call returns the first result instead of
