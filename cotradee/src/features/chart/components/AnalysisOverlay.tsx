@@ -77,9 +77,10 @@ function AnalysisOverlayInner({ stream, onDismiss }: AnalysisOverlayProps) {
 
   const streamSymbol = stream.symbol ?? '—';
 
-  // The ThinkingTerminal is visible when we have pulse events OR
-  // when the stream is active but reasoning hasn't started yet.
-  const showTerminal = stream.pulses.length > 0 || (stream.isStreaming && !stream.reasoning);
+  // The ThinkingTerminal is visible while the stream is actively running.
+  // Once the cycle completes (isStreaming = false), it collapses so only
+  // the final LLM reasoning text is shown.
+  const showTerminal = stream.isStreaming && (stream.pulses.length > 0 || !stream.reasoning);
 
   return (
     <div
