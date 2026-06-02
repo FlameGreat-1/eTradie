@@ -46,8 +46,12 @@ from engine.processor.llm.error_classifier import (
     CODE_RATE_LIMITED,
     classify_llm_failure,
 )
-from engine.processor.llm.errors import LLMTruncatedError
+from engine.processor.llm.errors import (
+    LLMDuplicateSuppressedError,
+    LLMTruncatedError,
+)
 from engine.processor.llm.retry import retry_llm_call
+from engine.processor.idempotency import ProcessorIdempotency, compute_digest
 from engine.processor.mapping.output_mapper import map_to_processor_output
 from engine.processor.parsing.response_parser import parse_llm_response
 from engine.processor.prompts.system_prompt import (
@@ -212,7 +216,7 @@ class AnalysisProcessor(ProcessorPort):
 
         try:
             async with asyncio.timeout(self._config.total_timeout_seconds):
-                return await self._execute(context, user_id=user_id, trace_id=trace_id, start=start)
+                return await self._execute_guarded(context, user_id=user_id, trace_id=trace_id, start=start)
 
         except QuotaExceededError:
             # Propagate immediately: the metering layer already recorded
@@ -311,6 +315,101 @@ class AnalysisProcessor(ProcessorPort):
                 f"Processor failed: {exc}",
                 details={"symbol": symbol, "trace_id": trace_id},
             ) from exc
+
+    async def _execute_guarded(
+        self,
+        context: ProcessorInput,
+        *,
+        user_id: str,
+        trace_id: Optional[str] = None,
+        start: float,
+    ) -> ProcessorOutput:
+        """Idempotency wrapper around the core execution pipeline.
+
+        Collapses duplicate analysis calls (a proxy that abandons and
+        replays the request, or two cycles triggered close together)
+        into a single LLM call. The dedupe identity is
+        sha256(user_id : symbol : prompt_hash); two duplicates for the
+        same input produce the same prompt_hash, so the digest is
+        stable across duplicates.
+
+        The guard is skipped (straight passthrough to _execute) when the
+        cache or user_id is unavailable, so test harnesses and any
+        cache-less construction behave exactly as before.
+        """
+        # No cache or no user identity -> no dedupe possible; run directly.
+        if self._cache is None or not user_id:
+            return await self._execute(
+                context, user_id=user_id, trace_id=trace_id, start=start
+            )
+
+        symbol = context.symbol
+
+        # Recompute the dedupe digest from the SAME pure builders the
+        # core pipeline uses. build_system_prompt / build_user_message /
+        # compute_prompt_hash are deterministic and side-effect-free
+        # (no LLM, no IO), so recomputing here is cheap and yields the
+        # exact prompt_hash the real call keys on.
+        prompt_hash = compute_prompt_hash(
+            build_system_prompt(), build_user_message(context)
+        )
+        digest = compute_digest(
+            user_id=user_id, symbol=symbol, prompt_hash=prompt_hash
+        )
+        guard = ProcessorIdempotency(self._cache)
+
+        # 1. A completed result for this exact input already exists.
+        cached = await guard.check_cached(digest, trace_id=trace_id)
+        if cached is not None:
+            logger.info(
+                "processor_idempotency_cache_hit",
+                extra={"symbol": symbol, "user_id": user_id, "trace_id": trace_id},
+            )
+            return cached
+
+        # 2. Single-flight: try to become the sole in-flight owner.
+        handle = await guard.acquire(digest, trace_id=trace_id)
+        if handle is None:
+            # A concurrent identical call already owns the lock. Do NOT
+            # run a second LLM call; wait for the owner's result.
+            owner_result = await guard.await_result(digest, trace_id=trace_id)
+            if owner_result is not None:
+                logger.info(
+                    "processor_idempotency_served_owner_result",
+                    extra={
+                        "symbol": symbol,
+                        "user_id": user_id,
+                        "trace_id": trace_id,
+                    },
+                )
+                return owner_result
+            logger.warning(
+                "processor_idempotency_duplicate_suppressed",
+                extra={
+                    "symbol": symbol,
+                    "user_id": user_id,
+                    "trace_id": trace_id,
+                },
+            )
+            raise LLMDuplicateSuppressedError(
+                "Duplicate analysis call suppressed: an identical request "
+                "(same user, symbol, and prompt) is already in flight.",
+                details={"symbol": symbol, "trace_id": trace_id},
+            )
+
+        # 3. We own the lock: run the real pipeline, cache the successful
+        #    result, and ALWAYS release the lock. _execute only ever
+        #    returns on success (SUCCESS / NO_SETUP) and raises on every
+        #    failure, so the returned value is always safe to cache and
+        #    error states are never cached.
+        try:
+            result = await self._execute(
+                context, user_id=user_id, trace_id=trace_id, start=start
+            )
+            await guard.store_result(digest, result, trace_id=trace_id)
+            return result
+        finally:
+            await guard.release(handle, trace_id=trace_id)
 
     async def _execute(
         self,
