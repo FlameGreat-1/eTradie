@@ -25,6 +25,7 @@ type MockBrokerServer struct {
 	// Configurable responses.
 	TickPriceResponse      map[string]interface{}
 	PositionResponse       map[string]interface{}
+	SymbolInfoResponse     map[string]interface{}
 	ModifyPositionResponse map[string]interface{}
 	ClosePartialResponse   map[string]interface{}
 	ClosePositionResponse  map[string]interface{}
@@ -32,6 +33,7 @@ type MockBrokerServer struct {
 	// Configurable error status codes.
 	TickPriceStatusCode      int
 	PositionStatusCode       int
+	SymbolInfoStatusCode     int
 	ModifyPositionStatusCode int
 	ClosePartialStatusCode   int
 	ClosePositionStatusCode  int
@@ -39,6 +41,7 @@ type MockBrokerServer struct {
 	// Per-endpoint call counters.
 	TickPriceCalls      atomic.Int64
 	PositionCalls       atomic.Int64
+	SymbolInfoCalls     atomic.Int64
 	ModifyPositionCalls atomic.Int64
 	ClosePartialCalls   atomic.Int64
 	ClosePositionCalls  atomic.Int64
@@ -54,6 +57,7 @@ func NewMockBrokerServer() *MockBrokerServer {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/internal/broker/tick_price", m.handleTickPrice)
 	mux.HandleFunc("/internal/broker/position", m.handlePosition)
+	mux.HandleFunc("/internal/broker/symbol_info", m.handleSymbolInfo)
 	mux.HandleFunc("/internal/broker/modify_position", m.handleModifyPosition)
 	mux.HandleFunc("/internal/broker/close_partial", m.handleClosePartial)
 	mux.HandleFunc("/internal/broker/close_position", m.handleClosePosition)
@@ -93,6 +97,12 @@ func (m *MockBrokerServer) handlePosition(w http.ResponseWriter, r *http.Request
 	m.PositionCalls.Add(1)
 	m.recordCall("/internal/broker/position", r.Method, r.URL.RawQuery, nil)
 	m.writeResponse(w, m.PositionResponse, m.PositionStatusCode)
+}
+
+func (m *MockBrokerServer) handleSymbolInfo(w http.ResponseWriter, r *http.Request) {
+	m.SymbolInfoCalls.Add(1)
+	m.recordCall("/internal/broker/symbol_info", r.Method, r.URL.RawQuery, nil)
+	m.writeResponse(w, m.SymbolInfoResponse, m.SymbolInfoStatusCode)
 }
 
 func (m *MockBrokerServer) handleModifyPosition(w http.ResponseWriter, r *http.Request) {

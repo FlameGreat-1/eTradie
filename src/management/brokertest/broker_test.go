@@ -130,6 +130,34 @@ func TestStream_GetPosition_NotFound(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Stream: GetSymbolInfo (EM-C2 Point self-heal source)
+// ---------------------------------------------------------------------------
+
+func TestStream_GetSymbolInfo(t *testing.T) {
+	srv := NewMockBrokerServer()
+	defer srv.Close()
+
+	srv.SymbolInfoResponse = map[string]interface{}{
+		"symbol": "EURUSD",
+		"point":  0.00001,
+		"digits": 5,
+	}
+	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
+
+	info, err := stream.GetSymbolInfo(context.Background(), "EURUSD")
+
+	require.NoError(t, err)
+	require.NotNil(t, info)
+	assert.Equal(t, "EURUSD", info.Symbol)
+	assert.InDelta(t, 0.00001, info.Point, 0.000001)
+	assert.Equal(t, 5, info.Digits)
+
+	calls := srv.CallsForPath("/internal/broker/symbol_info")
+	require.Len(t, calls, 1)
+	assert.Contains(t, calls[0].Query, "symbol=EURUSD")
+}
+
+// ---------------------------------------------------------------------------
 // Client: ModifyPosition
 // ---------------------------------------------------------------------------
 
