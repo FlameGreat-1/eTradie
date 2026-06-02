@@ -34,8 +34,10 @@ type checkFunc func(
 	now time.Time,
 ) models.ValidationResult
 
-// Validator runs the 10 pre-execution checks sequentially.
-// Checks 1-3 are handled by the gateway. Module B owns 4-13.
+// Validator runs the pre-execution checks sequentially.
+// Checks 1-3 are handled by the gateway. Module B owns 4-14.
+// Check 14 (min stop distance) is the execution-side backstop for the
+// upstream structural stop-loss; it runs before position sizing.
 type Validator struct {
 	cfg    *config.Config
 	state  *state.Manager
@@ -62,6 +64,7 @@ func NewValidator(cfg *config.Config, sm *state.Manager, bp broker.Port) *Valida
 			check11Spread,
 			check12MinRR,
 			check13WeekendDayFilter,
+			check14MinStopDistance,
 		},
 		log:   observability.Logger("validator"),
 		nowFn: func() time.Time { return time.Now().UTC() },
