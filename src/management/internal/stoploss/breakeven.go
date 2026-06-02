@@ -53,11 +53,48 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 	openedAt := trade.OpenedAt
 	initialSL := trade.InitialSL
 	userID := trade.UserID
+	symbol := trade.Symbol
+	digits := trade.Digits
+	brokerID := trade.BrokerOrderID
 	tradePoint := trade.Point // Read broker point
-	if tradePoint <= 0 {
-		tradePoint = 0.0001 // Fallback
-	}
 	trade.RUnlock()
+
+	// EM-C2 self-heal: a trade restored from a pre-migration row (or a
+	// reconciler-imported one) can have Point==0. Fetch the real point
+	// from the broker ONCE and stamp + persist it so BE/trailing math runs
+	// on the correct scale instead of a hardcoded FX fallback.
+	if tradePoint <= 0 {
+		if pos, perr := e.bp.GetPosition(ctx, brokerID); perr == nil && pos != nil && pos.Point > 0 {
+			tradePoint = pos.Point
+			trade.Lock()
+			trade.Point = pos.Point
+			if pos.Digits > 0 {
+				trade.Digits = pos.Digits
+				digits = pos.Digits
+			}
+			trade.Unlock()
+			if err := e.journal.UpdateTradePointDigits(ctx, userID, trade.TradeID, pos.Point, pos.Digits); err != nil {
+				e.log.Error().Err(err).Str("trade_id", trade.TradeID).Msg("journal_point_self_heal_failed")
+			}
+		}
+	}
+
+	// Canonical pip size (synthetic/digits-aware). Falls back to the FX
+	// 5-digit convention only when the broker point is genuinely unknown.
+	pipSize := constants.PipSize(symbol, tradePoint, digits)
+	if pipSize <= 0 {
+		if tradePoint > 0 {
+			pipSize = tradePoint * 10
+		} else {
+			pipSize = 0.0001 * 10
+		}
+	}
+	// pointForFallback is the raw point used only for the no-SL/no-TP
+	// synthesized target below; keep it non-zero for safety.
+	pointForFallback := tradePoint
+	if pointForFallback <= 0 {
+		pointForFallback = 0.0001
+	}
 
 	triggered := false
 
@@ -74,9 +111,9 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 		} else {
 			// No SL and no TP. Default to a 500 point move.
 			if isLong {
-				tp1Price = entryPrice + 500*tradePoint
+				tp1Price = entryPrice + 500*pointForFallback
 			} else {
-				tp1Price = entryPrice - 500*tradePoint
+				tp1Price = entryPrice - 500*pointForFallback
 			}
 		}
 	}
@@ -130,9 +167,9 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 	bufferPips := constants.SpreadBufferPips
 	newSL := entryPrice
 	if isLong {
-		newSL = entryPrice + bufferPips*(tradePoint*10) // 1 pip = 10 points
+		newSL = entryPrice + bufferPips*pipSize
 	} else {
-		newSL = entryPrice - bufferPips*(tradePoint*10)
+		newSL = entryPrice - bufferPips*pipSize
 	}
 
 	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, 0); err != nil {
