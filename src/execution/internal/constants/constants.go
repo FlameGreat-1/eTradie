@@ -14,7 +14,58 @@ const (
 	CheckSpread              ValidationCheck = 11
 	CheckMinRR               ValidationCheck = 12
 	CheckWeekendDayFilter    ValidationCheck = 13
+	CheckMinStopDistance     ValidationCheck = 14
 )
+
+// MinStopPipsByTimeframe is the minimum stop-loss distance (in pips)
+// allowed for an order whose entry candidate formed on the given
+// timeframe.  It is the execution-side defensive backstop for the
+// structural SL computed upstream in the TA engine.
+//
+// WHY THIS EXISTS: position size is riskAmount / (slPips * pipValue).
+// A vanishingly small slPips inflates lot size without bound (capped
+// only by MaxLotSize, which then silently breaks the risk model). A
+// few-point stop on a spiking synthetic is also a near-certain
+// stop-out. This check rejects such an order BEFORE sizing.
+//
+// The values mirror
+// engine.ta.common.utils.price.stop_loss.TIMEFRAME_SL_FLOOR_PIPS so
+// the backstop is consistent with the source-side structural floor.
+// They are a floor only: a wider structural SL always passes. Values
+// are in pips and converted to price distance per instrument via
+// InstrumentInfo.PipSize (FX 0.0001, JPY/metals 0.01,
+// indices/crypto/synthetics 1.0), so one map covers every class.
+var MinStopPipsByTimeframe = map[string]float64{
+	"M1":  8.0,
+	"M5":  12.0,
+	"M15": 18.0,
+	"M30": 25.0,
+	"H1":  35.0,
+	"H3":  55.0,
+	"H4":  70.0,
+	"H6":  90.0,
+	"H8":  110.0,
+	"H12": 140.0,
+	"D1":  200.0,
+	"W1":  400.0,
+	"MN1": 700.0,
+}
+
+// DefaultMinStopPips is the floor used when the entry candidate's
+// timeframe is absent or unrecognized.  It equals the H1 floor: a
+// conservative mid-band value that is safe for an unknown setup
+// without being so large it rejects legitimate LTF stops.
+const DefaultMinStopPips = 35.0
+
+// MinStopPipsForTimeframe returns the minimum stop distance in pips
+// for the given entry timeframe, falling back to DefaultMinStopPips
+// for an empty or unrecognized timeframe string.
+func MinStopPipsForTimeframe(timeframe string) float64 {
+	if p, ok := MinStopPipsByTimeframe[timeframe]; ok {
+		return p
+	}
+	return DefaultMinStopPips
+}
 
 // ValidationOutcome is the result of a failed validation check.
 type ValidationOutcome string

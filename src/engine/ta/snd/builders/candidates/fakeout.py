@@ -92,6 +92,7 @@ class FakeoutCandidateBuilder:
             entry_price=sr_flip_level,
             structural_extreme=None,
             sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            timeframe=ltf_sequence.timeframe,
             logger_event_prefix="fakeout_king_short",
         )
         if levels is None:
@@ -196,6 +197,7 @@ class FakeoutCandidateBuilder:
             entry_price=rs_flip_level,
             structural_extreme=None,
             sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            timeframe=ltf_sequence.timeframe,
             logger_event_prefix="fakeout_king_long",
         )
         if levels is None:

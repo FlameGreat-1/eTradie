@@ -41,7 +41,11 @@ from engine.ta.common.utils.price.math import (
     calculate_price_from_pips,
     get_pip_value,
 )
-from engine.ta.constants import Direction
+from engine.ta.common.utils.price.stop_loss import (
+    resolve_min_tp_rr,
+    timeframe_floor_pips,
+)
+from engine.ta.constants import Direction, Timeframe
 
 logger = get_logger(__name__)
 
@@ -73,7 +77,8 @@ def compute_trade_levels(
     entry_price: float,
     structural_extreme: Optional[float],
     sl_buffer_pips: float,
-    risk_reward: float = 3.0,
+    risk_reward: Optional[float] = None,
+    timeframe: Optional[Timeframe] = None,
     logger_event_prefix: str = "snd_builder",
 ) -> Optional[TradeLevels]:
     """Compute entry / SL / TP from structure + a pip-denominated SL buffer.
@@ -130,6 +135,16 @@ def compute_trade_levels(
         return None
     if not _is_non_negative_finite(sl_buffer_pips):
         return None
+
+    # TP reward-to-risk MULTIPLE.  Resolve from the timeframe floor
+    # (never below the rulebook's lowest style minimum) unless an
+    # explicit risk_reward was supplied by the caller.  Falls back to
+    # 3.0 (legacy SnD default) only when neither is available.
+    if risk_reward is None:
+        if timeframe is not None:
+            risk_reward = resolve_min_tp_rr(timeframe)
+        else:
+            risk_reward = 3.0
     if not _is_positive_finite(risk_reward):
         return None
     if structural_extreme is not None and not _is_positive_finite(
@@ -144,11 +159,18 @@ def compute_trade_levels(
         )
         return None
 
-    # Pip-aware buffer: get_pip_value() already encodes the correct
-    # per-instrument pip size (FX 0.0001, JPY 0.01, metals 0.01,
-    # oil 0.01, indices/crypto/synthetics 1.0).  We use the price
-    # helper so any future change to pip semantics propagates here
-    # automatically.
+    # Timeframe-aware structural buffer.  The configured pip offset is
+    # a floor; when a timeframe is supplied we widen it to the
+    # timeframe-scaled minimum so HTF and synthetic stops are not as
+    # tight as a flat 3-pip offset.  get_pip_value() encodes the
+    # per-instrument pip size (FX 0.0001, JPY/metals 0.01,
+    # indices/crypto/synthetics 1.0).
+    effective_buffer_pips = float(sl_buffer_pips)
+    if timeframe is not None:
+        effective_buffer_pips = max(
+            effective_buffer_pips, timeframe_floor_pips(timeframe)
+        )
+    sl_buffer_pips = effective_buffer_pips
     sl_buffer_price = float(get_pip_value(symbol)) * float(sl_buffer_pips)
 
     if direction == Direction.BEARISH:

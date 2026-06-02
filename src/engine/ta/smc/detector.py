@@ -21,6 +21,10 @@ from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.fibonacci import FibonacciRetracement
 from engine.ta.models.liquidity_event import LiquiditySweep
 from engine.ta.models.structure_event import BreakInMarketStructure, ChangeOfCharacter
+from engine.ta.common.utils.price.stop_loss import (
+    compute_structural_stop_loss,
+    resolve_min_tp_rr,
+)
 from engine.ta.smc.builders.fib_leg import select_leg_for_choch_bms_rto
 from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.detectors.bms import BMSDetector
@@ -656,34 +660,49 @@ class SMCDetector:
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = ob.midpoint
 
-        # Structural SL: CHoCH broken level is the invalidation price.
-        # Buffer is a fraction of OB range (Option A, see
-        # config.ob_sl_buffer_range_pct).  Clamped so it never sits
-        # tighter than the OB edge plus the same buffer.
-        ob_range = ob.upper_bound - ob.lower_bound
-        sl_buffer = ob_range * self.config.ob_sl_buffer_range_pct
-
+        # Structural SL: the CHoCH broken level is the REAL invalidation
+        # price -- the SL is seated beyond it via the shared helper, with
+        # a timeframe-scaled structural buffer.  The OB edge is only an
+        # inner guard so the stop is never inside the zone; it is never
+        # the anchor (the previous max()/min() clamp collapsed the SL
+        # onto the OB edge and discarded the invalidation level).
         if direction == Direction.BULLISH:
-            ob_edge_sl = ob.lower_bound - sl_buffer
-            structural_sl = htf_choch.broken_level - sl_buffer
-            stop_loss = min(structural_sl, ob_edge_sl)
+            stop_loss = compute_structural_stop_loss(
+                symbol=ltf_sequence.symbol,
+                timeframe=ltf_sequence.timeframe,
+                direction=Direction.BULLISH,
+                invalidation_level=htf_choch.broken_level,
+                ob_inner_edge=ob.lower_bound,
+            )
             pattern = CandidatePattern.CHOCH_BMS_RTO_BULLISH
+            # Style-driven floor: the candidate timeframe sets a lower
+            # bound that is never below the rulebook's lowest style
+            # minimum.  The authoritative per-style gate is applied
+            # downstream in the processor validator.
+            min_rr = resolve_min_tp_rr(ltf_sequence.timeframe)
             take_profit = self._find_bsl_target(
                 entry_price,
                 swing_highs or [],
-                min_reward=abs(entry_price - stop_loss)
-                * self.config.min_take_profit_rr,
+                min_reward=abs(entry_price - stop_loss) * min_rr,
             )
         else:
-            ob_edge_sl = ob.upper_bound + sl_buffer
-            structural_sl = htf_choch.broken_level + sl_buffer
-            stop_loss = max(structural_sl, ob_edge_sl)
+            stop_loss = compute_structural_stop_loss(
+                symbol=ltf_sequence.symbol,
+                timeframe=ltf_sequence.timeframe,
+                direction=Direction.BEARISH,
+                invalidation_level=htf_choch.broken_level,
+                ob_inner_edge=ob.upper_bound,
+            )
             pattern = CandidatePattern.CHOCH_BMS_RTO_BEARISH
+            # Style-driven floor: the candidate timeframe sets a lower
+            # bound that is never below the rulebook's lowest style
+            # minimum.  The authoritative per-style gate is applied
+            # downstream in the processor validator.
+            min_rr = resolve_min_tp_rr(ltf_sequence.timeframe)
             take_profit = self._find_ssl_target(
                 entry_price,
                 swing_lows or [],
-                min_reward=abs(entry_price - stop_loss)
-                * self.config.min_take_profit_rr,
+                min_reward=abs(entry_price - stop_loss) * min_rr,
             )
 
         # take_profit is Optional[float] on SMCCandidate by design.  When

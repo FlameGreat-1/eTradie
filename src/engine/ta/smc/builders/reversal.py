@@ -3,6 +3,10 @@ from typing import Optional
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
+from engine.ta.common.utils.price.stop_loss import (
+    compute_structural_stop_loss,
+    resolve_min_tp_rr,
+)
 from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.swing import SwingHigh, SwingLow
 from engine.ta.models.candidate import SMCCandidate
@@ -157,6 +161,7 @@ class ReversalBuilder:
         take_profit = self._find_nearest_bsl_target(
             entry_price, swing_highs or [], pip_val,
             stop_loss=stop_loss,
+            min_tp_rr=resolve_min_tp_rr(ltf_ob.timeframe),
         )
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
@@ -300,6 +305,7 @@ class ReversalBuilder:
         take_profit = self._find_nearest_ssl_target(
             entry_price, swing_lows or [], pip_val,
             stop_loss=stop_loss,
+            min_tp_rr=resolve_min_tp_rr(ltf_ob.timeframe),
         )
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
@@ -390,10 +396,23 @@ class ReversalBuilder:
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sweep.swept_level
-        stop_loss = sweep.sweep_low - (self.config.turtle_soup_min_sl_pips * pip_val)
+        # SL beyond the swept extreme (the real invalidation of a turtle
+        # soup), using the timeframe-aware structural buffer.  The turtle
+        # minimum is preserved as an additional floor.
+        structural_sl = compute_structural_stop_loss(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            direction=Direction.BULLISH,
+            invalidation_level=sweep.sweep_low,
+        )
+        turtle_min_sl = sweep.sweep_low - (
+            self.config.turtle_soup_min_sl_pips * pip_val
+        )
+        stop_loss = min(structural_sl, turtle_min_sl)
         take_profit = self._find_nearest_bsl_target(
             entry_price, swing_highs or [], pip_val,
             stop_loss=stop_loss,
+            min_tp_rr=resolve_min_tp_rr(ltf_sequence.timeframe),
         )
 
         # Turtle Soup fib context is trivial by construction
@@ -460,10 +479,23 @@ class ReversalBuilder:
 
         pip_val = float(get_pip_value(ltf_sequence.symbol))
         entry_price = sweep.swept_level
-        stop_loss = sweep.sweep_high + (self.config.turtle_soup_min_sl_pips * pip_val)
+        # SL beyond the swept extreme (the real invalidation of a turtle
+        # soup), using the timeframe-aware structural buffer.  The turtle
+        # minimum is preserved as an additional floor.
+        structural_sl = compute_structural_stop_loss(
+            symbol=ltf_sequence.symbol,
+            timeframe=ltf_sequence.timeframe,
+            direction=Direction.BEARISH,
+            invalidation_level=sweep.sweep_high,
+        )
+        turtle_min_sl = sweep.sweep_high + (
+            self.config.turtle_soup_min_sl_pips * pip_val
+        )
+        stop_loss = max(structural_sl, turtle_min_sl)
         take_profit = self._find_nearest_ssl_target(
             entry_price, swing_lows or [], pip_val,
             stop_loss=stop_loss,
+            min_tp_rr=resolve_min_tp_rr(ltf_sequence.timeframe),
         )
 
         # Turtle Soup fib context is trivial by construction
@@ -572,28 +604,34 @@ class ReversalBuilder:
         direction: Direction,
         protective_level: Optional[float],
     ) -> float:
-        """Compute SL at the pattern's structural invalidation level.
+        """Compute SL beyond the pattern's REAL structural invalidation.
 
-        See ContinuationBuilder._compute_structural_stop_loss for the
-        full contract.  Buffer is ``ob_range * ob_sl_buffer_range_pct``.
-        SL is clamped so it is never tighter than the OB edge plus
-        the same buffer.
+        For an SMS reversal ``protective_level`` is ``htf_sms.failed_
+        level`` -- the swing the market failed to break, i.e. the true
+        invalidation.  The SL is seated beyond it via the shared
+        timeframe-aware helper, with the OB edge as an inner guard.
+        When ``protective_level`` is None the OB edge becomes the
+        anchor (still buffered structurally by timeframe).
         """
-        ob_range = ob.upper_bound - ob.lower_bound
-        buffer = ob_range * self.config.ob_sl_buffer_range_pct
-
-        if direction == Direction.BULLISH:
-            ob_edge_sl = ob.lower_bound - buffer
-            if protective_level is None:
-                return ob_edge_sl
-            structural_sl = protective_level - buffer
-            return min(structural_sl, ob_edge_sl)
-
-        ob_edge_sl = ob.upper_bound + buffer
-        if protective_level is None:
-            return ob_edge_sl
-        structural_sl = protective_level + buffer
-        return max(structural_sl, ob_edge_sl)
+        invalidation_level = (
+            protective_level
+            if protective_level is not None
+            else (
+                ob.lower_bound
+                if direction == Direction.BULLISH
+                else ob.upper_bound
+            )
+        )
+        ob_inner_edge = (
+            ob.lower_bound if direction == Direction.BULLISH else ob.upper_bound
+        )
+        return compute_structural_stop_loss(
+            symbol=ob.symbol,
+            timeframe=ob.timeframe,
+            direction=direction,
+            invalidation_level=invalidation_level,
+            ob_inner_edge=ob_inner_edge,
+        )
 
     def _find_nearest_bsl_target(
         self,
@@ -601,18 +639,21 @@ class ReversalBuilder:
         swing_highs: list[SwingHigh],
         pip_val: float,
         stop_loss: Optional[float] = None,
+        min_tp_rr: Optional[float] = None,
     ) -> Optional[float]:
         """Find the nearest BSL (swing high) above entry as the TP target.
 
         Only swings whose distance from ``entry_price`` is at least
-        ``config.min_take_profit_rr * |entry_price - stop_loss|`` are
-        considered.  When ``stop_loss`` is not supplied the floor is
-        skipped.
+        ``min_tp_rr * |entry_price - stop_loss|`` are considered, where
+        ``min_tp_rr`` is the timeframe-resolved reward-to-risk MULTIPLE
+        (never below the rulebook's lowest style minimum).  Falls back
+        to ``config.min_take_profit_rr`` when not supplied.
         """
+        rr = min_tp_rr if min_tp_rr is not None else self.config.min_take_profit_rr
         min_reward = 0.0
         if stop_loss is not None:
             sl_distance = abs(entry_price - stop_loss)
-            min_reward = sl_distance * self.config.min_take_profit_rr
+            min_reward = sl_distance * rr
 
         candidates = [
             sh.price for sh in swing_highs
@@ -629,18 +670,21 @@ class ReversalBuilder:
         swing_lows: list[SwingLow],
         pip_val: float,
         stop_loss: Optional[float] = None,
+        min_tp_rr: Optional[float] = None,
     ) -> Optional[float]:
         """Find the nearest SSL (swing low) below entry as the TP target.
 
         Only swings whose distance from ``entry_price`` is at least
-        ``config.min_take_profit_rr * |entry_price - stop_loss|`` are
-        considered.  When ``stop_loss`` is not supplied the floor is
-        skipped.
+        ``min_tp_rr * |entry_price - stop_loss|`` are considered, where
+        ``min_tp_rr`` is the timeframe-resolved reward-to-risk MULTIPLE
+        (never below the rulebook's lowest style minimum).  Falls back
+        to ``config.min_take_profit_rr`` when not supplied.
         """
+        rr = min_tp_rr if min_tp_rr is not None else self.config.min_take_profit_rr
         min_reward = 0.0
         if stop_loss is not None:
             sl_distance = abs(entry_price - stop_loss)
-            min_reward = sl_distance * self.config.min_take_profit_rr
+            min_reward = sl_distance * rr
 
         candidates = [
             sl.price for sl in swing_lows

@@ -100,6 +100,7 @@ class QMCandidateBuilder:
             entry_price=qml.level,
             structural_extreme=qml.hh_price,
             sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            timeframe=ltf_sequence.timeframe,
             logger_event_prefix="qml_baseline_short",
         )
         if levels is None:
@@ -205,6 +206,7 @@ class QMCandidateBuilder:
             entry_price=qml.level,
             structural_extreme=qml.hh_price,
             sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            timeframe=ltf_sequence.timeframe,
             logger_event_prefix="qml_killer_short",
         )
         if levels is None:
@@ -322,6 +324,7 @@ class QMCandidateBuilder:
             entry_price=qmh.level,
             structural_extreme=qmh.ll_price,
             sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            timeframe=ltf_sequence.timeframe,
             logger_event_prefix="qmh_baseline_long",
         )
         if levels is None:
@@ -427,6 +430,7 @@ class QMCandidateBuilder:
             entry_price=qmh.level,
             structural_extreme=qmh.ll_price,
             sl_buffer_pips=self.config.previous_level_tolerance_pips,
+            timeframe=ltf_sequence.timeframe,
             logger_event_prefix="qmh_killer_long",
         )
         if levels is None:

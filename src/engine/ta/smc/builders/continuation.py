@@ -3,6 +3,10 @@ from typing import Optional
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
+from engine.ta.common.utils.price.stop_loss import (
+    compute_structural_stop_loss,
+    resolve_min_tp_rr,
+)
 from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
@@ -165,6 +169,7 @@ class ContinuationBuilder:
             self._get_swing_highs_from_sequence(htf_sequence),
             pip_val,
             stop_loss=stop_loss,
+            min_tp_rr=resolve_min_tp_rr(ltf_ob.timeframe),
         )
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
@@ -329,6 +334,7 @@ class ContinuationBuilder:
             self._get_swing_lows_from_sequence(htf_sequence),
             pip_val,
             stop_loss=stop_loss,
+            min_tp_rr=resolve_min_tp_rr(ltf_ob.timeframe),
         )
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
@@ -472,19 +478,23 @@ class ContinuationBuilder:
         swing_highs: list,
         pip_val: float,
         stop_loss: Optional[float] = None,
+        min_tp_rr: Optional[float] = None,
     ) -> Optional[float]:
         """Find the nearest BSL (swing high) above entry as the TP target.
 
         Only swings whose distance from ``entry_price`` is at least
-        ``config.min_take_profit_rr * |entry_price - stop_loss|`` are
-        considered.  When ``stop_loss`` is not supplied the floor is
-        skipped (legacy behaviour, used only if a future caller opts
-        out explicitly).
+        ``min_tp_rr * |entry_price - stop_loss|`` are considered, where
+        ``min_tp_rr`` is the timeframe-resolved reward-to-risk MULTIPLE
+        (never below the rulebook's lowest style minimum).  When
+        ``min_tp_rr`` is not supplied it falls back to the legacy
+        ``config.min_take_profit_rr``.  When ``stop_loss`` is not
+        supplied the floor is skipped.
         """
+        rr = min_tp_rr if min_tp_rr is not None else self.config.min_take_profit_rr
         min_reward = 0.0
         if stop_loss is not None:
             sl_distance = abs(entry_price - stop_loss)
-            min_reward = sl_distance * self.config.min_take_profit_rr
+            min_reward = sl_distance * rr
 
         candidates = [
             sh.price for sh in swing_highs
@@ -501,19 +511,23 @@ class ContinuationBuilder:
         swing_lows: list,
         pip_val: float,
         stop_loss: Optional[float] = None,
+        min_tp_rr: Optional[float] = None,
     ) -> Optional[float]:
         """Find the nearest SSL (swing low) below entry as the TP target.
 
         Only swings whose distance from ``entry_price`` is at least
-        ``config.min_take_profit_rr * |entry_price - stop_loss|`` are
-        considered.  When ``stop_loss`` is not supplied the floor is
-        skipped (legacy behaviour, used only if a future caller opts
-        out explicitly).
+        ``min_tp_rr * |entry_price - stop_loss|`` are considered, where
+        ``min_tp_rr`` is the timeframe-resolved reward-to-risk MULTIPLE
+        (never below the rulebook's lowest style minimum).  When
+        ``min_tp_rr`` is not supplied it falls back to the legacy
+        ``config.min_take_profit_rr``.  When ``stop_loss`` is not
+        supplied the floor is skipped.
         """
+        rr = min_tp_rr if min_tp_rr is not None else self.config.min_take_profit_rr
         min_reward = 0.0
         if stop_loss is not None:
             sl_distance = abs(entry_price - stop_loss)
-            min_reward = sl_distance * self.config.min_take_profit_rr
+            min_reward = sl_distance * rr
 
         candidates = [
             sl.price for sl in swing_lows
@@ -530,34 +544,39 @@ class ContinuationBuilder:
         direction: Direction,
         protective_level: Optional[float],
     ) -> float:
-        """Compute SL at the pattern's structural invalidation level.
+        """Compute SL beyond the pattern's REAL structural invalidation.
 
-        Buffer is a percentage of the OB's own range (Option A policy;
-        see ``config.ob_sl_buffer_range_pct``).  The SL is clamped so
-        it is never tighter than the OB edge -- if ``protective_level``
-        sits inside the OB (rare but possible), the SL falls back to
-        the OB edge plus buffer.  When ``protective_level`` is None
-        (e.g. SH_BMS_RTO emitted without an associated sweep), the SL
-        uses the OB edge directly with the same buffer (permissive
-        fallback; keeps the candidate in the pipeline).
+        ``protective_level`` is the genuine invalidation price for a
+        SH_BMS_RTO continuation: the liquidity-sweep extreme
+        (``sweep_low`` for longs, ``sweep_high`` for shorts).  The SL
+        is seated beyond it via the shared timeframe-aware helper, with
+        the OB edge used only as an inner guard.  When no sweep is
+        present the OB edge becomes the invalidation anchor (still
+        buffered structurally by timeframe).
+
+        The buffer is no longer a flat fraction of the OB range; it is
+        the timeframe-scaled structural buffer (see
+        ``engine.ta.common.utils.price.stop_loss``).
         """
-        ob_range = ob.upper_bound - ob.lower_bound
-        buffer = ob_range * self.config.ob_sl_buffer_range_pct
-
-        if direction == Direction.BULLISH:
-            ob_edge_sl = ob.lower_bound - buffer
-            if protective_level is None:
-                return ob_edge_sl
-            structural_sl = protective_level - buffer
-            # Clamp: never tighter than OB edge.
-            return min(structural_sl, ob_edge_sl)
-
-        ob_edge_sl = ob.upper_bound + buffer
-        if protective_level is None:
-            return ob_edge_sl
-        structural_sl = protective_level + buffer
-        # Clamp: never tighter than OB edge.
-        return max(structural_sl, ob_edge_sl)
+        invalidation_level = (
+            protective_level
+            if protective_level is not None
+            else (
+                ob.lower_bound
+                if direction == Direction.BULLISH
+                else ob.upper_bound
+            )
+        )
+        ob_inner_edge = (
+            ob.lower_bound if direction == Direction.BULLISH else ob.upper_bound
+        )
+        return compute_structural_stop_loss(
+            symbol=ob.symbol,
+            timeframe=ob.timeframe,
+            direction=direction,
+            invalidation_level=invalidation_level,
+            ob_inner_edge=ob_inner_edge,
+        )
 
     @staticmethod
     def _get_swing_highs_from_sequence(sequence: CandleSequence) -> list:

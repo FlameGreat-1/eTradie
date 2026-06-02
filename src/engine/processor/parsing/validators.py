@@ -21,6 +21,7 @@ from engine.processor.constants import (
     MIN_RR_SWING,
 )
 from engine.processor.models.analysis import AnalysisOutput
+from engine.shared.risk import style_min_tp_rr
 
 
 def validate_analysis_output(
@@ -135,13 +136,14 @@ def _validate_rr_ratio(o: AnalysisOutput) -> list[str]:
         return errors
 
     style = o.trading_style.upper()
-    min_rr_map = {
-        "SCALPING": MIN_RR_SCALPING,
-        "INTRADAY": MIN_RR_INTRADAY,
-        "SWING": MIN_RR_SWING,
-        "POSITIONAL": MIN_RR_POSITIONAL,
-    }
-    min_rr = min_rr_map.get(style, MIN_RR_INTRADAY)
+    # Per-style minimum from engine.shared.risk -- the single source of
+    # truth the TA layer also uses.  The candidate timeframe is not a
+    # field on AnalysisOutput, so only the style floor applies here;
+    # the TA layer already enforced the timeframe floor at build time.
+    # An unknown style string falls back to the Intraday minimum so a
+    # malformed trading_style never crashes the gate.
+    resolved = style_min_tp_rr(style)
+    min_rr = resolved if resolved is not None else MIN_RR_INTRADAY
 
     if o.rr_ratio < min_rr:
         errors.append(f"rr_ratio {o.rr_ratio} below minimum {min_rr} for style {style}")

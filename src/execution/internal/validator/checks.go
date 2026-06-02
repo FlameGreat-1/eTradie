@@ -3,6 +3,7 @@ package validator
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -282,6 +283,73 @@ func check12MinRR(
 		return reject(
 			constants.CheckMinRR,
 			fmt.Sprintf("R:R %.2f below minimum %.2f for %s", req.RRRatio, minRR, req.TradingStyle),
+		)
+	}
+
+	return pass()
+}
+
+// check14MinStopDistance rejects an order whose stop-loss sits too
+// close to the entry for the entry candidate's timeframe.
+//
+// This is the execution-side defensive backstop for the structural
+// stop-loss computed upstream in the TA engine. Position size is
+// riskAmount / (slPips * pipValue): as slPips -> 0 the lot size
+// explodes (capped only by MaxLotSize, which then silently breaks the
+// risk model), and a few-point stop on a spiking synthetic is a
+// near-certain stop-out. We therefore reject a sub-floor SL BEFORE
+// the sizing engine runs (this check is ordered before sizing in the
+// gRPC pipeline).
+//
+// The minimum is timeframe-scaled (constants.MinStopPipsForTimeframe)
+// and expressed in pips, converted to a price distance via the
+// broker's per-instrument PipSize so one rule covers FX, JPY, metals,
+// indices, crypto and Deriv synthetics.
+//
+// Fail-open policy: when the broker cannot supply a usable PipSize
+// (data gap), this check passes rather than blocking the trade -- the
+// sizing engine independently rejects an invalid PipSize one step
+// later, so trading is not left unguarded. A zero/negative SL
+// distance is always rejected (it cannot be sized).
+func check14MinStopDistance(
+	ctx context.Context,
+	req *models.TradeRequest,
+	cfg *config.Config,
+	_ *RuntimeParams,
+	_ *state.Manager,
+	bp broker.Port,
+	_ time.Time,
+) models.ValidationResult {
+	entry := req.EntryPrice()
+	slDistance := math.Abs(entry - req.StopLoss)
+	if slDistance <= 0 {
+		return reject(
+			constants.CheckMinStopDistance,
+			fmt.Sprintf("stop-loss distance is zero (entry=%.5f, sl=%.5f)", entry, req.StopLoss),
+		)
+	}
+
+	brokerCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.BrokerTimeoutMs)*time.Millisecond)
+	defer cancel()
+
+	info, err := bp.GetInstrumentInfo(brokerCtx, req.Symbol)
+	if err != nil || info == nil || info.PipSize <= 0 {
+		// Data gap: fail open. The sizing engine rejects an invalid
+		// PipSize a step later, so trading is not left unguarded.
+		return pass()
+	}
+
+	slPips := slDistance / info.PipSize
+	minPips := constants.MinStopPipsForTimeframe(req.LTFTimeframe)
+
+	if slPips < minPips {
+		return reject(
+			constants.CheckMinStopDistance,
+			fmt.Sprintf(
+				"stop-loss too tight: %.1f pips < %.1f minimum for %s entry timeframe (%s); "+
+					"structural SL would inflate position size",
+				slPips, minPips, req.LTFTimeframe, req.Symbol,
+			),
 		)
 	}
 
