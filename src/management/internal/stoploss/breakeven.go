@@ -55,25 +55,26 @@ func (e *BreakevenEngine) Evaluate(ctx context.Context, trade *types.Trade, chec
 	userID := trade.UserID
 	symbol := trade.Symbol
 	digits := trade.Digits
-	brokerID := trade.BrokerOrderID
 	tradePoint := trade.Point // Read broker point
 	trade.RUnlock()
 
 	// EM-C2 self-heal: a trade restored from a pre-migration row (or a
-	// reconciler-imported one) can have Point==0. Fetch the real point
-	// from the broker ONCE and stamp + persist it so BE/trailing math runs
-	// on the correct scale instead of a hardcoded FX fallback.
+	// reconciler-imported one) can have Point==0. Fetch the real point +
+	// digits from the broker symbol_info ONCE, stamp + persist them so
+	// BE/trailing math runs on the correct scale instead of a hardcoded
+	// FX fallback. (The /internal/broker/position response carries no
+	// point/digits, so symbol_info is the correct source.)
 	if tradePoint <= 0 {
-		if pos, perr := e.bp.GetPosition(ctx, brokerID); perr == nil && pos != nil && pos.Point > 0 {
-			tradePoint = pos.Point
+		if si, serr := e.bp.GetSymbolInfo(ctx, symbol); serr == nil && si != nil && si.Point > 0 {
+			tradePoint = si.Point
 			trade.Lock()
-			trade.Point = pos.Point
-			if pos.Digits > 0 {
-				trade.Digits = pos.Digits
-				digits = pos.Digits
+			trade.Point = si.Point
+			if si.Digits > 0 {
+				trade.Digits = si.Digits
+				digits = si.Digits
 			}
 			trade.Unlock()
-			if err := e.journal.UpdateTradePointDigits(ctx, userID, trade.TradeID, pos.Point, pos.Digits); err != nil {
+			if err := e.journal.UpdateTradePointDigits(ctx, userID, trade.TradeID, si.Point, si.Digits); err != nil {
 				e.log.Error().Err(err).Str("trade_id", trade.TradeID).Msg("journal_point_self_heal_failed")
 			}
 		}
