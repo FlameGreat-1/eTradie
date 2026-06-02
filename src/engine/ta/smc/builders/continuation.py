@@ -3,7 +3,10 @@ from typing import Optional
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
-from engine.ta.common.utils.price.stop_loss import compute_structural_stop_loss
+from engine.ta.common.utils.price.stop_loss import (
+    compute_structural_stop_loss,
+    resolve_min_tp_rr,
+)
 from engine.ta.constants import Direction, CandidatePattern
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
@@ -166,6 +169,7 @@ class ContinuationBuilder:
             self._get_swing_highs_from_sequence(htf_sequence),
             pip_val,
             stop_loss=stop_loss,
+            min_tp_rr=resolve_min_tp_rr(ltf_ob.timeframe),
         )
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
@@ -330,6 +334,7 @@ class ContinuationBuilder:
             self._get_swing_lows_from_sequence(htf_sequence),
             pip_val,
             stop_loss=stop_loss,
+            min_tp_rr=resolve_min_tp_rr(ltf_ob.timeframe),
         )
 
         associated_fvg = self.zone_validator.get_associated_fvg(ltf_ob, ltf_fvgs)
@@ -473,19 +478,23 @@ class ContinuationBuilder:
         swing_highs: list,
         pip_val: float,
         stop_loss: Optional[float] = None,
+        min_tp_rr: Optional[float] = None,
     ) -> Optional[float]:
         """Find the nearest BSL (swing high) above entry as the TP target.
 
         Only swings whose distance from ``entry_price`` is at least
-        ``config.min_take_profit_rr * |entry_price - stop_loss|`` are
-        considered.  When ``stop_loss`` is not supplied the floor is
-        skipped (legacy behaviour, used only if a future caller opts
-        out explicitly).
+        ``min_tp_rr * |entry_price - stop_loss|`` are considered, where
+        ``min_tp_rr`` is the timeframe-resolved reward-to-risk MULTIPLE
+        (never below the rulebook's lowest style minimum).  When
+        ``min_tp_rr`` is not supplied it falls back to the legacy
+        ``config.min_take_profit_rr``.  When ``stop_loss`` is not
+        supplied the floor is skipped.
         """
+        rr = min_tp_rr if min_tp_rr is not None else self.config.min_take_profit_rr
         min_reward = 0.0
         if stop_loss is not None:
             sl_distance = abs(entry_price - stop_loss)
-            min_reward = sl_distance * self.config.min_take_profit_rr
+            min_reward = sl_distance * rr
 
         candidates = [
             sh.price for sh in swing_highs
@@ -502,19 +511,23 @@ class ContinuationBuilder:
         swing_lows: list,
         pip_val: float,
         stop_loss: Optional[float] = None,
+        min_tp_rr: Optional[float] = None,
     ) -> Optional[float]:
         """Find the nearest SSL (swing low) below entry as the TP target.
 
         Only swings whose distance from ``entry_price`` is at least
-        ``config.min_take_profit_rr * |entry_price - stop_loss|`` are
-        considered.  When ``stop_loss`` is not supplied the floor is
-        skipped (legacy behaviour, used only if a future caller opts
-        out explicitly).
+        ``min_tp_rr * |entry_price - stop_loss|`` are considered, where
+        ``min_tp_rr`` is the timeframe-resolved reward-to-risk MULTIPLE
+        (never below the rulebook's lowest style minimum).  When
+        ``min_tp_rr`` is not supplied it falls back to the legacy
+        ``config.min_take_profit_rr``.  When ``stop_loss`` is not
+        supplied the floor is skipped.
         """
+        rr = min_tp_rr if min_tp_rr is not None else self.config.min_take_profit_rr
         min_reward = 0.0
         if stop_loss is not None:
             sl_distance = abs(entry_price - stop_loss)
-            min_reward = sl_distance * self.config.min_take_profit_rr
+            min_reward = sl_distance * rr
 
         candidates = [
             sl.price for sl in swing_lows
