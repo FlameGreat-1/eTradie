@@ -106,6 +106,25 @@ def timeframe_floor_pips(timeframe: Timeframe) -> float:
 # resolve_min_tp_rr() for how the two combine.
 _LOWEST_STYLE_MIN_RR: float = 2.0  # Scalping 1:2 -- rulebook Section 7.3
 
+# Per-style minimum R:R, mirroring the rulebook (Section 7.3 /
+# STYLE-RR-001).  Kept here so the TA candidate layer and the
+# processor validator share ONE source of truth and cannot drift.
+# The processor's engine.processor.constants.MIN_RR_* are the same
+# numbers from the processor side; both must stay equal.
+STYLE_MIN_TP_RR: dict[str, float] = {
+    "SCALPING": 2.0,
+    "INTRADAY": 3.0,
+    "SWING": 3.0,
+    "POSITIONAL": 5.0,
+}
+
+
+def style_min_tp_rr(style: Optional[str]) -> Optional[float]:
+    """Return the rulebook per-style minimum R:R, or None if unknown."""
+    if style is None:
+        return None
+    return STYLE_MIN_TP_RR.get(style.strip().upper())
+
 TIMEFRAME_MIN_TP_RR: dict[Timeframe, float] = {
     Timeframe.M1: 2.0,
     Timeframe.M5: 2.0,
@@ -137,29 +156,46 @@ def timeframe_min_tp_rr(timeframe: Timeframe) -> float:
 
 
 def resolve_min_tp_rr(
-    timeframe: Timeframe,
+    timeframe: Optional[Timeframe] = None,
     style_min_rr: Optional[float] = None,
+    *,
+    style: Optional[str] = None,
 ) -> float:
     """Combine the per-style minimum R:R with the timeframe floor.
 
-    The take-profit floor is ``max(style_min_rr, timeframe_min_rr)``:
+    The take-profit floor is ``max(style_floor, timeframe_floor)``:
 
-    * ``style_min_rr`` is the rulebook's per-style minimum (Section 7.3
+    * The style floor is the rulebook's per-style minimum (Section 7.3
       / STYLE-RR-001): Scalping 2.0, Intraday 3.0, Swing 3.0,
-      Positional 5.0.  It is the HARD floor -- the timeframe value may
-      only RAISE the bar above it, never lower it.
-    * ``timeframe_min_rr`` widens the floor when the candidate's own
+      Positional 5.0.  It may be supplied either as a number
+      (``style_min_rr``) or by name (``style``); the name form looks it
+      up in ``STYLE_MIN_TP_RR``.  It is the HARD floor -- the timeframe
+      value may only RAISE the bar above it, never lower it.
+    * The timeframe floor widens the bar when the candidate's own
       timeframe demands a larger draw than the active style requires
       (e.g. a D1 candidate inside a Swing trade).
 
-    When ``style_min_rr`` is None (the candidate-build TA layer does
-    not yet know the active style), only the timeframe floor applies --
-    and that floor is itself never below the lowest style minimum.
+    Either input may be omitted:
+    * No timeframe (processor validator, which knows style but not the
+      candidate timeframe) -> the style floor alone applies.
+    * No style (candidate-build TA layer, which knows timeframe but not
+      the active style) -> the timeframe floor alone applies, and that
+      floor is itself never below the lowest style minimum.
     """
-    tf_floor = timeframe_min_tp_rr(timeframe)
-    if style_min_rr is None:
-        return tf_floor
-    return max(float(style_min_rr), tf_floor)
+    resolved_style_rr = style_min_rr
+    if resolved_style_rr is None and style is not None:
+        resolved_style_rr = style_min_tp_rr(style)
+
+    tf_floor = (
+        timeframe_min_tp_rr(timeframe) if timeframe is not None else None
+    )
+
+    candidates = [
+        v for v in (resolved_style_rr, tf_floor) if v is not None
+    ]
+    if not candidates:
+        return _LOWEST_STYLE_MIN_RR
+    return max(float(v) for v in candidates)
 
 
 def structural_buffer(
