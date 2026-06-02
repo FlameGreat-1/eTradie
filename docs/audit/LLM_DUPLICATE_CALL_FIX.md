@@ -81,7 +81,8 @@ driven from above the gateway handler.
         cache, keyed on sha256(user_id:symbol:prompt_hash), fail-open).
       - `LLMDuplicateSuppressedError` in `llm/errors.py`.
       - 409 `llm_duplicate_suppressed` mapping in `routers/internal.py`.
-      REMAINING (wiring into `service.py::_execute`):
+<!-- superseded: original step-by-step wiring plan retained below for history only -->
+      HISTORICAL wiring plan (now implemented as above):
         1. Imports: `ProcessorIdempotency`, `compute_digest`,
            `LLMDuplicateSuppressedError`.
         2. After `prompt_hash = compute_prompt_hash(...)` (and the
