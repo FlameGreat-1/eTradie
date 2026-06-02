@@ -39,7 +39,12 @@ TP1 has neither a working broker TP nor a working software partial.
 Fix: add tp1_pct/tp2_pct/tp3_pct columns + idempotent migration; add fields to
 TradeRecord; write/read in InsertTrade + all SELECTs; set them in
 restoreTradeFromRecord.
-Status: [ ]
+Status: [x] DONE — schema/model already carried the columns (merged);
+  grpc_server.InsertTrade + main.restoreTradeFromRecord now write/read
+  tp*_pct/point/digits/rr/remaining + flags; UpdateTradeRuntime is called
+  from takeprofit (post-partial) and breakeven (post-BE); AND the LIMIT
+  fill path now hands off full intent via NotifyExecutionCompleted instead
+  of the lossy reconciler import (the steady-state instance of this bug).
 
 --------------------------------------------------------------------------------
 ### EM-C2 (CRITICAL) Point/Digits destroyed on restart -> BE/trailing SL math wrong
@@ -50,7 +55,9 @@ them) and NOT restored in restoreTradeFromRecord. After restart trade.Point = 0
 -> breakeven.go falls back to tradePoint = 0.0001. For synthetics/indices whose
 real point differs, BE/trailing SL is computed on the wrong scale.
 Fix: persist + restore point and digits alongside the trade.
-Status: [ ]
+Status: [x] DONE — point/digits persisted at registration + restored in
+  restoreTradeFromRecord; break-even self-heals Point/Digits from broker
+  GetSymbolInfo (symbol_info) + UpdateTradePointDigits when Point==0.
 
 --------------------------------------------------------------------------------
 ### EM-H1 (HIGH) Breakeven buffer uses FX-only pip model; wrong on synthetics
@@ -64,7 +71,10 @@ lands effectively at raw entry with no spread cushion -> trades get knocked to
 BE by spread/noise. Cross-instrument inconsistency.
 Fix: derive the BE/trailing buffer from a synthetic-aware pip value (same source
 as execution sizing) rather than tradePoint*10. Validate per instrument class.
-Status: [ ]
+Status: [x] DONE — constants.PipSize(symbol,point,digits) mirrors execution
+  bridge.go (synthetic=>1.0; digits<=2=>point; else point*10); breakeven.go
+  buffer now uses PipSize. trailing.go has no pip-buffer term (fractional
+  trail), so EM-H1 does not apply there.
 
 --------------------------------------------------------------------------------
 ### EM-H2 (HIGH) Trailing stop is fractional, not structural (rulebook mismatch)
@@ -77,7 +87,10 @@ back large open profit.
 Fix: feed structural swing levels to Module C (e.g. via the candle-closed alert
 or a dedicated lookup) and trail behind the last swing, OR explicitly downgrade
 the documented contract to match the implementation. Decide deliberately.
-Status: [ ]
+Status: [x] DONE (deliberate downgrade) — trailing.go contract doc rewritten
+  to describe the implemented fractional high-water-mark trail honestly;
+  swing-based trail recorded as a tracked future enhancement (needs a new
+  structural feed into Module C). No math change.
 
 --------------------------------------------------------------------------------
 ### EM-M1 (MEDIUM) Broker holds only SL + TP1; TP2/TP3/BE/trailing are software-only
@@ -91,7 +104,11 @@ after restart). Acceptable ONLY with hardened Module C HA, which is not
 evidenced.
 Fix: either place a broker-side bracket for the runner, or document + harden
 Module C HA (and resolve EM-C1/EM-C2 so restart restores full state).
-Status: [ ]
+Status: [~] PARTIAL — EM-C1/EM-C2 resolved so restart restores full state;
+  StateReconciler now adopts broker remaining-volume as source of truth
+  each frame (UpdateTradeRuntime) so software TP sizing tracks broker
+  reality after any outage. Broker-side OCO bracket for TP2/TP3 remains a
+  deliberate future enhancement (requires per-leg child orders).
 
 --------------------------------------------------------------------------------
 ### EM-M2 (MEDIUM) Instant-fill entry differs from sized/validated entry
@@ -103,7 +120,8 @@ the validated/sized risk (midpoint->SL). The min-stop floor is still sound; the
 risk amount is approximate on instant fills.
 Fix: recompute risk/lot from the actual fill price post-fill, or tighten
 overshoot tolerance, or document the accepted variance.
-Status: [ ]
+Status: [x] DONE — fireMarketOrder rescales RiskAmount by
+  (|fill-SL| / |midpoint-SL|) before handoff; exact at fixed lot size.
 
 --------------------------------------------------------------------------------
 ### EM-L1 (LOW/STRUCTURAL) ProcessorOutput contract is triplicated by hand
@@ -118,7 +136,10 @@ trade_valid/risk%/confidence-float); SL/TP NUMBERS pass through unchanged but
 the shape boundary is a drift risk.
 Fix: enforce contract-check in CI as a hard gate (fail the pipeline on drift);
 consider generating one side from the proto.
-Status: [ ]
+Status: [x] DONE — CI lint job already runs the validator directly and
+  test/test-go/build all `needs: lint`, so drift fails the pipeline. The
+  local `make contract-check` no longer swallows failures with `|| echo`,
+  so `make lint` now matches the CI gate.
 
 --------------------------------------------------------------------------------
 ### EM-V1 (VERIFY) MT5 order_send SL/TP attachment not yet code-verified
@@ -129,7 +150,12 @@ actual MT5 order_send call) was NOT read in this pass. MUST confirm SL/TP are
 attached to the broker order (and synthetic pip handling) before live. If that
 endpoint drops SL/TP, every trade is naked at the broker and only software-
 managed.
-Status: [ ]
+Status: [x] VERIFIED — broker_bridge.py place_order forwards stop_loss +
+  take_profit; MetaApiClient.place_order sends stopLoss/takeProfit on the
+  /trade payload and ZmqClient.place_order sends stop_loss/take_profit on
+  ORDER_SEND. Filled orders carry broker SL+TP1 (only TP1 broker-side =>
+  EM-M1). The on-terminal .mq5 EA OrderSend handler is the one layer below
+  the service boundary and is the remaining manual-verify item.
 
 --------------------------------------------------------------------------------
 ### Verified CORRECT (no action) — recorded for completeness
@@ -358,10 +384,18 @@ Commit steps (each step compiles as a unit):
           full intent (idempotent downstream). matchFilledPosition
           correlates by AnalysisID then unambiguous symbol+direction.
           Reconciler import remains the manual/external fallback.
-  [ ] S5  EM-M1: broker-side bracket decision + startup volume reconcile
-  [ ] S6  EM-H2: structural trail wiring vs documented contract
-  [ ] S7  EM-M2: recompute risk/lot from actual instant fill price
-  [ ] S8  EM-L1: make contract-check a hard CI gate
-  [ ] S9  flip statuses in findings above; open MR
+  [~] S5  EM-M1: PARTIAL — StateReconciler.processPositionUpdate adopts
+          broker remaining-volume as source of truth each frame +
+          persists via UpdateTradeRuntime. Broker-side OCO bracket for
+          TP2/TP3 deferred (deliberate future enhancement).
+  [x] S6  EM-H2: trailing.go contract doc aligned to the implemented
+          fractional model; swing trail recorded as future enhancement.
+  [x] S7  EM-M2: fireMarketOrder recomputes realized RiskAmount from the
+          actual instant fill price before handoff.
+  [x] S8  EM-L1: local `make contract-check` is now a hard gate (CI was
+          already hard-gated via the lint job + needs: lint).
+  [x] S9  finding statuses flipped above; MR opened.
 
-Progress note: S0 done. Next: S1.
+Progress note: ALL steps complete. EM-C1, EM-C2, EM-H1, EM-H2, EM-M2,
+EM-L1, EM-V1 = DONE/VERIFIED; EM-M1 = PARTIAL (volume reconcile done,
+broker OCO bracket deferred as a deliberate, documented enhancement).
