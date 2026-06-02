@@ -209,6 +209,32 @@ func (o *Orchestrator) runSingleAttempt(
 
 		result, err := o.executePipeline(cycleCtx, tracker, symbols)
 		if err != nil {
+			// Parent (inbound request) cancelled -> the client/proxy has
+			// gone away. Do NOT retry (that would replay a full,
+			// money-spending cycle for a caller that is no longer
+			// listening) and do NOT publish a user-facing CYCLE_FAILED
+			// alert (there is no user to receive it). This is distinct
+			// from the cycle's OWN budget elapsing (cycleCtx
+			// DeadlineExceeded with a live parent), which is handled
+			// below and remains retryable.
+			if ctx.Err() != nil {
+				tracker.Fail(
+					"Cycle cancelled by caller (client/proxy disconnected)",
+					"client_cancelled", false,
+				)
+				observability.GatewayStageErrors.WithLabelValues("cycle", "cancelled").Inc()
+				o.log.Info().
+					Str("cycle_id", tracker.CycleID()).
+					Str("phase_reached", tracker.Phase().String()).
+					Str("trace_id", tracker.TraceID()).
+					Msg("cycle_cancelled_by_caller")
+				shouldRetry = false
+				if len(result) > 0 {
+					outputs = append(outputs, result...)
+				}
+				outputs = append(outputs, buildErrorOutput(tracker))
+				return
+			}
 			if cycleCtx.Err() == context.DeadlineExceeded {
 				tracker.Fail(
 					fmt.Sprintf("Cycle timed out after %ds", o.cfg.CycleTimeoutSeconds),
