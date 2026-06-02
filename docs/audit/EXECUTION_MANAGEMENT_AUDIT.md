@@ -104,11 +104,42 @@ after restart). Acceptable ONLY with hardened Module C HA, which is not
 evidenced.
 Fix: either place a broker-side bracket for the runner, or document + harden
 Module C HA (and resolve EM-C1/EM-C2 so restart restores full state).
-Status: [~] PARTIAL — EM-C1/EM-C2 resolved so restart restores full state;
-  StateReconciler now adopts broker remaining-volume as source of truth
-  each frame (UpdateTradeRuntime) so software TP sizing tracks broker
-  reality after any outage. Broker-side OCO bracket for TP2/TP3 remains a
-  deliberate future enhancement (requires per-leg child orders).
+Status: [x] DONE — resolved together with EM-C3 (below). The broker now
+  holds a real bracket: SL + final-target TP (TP3). EM-C1/EM-C2 make
+  restart restore full state; StateReconciler adopts broker
+  remaining-volume as source of truth each frame (UpdateTradeRuntime) so
+  software TP sizing tracks broker reality after any outage. TP1/TP2 are
+  software partials INSIDE the broker TP3 bracket, and SL moves preserve
+  that TP3 (see EM-C3), so a Module C outage still leaves the runner
+  protected by broker SL + broker TP3. A per-leg child-order OCO model
+  (one broker order per TP) remains an optional future refinement but is
+  no longer required for correctness.
+
+--------------------------------------------------------------------------------
+### EM-C3 (CRITICAL) Broker-side TP was TP1, and SL moves cleared it
+--------------------------------------------------------------------------------
+Discovered during EM-M1 verification (full broker path read incl. the
+MT5 EA). Evidence chain (all verified):
+  - execution watcher fireMarketOrder + executor placeLimit set the broker
+    OrderPlacement.TakeProfit = order.TP1Price on the FULL position volume.
+  - ZeroMQ_EA.mq5 HandleOrderSend sets request.tp = TP1 on TRADE_ACTION_DEAL
+    (market) / TRADE_ACTION_PENDING (limit); MetaApi /trade sets takeProfit.
+    A position-level MT5 TP closes the ENTIRE remaining volume when hit.
+  - => if price reached TP1 and the broker TP fired, MT5 closed 100% at TP1
+    and TP2/TP3 + runner + break-even + trailing NEVER ran. The whole
+    multi-target model was defeated by its own broker bracket.
+  - breakeven.go (x2) + trailing.go called ModifyPosition(..., newTP=0).
+    EA HandlePositionModify issues TRADE_ACTION_SLTP with tp=0, and
+    NormalizePrice(symbol,0)=0; MT5/MetaApi treat tp=0 as REMOVE TP. So the
+    first BE/trailing move wiped the broker TP entirely, leaving the runner
+    with NO broker target.
+Fix:
+  - Broker TP at placement = final target via BrokerTakeProfit()
+    (TP3 -> TP2 -> TP1) on both execution Order and management Trade.
+  - Every BE/trailing/time-tighten ModifyPosition now passes
+    trade.BrokerTakeProfit() instead of 0, so the SL moves while the broker
+    TP3 bracket is preserved.
+Status: [x] DONE
 
 --------------------------------------------------------------------------------
 ### EM-M2 (MEDIUM) Instant-fill entry differs from sized/validated entry
@@ -396,6 +427,18 @@ Commit steps (each step compiles as a unit):
           already hard-gated via the lint job + needs: lint).
   [x] S9  finding statuses flipped above; MR opened.
 
-Progress note: ALL steps complete. EM-C1, EM-C2, EM-H1, EM-H2, EM-M2,
-EM-L1, EM-V1 = DONE/VERIFIED; EM-M1 = PARTIAL (volume reconcile done,
-broker OCO bracket deferred as a deliberate, documented enhancement).
+Progress note: ALL steps complete. EM-C1, EM-C2, EM-C3, EM-H1, EM-H2,
+EM-M1, EM-M2, EM-L1 = DONE; EM-V1 = VERIFIED.
+
+EM-C3 (CRITICAL, found during EM-M1 verification): broker-side TP was set
+to TP1 on the full volume (would close 100% at TP1, defeating TP2/TP3 +
+BE + trailing) AND BE/trailing ModifyPosition(newTP=0) wiped the broker
+TP. Fixed: broker TP = final target (TP3->TP2->TP1) at placement via
+Order/Trade.BrokerTakeProfit(); all SL moves preserve it. EM-M1 upgraded
+to DONE as a consequence (broker now holds a real SL+TP3 bracket).
+
+EM-H2 remains a deliberate doc-alignment (fractional trail) because the
+CANDLE_CLOSED alert (src/alert/event.go) carries NO swing levels, so a
+true swing trail needs a new candle fetch into Module C (the EA exposes a
+CANDLES command, so it is feasible as a future enhancement) — not a silent
+claim. No price/value is hardcoded anywhere in these fixes.
