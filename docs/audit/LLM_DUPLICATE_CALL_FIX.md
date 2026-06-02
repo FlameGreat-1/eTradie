@@ -116,6 +116,26 @@ driven from above the gateway handler.
       processor adapter's `PostJSONNoRetry` is called with that ctx so a
       client disconnect cancels the in-flight engine call.
 
+## Current branch state (fix/duplicate-llm-cycle-calls)
+
+Shipped and verified:
+  - Step 0: tracking doc.
+  - Step 1: Envoy local + production — no-retry long-timeout routes for
+    `/api/v1/cycle/run` and `/api/analysis/rerun`; hardened catch-all.
+  - Step 2: gateway `http.Server` WriteTimeout 0 + ReadHeaderTimeout 10s.
+  - Step 3 scaffolding: `idempotency.py`, `LLMDuplicateSuppressedError`,
+    router 409 mapping.
+
+Not yet wired (do next, in order):
+  - Step 3 wiring into `service.py::_execute` per the exact plan above.
+    Implement by extracting the metering->LLM->parse->map core into a
+    new `_run_pipeline(...)` and calling it from `_execute` inside the
+    idempotency guard's try/finally. Verify the full method compiles
+    and preserves every existing raise path (BYOK quota, truncation,
+    parse) before committing. Do NOT in-place-wrap with a 380-line
+    re-indent.
+  - Step 4: gateway cancellation propagation verification/fix.
+
 ## Notes
 
 - All timeout changes are kept coherent end-to-end: Envoy route timeout
