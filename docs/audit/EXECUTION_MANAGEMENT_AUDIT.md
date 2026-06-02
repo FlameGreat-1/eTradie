@@ -252,3 +252,31 @@ symbol starting XAU/XAG splits 3 + remainder. Other lengths remain unrecognised
  	}
  	return []string{base, quote}
  }
+
+
+================================================================================
+## IMPLEMENTATION TRACKER — EXECUTION + MANAGEMENT HARDENING
+## (branch: fix/execution-management-hardening)
+================================================================================
+Findings reference: see MR !76 (EXECUTION_MANAGEMENT_AUDIT — EM-C1..EM-V1).
+Each step = one commit. Update the marker as each lands.
+
+  S1 [x] Persistence foundation (EM-C1 + EM-C2): journal schema idempotent
+       ALTERs + CREATE columns (tp1/2/3_pct, point, digits, rr_ratio,
+       remaining_lot_size, tp1/2/3_hit, breakeven_set); TradeRecord fields;
+       InsertTrade + GetActiveTrades + GetAllActiveTrades +
+       GetTradeByBrokerOrderID columns/scans; new UpdateTradeRuntime method.
+  S2 [ ] Wire persistence: RegisterFilledTrade InsertTrade writes new fields;
+       takeprofit/breakeven/trailing persist runtime via UpdateTradeRuntime;
+       restoreTradeFromRecord restores ALL fields.
+  S3 [ ] EM-H1 synthetic pip: PipValueForSymbol helper; replace tradePoint*10
+       in breakeven.go; Point=0 self-heal via GetPosition.
+  S4 [ ] EM-C1/C2 restart self-heal + reconcile remaining volume vs GetPosition.
+  S5 [ ] EM-M1 document/harden broker SL+TP1 + startup volume reconciliation.
+  S6 [ ] EM-V1 read+verify broker_bridge.py MT5 order_send SL/TP attachment.
+  S7 [ ] EM-L1 make contract-check a hard CI gate.
+  S8 [ ] EM-H2 structural trail decision; EM-M2 instant-fill risk recompute.
+  S9 [ ] Flip statuses; refresh MR; CI green.
+
+Progress marker: S1 committed (journal schema + TradeRecord + queries +
+UpdateTradeRuntime). NEXT: S2 wiring.
