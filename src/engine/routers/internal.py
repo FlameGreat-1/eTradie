@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse, Response
 from engine.dependencies import Container
 from engine.helpers import _resolve_user_broker, _resolve_user_processor, _save_debug_output
 from engine.processor.llm.errors import (
+    LLMDuplicateSuppressedError,
     LLMRateLimitedError,
     LLMSafetyFilterError,
     LLMSchemaViolationError,
@@ -556,6 +557,31 @@ async def internal_processor_process(
                 "error": "metering_unavailable",
                 "detail": "Metering layer is temporarily unavailable; please retry shortly.",
                 "retry_after": exc.retry_after,
+                "trace_id": body.trace_id,
+            },
+        )
+
+    except LLMDuplicateSuppressedError as exc:
+        # This call was a duplicate of an in-flight / just-completed
+        # identical analysis (same user_id + symbol + prompt_hash). The
+        # idempotency guard deliberately did NOT run a second LLM call.
+        # 409 Conflict: well-formed request, intentionally not executed
+        # because an identical operation owns the result. The Go gateway
+        # retries only 502/503/504, so a 409 surfaces without a retry
+        # storm and the orchestrator records a benign per-symbol outcome.
+        logger.info(
+            "internal_processor_duplicate_suppressed",
+            extra={
+                "user_id": user.user_id,
+                "trace_id": body.trace_id,
+                "detail": str(exc),
+            },
+        )
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error": "llm_duplicate_suppressed",
+                "detail": str(exc),
                 "trace_id": body.trace_id,
             },
         )
