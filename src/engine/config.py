@@ -105,15 +105,6 @@ class Settings(BaseSettings):
     # OECD Data Explorer — non-US economic data (free, no key required)
     oecd_api_base_url: str = "https://sdmx.oecd.org/public/rest/data"
 
-    # ── RSS Feed URLs — Central Banks ────────────────────────
-    fed_rss_url: str = "https://www.federalreserve.gov/feeds/press_all.xml"
-    ecb_rss_url: str = "https://www.ecb.europa.eu/rss/press.html"
-    boe_rss_url: str = "https://www.bankofengland.co.uk/rss/news"
-    boj_rss_url: str = "https://www.boj.or.jp/en/rss/whatsnew.xml"
-    rba_rss_url: str = "https://www.rba.gov.au/rss/rss-cb-media-releases.xml"
-    boc_rss_url: str = "https://www.bankofcanada.ca/content_type/press-releases/feed/"
-    rbnz_rss_url: str = "https://www.rbnz.govt.nz/rss/news"
-    snb_rss_url: str = "https://www.snb.ch/en/mmr/reference/rss_en/source/rss_en.rss"
 
     # ── Economic Calendar ─────────────────────────────────────────────
     # Forex Factory official weekly calendar JSON (faireconomy CDN, no key).
@@ -126,9 +117,6 @@ class Settings(BaseSettings):
     )
 
     # ── Polling Intervals (seconds) ──────────────────────────
-    poll_interval_central_bank_rss: int = Field(
-        default=3600, ge=60, description="CB RSS poll: 1H default"
-    )
     poll_interval_calendar: int = Field(
         default=14400, ge=60, description="Calendar poll: 4H default"
     )

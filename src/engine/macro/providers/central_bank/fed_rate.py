@@ -32,7 +32,7 @@ FRED API docs: https://fred.stlouisfed.org/docs/api/fred/
 from __future__ import annotations
 
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
 from engine.shared.http import HttpClient
@@ -43,10 +43,10 @@ from engine.macro.providers.base import BaseProvider
 
 logger = get_logger(__name__)
 
-# ~4 years of daily observations. The series only step on a policy decision, so
-# this window comfortably spans a full hike+cut cycle (~32 meetings) while the
-# payload remains a few KB. FRED caps a single request well above this.
-_DEFAULT_LOOKBACK_DAYS = "1500"
+# Fetch exactly 3 years of data. Using a time window instead of a raw observation
+# limit correctly handles both daily and monthly series without pulling decades
+# of data for monthly OECD series.
+_LOOKBACK_YEARS = 3
 
 
 class BaseFREDRateProvider(BaseProvider):
@@ -124,6 +124,7 @@ class BaseFREDRateProvider(BaseProvider):
         descending sort order is preserved so element 0 is the most recent
         reading.
         """
+        obs_start = (datetime.now(UTC) - timedelta(days=365 * _LOOKBACK_YEARS)).strftime("%Y-%m-%d")
         raw = await self._http.get(
             f"{self._base_url}/series/observations",
             provider_name=self.provider_name,
@@ -133,7 +134,7 @@ class BaseFREDRateProvider(BaseProvider):
                 "api_key": self._api_key,
                 "file_type": "json",
                 "sort_order": "desc",
-                "limit": _DEFAULT_LOOKBACK_DAYS,
+                "observation_start": obs_start,
             },
         )
         observations = raw.get("observations", []) if isinstance(raw, dict) else []

@@ -1,7 +1,0 @@
-trace_id: 0516d529bfdfcd97bb022e4fae30595b
-source: 
-user_id: f5306c6773ac8058b6f804c17b61c42a
-symbol: Boom 1000 Index
-model: gemini-3.5-flash
-max_output_tokens: 32768
-prompt_hash: 8e8cc7c8e733d5eb9c3768100ccd56d9

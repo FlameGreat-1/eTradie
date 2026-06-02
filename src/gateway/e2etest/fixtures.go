@@ -163,7 +163,6 @@ func TAResponseMultiSymbol() map[string]interface{} {
 func MacroResponseFull() map[string]interface{} {
 	return map[string]interface{}{
 		"central_bank": map[string]interface{}{
-			"speeches":       []interface{}{},
 			"rate_decisions": []interface{}{},
 		},
 		"cot": map[string]interface{}{
@@ -238,7 +237,6 @@ func MacroResponseWithImmediateNews() map[string]interface{} {
 
 	return map[string]interface{}{
 		"central_bank": map[string]interface{}{
-			"speeches":       []interface{}{},
 			"rate_decisions": []interface{}{},
 		},
 		"cot": map[string]interface{}{

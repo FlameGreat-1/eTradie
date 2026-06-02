@@ -15,28 +15,3 @@ class RateDecision(TimestampedModel):
     rate_previous: float
     rate_change_bps: int = Field(description="Basis points change")
     decision_date: datetime
-
-
-class CentralBankSpeech(TimestampedModel):
-    bank: CentralBank
-    event_type: EventType = EventType.CB_SPEECH
-    title: str
-    speech_date: datetime
-    source_url: str = ""
-
-
-class MeetingMinutes(TimestampedModel):
-    bank: CentralBank
-    event_type: EventType = EventType.MEETING_MINUTES
-    title: str
-    meeting_date: datetime
-    release_date: datetime
-    source_url: str = ""
-
-
-class ForwardGuidance(TimestampedModel):
-    bank: CentralBank
-    event_type: EventType = EventType.FORWARD_GUIDANCE
-    title: str
-    guidance_date: datetime
-    source_url: str = ""

@@ -198,59 +198,11 @@ func extractCentralBank(data map[string]interface{}) map[string]interface{} {
 		"has_qe_qt":       false,
 	}
 
-	for _, source := range []string{"speeches", "forward_guidance"} {
-		for _, item := range getSliceOfMaps(data, source) {
-			bank := strings.ToUpper(getStrDefault(item, "bank", ""))
-			tone := strings.ToUpper(getStrDefault(item, "tone", ""))
-			key := strings.ToLower(bank) + "_tone"
-			if _, exists := signals[key]; !exists {
-				signals[key] = tone
-			}
-
-			policyAction := strings.ToUpper(getStrDefault(item, "monetary_policy_action", "NONE"))
-			if policyAction == "QE" || policyAction == "QT" {
-				signals["has_qe_qt"] = true
-				signals["qe_qt_bank"] = bank
-				signals["qe_qt_action"] = policyAction
-				balDir := getStrDefault(item, "balance_sheet_direction", "")
-				if balDir == "" {
-					if policyAction == "QE" {
-						balDir = "EXPANDING"
-					} else {
-						balDir = "CONTRACTING"
-					}
-				}
-				signals["balance_sheet_direction"] = balDir
-			}
-		}
-	}
-
-	for _, action := range getSliceOfMaps(data, "policy_actions") {
-		actionType := strings.ToUpper(getStrDefault(action, "action", "NONE"))
-		if actionType == "QE" || actionType == "QT" {
-			bank := strings.ToUpper(getStrDefault(action, "bank", ""))
-			signals["has_qe_qt"] = true
-			signals["qe_qt_bank"] = bank
-			signals["qe_qt_action"] = actionType
-			if actionType == "QE" {
-				signals["balance_sheet_direction"] = "EXPANDING"
-			} else {
-				signals["balance_sheet_direction"] = "CONTRACTING"
-			}
-		}
-	}
-
 	// rate_decisions is ordered newest-first and may contain a multi-year
-	// history of one decision per policy step. Two invariants matter here:
-	//   1. A RateDecision carries no tone, so it must NOT clobber the
-	//      fed_tone/ecb_tone the speeches/forward_guidance loop already set
-	//      (that tone drives deriveUSDBias -> macro_bias_usd). We only set a
-	//      bank's tone from a decision that actually has a non-empty tone and
-	//      only when no tone exists for that bank yet.
-	//   2. The "current" rate change is the NEWEST decision per bank. Because
-	//      the slice is newest-first, we record the direction from the FIRST
-	//      decision seen for each bank and ignore older ones, so a four-year
-	//      history does not overwrite the latest move with a stale one.
+	// history of one decision per policy step. The "current" rate change
+	// is the NEWEST decision per bank. Because the slice is newest-first,
+	// we record the direction from the FIRST decision seen for each bank
+	// and ignore older ones.
 	rateChangeSeen := map[string]bool{}
 	for _, decision := range getSliceOfMaps(data, "rate_decisions") {
 		bank := strings.ToUpper(getStrDefault(decision, "bank", ""))

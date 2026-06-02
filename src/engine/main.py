@@ -135,7 +135,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         dxy_collector_fn=container.dxy_collector.refresh,
         intermarket_collector_fn=container.intermarket_collector.refresh,
         sentiment_collector_fn=container.sentiment_collector.refresh,
-        poll_cb=settings.poll_interval_central_bank_rss,
+        poll_cb=settings.poll_interval_calendar,
         poll_calendar=settings.poll_interval_calendar,
         poll_cot=settings.poll_interval_cot,
         poll_dxy=settings.poll_interval_dxy,
