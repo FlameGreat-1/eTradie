@@ -96,11 +96,30 @@ func (e *Executor) executeTP(
 	var err error
 	if fullClose {
 		err = e.bp.ClosePosition(ctx, brokerID)
+		// Idempotency with the broker-side TP3 bracket (audit #1): the
+		// broker holds TP3 as the position TP, so when price reaches TP3
+		// the broker may auto-close the runner before (or concurrently
+		// with) this software close. A failed ClosePosition whose position
+		// is already gone at the broker is therefore the SUCCESS case, not
+		// an error: the runner closed at its final target either way. We
+		// only swallow the error after positively confirming the position
+		// no longer exists, so a genuine transient close failure (position
+		// still open) still surfaces and is retried on the next tick.
+		if err != nil {
+			if pos, perr := e.bp.GetPosition(ctx, brokerID); perr != nil || pos == nil || pos.Volume <= 0 {
+				e.log.Info().
+					Str("trade_id", tradeID).
+					Str("broker_order_id", brokerID).
+					Str("tp_level", label).
+					Msg("tp3_close_position_already_gone_broker_tp_won_race")
+				err = nil
+			}
+		}
 	} else {
 		err = e.bp.ClosePartial(ctx, brokerID, closeVol)
 	}
 	if err != nil {
-		return "", fmt.Errorf("%s partial close: %w", label, err)
+		return "", fmt.Errorf("%s close: %w", label, err)
 	}
 
 	// Layer 1: Broker deal history (exact profit, commissions, swaps)
