@@ -23,7 +23,7 @@ from engine.ta.models.liquidity_event import LiquiditySweep
 from engine.ta.models.structure_event import BreakInMarketStructure, ChangeOfCharacter
 from engine.ta.common.utils.price.stop_loss import (
     compute_structural_stop_loss,
-    timeframe_min_tp_rr,
+    resolve_min_tp_rr,
 )
 from engine.ta.smc.builders.fib_leg import select_leg_for_choch_bms_rto
 from engine.ta.smc.config import SMCConfig
@@ -675,10 +675,11 @@ class SMCDetector:
                 ob_inner_edge=ob.lower_bound,
             )
             pattern = CandidatePattern.CHOCH_BMS_RTO_BULLISH
-            min_rr = max(
-                self.config.min_take_profit_rr,
-                timeframe_min_tp_rr(ltf_sequence.timeframe),
-            )
+            # Style-driven floor: the candidate timeframe sets a lower
+            # bound that is never below the rulebook's lowest style
+            # minimum.  The authoritative per-style gate is applied
+            # downstream in the processor validator.
+            min_rr = resolve_min_tp_rr(ltf_sequence.timeframe)
             take_profit = self._find_bsl_target(
                 entry_price,
                 swing_highs or [],
@@ -693,10 +694,11 @@ class SMCDetector:
                 ob_inner_edge=ob.upper_bound,
             )
             pattern = CandidatePattern.CHOCH_BMS_RTO_BEARISH
-            min_rr = max(
-                self.config.min_take_profit_rr,
-                timeframe_min_tp_rr(ltf_sequence.timeframe),
-            )
+            # Style-driven floor: the candidate timeframe sets a lower
+            # bound that is never below the rulebook's lowest style
+            # minimum.  The authoritative per-style gate is applied
+            # downstream in the processor validator.
+            min_rr = resolve_min_tp_rr(ltf_sequence.timeframe)
             take_profit = self._find_ssl_target(
                 entry_price,
                 swing_lows or [],
