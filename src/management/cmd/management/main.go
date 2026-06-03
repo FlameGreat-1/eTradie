@@ -598,6 +598,7 @@ func restoreTradeFromRecord(rec *journal.TradeRecord, authToken string, user *au
 		RiskPercent:      rec.RiskPercent,
 		RRRatio:          rec.RRRatio,
 		Slippage:         rec.Slippage,
+		Origin:           rec.Origin,
 		Status:           constants.TradeStatus(rec.Status),
 		BreakevenSet:     rec.BreakevenSet,
 		TP1Hit:           rec.TP1Hit,

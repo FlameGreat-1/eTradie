@@ -172,6 +172,8 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 		SetupType:        req.GetSetupType(),
 		ExecutionMode:    req.GetExecutionMode(),
 		ConfluenceScore:  req.GetConfluenceScore(),
+		// System-executed trade (gateway -> execution -> here).
+		Origin:           journal.OriginSystem,
 		EntryPrice:       req.GetFillPrice(),
 		StopLoss:         req.GetStopLoss(),
 		InitialSL:        req.GetStopLoss(),
@@ -220,6 +222,7 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 		Session:         trade.Session,
 		ExecutionMode:   trade.ExecutionMode,
 		Slippage:        trade.Slippage,
+		Origin:          trade.Origin,
 		Status:          string(trade.Status),
 		AnalysisID:      trade.AnalysisID,
 		BrokerOrderID:   trade.BrokerOrderID,
