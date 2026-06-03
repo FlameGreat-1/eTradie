@@ -1,7 +1,8 @@
 # Journal Auto-Fill — Round-2 Audit (post #1-#8 merge)
 
-**Status:** IN PROGRESS. Second end-to-end audit of the manual-trade
-Daily Execution Journal auto-fill after the first hardening pass merged.
+**Status:** DONE. Second end-to-end audit of the manual-trade Daily
+Execution Journal auto-fill; all findings resolved on branch
+`fix/journal-autofill-round2`.
 
 ## Findings
 
@@ -10,23 +11,23 @@ Daily Execution Journal auto-fill after the first hardening pass merged.
   blanking the close cells (Exit/RRAchieved/PnL/Outcome) while the
   trade is open. This is correct: objective cells are system-owned and
   the trader only owns the subjective cells. No change.
-- **B (BUG — silent data loss)** — in `mergeManualTrades`, when there is
-  no blank row and `len(Journal) >= journalMaxRows` (200), the manual
-  trade is dropped via a bare `continue` with no log / metric / signal.
-  A heavy journal (seed rows + hand-typed rows + many trades) therefore
-  permanently STOPS auto-filling new manual trades, invisibly. Must be
-  surfaced (metric + log) and the cap headroom reconsidered.
-- **C (BUG — unobservable)** — the auto-fill path emits no metrics at
-  all: no count of rows filled / updated / appended, no count of
-  cap-hit drops (B), no reader-error counter. Every other trading-plan
-  path is instrumented with promauto counters. Add them.
-- **D (reviewed, not a bug)** — `formatStyle` uses `lower[:1]` which is
-  safe for the ASCII trading-style enum (SCALPING/INTRADAY/SWING/
-  POSITIONAL/MANUAL...). No change.
-- **E (minor)** — `tradingplanadapter.ManualTrades` requests the closed
-  set with a hardcoded `Limit: 500, offset 0` and never paginates, so
-  a user with >500 closed manual trades silently truncates. Align the
-  bound with the journal cap and document the relationship.
+- **B (FIXED)** — `mergeManualTrades` now returns `mergeStats`
+  including `Capped`; the handler records
+  `trading_plan_journal_autofill_rows_total{action="capped"}` and emits
+  a WARN (`trading_plan_journal_autofill_capped`) with the dropped
+  count + cap when a full journal drops a trade. No longer silent.
+- **C (FIXED)** — added `trading_plan_journal_autofill_rows_total`
+  {updated|filled|appended|capped} and
+  `trading_plan_journal_autofill_total`
+  {applied|noop|read_error|persist_error}; the handler records one
+  outcome per plan-GET auto-fill and per-action row counts.
+- **D (reviewed, not a bug)** — `formatStyle` `lower[:1]` is safe for
+  the ASCII trading-style enum. No change.
+- **E (FIXED)** — replaced the bare `Limit: 500` magic number with the
+  named, documented `manualJournalclosedFetchLimit` constant (= 500,
+  deliberately above the ~200 journal cap; newest-first ordering keeps
+  the most recent closed trades; no pagination needed because anything
+  beyond the cap can never bind to a row).
 
 ## Verified solid (no action)
 - #2 CI proto-drift gate present.
