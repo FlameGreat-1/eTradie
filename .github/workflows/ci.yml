@@ -501,9 +501,47 @@ jobs:
           path: htmlcov/
           retention-days: 7
 
+  proto:
+    name: Proto codegen drift gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+      - name: Install protoc
+        run: |
+          # Pin the same protoc line the committed generated headers
+          # declare ("protoc v3.21.12") so regeneration is byte-stable.
+          PROTOC_VERSION=21.12
+          curl -fsSL -o /tmp/protoc.zip \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          sudo unzip -o /tmp/protoc.zip -d /usr/local bin/protoc 'include/*'
+          protoc --version
+      - name: Install protoc-gen-go / protoc-gen-go-grpc
+        run: |
+          # Versions pinned to match the "// versions:" header in the
+          # committed generated files so codegen output is reproducible.
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Regenerate protobuf bindings
+        run: make proto-gen
+      - name: Fail on generated-code drift
+        run: |
+          if ! git diff --quiet -- proto/; then
+            echo "FATAL: generated protobuf code is out of sync with the .proto sources." >&2
+            echo "       Run 'make proto-gen' and commit the regenerated files." >&2
+            git --no-pager diff --stat -- proto/ >&2
+            git --no-pager diff -- proto/ >&2
+            exit 1
+          fi
+          echo "proto codegen is in sync"
+
   test-go:
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [lint, proto]
     services:
       postgres:
         image: postgres:16-alpine
