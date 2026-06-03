@@ -225,7 +225,9 @@ func (h *Handler) getJournal(w http.ResponseWriter, r *http.Request) {
 	// error: the trader simply has no annotations yet, so every row
 	// renders objective-only with blank subjective cells.
 	annotations := map[string]JournalAnnotation{}
+	currency := ""
 	if rec, perr := h.store.Get(r.Context(), userID); perr == nil && rec.Plan != nil {
+		currency = rec.Plan.BalanceCurrency
 		for _, a := range rec.Plan.JournalAnnotations {
 			annotations[a.TradeID] = a
 		}
@@ -238,7 +240,7 @@ func (h *Handler) getJournal(w http.ResponseWriter, r *http.Request) {
 
 	rows := make([]CompositeJournalRow, 0, len(facts))
 	for _, f := range facts {
-		rows = append(rows, h.compositeRow(f, annotations[f.TradeID], loc))
+		rows = append(rows, h.compositeRow(f, annotations[f.TradeID], loc, currency))
 	}
 
 	TradingPlanJournalTotal.WithLabelValues(outcomeSuccess).Inc()
@@ -254,7 +256,7 @@ func (h *Handler) getJournal(w http.ResponseWriter, r *http.Request) {
 // saved subjective annotation into a fully-formatted SPA row. Objective
 // close cells (exit / RR achieved / PnL / outcome) are left blank while
 // the trade is open (§8.2).
-func (h *Handler) compositeRow(f ManualTradeFact, a JournalAnnotation, loc *time.Location) CompositeJournalRow {
+func (h *Handler) compositeRow(f ManualTradeFact, a JournalAnnotation, loc *time.Location, currency string) CompositeJournalRow {
 	row := CompositeJournalRow{
 		TradeID: f.TradeID,
 		IsOpen:  f.IsOpen,
@@ -287,7 +289,7 @@ func (h *Handler) compositeRow(f ManualTradeFact, a JournalAnnotation, loc *time
 	if !f.IsOpen {
 		row.Exit = formatPrice(f.ExitPrice)
 		row.RRAchieved = formatRR(f.RMultiple)
-		row.PnL = formatPnL(f.GrossPnL, h.planCurrency)
+		row.PnL = formatPnL(f.GrossPnL, currency)
 		row.Outcome = f.Outcome
 	}
 	return row
