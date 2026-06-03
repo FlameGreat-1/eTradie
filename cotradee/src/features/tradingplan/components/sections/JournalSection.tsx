@@ -1,5 +1,6 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { JournalRow } from '../../types';
+import { useTradingPlanJournalHistory } from '../../api/hooks';
 
 interface Props {
   value: JournalRow[];
@@ -65,11 +66,17 @@ function emptyRow(): JournalRow {
  * Emotion Before Trade, Emotion After Trade, Trade Quality,
  * Mistake Category, News Present?, Screenshot Link, Notes).
  *
- * The LLM seeds blank rows on generation; the trader fills them in
- * manually as they trade through the 90-day window. Add/remove
- * affordances are surfaced only in edit mode.
+ * The live table shows the CURRENT rolling 90-day window of
+ * auto-filled + hand-typed rows (the plan blob). Older auto rows roll
+ * out of the blob as the window advances; the read-only "Past windows"
+ * panel pages back through those PREVIOUS windows straight from the
+ * permanent management_trades record so nothing is ever lost.
+ *
+ * Add/remove affordances are surfaced only in edit mode.
  */
 export function JournalSection({ value, editing, onChange, headerActions }: Props) {
+  const [showHistory, setShowHistory] = useState(false);
+
   const setCell = useCallback(
     (idx: number, key: keyof JournalRow, v: string) => {
       const next = value.slice();
@@ -104,6 +111,21 @@ export function JournalSection({ value, editing, onChange, headerActions }: Prop
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {headerActions}
+          {!editing && (
+            <button
+              type="button"
+              onClick={() => setShowHistory((s) => !s)}
+              aria-pressed={showHistory}
+              className={`rounded-xl border px-3 sm:px-5 py-2.5 text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${
+                showHistory
+                  ? 'border-black/30 dark:border-white/30 bg-black/[0.04] dark:bg-white/[0.06] text-black dark:text-white'
+                  : 'border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30'
+              }`}
+            >
+              <span className="sm:hidden">History</span>
+              <span className="hidden sm:inline">{showHistory ? 'Hide past windows' : 'Past windows'}</span>
+            </button>
+          )}
           {editing && (
             <button
               type="button"
@@ -156,7 +178,7 @@ export function JournalSection({ value, editing, onChange, headerActions }: Prop
                       />
                     ) : (
                       <span className="block px-2 py-1.5 font-bold text-black dark:text-white tracking-tight">
-                        {row[c.key] || '—'}
+                        {row[c.key] || '\u2014'}
                       </span>
                     )}
                   </td>
@@ -170,7 +192,7 @@ export function JournalSection({ value, editing, onChange, headerActions }: Prop
                       aria-label={`Remove row ${idx + 1}`}
                       title="Remove row"
                     >
-                      ×
+                      \u00d7
                     </button>
                   </td>
                 )}
@@ -179,6 +201,158 @@ export function JournalSection({ value, editing, onChange, headerActions }: Prop
           </tbody>
         </table>
       </div>
+
+      {!editing && showHistory && <JournalHistoryPanel />}
     </section>
+  );
+}
+
+// windowRangeLabel renders a human description of which 90-day window
+// is being viewed, e.g. window=0 -> "Current 90 days", window=1 ->
+// "91\u2013180 days ago". Mirrors the gateway's journalWindowBounds:
+// window N spans [now-(N+1)*days, now-N*days].
+function windowRangeLabel(window: number, windowDays: number): string {
+  if (window <= 0) return `Current ${windowDays} days`;
+  const from = window * windowDays + 1;
+  const to = (window + 1) * windowDays;
+  return `${from}\u2013${to} days ago`;
+}
+
+/**
+ * Read-only page-back viewer for PREVIOUS 90-day journal windows.
+ *
+ * Renders history rows with the SAME COLUMNS list as the live table
+ * (so a past-window row is byte-identical, and the hidden trade_id is
+ * excluded exactly as it is in the live table and the Excel export).
+ * Window navigation steps older/newer; page navigation walks the
+ * closed set within a window. Local state only \u2014 it never touches the
+ * parent's draft / edit flow.
+ */
+function JournalHistoryPanel() {
+  const [window, setWindow] = useState(1); // start at the previous window
+  const [page, setPage] = useState(0);
+
+  const { data, isLoading, isError, isFetching } = useTradingPlanJournalHistory(window, page);
+
+  const windowDays = data?.window_days ?? 90;
+  const rows = data?.rows ?? [];
+  const hasMore = data?.has_more ?? false;
+  const totalClosed = data?.total_closed ?? 0;
+
+  const goOlderWindow = useCallback(() => {
+    setWindow((w) => w + 1);
+    setPage(0);
+  }, []);
+  const goNewerWindow = useCallback(() => {
+    setWindow((w) => Math.max(0, w - 1));
+    setPage(0);
+  }, []);
+  const goPrevPage = useCallback(() => setPage((p) => Math.max(0, p - 1)), []);
+  const goNextPage = useCallback(() => setPage((p) => p + 1), []);
+
+  const rangeLabel = useMemo(() => windowRangeLabel(window, windowDays), [window, windowDays]);
+
+  return (
+    <div className="mt-6 rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] p-4 sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 mb-1">Past windows</div>
+          <div className="text-sm font-bold text-black dark:text-white tracking-tight">{rangeLabel}</div>
+          <div className="mt-0.5 text-[10px] font-medium text-black/40 dark:text-white/40">
+            {totalClosed} closed {totalClosed === 1 ? 'trade' : 'trades'} in this window
+            {isFetching && ' \u00b7 updating\u2026'}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={goNewerWindow}
+            disabled={window <= 1}
+            className="rounded-lg border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-all disabled:opacity-20"
+          >
+            \u2190 Newer
+          </button>
+          <button
+            type="button"
+            onClick={goOlderWindow}
+            className="rounded-lg border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-all"
+          >
+            Older \u2192
+          </button>
+        </div>
+      </div>
+
+      {isError ? (
+        <div className="py-10 text-center text-[11px] font-bold italic text-red-500/70">
+          Could not load journal history. Please try again in a moment.
+        </div>
+      ) : isLoading ? (
+        <div className="py-10 text-center text-[11px] font-bold italic text-black/30 dark:text-white/30">
+          Loading\u2026
+        </div>
+      ) : (
+        <div className="overflow-x-auto -mx-1 px-1">
+          <table className="w-full border-collapse text-[11px]">
+            <thead>
+              <tr className="text-left text-[10px] font-black uppercase tracking-[0.2em] text-black/20 dark:text-white/20">
+                {COLUMNS.map((c) => (
+                  <th
+                    key={c.key}
+                    className={`${c.width} border-b border-black/5 dark:border-white/5 px-3 py-3 font-black`}
+                  >
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5 dark:divide-white/5">
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={COLUMNS.length}
+                    className="py-10 text-center text-black/30 dark:text-white/30 font-bold italic"
+                  >
+                    No trades recorded in this window.
+                  </td>
+                </tr>
+              )}
+              {rows.map((row, idx) => (
+                <tr key={idx} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
+                  {COLUMNS.map((c) => (
+                    <td key={c.key} className="px-1 py-1.5">
+                      <span className="block px-2 py-1.5 font-bold text-black dark:text-white tracking-tight">
+                        {row[c.key] || '\u2014'}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="mt-4 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={goPrevPage}
+          disabled={page <= 0}
+          className="rounded-lg border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-all disabled:opacity-20"
+        >
+          \u2190 Prev page
+        </button>
+        <span className="text-[10px] font-black uppercase tracking-widest text-black/30 dark:text-white/30">
+          Page {page + 1}
+        </span>
+        <button
+          type="button"
+          onClick={goNextPage}
+          disabled={!hasMore}
+          className="rounded-lg border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-all disabled:opacity-20"
+        >
+          Next page \u2192
+        </button>
+      </div>
+    </div>
   );
 }
