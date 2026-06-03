@@ -96,6 +96,20 @@ func SchemaSQL() string {
 	ALTER TABLE management_trades ADD COLUMN IF NOT EXISTS tp3_hit            BOOLEAN          NOT NULL DEFAULT FALSE;
 	ALTER TABLE management_trades ADD COLUMN IF NOT EXISTS breakeven_set      BOOLEAN          NOT NULL DEFAULT FALSE;
 
+	-- Typed provenance discriminator for the manual trading-plan journal
+	-- (distinct from grade). Idempotent add + one-time backfill from the
+	-- pre-existing grade convention so historical rows classify correctly.
+	ALTER TABLE management_trades ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'SYSTEM';
+
+	UPDATE management_trades
+	   SET origin = CASE
+	       WHEN grade LIKE 'MANUAL/RECONCILED%' THEN 'MANUAL_RECONCILED'
+	       WHEN grade LIKE 'MANUAL/RESTORED%'   THEN 'MANUAL_RESTORED'
+	       ELSE 'SYSTEM'
+	   END
+	 WHERE origin = 'SYSTEM'
+	   AND grade LIKE 'MANUAL/%';
+
 	UPDATE management_trades
 	   SET remaining_lot_size = total_lot_size
 	 WHERE status != 'CLOSED' AND remaining_lot_size = 0 AND total_lot_size > 0;
@@ -106,6 +120,7 @@ func SchemaSQL() string {
 	CREATE INDEX IF NOT EXISTS idx_management_trades_style    ON management_trades(trading_style);
 	CREATE INDEX IF NOT EXISTS idx_management_trades_opened   ON management_trades(opened_at);
 	CREATE INDEX IF NOT EXISTS idx_management_trades_user_status ON management_trades(user_id, status);
+	CREATE INDEX IF NOT EXISTS idx_management_trades_user_origin_status ON management_trades(user_id, origin, status);
 
 	DO $$ BEGIN
 		IF NOT EXISTS (
@@ -165,7 +180,7 @@ const tradeSelectColumns = `
 	risk_amount, risk_percent, confluence_score, grade,
 	setup_type, trading_style, session, execution_mode,
 	slippage, tp1_hit, tp2_hit, tp3_hit, breakeven_set,
-	status, analysis_id, broker_order_id, opened_at`
+	origin, status, analysis_id, broker_order_id, opened_at`
 
 // rowScanner is satisfied by both pgx.Row and pgx.Rows.
 type rowScanner interface {
@@ -182,7 +197,7 @@ func scanTrade(row rowScanner) (*TradeRecord, error) {
 		&t.RiskAmount, &t.RiskPercent, &t.ConfluenceScore, &t.Grade,
 		&t.SetupType, &t.TradingStyle, &t.Session, &t.ExecutionMode,
 		&t.Slippage, &t.TP1Hit, &t.TP2Hit, &t.TP3Hit, &t.BreakevenSet,
-		&t.Status, &t.AnalysisID, &t.BrokerOrderID, &t.OpenedAt,
+		&t.Origin, &t.Status, &t.AnalysisID, &t.BrokerOrderID, &t.OpenedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -195,6 +210,12 @@ func (r *Repository) InsertTrade(ctx context.Context, t *TradeRecord) error {
 	if t.UserID == "" {
 		return fmt.Errorf("insert trade %s: user_id must not be empty", t.TradeID)
 	}
+	// Default a blank origin to SYSTEM so any caller that has not been
+	// updated to set it explicitly still produces a correctly-typed row.
+	origin := t.Origin
+	if origin == "" {
+		origin = OriginSystem
+	}
 
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO management_trades (
@@ -204,7 +225,7 @@ func (r *Repository) InsertTrade(ctx context.Context, t *TradeRecord) error {
 			risk_amount, risk_percent, confluence_score, grade,
 			setup_type, trading_style, session, execution_mode,
 			slippage, tp1_hit, tp2_hit, tp3_hit, breakeven_set,
-			status, analysis_id, broker_order_id, opened_at
+			origin, status, analysis_id, broker_order_id, opened_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
 			$8, $9, $10, $11, $12, $13,
@@ -212,7 +233,7 @@ func (r *Repository) InsertTrade(ctx context.Context, t *TradeRecord) error {
 			$19, $20, $21, $22,
 			$23, $24, $25, $26,
 			$27, $28, $29, $30, $31,
-			$32, $33, $34, $35
+			$32, $33, $34, $35, $36
 		)`,
 		t.UserID, t.TradeID, t.Symbol, t.Direction, t.EntryPrice, t.StopLoss, t.InitialSL,
 		t.TP1Price, t.TP1Pct, t.TP2Price, t.TP2Pct, t.TP3Price, t.TP3Pct,
@@ -220,7 +241,7 @@ func (r *Repository) InsertTrade(ctx context.Context, t *TradeRecord) error {
 		t.RiskAmount, t.RiskPercent, t.ConfluenceScore, t.Grade,
 		t.SetupType, t.TradingStyle, t.Session, t.ExecutionMode,
 		t.Slippage, t.TP1Hit, t.TP2Hit, t.TP3Hit, t.BreakevenSet,
-		t.Status, t.AnalysisID, t.BrokerOrderID, t.OpenedAt,
+		origin, t.Status, t.AnalysisID, t.BrokerOrderID, t.OpenedAt,
 	)
 	if err != nil {
 		observability.JournalWriteFailures.Inc()

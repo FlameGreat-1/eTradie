@@ -2,6 +2,25 @@ package journal
 
 import "time"
 
+// Trade provenance values for the management_trades.origin column.
+// origin is a TYPED discriminator, distinct from Grade (which is the
+// LLM setup-quality label). The trading-plan Daily Execution Journal
+// auto-populate selects on origin, never on a Grade string.
+const (
+	// OriginSystem is a trade the platform executed end-to-end
+	// (gateway -> execution -> RegisterFilledTrade).
+	OriginSystem = "SYSTEM"
+	// OriginManualReconciled is a live broker position the trader
+	// opened manually and the reconciler adopted with REAL
+	// entry/SL/TP/volume, then managed to a real close. This is the
+	// ONLY origin the manual journal view consumes.
+	OriginManualReconciled = "MANUAL_RECONCILED"
+	// OriginManualRestored is a rough history-import row from the
+	// broker deal history (entry/SL/TP are zeroed placeholders). Used
+	// by the PnL calendar only; EXCLUDED from the journal view.
+	OriginManualRestored = "MANUAL_RESTORED"
+)
+
 // TradeRecord is the PostgreSQL model for a completed or active trade.
 // Maps to the TRADE JOURNAL ENTRY schema. Every record is owned by a
 // specific user (multi-tenant isolation via user_id).
@@ -30,6 +49,11 @@ type TradeRecord struct {
 	RRRatio         float64    `db:"rr_ratio"`
 	Point           float64    `db:"point"`
 	Digits          int        `db:"digits"`
+	// Origin is the typed provenance discriminator (see OriginSystem /
+	// OriginManualReconciled / OriginManualRestored). It is the
+	// authoritative manual-vs-system signal for the trading-plan
+	// journal auto-populate; never derive provenance from Grade.
+	Origin          string     `db:"origin"`
 	TP1Hit          bool       `db:"tp1_hit"`
 	TP2Hit          bool       `db:"tp2_hit"`
 	TP3Hit          bool       `db:"tp3_hit"`
