@@ -24,7 +24,7 @@ Execution Journal auto-fill; all findings resolved on branch
 - **D (reviewed, not a bug)** — `formatStyle` `lower[:1]` is safe for
   the ASCII trading-style enum. No change.
 - **E (FIXED)** — replaced the bare `Limit: 500` magic number with the
-  named, documented `manualJournalclosedFetchLimit` constant (= 500,
+  named, documented `manualJournalClosedFetchLimit` constant (= 500,
   deliberately above the ~200 journal cap; newest-first ordering keeps
   the most recent closed trades; no pagination needed because anything
   beyond the cap can never bind to a row).
