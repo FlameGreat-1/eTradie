@@ -179,6 +179,7 @@ func (s *StateReconciler) RunStartupSync(ctx context.Context) error {
 				BrokerOrderID:    h.Ticket,
 				TradingStyle:     string(constants.StyleIntraday),
 				Grade:            "MANUAL/RESTORED",
+				Origin:           journal.OriginManualRestored,
 				EntryPrice:       0.0, // We don't have exact entry from the OUT deal
 				StopLoss:         0.0,
 				InitialSL:        0.0,
@@ -522,6 +523,9 @@ func (s *StateReconciler) buildReconciledTrade(
 			TP1Hit:           rec.TP1Hit,
 			TP2Hit:           rec.TP2Hit,
 			TP3Hit:           rec.TP3Hit,
+			// Preserve the recovered row's provenance: a system trade that
+			// was merely re-adopted by the reconciler stays SYSTEM.
+			Origin:           rec.Origin,
 			OpenedAt:         rec.OpenedAt,
 		}, nil
 	}
@@ -546,6 +550,7 @@ func (s *StateReconciler) buildReconciledTrade(
 		AuthToken:        s.authToken,
 		TradingStyle:     constants.StyleManualDefault,
 		Grade:            "MANUAL/RECONCILED",
+		Origin:           journal.OriginManualReconciled,
 		EntryPrice:       pos.EntryPrice,
 		StopLoss:         pos.StopLoss,
 		InitialSL:        pos.StopLoss,
@@ -564,6 +569,7 @@ func (s *StateReconciler) buildReconciledTrade(
 		BrokerOrderID:    trade.BrokerOrderID,
 		TradingStyle:     string(trade.TradingStyle),
 		Grade:            trade.Grade,
+		Origin:           trade.Origin,
 		EntryPrice:       trade.EntryPrice,
 		StopLoss:         trade.StopLoss,
 		InitialSL:        trade.InitialSL,
