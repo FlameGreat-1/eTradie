@@ -254,6 +254,39 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location, now
 	return stats
 }
 
+// journalHistoryPageSize is the page size for the read-only journal
+// history endpoint (previous-window page-back). Fixed server-side so a
+// client cannot request an unbounded page.
+const journalHistoryPageSize = 50
+
+// rowFromFact renders a manual-trade fact into a read-only JournalRow
+// using the SAME deterministic formatters as the live auto-fill, so a
+// history row is identical to a live journal row. Used only by the
+// read-only history endpoint; it never touches the plan blob. The
+// subjective cells are left blank (previous-window history shows the
+// objective record; annotations live in the current plan blob).
+func rowFromFact(f ManualTradeFact, loc *time.Location) JournalRow {
+	var row JournalRow
+	row.TradeID = f.TradeID
+	applyObjectiveCells(&row, f, loc)
+	return row
+}
+
+// journalWindowBounds returns the [since, until] open-date range for the
+// Nth journal window ending at now: window 0 is the current
+// [now-journalWindowDays, now]; window 1 is the previous
+// [now-2*window, now-1*window]; and so on. A negative window is clamped
+// to 0.
+func journalWindowBounds(window int, now time.Time) (since, until time.Time) {
+	if window < 0 {
+		window = 0
+	}
+	span := time.Duration(journalWindowDays) * 24 * time.Hour
+	until = now.Add(-time.Duration(window) * span)
+	since = until.Add(-span)
+	return since, until
+}
+
 // factInWindow reports whether a manual trade's open date is within the
 // current journalWindowDays window ending at now. An empty or
 // unparseable OpenedAt is treated as in-window so a bad timestamp never
