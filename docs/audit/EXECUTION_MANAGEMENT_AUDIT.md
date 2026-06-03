@@ -474,3 +474,59 @@ request.tp on OrderSend (market + pending); HandlePositionModify,
 HandlePositionClosePartial, HandlePositionClose, ValidateStopLevels and
 NormalizePrice all read. Native ZMQ + MetaApi + broker_bridge.py all
 confirmed to carry SL/TP. No EA layer left unread.
+
+================================================================================
+## EM FOLLOW-UP HARDENING (fix/em-followup-hardening)
+================================================================================
+
+Four lower-severity issues found while re-auditing the post-fix flow
+against source on `main` (none contradict the prior DONE claims; all
+backed by read code).
+
+  [x] EM-F1 (LOW, data race) takeprofit/executor.go Evaluate snapshotted
+      runtime values under RLock, then called trade.IsTP1Hit/IsTP2Hit/
+      IsTP3Hit(checkPrice) which read t.TP*Price + t.IsLong() WITHOUT a
+      lock. Fields are immutable post-registration so it is functionally
+      safe, but it is a `go test -race` violation. FIX: compare against
+      the already-snapshotted tp*Price + a snapshotted isLong; no Trade
+      method touches the struct outside the lock window.
+
+  [x] EM-F2 (MEDIUM, plan loss) monitoring/sync.go imported every broker
+      position as a BARE trade: TradingStyle hard-coded INTRADAY, TP2/TP3
+      = 0, RiskAmount = 0, Point = 0 -- even when the position is one of
+      OUR OWN system trades whose full plan already exists in
+      management_trades (the handoff-failure case). FIX: before a bare
+      import, GetTradeByBrokerOrderID recovers the real system row and
+      registers THAT (full TP1/2/3+pct, style, risk, rr, point/digits).
+      A genuinely manual/external position (no system row) is imported
+      with constants.StyleManualDefault = POSITIONAL -- the SAFEST style
+      (no 3h intraday SL-tighten, no 16:30 intraday EOD hard-close,
+      widest trail) so an unknown trade is never closed/tightened
+      prematurely. Applied in BOTH RunStartupSync and
+      processPositionUpdate.
+
+  [x] EM-F3 (LOW, check-then-act) stoploss/breakeven.go applyTimeTightening
+      read currentSL under RLock then mutated under a separate Lock. FIX:
+      fold the read-compare-write into one write-lock window so the
+      tighten cannot race a concurrent SL move.
+
+  [x] EM-F4 (LOW, journaling) takeprofit/executor.go fetchClosedDealProfit
+      returned the most-recent deal matching the position ticket; a near-
+      simultaneous TP2/TP3 close could attribute the wrong leg's PnL to
+      the journal. FIX: prefer the most-recent matching deal whose
+      |Volume - closeVol| <= lot epsilon, then fall back to most-recent
+      by position. PnL journaling only; not money-affecting at broker.
+
+Style decision (EM-F2): NOT blindly SWING and NOT blindly INTRADAY.
+When the adopted position is our own trade we recover the TRUE style
+from the DB. When it is genuinely manual we use POSITIONAL because it
+has the least aggressive automated interference, so we never prematurely
+manage a trade whose intent we cannot know. The broker SL/TP always
+protects it regardless.
+
+Progress:
+  [ ] S1 EM-F1 takeprofit lock-clean hit checks
+  [ ] S2 EM-F2 reconciler recover-system-row + POSITIONAL manual default
+  [ ] S3 EM-F3 breakeven time-tighten atomic
+  [ ] S4 EM-F4 partial-close PnL volume-matched attribution
+  [ ] S5 statuses flipped + MR opened
