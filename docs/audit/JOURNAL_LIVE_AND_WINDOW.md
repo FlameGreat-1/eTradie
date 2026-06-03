@@ -1,7 +1,7 @@
 # Journal: Live Updates + Rolling 90-Day Window (remove 200 cap)
 
-**Status:** IN PROGRESS. Closes the two agreed gaps that remain after
-the round-2 hardening, built on `fix/journal-autofill-round2`.
+**Status:** DONE. Closed the two agreed gaps that remained after the
+round-2 hardening, built on `fix/journal-autofill-round2`.
 
 ## L1 — Live update (no manual browser refresh)
 
@@ -46,6 +46,10 @@ trades.
          (over the existing GetManualJournal since/until/limit/offset);
          read-only GET /api/v1/trading-plan/journal/history?window&page
          returning rows + total_closed + has_more.
-  [ ] E. W1 frontend: history client fn + hook + page-back affordance
-         in the journal view.
-  [ ] F. flip tracker to DONE.
+  [x] E. W1 frontend: getTradingPlanJournalHistory client fn +
+         useTradingPlanJournalHistory hook (under the ['trading-plan']
+         key so the L1 realtime rail refreshes an open history view) +
+         a read-only "Past windows" page-back panel in JournalSection
+         (same COLUMNS as the live table, trade_id excluded; window
+         older/newer + page prev/next).
+  [x] F. tracker flipped to DONE.
