@@ -62,6 +62,14 @@ type Handler struct {
 	generateLimiter *userRateLimiter
 	editLimiter     *userRateLimiter
 	resetLimiter    *userRateLimiter
+
+	// manualTrades is the optional management-backed reader used to
+	// auto-populate the objective cells of the existing journal rows
+	// from the trader's manual trades. Injected via
+	// WithManualTradeReader after the management client is built in the
+	// container; nil simply disables auto-fill (the plan still loads and
+	// the trader fills rows by hand). See journal_autofill.go.
+	manualTrades ManualTradeReader
 }
 
 // NewHandler builds a Handler. internalSecret is the same value the
@@ -180,6 +188,10 @@ func (h *Handler) getPlan(w http.ResponseWriter, r *http.Request) {
 	}
 	if rec.Plan != nil {
 		TradingPlanFetchTotal.WithLabelValues(outcomeHit).Inc()
+		// Auto-populate the objective cells of the existing journal rows
+		// from the trader's manual trades, in place. Best-effort: a nil
+		// reader or a read error never blocks the plan load.
+		h.autoFillJournal(r.Context(), userID, rec)
 	} else {
 		TradingPlanFetchTotal.WithLabelValues(outcomeEmpty).Inc()
 	}
@@ -192,6 +204,35 @@ func (h *Handler) getPlan(w http.ResponseWriter, r *http.Request) {
 		"created_at": rec.CreatedAt,
 		"updated_at": rec.UpdatedAt,
 	})
+}
+
+// autoFillJournal merges the user's manual-trade objective facts into
+// the loaded plan's existing journal rows in place, then persists the
+// result so the row<->trade binding and the objective cells stick.
+//
+// Best-effort by design: when no reader is wired, the reader errors, or
+// the persist fails, the plan is still returned as loaded (possibly with
+// the in-memory merge applied) and the trader's manual workflow is
+// unaffected. The trader's subjective cells and hand-typed rows are
+// never touched by the merge (see mergeManualTrades).
+func (h *Handler) autoFillJournal(ctx context.Context, userID string, rec *Record) {
+	if h.manualTrades == nil || rec == nil || rec.Plan == nil {
+		return
+	}
+	facts, err := h.manualTrades.ManualTrades(ctx)
+	if err != nil {
+		h.log.Warn().Err(err).Str("user_id", userID).Msg("trading_plan_journal_autofill_read_failed")
+		return
+	}
+	if !mergeManualTrades(rec.Plan, facts) {
+		return
+	}
+	if _, err := h.store.UpdatePlanContent(ctx, userID, rec.Plan); err != nil {
+		// The merge already mutated rec.Plan in memory, so the response
+		// still reflects the auto-fill; we just could not persist it.
+		// The next GET recomputes from management, so this is recoverable.
+		h.log.Warn().Err(err).Str("user_id", userID).Msg("trading_plan_journal_autofill_persist_failed")
+	}
 }
 
 // putPlan handles in-app manual edits. Does NOT trigger an LLM call;

@@ -1,0 +1,95 @@
+package tradingplanadapter
+
+import (
+	"context"
+
+	managementv1 "github.com/flamegreat-1/etradie/proto/management/v1"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/management"
+	"github.com/flamegreat-1/etradie/src/tradingplan"
+)
+
+// ManualTradeReader is the concrete tradingplan.ManualTradeReader. It
+// adapts the gateway's management gRPC client to the narrow port the
+// Daily Execution Journal auto-populate needs, converting the generated
+// proto ManualJournalEntry messages into transport-agnostic
+// tradingplan.ManualTradeFact values.
+//
+// The package exists so the tradingplan package never imports the
+// generated proto types or the gRPC client (mirrors the Dispatcher /
+// Balance adapters): the dependency graph stays one-directional
+//
+//	tradingplan          -> (interface declarations)
+//	tradingplanadapter   -> tradingplan + management + proto (concrete)
+//	container            -> both (composition)
+type ManualTradeReader struct {
+	client *management.Client
+}
+
+// NewManualTradeReader builds a ManualTradeReader. When the management
+// client is nil (management disabled or unreachable at startup), it
+// returns nil so the caller can inject a nil tradingplan.ManualTradeReader
+// and let the handler simply skip auto-fill instead of panicking on a
+// nil client.
+func NewManualTradeReader(client *management.Client) *ManualTradeReader {
+	if client == nil {
+		return nil
+	}
+	return &ManualTradeReader{client: client}
+}
+
+// ManualTrades satisfies tradingplan.ManualTradeReader. It fetches the
+// authenticated user's manually-executed / reconciled trades (open +
+// closed; the management handler already filters to
+// origin=MANUAL_RECONCILED and excludes SYSTEM + MANUAL_RESTORED).
+//
+// The window is unbounded (empty since/until) because the journal
+// auto-fill binds every manual trade to a row in place; it is not a
+// date-paged view. A generous closed-set limit is requested so a heavy
+// manual trader's history is covered in one read; open trades are
+// always returned in full by the server. The caller's JWT travels on
+// ctx and is forwarded by the client so the management auth interceptor
+// resolves the same user.
+func (m *ManualTradeReader) ManualTrades(ctx context.Context) ([]tradingplan.ManualTradeFact, error) {
+	req := &managementv1.GetManualJournalRequest{
+		Limit: 500,
+	}
+	resp, err := m.client.GetManualJournal(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, nil
+	}
+
+	entries := resp.GetEntries()
+	facts := make([]tradingplan.ManualTradeFact, 0, len(entries))
+	for _, e := range entries {
+		if e == nil {
+			continue
+		}
+		facts = append(facts, tradingplan.ManualTradeFact{
+			TradeID:      e.GetTradeId(),
+			Symbol:       e.GetSymbol(),
+			Direction:    e.GetDirection(),
+			TradingStyle: e.GetTradingStyle(),
+			SetupType:    e.GetSetupType(),
+			EntryPrice:   e.GetEntryPrice(),
+			StopLoss:     e.GetStopLoss(),
+			TP1Price:     e.GetTp1Price(),
+			TP2Price:     e.GetTp2Price(),
+			TP3Price:     e.GetTp3Price(),
+			ExitPrice:    e.GetExitPrice(),
+			RiskPercent:  e.GetRiskPercent(),
+			TotalLotSize: e.GetTotalLotSize(),
+			RRRatio:      e.GetRrRatio(),
+			RMultiple:    e.GetRMultiple(),
+			GrossPnL:     e.GetGrossPnl(),
+			Outcome:      e.GetOutcome(),
+			Session:      e.GetSession(),
+			IsOpen:       e.GetIsOpen(),
+			OpenedAt:     e.GetOpenedAt(),
+			ClosedAt:     e.GetClosedAt(),
+		})
+	}
+	return facts, nil
+}

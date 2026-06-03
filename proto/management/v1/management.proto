@@ -30,6 +30,14 @@ service ManagementService {
 
   // GetHealth returns the management service's health status.
   rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+
+  // GetManualJournal returns the user's manually-executed / reconciled
+  // trades (origin = MANUAL_RECONCILED) within a time window, BOTH open
+  // and closed. It powers the 90-Day Trading Plan's Daily Execution
+  // Journal auto-populate: the gateway composites these objective facts
+  // with the trader's saved subjective annotations. System-executed
+  // trades and rough MANUAL_RESTORED history rows are excluded.
+  rpc GetManualJournal(GetManualJournalRequest) returns (GetManualJournalResponse);
 }
 
 // RegisterFilledTradeRequest carries everything Module C needs to take
@@ -193,4 +201,52 @@ message GetHealthResponse {
   bool   db_connected = 2;
   bool   broker_connected = 3;
   int32  active_trades = 4;
+}
+
+// GetManualJournalRequest selects the user's manual trades for the
+// journal view. since_rfc3339 / until_rfc3339 bound the window (the
+// current 90-day window by default, computed by the caller); empty
+// bounds mean unbounded on that side. Pagination via limit/offset
+// applies to the CLOSED set; open trades are always returned in full
+// (a user has few concurrently-open manual trades).
+message GetManualJournalRequest {
+  string since_rfc3339 = 1;          // inclusive lower bound on opened_at; "" = unbounded
+  string until_rfc3339 = 2;          // inclusive upper bound on opened_at; "" = unbounded
+  int32  limit = 3;                  // max closed entries (default 200)
+  int32  offset = 4;                 // pagination offset into the closed set
+  string trace_id = 5;
+}
+
+// ManualJournalEntry is one manually-executed/reconciled trade with the
+// objective facts the journal can auto-fill. Subjective columns
+// (emotions, quality, mistake, rule-followed, HTF bias, screenshot,
+// notes) are NOT here — they live in the gateway plan keyed by trade_id.
+message ManualJournalEntry {
+  string trade_id = 1;
+  string symbol = 2;
+  string direction = 3;              // "BUY" | "SELL"
+  string trading_style = 4;
+  string setup_type = 5;
+  double entry_price = 6;
+  double stop_loss = 7;              // initial SL
+  double tp1_price = 8;
+  double tp2_price = 9;
+  double tp3_price = 10;
+  double exit_price = 11;            // 0 while open
+  double risk_percent = 12;
+  double total_lot_size = 13;
+  double rr_ratio = 14;              // planned R:R
+  double r_multiple = 15;            // achieved R (0 while open)
+  double gross_pnl = 16;             // realized P&L (0 while open)
+  string outcome = 17;               // WIN | LOSS | BREAKEVEN | "" while open
+  string session = 18;
+  bool   is_open = 19;               // true = live trade; close cells still blank
+  string opened_at = 20;             // RFC3339
+  string closed_at = 21;             // RFC3339; "" while open
+  string broker_order_id = 22;
+}
+
+message GetManualJournalResponse {
+  repeated ManualJournalEntry entries = 1;
+  int32 total_closed = 2;            // total closed manual trades in the window (for paging)
 }

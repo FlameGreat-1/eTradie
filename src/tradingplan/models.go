@@ -121,6 +121,14 @@ type AccountParameters struct {
 // these fields; the LLM seeds blank rows on initial generation and
 // the user fills them in.
 type JournalRow struct {
+	// TradeID binds an auto-populated row to the management trade whose
+	// objective facts filled it, so subsequent updates (open -> close)
+	// land on the SAME row instead of duplicating it. It is a hidden
+	// internal anchor, NOT a visible column: the UI table and the Excel
+	// export both iterate an explicit column list that excludes it, and
+	// omitempty keeps it out of the wire for hand-typed rows. Empty on
+	// rows the trader fills by hand.
+	TradeID            string `json:"trade_id,omitempty"`
 	Date               string `json:"date"`
 	Session            string `json:"session"`
 	Pair               string `json:"pair"`

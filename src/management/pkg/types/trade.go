@@ -27,6 +27,14 @@ type Trade struct {
 	AnalysisID    string
 	TraceID       string
 
+	// Origin is the typed provenance discriminator persisted to
+	// management_trades.origin (journal.OriginSystem /
+	// OriginManualReconciled / OriginManualRestored). It is the
+	// authoritative manual-vs-system signal for the trading-plan
+	// Daily Execution Journal auto-populate; never derive provenance
+	// from Grade (which is the LLM setup-quality label).
+	Origin string
+
 	// Auth context (for background monitoring worker goroutines).
 	// Set when the trade is registered via gRPC and used by the worker
 	// to make authenticated calls to the Python engine broker endpoints.

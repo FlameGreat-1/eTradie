@@ -1,347 +1,306 @@
-# Auto-Sync Broker Trades into the 90-Day Trading Journal
+# Auto-Populate the 90-Day Daily Execution Journal from Manual Trades
 
-**Status:** DESIGN ONLY (no code changed). Implementation plan for review.
-**Scope:** auto-populate Section 3 (Daily Execution Journal) of the
-LLM-generated 90-Day Trading Plan from trades the system already
-records — both system-executed and manually-executed/reconciled —
-leaving only the subjective columns for the trader to fill in manually.
+**Status:** DESIGN (corrected). Implementation follows in this same MR.
+**Supersedes:** the earlier version of this file (which incorrectly
+synced ALL managed trades by copying facts into the plan blob).
 
 ---
 
-## 1. Goal (in plain terms)
+## 1. What we are building (corrected, exact intent)
 
-Today the trader fills the entire 90-day Daily Execution Journal **by
-hand**. Many of its columns are objective facts the platform ALREADY
-knows for every managed trade (date, pair, direction, entry, SL, TP,
-exit, P&L, R:R, outcome, etc.) — including manually-executed trades,
-because the management reconciler adopts and manages them (see
-`src/management/internal/monitoring/sync.go`).
+The Daily Execution Journal (Section 3 of the 90-Day Trading Plan) is
+the trader's **manual-trading workbook**. Traders who place trades by
+hand are meant to journal each trade daily. Today they fill ALL 25
+columns by hand.
 
-This design auto-fills those known columns the moment a trade closes,
-so the trader only types the **subjective** fields (emotions, trade
-quality, mistake category, rule-followed, HTF bias notes, screenshot,
-free-text notes). This mirrors how TraderVue / Edgewonk / Tradezella
-auto-import broker fills and leave journaling commentary to the user.
+We make this easier: **the moment the trader executes a manual trade
+and the system reconciles it, a journal row is auto-populated with the
+objective facts** (pair, direction, entry, SL, TP, size, then exit /
+P&L / R:R / outcome as the trade progresses). The trader then only
+fills the **subjective** columns (emotions, trade quality, mistake
+category, rule-followed, HTF bias, screenshot, notes).
+
+Hard scoping decisions (corrected):
+
+- **Manual trades ONLY.** System-executed trades are already shown
+  elsewhere in the dashboard (management trades view, closed-trade
+  journal, PnL calendar, performance metrics). They are EXCLUDED from
+  this workbook to avoid duplication.
+- **Live, not history backfill.** A row appears when the manual trade
+  is ADOPTED (open) and completes through to CLOSE — same-session, as
+  they trade. We do NOT use the existing 30-day `MANUAL/RESTORED`
+  history import (its entry/SL/TP are zeroed placeholders — see §6).
+- **Subjective columns are never auto-filled.** They are the entire
+  point of the workbook.
 
 ---
 
 ## 2. Ground truth (verified against `main`)
 
-Every statement below was read from source, not assumed.
+### 2.1 The journal rows are an ordered blank list, not date-slots
+- Plan owned by the gateway in `src/tradingplan`; persisted as ONE
+  JSONB blob per user (`user_trading_plans.plan`, `store.go`).
+- `Plan.Journal []JournalRow`, 25 string columns (`models.go`). The
+  LLM seeds `JournalSeedDays = 65` BLANK rows. A blank row has no
+  date key and no identity — it is simply an empty slot filled in
+  order. `Validate()` caps the journal at `journalMaxRows = 200` and
+  imposes NO required fields on a row.
+- Edits: `PUT /api/v1/trading-plan` -> `UpdatePlanContent` (replaces
+  the blob, no version bump).
 
-### 2.1 Where the journal lives
-- The 90-day plan is owned by the **gateway** service in
-  `src/tradingplan` (package `tradingplan`).
-- Persistence: ONE JSONB row per user in `user_trading_plans.plan`
-  (`src/tradingplan/schema.go`, `store.go`). `Plan.Journal` is
-  `[]JournalRow` (`models.go`).
-- A `JournalRow` has **25 string columns** (`models.go`): `Date,
-  Session, Pair, Direction, Style, SetupType, HTFBias, Entry,
-  StopLoss, TakeProfit, RiskPercent, PositionSize, Exit, RRPlanned,
-  RRAchieved, PnL, Outcome, RuleFollowed, EmotionBeforeTrade,
-  EmotionAfterTrade, TradeQuality, MistakeCategory, NewsPresent,
-  ScreenshotLink, Notes`. All are free-text strings; the LLM seeds 65
-  blank rows (`JournalSeedDays = 65`).
-- Edits happen via `PUT /api/v1/trading-plan` ->
-  `Handler.putPlan` -> `Store.UpdatePlanContent` (replaces the JSONB
-  blob, does NOT bump `version`; version is reserved for full LLM
-  regenerations). Validation: `Validate()` in `validation.go` trims
-  every cell to 120 chars, caps the journal at 200 rows, and enforces
-  NO required fields on a journal row (so a partially-filled synced
-  row is structurally valid).
+### 2.2 Manual trades already persist durably in management
+- `management_trades` (`src/management/internal/journal/repository.go`),
+  one row per managed trade, user-scoped, paginated via
+  `GetClosedTrades(limit, offset, ...)`. This is the PERMANENT,
+  UNBOUNDED record — it already survives past 90 days.
+- Live OPEN trades are in memory in the monitoring `Manager`
+  (`GetAllTrades`) and exposed at `GET /api/v1/management/trades`.
+- Manual trades are created by the reconciler
+  (`monitoring/sync.go buildReconciledTrade`): live-adopted open
+  positions get REAL entry/SL/TP/volume and are then managed to a
+  real close (exit/PnL/R-multiple). They are tagged
+  `Grade = "MANUAL/RECONCILED"`.
 
-### 2.2 Where the trade data lives
-- Closed trades live in the **management** service DB table
-  `management_trades` (`src/management/internal/journal/repository.go`),
-  one row per managed trade, scoped by `user_id`.
-- `GetClosedTrades(ctx, userID, limit, offset, symbolFilter,
-  styleFilter)` already returns the closed-trade projection.
-- Management already exposes it to the dashboard at
-  `GET /api/v1/management/journal`
-  (`src/management/internal/http/server.go handleGetJournal`),
-  returning per-trade: `trade_id, symbol, direction, entry_price,
-  exit_price, stop_loss, lot_size, gross_pnl, r_multiple,
-  confluence_score, grade, setup_type, trading_style, outcome,
-  duration_minutes, sl_adjustment_count, partial_close_count,
-  analysis_id, opened_at, closed_at`.
-- Manually-executed trades ARE in this table: the reconciler
-  (`sync.go buildReconciledTrade`, post-EM-F2) inserts them and the
-  management worker manages + closes them, so they flow into
-  `management_trades` exactly like system trades. They carry
-  `grade = "MANUAL/RECONCILED"`, which is how we tag a synced row's
-  origin.
+### 2.3 The lifecycle hooks (where facts change) — all in sync.go
+- **OPEN / adoption:** `processPositionUpdate` "reconcile new orphaned
+  positions" loop -> `buildReconciledTrade` -> `RegisterTrade` +
+  publishes `alert.TypeTradeSynced` ("External Trade Reconciled").
+- **MID-LIFE:** SL/TP modify, volume drift (partial fills), swap/
+  commission updates — each persisted via `UpdateTradeRuntime` /
+  `UpdateTradeSL`.
+- **CLOSE:** position vanishes from broker -> `HandleExternalClose`
+  + `RemoveTrade`; the management close path writes `UpdateTradeClose`
+  (exit_price, gross_pnl, r_multiple, outcome, closed_at).
 
-### 2.3 The hard architectural constraint (must not be violated)
-- `src/tradingplan/models.go` package doc: **"the engine NEVER
-  consumes it [the plan]"**, and authority separation:
-  Layer A (Trading System) governs AI execution; Layer B (Trading
-  Plan) governs human discipline. **The journal must remain a
-  one-way SINK.** Auto-sync may only WRITE facts INTO the journal; it
-  must NEVER read the journal back into analysis/execution. This
-  design preserves that: data flows management -> plan, never the
-  reverse.
-- The two stores are in **different services and (logically)
-  different schemas**: the plan is in the gateway's `user_trading_
-  plans`; trades are in management's `management_trades`. No
-  cross-table SQL join is possible or allowed; the bridge is an
-  authenticated service call (the same boundary the dashboard already
-  uses), NOT a DB mix-up.
+### 2.4 The authority boundary (must hold)
+- `tradingplan/models.go`: "the engine NEVER consumes it." Layer A
+  (AI execution) vs Layer B (human discipline). The journal is a
+  one-way SINK: facts flow management -> plan view, never plan ->
+  execution.
+- The plan store (gateway) and `management_trades` (management) are
+  DIFFERENT services / schemas. The bridge is an authenticated
+  service call, never a cross-DB join.
 
 ---
 
-## 3. Column mapping (objective vs subjective)
+## 3. Architecture decision: COMPOSITE VIEW, not copy-into-blob
 
-For each of the 25 `JournalRow` columns, the source we can auto-fill
-from a closed `management_trades` row, or `MANUAL` if it is inherently
-subjective and must stay user-filled.
+The 90-day-window vs keep-logging-forever tension is resolved cleanly:
 
-| JournalRow column      | Auto-sync source (management closed trade)                         |
-|------------------------|--------------------------------------------------------------------|
-| `Date`                 | `closed_at` (date part, user tz) — fall back to `opened_at`        |
-| `Session`              | `session` if present; else derive from `opened_at` hour (UTC)     |
-| `Pair`                 | `symbol`                                                           |
-| `Direction`            | `direction` (BUY/SELL -> Long/Short)                              |
-| `Style`                | `trading_style`                                                   |
-| `SetupType`            | `setup_type`                                                      |
-| `HTFBias`              | **MANUAL** (not captured per-trade; trader's read)               |
-| `Entry`                | `entry_price`                                                     |
-| `StopLoss`             | `stop_loss` (initial SL on the row)                              |
-| `TakeProfit`           | `tp1_price`/`tp2`/`tp3` — see note; or final exit target          |
-| `RiskPercent`          | `risk_percent` (present on the trade row)                        |
-| `PositionSize`         | `lot_size` (`total_lot_size`)                                    |
-| `Exit`                 | `exit_price`                                                     |
-| `RRPlanned`            | `rr_ratio` (present on the trade row)                            |
-| `RRAchieved`           | `r_multiple`                                                     |
-| `PnL`                  | `gross_pnl`                                                      |
-| `Outcome`              | `outcome` (WIN/LOSS/BREAKEVEN)                                   |
-| `RuleFollowed`         | **MANUAL** (self-assessment)                                     |
-| `EmotionBeforeTrade`   | **MANUAL**                                                       |
-| `EmotionAfterTrade`    | **MANUAL**                                                       |
-| `TradeQuality`         | **MANUAL**                                                       |
-| `MistakeCategory`      | **MANUAL**                                                       |
-| `NewsPresent`          | **MANUAL** (not stored per-trade today; could derive later)      |
-| `ScreenshotLink`       | **MANUAL**                                                       |
-| `Notes`                | **MANUAL**                                                       |
+- The **permanent, unbounded, paginated** record of every manual
+  trade ALREADY exists in `management_trades`. We do NOT copy those
+  money facts into the plan blob (that would duplicate money data
+  across two services, hit the 200-row cap, and force trimming).
+- The **plan stores ONLY the trader's subjective annotations**, keyed
+  by `trade_id`. Objective facts are NEVER written into the blob.
+- The journal section the trader sees is a **COMPOSITE VIEW**:
+  objective facts (from management, for the current 90-day window) +
+  the trader's saved subjective fields (from the plan), joined on
+  `trade_id`.
 
-Note on `TakeProfit`: the closed-trade projection in
-`GetClosedTrades` does NOT currently select the tp* columns (they
-exist on the row but are not in the closed projection). Two options in
-section 6.
+Consequences (all desirable):
+- No duplication of entry/SL/exit/PnL across services.
+- No row-trimming and no 200-row-cap conflict: the cap only ever
+  applies to the subjective-annotation rows, and the visible window is
+  a date filter over the management record.
+- "90-day window" = the journal view shows trades in the current
+  90-day window; older trades remain in `management_trades` and are
+  reachable by paging the window back (UI affordance), so nothing is
+  ever lost.
+- The trader's commentary persists independently of the trade facts
+  and is keyed by `trade_id`, so it always re-attaches to the right
+  trade.
 
-**16 of 25 columns auto-fill; 9 stay manual.** The 9 manual ones are
-exactly the discipline/psychology fields the journal exists to
-capture, so the human value of the workbook is fully preserved.
+### Why not the simpler copy-into-blob?
+Because it duplicates authoritative money data into a second store,
+requires reconciliation between the two, and forces the trimming /
+cap problem the 90-day window raised. The composite view avoids all
+three and keeps a single source of truth for trade facts
+(`management_trades`).
 
 ---
 
-## 4. Design decision: how a synced row coexists with manual edits
+## 4. The two stored shapes
 
-The single hardest correctness question. A `JournalRow` today has no
-identity, so we cannot tell a synced row from a hand-typed one, and a
-re-sync must not (a) duplicate a trade, nor (b) clobber the trader's
-subjective edits.
+### 4.1 Subjective annotation (persisted in the plan blob)
+Replace the blank-row model for AUTO trades with an annotation list
+keyed by trade. Add to `Plan` (schema v1 -> v2):
 
-**Decision: add a stable per-row identity + an `auto` origin flag, and
-merge by identity.**
+```
+type JournalAnnotation struct {
+    TradeID            string `json:"trade_id"`             // management trade ID
+    HTFBias            string `json:"htf_bias"`
+    RuleFollowed       string `json:"rule_followed"`
+    EmotionBeforeTrade string `json:"emotion_before_trade"`
+    EmotionAfterTrade  string `json:"emotion_after_trade"`
+    TradeQuality       string `json:"trade_quality"`
+    MistakeCategory    string `json:"mistake_category"`
+    NewsPresent        string `json:"news_present"`
+    ScreenshotLink     string `json:"screenshot_link"`
+    Notes              string `json:"notes"`
+}
+```
 
-- Add two fields to `JournalRow` (schema-versioned, see section 5):
-  - `TradeID string json:"trade_id"` — the management trade ID for
-    synced rows; empty for hand-added rows.
-  - `Source string json:"source"` — `""`/`"manual"` for user rows,
-    `"auto"` for synced rows.
-- **Merge rule on sync:** for each closed management trade not already
-  represented (match on `trade_id`), INSERT a new row with the
-  objective columns filled and the subjective columns blank. For a
-  trade already represented, UPDATE ONLY the objective columns and
-  leave every subjective column untouched (never overwrite trader
-  input). This is an idempotent upsert keyed by `trade_id`.
-- Hand-added rows (`trade_id == ""`) are never touched by sync.
+`Plan.JournalAnnotations []JournalAnnotation` is added alongside the
+existing `Journal []JournalRow`. The legacy `Journal` is retained for
+fully-manual hand-typed rows (trades the trader logs that the system
+never saw, e.g. a different account) so we never remove existing
+functionality — it becomes the "manual extra rows" surface, while
+AUTO trades use annotations.
 
-This guarantees: no duplicates, no lost commentary, re-running sync is
-safe, and the trader can still freely add fully-manual rows.
-
----
-
-## 5. Schema / contract changes (typed, versioned)
-
-1. `src/tradingplan/models.go`
-   - Add `TradeID` and `Source` to `JournalRow`.
-   - Bump `CurrentSchemaVersion` 1 -> 2 (a field was added). Existing
-     rows unmarshal with the two new fields empty, which is the
-     correct "manual, un-synced" state, so no data migration is
-     needed — older plans simply have all-manual rows until first
-     sync.
-2. `src/tradingplan/validation.go`
-   - Trim/cap the two new cells (`trade_id`, `source`) like every
-     other cell; add `source` to an allowed-value check (`""`,
-     `"manual"`, `"auto"`). No new required fields.
-3. Frontend types (`cotradee/src/features/tradingplan/types/index.ts`)
-   - Mirror the two new fields so the editor and Excel export round-
-     trip them. The JSON contract is hand-synced across Go + TS here
-     (same drift risk as `ProcessorOutput`); keep them in lockstep.
-
-No change to `user_trading_plans` SQL DDL: the plan is a JSONB blob,
-so new struct fields need no `ALTER`.
+### 4.2 Objective facts (NOT stored in the plan; read from management)
+pair, direction, style, setup, entry, SL, TP, size, exit, RR planned,
+RR achieved, PnL, outcome, date, session — served by a management read
+filtered to manual origin + the 90-day window.
 
 ---
 
-## 6. Where the sync runs (the integration point)
+## 5. Backend changes (typed, no string-matching)
 
-Three options were considered against the service boundaries that
-actually exist. The two stores are in different services, so the sync
-must cross that boundary via an authenticated call, never a DB join.
+### 5.1 Typed origin discriminator (management)
+`grade` is an LLM setup-quality string; overloading it as the
+manual/system discriminator is fragile. Add a typed column:
 
-### Option A (RECOMMENDED) — gateway pull, on demand + on plan open
-The gateway already owns the plan and already holds a management gRPC
-client (`src/gateway/internal/management/client.go`, currently only
-`RegisterFilledTrade`). Add a read path:
+- `management_trades.origin TEXT NOT NULL DEFAULT 'SYSTEM'` with
+  CHECK in (`'SYSTEM'`,`'MANUAL_RECONCILED'`,`'MANUAL_RESTORED'`),
+  idempotent `ALTER ... IF NOT EXISTS`, backfill existing rows from
+  the current `grade` convention
+  (`grade LIKE 'MANUAL/RECONCILED%' -> MANUAL_RECONCILED`,
+   `grade LIKE 'MANUAL/RESTORED%' -> MANUAL_RESTORED`, else SYSTEM).
+- Set it explicitly at every insert:
+  `RegisterFilledTrade` -> SYSTEM; `buildReconciledTrade` ->
+  MANUAL_RECONCILED; history phase -> MANUAL_RESTORED.
+- `TradeRecord` gains `Origin`; `tradeSelectColumns` + `scanTrade`
+  add it in lockstep.
 
-1. Extend the gateway's management client with
-   `GetClosedTrades(ctx, userID, since)` backed by the management
-   gRPC `GetTradeJournal` RPC (already defined in
-   `proto/management/v1` and implemented by
-   `ManagementServer.GetTradeJournal`). No new management endpoint
-   needed for the basic mapping.
-2. New gateway endpoint `POST /api/v1/trading-plan/sync-journal`
-   (auth + CSRF, rate-limited like the other plan mutations):
-   - load the user's plan (must be `active`),
-   - pull closed trades for the user,
-   - run the idempotent merge from section 4,
-   - persist via `Store.UpdatePlanContent` (no version bump — a sync
-     is not a regeneration),
-   - return the updated plan.
-3. The SPA calls it when the user opens the Trading Plan page and
-   exposes a "Sync trades" button for an explicit refresh.
+### 5.2 Manual-trade read path (management)
+The journal view needs BOTH open and closed manual trades in a date
+window. Two reads:
+- OPEN: filter `Manager.GetAllTrades()` to `origin=MANUAL_RECONCILED`
+  (origin must be carried on the in-memory `Trade`; add the field and
+  stamp it in `RegisterFilledTrade`/`buildReconciledTrade`/restore).
+- CLOSED: new repo method
+  `GetManualClosedTrades(ctx, userID, since, until, limit, offset)`
+  filtering `origin = 'MANUAL_RECONCILED' AND status='CLOSED'` within
+  the window. (Explicitly EXCLUDES MANUAL_RESTORED.)
+Expose via a new gRPC RPC `GetManualJournal` on the management service
+(or extend `GetTradeJournal` with an `origin` + date filter — decide
+in S2; a new RPC is cleaner and avoids changing the dashboard's
+existing journal call).
 
-Pros: respects the one-way boundary; reuses the existing gRPC RPC and
-the existing plan store; no new background workers; the gateway is
-already the plan's owner. Cons: sync is pull-triggered (on page open /
-button), not instant on close — acceptable, and avoids a push
-dependency from management into the gateway plan store.
+### 5.3 Gateway composite endpoint
+- Gateway management client gains a read method calling the new RPC.
+- New `GET /api/v1/trading-plan/journal?window=current` (auth+CSRF):
+  pulls manual open+closed trades for the window, joins each with the
+  user's saved `JournalAnnotation` by `trade_id`, formats objective
+  cells deterministically (§7), returns composite rows ordered by
+  open time. Pure view; reads management + plan, writes nothing.
+- New `PUT /api/v1/trading-plan/journal/annotation`: upsert ONE
+  `JournalAnnotation` (subjective fields only) by `trade_id` into the
+  plan blob via `UpdatePlanContent`. Rate-limited like the edit path.
 
-### Option B — management push on close
-When a trade closes (`UpdateTradeClose`), management calls a new
-gateway internal endpoint to upsert the journal row. Gives
-near-instant sync. Cons: makes management depend on the gateway plan
-store (new coupling + new internal auth surface), and management would
-need the user's plan existence/tz — more moving parts for marginal
-latency benefit. Recorded as a possible future enhancement on top of
-Option A.
-
-### Option C — frontend-only merge
-The SPA already fetches `/api/v1/management/journal` and the plan;
-it could merge client-side and PUT the plan. Cons: puts money-bearing
-merge logic in the browser, races between tabs, and trusts the client
-to write authoritative rows. Rejected.
-
-**Chosen: Option A.**
-
-### TakeProfit / tp-columns gap (from section 3 note)
-`GetClosedTrades` does not select the `tp1/2/3_price` columns. For the
-`TakeProfit` journal cell, either:
-- (A1) use `exit_price` as the realized target text (simplest, always
-  available), or
-- (A2) extend the `GetClosedTrades` SELECT + the `GetTradeJournal`
-  proto/projection to carry `tp1_price` so the cell shows the planned
-  TP.
-Recommend A1 for v1 (exit is the truth of what happened) and A2 as a
-follow-up if the planned TP is wanted alongside the realized exit.
+### 5.4 Plan model/validation (gateway)
+- Add `JournalAnnotations`; bump `CurrentSchemaVersion` to 2.
+- Validate annotations: trim cells (120), cap count (200), no banned
+  phrases on free-text, no required fields. Keep legacy `Journal`
+  validation intact for hand-typed extra rows.
 
 ---
 
-## 7. Field formatting rules (no lossy coercion)
+## 6. The MANUAL/RESTORED history import (answering "are we importing
+manual history?")
 
-The journal columns are strings the UI renders verbatim, so the sync
-must format numbers deterministically (no scientific notation, broker-
-appropriate precision):
-- prices (`Entry/StopLoss/Exit`): format with the instrument digits
-  when known, else trim trailing zeros.
-- `PnL`: 2 decimals with the account currency where known.
-- `RiskPercent`: render as the stored percent (e.g. `1%`).
-- `RRPlanned`/`RRAchieved`: 2 decimals (e.g. `3.00`, `2.41`).
-- `Direction`: BUY->`Long`, SELL->`Short` to match the workbook tone.
-- `Date`/`Session`: resolved in the user's timezone (the PnL-calendar
-  endpoint already takes a `tz` param; reuse the same convention).
-All formatting lives in ONE gateway helper so it cannot drift.
+YES — today `RunStartupSync` Phase 2 pulls the broker's last 30 days
+of closed deals and inserts them as `grade='MANUAL/RESTORED'` rows.
+BUT those rows are deliberate approximations: `EntryPrice=0`,
+`StopLoss=0`, `TP=0`, `TradingStyle=INTRADAY`, `OpenedAt=closed-1h`,
+`DurationMinutes=60` — only symbol/direction/volume/PnL/outcome are
+real. They feed the PnL calendar, not the journal.
+
+Decision: the journal view EXCLUDES `MANUAL_RESTORED`. It is incomplete
+(no entry/SL/TP/R) and this feature is about recording NEW daily
+trades live, not backfilling old ones. If backfill is ever wanted, the
+history import must first be upgraded to recover real entry/exit pairs
+(separate work, noted, not in scope here).
 
 ---
 
-## 8. Edge cases (must all be handled)
+## 7. Deterministic formatting (one gateway helper)
+- prices: instrument digits when known, else trim trailing zeros.
+- PnL: 2 dp + account/plan currency.
+- RR: 2 dp. RiskPercent: as stored (`1%`). Direction: BUY->Long.
+- Date/Session: user tz (reuse the pnl-calendar `tz` convention),
+  never raw UTC in the visible cell.
 
-1. **Re-sync idempotency** — merge keyed by `trade_id`; objective-only
-   update; never touch subjective cells. (Section 4.)
-2. **200-row cap** (`journalMaxRows`) — when synced + manual rows would
-   exceed 200, keep the most recent by close date; surface a notice so
-   the trader knows older auto rows were trimmed. Never silently drop a
-   row that contains manual commentary (prefer trimming blank auto
-   rows first).
-3. **No plan yet** (`status != active`) — sync is a no-op with a clear
-   message: generate a plan first. (The plan must exist to hold rows.)
-4. **Blank LLM-seeded rows** — the LLM seeds 65 empty rows. First sync
-   should fill blank seed rows before appending new ones, so the
-   workbook does not balloon with empties + duplicates. Define "blank"
-   as a row with empty `trade_id` AND empty objective cells.
-5. **Manual trades** — included; tagged `Source="auto"`,
-   `Style` may be `POSITIONAL` (the reconciler default) and `SetupType`
-   may be empty. Those cells sync as-is; the trader can correct them.
-6. **Partial closes / multi-leg** — one journal row per management
-   trade (`trade_id`), not per partial. `PnL` = `gross_pnl` (already
-   the summed realized P&L on the row), `RRAchieved` = `r_multiple`.
-7. **Timezone** — date/session resolved in the user's tz (same param
-   the pnl-calendar endpoint uses); never raw UTC in the visible cell.
-8. **Currency** — P&L currency from the plan's `BalanceCurrency` when
-   the trade row does not carry one.
-9. **Authority boundary** — sync only writes into the plan; nothing
-   reads the plan back into execution. (Section 2.3.)
+---
+
+## 8. Edge cases (all handled)
+1. Re-open of the page / re-poll: idempotent — composite view is
+   recomputed each request; annotations upsert by `trade_id`.
+2. Trade still OPEN: objective close cells (exit/PnL/RR/outcome) show
+   blank/"open"; they fill once management closes the trade.
+3. Partial closes: ONE journal row per `trade_id`; PnL uses the
+   trade row's running `gross_pnl`, RRAchieved uses `r_multiple`.
+4. Manual extra rows (hand-typed, no trade): preserved in legacy
+   `Journal`; never touched by the composite/auto path.
+5. 90-day window exhausted: NOT trimmed — older manual trades stay in
+   `management_trades`; the UI pages the window back. Annotation list
+   is capped at 200 (subjective rows only); when full, oldest
+   annotations for trades outside the window can be pruned safely
+   because the objective facts remain in management.
+6. System trades: excluded by `origin=MANUAL_RECONCILED` filter.
+7. MANUAL_RESTORED: excluded (§6).
+8. Authority boundary: read-only into the plan view; nothing flows
+   back to execution.
 
 ---
 
 ## 9. Frontend changes
-
-- `cotradee/src/features/tradingplan/types/index.ts`: add `trade_id`,
-  `source` to the journal row type.
-- `JournalSection.tsx`: render auto-filled cells distinctly (e.g. a
-  subtle "synced" badge / read-only style on objective columns of
-  `source=="auto"` rows) while keeping subjective columns editable;
-  show a "Sync trades" button + last-synced timestamp.
-- `lib/excel.ts`: include the new columns in export (or deliberately
-  omit `source`/`trade_id` from the printed sheet — decide; recommend
-  omitting both from the printed export, keeping them only in the
-  stored JSON).
-- `api/client.ts` + `api/hooks.ts`: add the `sync-journal` call + a
-  hook; invalidate the plan query on success.
+- `types/index.ts`: add `JournalAnnotation`; composite row type.
+- `JournalSection.tsx`: render objective cells read-only (from the
+  composite endpoint) with a "synced" badge; keep subjective cells
+  editable -> `PUT .../annotation`; window selector (current 90d /
+  previous). last-synced indicator.
+- `lib/excel.ts`: export the composite (objective + subjective);
+  omit internal `trade_id` from the printed sheet.
+- `api/client.ts` + `hooks.ts`: composite GET + annotation PUT hooks;
+  invalidate on save.
 
 ---
 
-## 10. Implementation checklist (for a future MR, in commit steps)
-
-  [ ] S1 models: add `TradeID`/`Source` to `JournalRow`; bump
-         `CurrentSchemaVersion` to 2; extend `validation.go`
-         (trim + `source` allowed-values; no new required fields).
-  [ ] S2 gateway management client: add `GetClosedTrades` over the
-         existing `GetTradeJournal` gRPC RPC.
-  [ ] S3 gateway sync service: deterministic formatter (section 7) +
-         idempotent merge (section 4) + edge cases (section 8).
-  [ ] S4 gateway endpoint `POST /api/v1/trading-plan/sync-journal`
-         (auth + CSRF + rate limit) -> merge -> `UpdatePlanContent`.
-  [ ] S5 (optional A2) extend closed-trade projection with tp1_price
-         if the planned TP cell is wanted alongside the exit.
-  [ ] S6 frontend: types + JournalSection sync UI + hook + excel.
-  [ ] S7 tests: merge idempotency, subjective-preservation, row-cap
-         trimming, blank-seed fill, tz/currency formatting.
-  [ ] S8 metrics + docs: a sync counter; update this doc's status.
+## 10. Implementation checklist (commit steps, this MR)
+  [x] S1 management: typed `origin` column + idempotent migration +
+         backfill; `TradeRecord.Origin` + select/scan; stamp origin at
+         all three inserts; add `Origin` to in-memory `Trade` +
+         restore + reconciler. DONE — schema/model/repository in
+         lockstep; InsertTrade defaults blank->SYSTEM; RegisterFilled
+         Trade=SYSTEM, buildReconciledTrade bare=MANUAL_RECONCILED &
+         recovery=rec.Origin, history=MANUAL_RESTORED; restore carries
+         it.
+  [x] S2 management: `GetManualClosedTrades(window)` repo method +
+         `GetManualJournal` gRPC RPC (manual+window, excludes
+         RESTORED) returning open+closed manual trades. DONE — proto
+         RPC + messages added (run `make proto-gen`); repo query +
+         grpc handler (open from monitor filtered to
+         origin=MANUAL_RECONCILED + closed from store) + mock/import
+         fixes. REQUIRES `make proto-gen` before this compiles.
+  [ ] S3 gateway: management client read method; plan model
+         `JournalAnnotations` + schema v2 + validation.
+  [ ] S4 gateway: `GET /trading-plan/journal` composite + formatter;
+         `PUT /trading-plan/journal/annotation` upsert.
+  [ ] S5 frontend: composite view, editable subjective cells, window
+         selector, excel, hooks.
+  [ ] S6 tests: origin backfill, manual-only filter, window paging,
+         annotation upsert idempotency, open->close cell fill,
+         RESTORED exclusion, formatting.
+  [ ] S7 metrics + flip this doc to DONE.
 
 ---
 
-## 11. Explicitly OUT of scope / non-goals
-
-- Feeding the journal back into AI analysis or execution (forbidden by
-  the Layer A / Layer B authority separation).
-- Auto-filling the subjective columns (emotions, quality, mistakes,
-  rule-followed, screenshot, notes) — those are the trader's job and
-  the reason the workbook exists.
-- Auto-generating `NewsPresent` / `HTFBias` in v1 (not stored per
-  trade today; possible future enrichment from the macro/TA layer,
-  still written one-way into the journal).
-- Any change to how the LLM GENERATES the plan; sync runs after
-  generation, on the persisted plan.
+## 11. Non-goals
+- Feeding the journal back into AI analysis/execution (forbidden).
+- Auto-filling subjective columns.
+- Including system-executed trades (shown elsewhere).
+- Backfilling MANUAL_RESTORED history (incomplete; separate work).
+- Changing how the LLM generates the plan; this runs on the
+  persisted plan + the live management record.

@@ -104,6 +104,44 @@ func (c *Client) RegisterFilledTrade(ctx context.Context, req *managementv1.Regi
 	return resp.GetTradeId(), nil
 }
 
+// GetManualJournal calls the management GetManualJournal RPC to fetch
+// the authenticated user's manually-executed / reconciled trades
+// (origin = MANUAL_RECONCILED) within a window, both open and closed.
+// Powers the trading-plan Daily Execution Journal composite view.
+//
+// The caller's JWT is forwarded from the incoming context so the
+// management auth interceptor resolves the same user (identical to the
+// dashboard's other management reads). Retries on transient codes.
+func (c *Client) GetManualJournal(
+	ctx context.Context,
+	req *managementv1.GetManualJournalRequest,
+) (*managementv1.GetManualJournalResponse, error) {
+	callCtx, cancel := context.WithTimeout(ctx, time.Duration(c.timeoutMs)*time.Millisecond)
+	defer cancel()
+
+	if rawToken := auth.RawTokenFromContext(callCtx); rawToken != "" {
+		callCtx = metadata.AppendToOutgoingContext(callCtx, "authorization", "Bearer "+rawToken)
+	}
+
+	var resp *managementv1.GetManualJournalResponse
+	operation := func() error {
+		var err error
+		resp, err = c.client.GetManualJournal(callCtx, req)
+		return err
+	}
+	isRetryable := func(err error) bool {
+		st, ok := status.FromError(err)
+		if !ok {
+			return false
+		}
+		return st.Code() == codes.Unavailable || st.Code() == codes.DeadlineExceeded
+	}
+	if err := resilience.Retry(callCtx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
+		return nil, fmt.Errorf("management get manual journal: %w", err)
+	}
+	return resp, nil
+}
+
 // Close closes the underlying gRPC connection.
 func (c *Client) Close() error {
 	if c.conn != nil {

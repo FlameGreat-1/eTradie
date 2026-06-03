@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	managementv1 "github.com/flamegreat-1/etradie/proto/management/v1"
 	"github.com/flamegreat-1/etradie/src/auth"
@@ -78,6 +79,10 @@ func (m *mockJournal) GetTradeByBrokerOrderID(ctx context.Context, userID, broke
 }
 
 func (m *mockJournal) GetClosedTrades(ctx context.Context, userID string, limit, offset int, symbolFilter, styleFilter string) ([]*journal.TradeRecord, int, error) {
+	return nil, 0, nil
+}
+
+func (m *mockJournal) GetManualClosedTrades(ctx context.Context, userID string, since, until time.Time, limit, offset int) ([]*journal.TradeRecord, int, error) {
 	return nil, 0, nil
 }
 
