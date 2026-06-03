@@ -39,6 +39,7 @@ const (
 	autofillUpdated  = "updated"
 	autofillFilled   = "filled"
 	autofillAppended = "appended"
+	autofillRolled   = "rolled"
 	autofillCapped   = "capped"
 
 	// Journal auto-fill per-request outcomes.
@@ -128,10 +129,14 @@ var (
 	//   updated  - an existing bound row's objective cells changed,
 	//   filled   - a blank seed row was newly claimed + bound,
 	//   appended - a new row was appended past the seeded blanks,
-	//   capped   - a manual trade was DROPPED because the journal is at
-	//              journalMaxRows (the silent-data-loss canary; a
-	//              non-zero rate means a user's journal is full and new
-	//              manual trades are no longer being recorded).
+	//   rolled   - an auto row was reclaimed (reset to blank) because its
+	//              trade fell out of the rolling journalWindowDays window
+	//              (its objective facts remain in management_trades),
+	//   capped   - a manual trade could not be placed because the journal
+	//              is at journalMaxRows even AFTER roll-out (the extreme
+	//              >200-annotated-rows-in-one-window canary; a non-zero
+	//              rate means a user's window is saturated with annotated
+	//              rows and the newest manual trades are not recorded).
 	TradingPlanJournalAutofillRows = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "trading_plan_journal_autofill_rows_total",
 		Help: "Journal rows touched by the manual-trade auto-fill, by action.",

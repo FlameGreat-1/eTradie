@@ -8,12 +8,14 @@ import {
 import {
   generateTradingPlan,
   getTradingPlan,
+  getTradingPlanJournalHistory,
   getTradingPlanStatus,
   resetTradingPlan,
   updateTradingPlan,
 } from './client';
 import type {
   GenerateOptions,
+  JournalHistoryPage,
   TradingPlan,
   TradingPlanRecord,
   TradingPlanStatusView,
@@ -23,7 +25,34 @@ export const tradingPlanKeys = {
   all: ['trading-plan'] as const,
   plan: () => [...tradingPlanKeys.all, 'plan'] as const,
   status: () => [...tradingPlanKeys.all, 'status'] as const,
+  history: (window: number, page: number) =>
+    [...tradingPlanKeys.all, 'history', window, page] as const,
 } as const;
+
+/**
+ * One page of a PREVIOUS journal window. Read-only: the current window
+ * lives in the live plan (useTradingPlan); this pages back through
+ * older windows served from the permanent management_trades record.
+ *
+ * keepPreviousData keeps the table populated while a window/page change
+ * is in flight (no empty flash). The key sits under the
+ * ['trading-plan'] prefix, so the realtime rail's invalidation (L1)
+ * also refreshes an open history view on a manual-trade event. Pass
+ * enabled=false to avoid fetching while the panel is closed.
+ */
+export function useTradingPlanJournalHistory(
+  window: number,
+  page: number,
+  options?: Omit<UseQueryOptions<JournalHistoryPage>, 'queryKey' | 'queryFn'>,
+) {
+  return useQuery<JournalHistoryPage>({
+    queryKey: tradingPlanKeys.history(window, page),
+    queryFn: () => getTradingPlanJournalHistory(window, page),
+    staleTime: 30 * 1000,
+    placeholderData: (prev) => prev,
+    ...options,
+  });
+}
 
 /**
  * Full plan. Used by the Trading Plan view page.

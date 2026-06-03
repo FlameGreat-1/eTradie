@@ -3,6 +3,7 @@ import { api } from '@/lib/axios';
 import {
   TradingPlanValidationError,
   type GenerateOptions,
+  type JournalHistoryPage,
   type TradingPlan,
   type TradingPlanRecord,
   type TradingPlanStatusView,
@@ -37,6 +38,33 @@ function resolveBrowserTimeZone(): string {
   } catch {
     return '';
   }
+}
+
+/**
+ * Read-only page-back view of a PREVIOUS 90-day journal window. The
+ * current window is the live auto-filled plan returned by
+ * getTradingPlan; this serves older windows straight from the
+ * permanent management_trades record (no plan write). Forwards the
+ * same browser IANA timezone so history Date cells render in the
+ * trader's local time, exactly like the live journal.
+ *
+ *   window: 0 = current 90 days, 1 = previous, 2 = the one before, ...
+ *   page:   0-based page within the window's closed set.
+ */
+export async function getTradingPlanJournalHistory(
+  window: number,
+  page: number,
+): Promise<JournalHistoryPage> {
+  const params: Record<string, string> = {};
+  if (window > 0) params.window = String(window);
+  if (page > 0) params.page = String(page);
+  const tz = resolveBrowserTimeZone();
+  if (tz) params.tz = tz;
+  const { data } = await api.gateway.get<JournalHistoryPage>(
+    `${BASE}/journal/history`,
+    { params },
+  );
+  return data;
 }
 
 export async function getTradingPlanStatus(): Promise<TradingPlanStatusView> {

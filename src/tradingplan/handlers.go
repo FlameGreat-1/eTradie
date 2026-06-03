@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
@@ -120,6 +121,7 @@ func (h *Handler) RegisterRoutes(
 	}
 
 	mux.Handle("/api/v1/trading-plan", wrap(h.handlePlan))
+	mux.Handle("/api/v1/trading-plan/journal/history", wrap(h.handleJournalHistory))
 	mux.Handle("/api/v1/trading-plan/status", wrap(h.handleStatus))
 	mux.Handle("/api/v1/trading-plan/generate", wrap(h.handleGenerate))
 	mux.Handle("/api/v1/trading-plan/reset", wrap(h.handleReset))
@@ -257,6 +259,9 @@ func (h *Handler) autoFillJournal(ctx context.Context, userID string, loc *time.
 	if stats.Appended > 0 {
 		TradingPlanJournalAutofillRows.WithLabelValues(autofillAppended).Add(float64(stats.Appended))
 	}
+	if stats.Rolled > 0 {
+		TradingPlanJournalAutofillRows.WithLabelValues(autofillRolled).Add(float64(stats.Rolled))
+	}
 	if stats.Capped > 0 {
 		TradingPlanJournalAutofillRows.WithLabelValues(autofillCapped).Add(float64(stats.Capped))
 		// The journal is full: new manual trades can no longer be
@@ -289,6 +294,77 @@ func parseTZ(r *http.Request) *time.Location {
 		return loc
 	}
 	return time.UTC
+}
+
+// handleJournalHistory serves the read-only, paginated page-back view of
+// PREVIOUS 90-day journal windows. The current window is the live
+// auto-filled plan blob (GET /api/v1/trading-plan); this endpoint reads
+// older windows straight from the permanent management_trades record so
+// nothing is ever lost when a window rolls. It writes nothing.
+//
+//	GET /api/v1/trading-plan/journal/history?window=N&page=M&tz=...
+//
+// window: 0 = current 90 days (default), 1 = previous, 2 = the one
+// before, ... ; page: 0-based page of the window's closed set.
+func (h *Handler) handleJournalHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	userID := auth.UserIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if h.manualTrades == nil {
+		writeError(w, http.StatusServiceUnavailable, "trade journal history is temporarily unavailable")
+		return
+	}
+
+	window := parseNonNegInt(r.URL.Query().Get("window"), 0)
+	page := parseNonNegInt(r.URL.Query().Get("page"), 0)
+	loc := parseTZ(r)
+
+	since, until := journalWindowBounds(window, time.Now().UTC())
+	offset := page * journalHistoryPageSize
+
+	facts, totalClosed, err := h.manualTrades.ManualTradesWindow(
+		r.Context(), since, until, journalHistoryPageSize, offset,
+	)
+	if err != nil {
+		h.log.Warn().Err(err).Str("user_id", userID).Int("window", window).Msg("trading_plan_journal_history_failed")
+		writeError(w, http.StatusBadGateway, "failed to load journal history")
+		return
+	}
+
+	rows := make([]JournalRow, 0, len(facts))
+	for _, f := range facts {
+		rows = append(rows, rowFromFact(f, loc))
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"window":       window,
+		"page":         page,
+		"page_size":    journalHistoryPageSize,
+		"total_closed": totalClosed,
+		"has_more":     offset+len(facts) < totalClosed,
+		"window_days":  journalWindowDays,
+		"rows":         rows,
+	})
+}
+
+// parseNonNegInt parses a non-negative integer query value, returning
+// def on empty / invalid / negative input.
+func parseNonNegInt(s string, def int) int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return def
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 {
+		return def
+	}
+	return n
 }
 
 // putPlan handles in-app manual edits. Does NOT trigger an LLM call;
