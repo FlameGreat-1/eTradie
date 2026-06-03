@@ -69,6 +69,20 @@ const (
 	DirectionSell Direction = "SELL"
 )
 
+// StyleManualDefault is the trading style assigned to a reconciler-
+// imported position that is GENUINELY manual/external -- i.e. it has no
+// corresponding system trade row to recover the real style from. It is
+// POSITIONAL on purpose: positional has the least aggressive automated
+// interference (no 3-hour intraday SL tightening, no 16:30 UTC intraday
+// EOD hard-close, widest trailing timeframe), so a trade whose intent
+// the engine cannot know is never closed or tightened prematurely. The
+// broker-side SL/TP set by the trader still protects the position.
+//
+// A reconciled position that IS one of our own trades does NOT use this
+// default: the reconciler recovers its true style from the journal row
+// (EM-F2). This constant applies only to the no-system-row fallback.
+const StyleManualDefault = StylePositional
+
 // TP split percentages by style from Rulebook Section 8.3.
 var TPSplitByStyle = map[TradingStyle][3]int32{
 	StyleScalping:   {60, 40, 0},

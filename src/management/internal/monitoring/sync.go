@@ -127,54 +127,9 @@ func (s *StateReconciler) RunStartupSync(ctx context.Context) error {
 			continue // We already manage this trade.
 		}
 
-		s.log.Info().Str("ticket", pos.Ticket).Str("symbol", pos.Symbol).Msg("discovered_orphaned_position_importing")
-
-		// Construct a Trade from the raw position. Identity fields are
-		// copied from the reconciler so the worker's IdentityCtx builds
-		// the same claims-bearing context a gRPC-registered trade would.
-		trade := &types.Trade{
-			TradeID:          GenerateTradeID(),
-			Symbol:           pos.Symbol,
-			Direction:        constants.Direction(pos.Direction),
-			BrokerOrderID:    pos.Ticket,
-			UserID:           s.userID,
-			Username:         s.username,
-			Role:             s.role,
-			Tier:             s.tier,
-			StatusJWT:        s.statusJWT,
-			AuthToken:        s.authToken,
-			TradingStyle:     constants.StyleIntraday, // Default fallback
-			Grade:            "MANUAL/RECONCILED",
-			EntryPrice:       pos.EntryPrice,
-			StopLoss:         pos.StopLoss,
-			InitialSL:        pos.StopLoss,
-			TP1Price:         pos.TakeProfit,
-			TotalLotSize:     pos.Volume,
-			RemainingLotSize: pos.Volume,
-			Status:           constants.StatusActive,
-			OpenedAt:         time.Now().UTC(),
-		}
-
-		// Insert into PostgreSQL.
-		dbRecord := &journal.TradeRecord{
-			UserID:           trade.UserID,
-			TradeID:          trade.TradeID,
-			Symbol:           trade.Symbol,
-			Direction:        string(trade.Direction),
-			BrokerOrderID:    trade.BrokerOrderID,
-			TradingStyle:     string(trade.TradingStyle),
-			Grade:            trade.Grade,
-			EntryPrice:       trade.EntryPrice,
-			StopLoss:         trade.StopLoss,
-			InitialSL:        trade.InitialSL,
-			TP1Price:         trade.TP1Price,
-			TotalLotSize:     trade.TotalLotSize,
-			Status:           string(trade.Status),
-			OpenedAt:         trade.OpenedAt,
-		}
-
-		if err := s.repo.InsertTrade(ctx, dbRecord); err != nil {
-			s.log.Error().Err(err).Str("ticket", pos.Ticket).Msg("failed_to_insert_reconciled_trade")
+		trade, err := s.buildReconciledTrade(ctx, pos)
+		if err != nil {
+			s.log.Error().Err(err).Str("ticket", pos.Ticket).Msg("failed_to_build_reconciled_trade")
 			continue
 		}
 
@@ -473,55 +428,14 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 			continue // We already manage this trade.
 		}
 
-		s.log.Info().Str("ticket", pos.Ticket).Str("symbol", pos.Symbol).Msg("discovered_new_position_in_stream_importing")
-
-		trade := &types.Trade{
-			TradeID:          GenerateTradeID(),
-			Symbol:           pos.Symbol,
-			Direction:        constants.Direction(pos.Direction),
-			BrokerOrderID:    pos.Ticket,
-			UserID:           s.userID,
-			Username:         s.username,
-			Role:             s.role,
-			Tier:             s.tier,
-			StatusJWT:        s.statusJWT,
-			AuthToken:        s.authToken,
-			TradingStyle:     constants.StyleIntraday,
-			Grade:            "MANUAL/RECONCILED",
-			EntryPrice:       pos.EntryPrice,
-			StopLoss:         pos.StopLoss,
-			InitialSL:        pos.StopLoss,
-			TP1Price:         pos.TakeProfit,
-			TotalLotSize:     pos.Volume,
-			RemainingLotSize: pos.Volume,
-			Status:           constants.StatusActive,
-			OpenedAt:         time.Now().UTC(),
-		}
-
-		dbRecord := &journal.TradeRecord{
-			UserID:           trade.UserID,
-			TradeID:          trade.TradeID,
-			Symbol:           trade.Symbol,
-			Direction:        string(trade.Direction),
-			BrokerOrderID:    trade.BrokerOrderID,
-			TradingStyle:     string(trade.TradingStyle),
-			Grade:            trade.Grade,
-			EntryPrice:       trade.EntryPrice,
-			StopLoss:         trade.StopLoss,
-			InitialSL:        trade.InitialSL,
-			TP1Price:         trade.TP1Price,
-			TotalLotSize:     trade.TotalLotSize,
-			Status:           string(trade.Status),
-			OpenedAt:         trade.OpenedAt,
-		}
-
-		if err := s.repo.InsertTrade(ctx, dbRecord); err != nil {
-			s.log.Error().Err(err).Str("ticket", pos.Ticket).Msg("failed_to_insert_new_reconciled_trade")
+		trade, err := s.buildReconciledTrade(ctx, pos)
+		if err != nil {
+			s.log.Error().Err(err).Str("ticket", pos.Ticket).Msg("failed_to_build_new_reconciled_trade")
 			continue
 		}
 
 		s.mgr.RegisterTrade(trade)
-		
+
 		s.transport.Publish(ctx, alert.NewEvent(
 			alert.SourceTradeManager,
 			alert.TypeTradeSynced,
@@ -529,4 +443,140 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 			"External Trade Reconciled",
 		).WithUserID(s.userID).WithSymbol(trade.Symbol).WithDetail("ticket", pos.Ticket))
 	}
+}
+
+// buildReconciledTrade turns a raw broker position into a managed Trade,
+// preferring full plan recovery over a bare import (EM-F2).
+//
+// Resolution order:
+//
+//  1. RECOVER OUR OWN TRADE: if management_trades already holds a row for
+//     this broker ticket (this user), the position is one of our system
+//     trades that reached the broker but whose Module C handoff was
+//     missed (e.g. a LIMIT fill whose NotifyExecutionCompleted failed).
+//     Rebuild the in-memory Trade from that row so the REAL TP1/2/3+pct,
+//     trading style, risk, rr and point/digits are restored. No new row
+//     is inserted -- the row already exists.
+//
+//  2. GENUINELY MANUAL/EXTERNAL: no system row exists. Import a bare
+//     Trade using constants.StyleManualDefault (POSITIONAL -- the safest
+//     automated-interference profile) and persist it. The broker SL
+//     becomes InitialSL and the broker TP becomes TP1; TP2/TP3 stay
+//     unset because the trader expressed a single target. Every
+//     management engine still runs; POSITIONAL only avoids the
+//     intraday-specific 3h SL-tighten and 16:30 EOD hard-close.
+//
+// Identity fields are stamped from the reconciler so the worker's
+// IdentityCtx builds the same claims-bearing context a gRPC-registered
+// trade would.
+func (s *StateReconciler) buildReconciledTrade(
+	ctx context.Context,
+	pos broker.PositionInfo,
+) (*types.Trade, error) {
+	// 1) Recover our own system trade by broker ticket.
+	if rec, err := s.repo.GetTradeByBrokerOrderID(ctx, s.userID, pos.Ticket); err == nil && rec != nil {
+		s.log.Info().
+			Str("ticket", pos.Ticket).
+			Str("symbol", pos.Symbol).
+			Str("trade_id", rec.TradeID).
+			Str("style", rec.TradingStyle).
+			Msg("reconciled_position_matched_system_trade_recovering_full_plan")
+
+		return &types.Trade{
+			TradeID:          rec.TradeID,
+			Symbol:           rec.Symbol,
+			Direction:        constants.Direction(rec.Direction),
+			BrokerOrderID:    rec.BrokerOrderID,
+			AnalysisID:       rec.AnalysisID,
+			UserID:           s.userID,
+			Username:         s.username,
+			Role:             s.role,
+			Tier:             s.tier,
+			StatusJWT:        s.statusJWT,
+			AuthToken:        s.authToken,
+			TradingStyle:     constants.TradingStyle(rec.TradingStyle),
+			Grade:            rec.Grade,
+			Session:          rec.Session,
+			SetupType:        rec.SetupType,
+			ExecutionMode:    rec.ExecutionMode,
+			ConfluenceScore:  rec.ConfluenceScore,
+			EntryPrice:       rec.EntryPrice,
+			StopLoss:         rec.StopLoss,
+			InitialSL:        rec.InitialSL,
+			Point:            rec.Point,
+			Digits:           rec.Digits,
+			TP1Price:         rec.TP1Price,
+			TP1Pct:           rec.TP1Pct,
+			TP2Price:         rec.TP2Price,
+			TP2Pct:           rec.TP2Pct,
+			TP3Price:         rec.TP3Price,
+			TP3Pct:           rec.TP3Pct,
+			TotalLotSize:     rec.TotalLotSize,
+			RemainingLotSize: rec.RemainingLotSize,
+			RiskAmount:       rec.RiskAmount,
+			RiskPercent:      rec.RiskPercent,
+			RRRatio:          rec.RRRatio,
+			Slippage:         rec.Slippage,
+			Status:           constants.TradeStatus(rec.Status),
+			BreakevenSet:     rec.BreakevenSet,
+			TP1Hit:           rec.TP1Hit,
+			TP2Hit:           rec.TP2Hit,
+			TP3Hit:           rec.TP3Hit,
+			OpenedAt:         rec.OpenedAt,
+		}, nil
+	}
+
+	// 2) Genuinely manual / external position: safe POSITIONAL import.
+	s.log.Info().
+		Str("ticket", pos.Ticket).
+		Str("symbol", pos.Symbol).
+		Str("style", string(constants.StyleManualDefault)).
+		Msg("discovered_manual_position_importing_as_positional")
+
+	trade := &types.Trade{
+		TradeID:          GenerateTradeID(),
+		Symbol:           pos.Symbol,
+		Direction:        constants.Direction(pos.Direction),
+		BrokerOrderID:    pos.Ticket,
+		UserID:           s.userID,
+		Username:         s.username,
+		Role:             s.role,
+		Tier:             s.tier,
+		StatusJWT:        s.statusJWT,
+		AuthToken:        s.authToken,
+		TradingStyle:     constants.StyleManualDefault,
+		Grade:            "MANUAL/RECONCILED",
+		EntryPrice:       pos.EntryPrice,
+		StopLoss:         pos.StopLoss,
+		InitialSL:        pos.StopLoss,
+		TP1Price:         pos.TakeProfit,
+		TotalLotSize:     pos.Volume,
+		RemainingLotSize: pos.Volume,
+		Status:           constants.StatusActive,
+		OpenedAt:         time.Now().UTC(),
+	}
+
+	dbRecord := &journal.TradeRecord{
+		UserID:           trade.UserID,
+		TradeID:          trade.TradeID,
+		Symbol:           trade.Symbol,
+		Direction:        string(trade.Direction),
+		BrokerOrderID:    trade.BrokerOrderID,
+		TradingStyle:     string(trade.TradingStyle),
+		Grade:            trade.Grade,
+		EntryPrice:       trade.EntryPrice,
+		StopLoss:         trade.StopLoss,
+		InitialSL:        trade.InitialSL,
+		TP1Price:         trade.TP1Price,
+		TotalLotSize:     trade.TotalLotSize,
+		RemainingLotSize: trade.RemainingLotSize,
+		Status:           string(trade.Status),
+		OpenedAt:         trade.OpenedAt,
+	}
+
+	if err := s.repo.InsertTrade(ctx, dbRecord); err != nil {
+		return nil, err
+	}
+
+	return trade, nil
 }
