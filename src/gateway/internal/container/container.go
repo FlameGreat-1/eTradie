@@ -28,6 +28,8 @@ import (
 	"github.com/flamegreat-1/etradie/src/mails"
 	"github.com/flamegreat-1/etradie/src/performancereview"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/tradingplanadapter"
+	"github.com/flamegreat-1/etradie/src/mails"
+	"github.com/flamegreat-1/etradie/src/performancereview"
 	"github.com/flamegreat-1/etradie/src/support"
 	"github.com/flamegreat-1/etradie/src/tradingplan"
 	"github.com/flamegreat-1/etradie/src/tradingsystem"
