@@ -1,7 +1,8 @@
 # Journal Auto-Fill Hardening (post-merge audit fixes)
 
-**Status:** IN PROGRESS. Fixes the 8 findings from the end-to-end audit
-of the manual-trade Daily Execution Journal auto-populate.
+**Status:** DONE. All 8 findings from the end-to-end audit of the
+manual-trade Daily Execution Journal auto-populate are fixed on branch
+`fix/journal-autofill-hardening`.
 
 Scope reminder (unchanged): the EXISTING JournalRow rows are auto-filled
 in place from the trader's MANUAL/RECONCILED trades only. No new table,
@@ -13,32 +14,34 @@ the subjective cells and can hand-type rows for off-system accounts.
 - [x] **#1 proto-gen** — regenerated `management.pb.go` +
       `management_grpc.pb.go`; `GetManualJournal` request/response/entry
       types and the client+server method now exist. (Done on `main`.)
-- [ ] **#2 CI proto-drift gate** — CI must run `make proto-gen` and fail
-      on a non-empty `git diff`, so the generated code can never drift
-      from the `.proto` again.
-- [ ] **#3 PUT round-trip** — the frontend `JournalRow` type has no
-      `trade_id`; the existing `PUT /api/v1/trading-plan` decodes with
-      `DisallowUnknownFields`. An auto-filled plan returned to the SPA
-      carries `trade_id`, so the round-trip either 400s (echoed id) or
-      drops the binding (stripped id). Add `trade_id` to the SPA type
-      and carry it through.
-- [ ] **#4 binding survives edit** — guarantee `JournalRow.TradeID`
-      survives `Validate` + `putPlan` so one-trade = one-row holds
-      across a manual save (otherwise the next open->close auto-fill
-      can't find the bound row and appends a duplicate).
-- [ ] **#5 write-on-read concurrency** — the GET auto-fill does a blind
-      read-modify-write via `UpdatePlanContent` with no locking; two
-      concurrent loads (multi-tab) can claim the same blank row or lose
-      an update. Replace with a single transactional, row-locked
-      merge+persist in the store.
-- [ ] **#6 RR Planned** — genuinely-manual reconciled trades are
-      imported with `rr_ratio = 0`, so the RR Planned cell never
-      auto-fills. Compute a real planned R:R from entry/SL/TP1 at
-      reconcile time so the objective cell is populated.
-- [ ] **#7 timezone** — Date/Session render in UTC only. Thread the
-      user's tz through the plan GET (same `tz` convention as the
-      pnl-calendar) so the visible cell is local, never raw UTC.
-- [x] **#8 gofmt import order** — `container.go` import grouping fixed.
+- [x] **#2 CI proto-drift gate** — added a `proto` job to
+      `.github/workflows/ci.yml`: installs pinned protoc + plugins, runs
+      `make proto-gen`, fails on a non-empty `git diff -- proto/`.
+      `test-go` now `needs: [lint, proto]`.
+- [x] **#3 PUT round-trip** — added `trade_id?: string` to the SPA
+      `JournalRow` so the hidden anchor survives the edit + save
+      round-trip (no 400 under `DisallowUnknownFields`, no dropped
+      binding). Still never rendered (table + Excel iterate explicit
+      column lists).
+- [x] **#4 binding survives edit** — the merge is the authoritative
+      writer on every load; `Validate` preserves `TradeID` on the
+      struct, and the SPA now echoes it back, so one-trade = one-row
+      holds across a manual save (no duplicate rows on open->close).
+- [x] **#5 write-on-read concurrency** — replaced the handler
+      read-modify-write with `Store.AutoFillJournal`: a single
+      transaction, `SELECT plan ... FOR UPDATE` row lock, merge, and
+      blob-only UPDATE. Concurrent loads serialise; status/version are
+      left untouched (auto-fill is not a user edit).
+- [x] **#6 RR Planned** — `buildReconciledTrade` computes
+      `plannedRR = |tp - entry| / |entry - sl|` for genuinely-manual
+      positions and stamps it on the in-memory Trade + persisted
+      record; blank when SL/TP absent (never fabricated).
+- [x] **#7 timezone** — `getTradingPlan` forwards the browser IANA tz
+      as `?tz`; the gateway parses it (`parseTZ`, invalid -> UTC) and
+      threads a `*time.Location` into the merge so the Date cell is
+      local.
+- [x] **#8 gofmt import order** — `container.go` import grouping fixed
+      (and a duplicate-import slip corrected).
 
 ## Commit steps
   A. tracker + #8 import order.
