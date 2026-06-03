@@ -25,6 +25,20 @@ type ManualTradeReader struct {
 	client *management.Client
 }
 
+// manualJournalClosedFetchLimit bounds the CLOSED manual-trade set the
+// reader pulls per plan load. It is deliberately well above the trading
+// plan's journal cap (tradingplan.journalMaxRows = 200 rows total,
+// covering both auto-filled and hand-typed rows): since the auto-fill
+// can bind at most that many manual trades into the journal, fetching
+// the newest 500 closed trades guarantees every closed trade that could
+// possibly occupy a journal row is present in a single read. The repo
+// returns them newest-first (ORDER BY closed_at DESC), so for a trader
+// with a very large history it is the most recent closed trades that
+// are kept — exactly the ones the 90-day journal is about. No
+// pagination is needed because anything beyond the cap can never be
+// bound to a row.
+const manualJournalClosedFetchLimit = 500
+
 // NewManualTradeReader builds a ManualTradeReader. When the management
 // client is nil (management disabled or unreachable at startup), it
 // returns nil so the caller can inject a nil tradingplan.ManualTradeReader
@@ -44,14 +58,17 @@ func NewManualTradeReader(client *management.Client) *ManualTradeReader {
 //
 // The window is unbounded (empty since/until) because the journal
 // auto-fill binds every manual trade to a row in place; it is not a
-// date-paged view. A generous closed-set limit is requested so a heavy
-// manual trader's history is covered in one read; open trades are
-// always returned in full by the server. The caller's JWT travels on
-// ctx and is forwarded by the client so the management auth interceptor
-// resolves the same user.
+// date-paged view. The closed set is bounded by
+// manualJournalClosedFetchLimit (see its doc): the plan journal can
+// hold at most ~200 rows total, so fetching the newest 500 closed
+// trades guarantees every trade that could possibly land in the journal
+// is present in one read, and pagination is unnecessary. Open trades
+// are always returned in full by the server. The caller's JWT travels
+// on ctx and is forwarded by the client so the management auth
+// interceptor resolves the same user.
 func (m *ManualTradeReader) ManualTrades(ctx context.Context) ([]tradingplan.ManualTradeFact, error) {
 	req := &managementv1.GetManualJournalRequest{
-		Limit: 500,
+		Limit: manualJournalClosedFetchLimit,
 	}
 	resp, err := m.client.GetManualJournal(ctx, req)
 	if err != nil {
