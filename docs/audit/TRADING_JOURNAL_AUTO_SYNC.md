@@ -269,10 +269,14 @@ history import must first be upgraded to recover real entry/exit pairs
 ---
 
 ## 10. Implementation checklist (commit steps, this MR)
-  [ ] S1 management: typed `origin` column + idempotent migration +
+  [x] S1 management: typed `origin` column + idempotent migration +
          backfill; `TradeRecord.Origin` + select/scan; stamp origin at
          all three inserts; add `Origin` to in-memory `Trade` +
-         restore + reconciler.
+         restore + reconciler. DONE — schema/model/repository in
+         lockstep; InsertTrade defaults blank->SYSTEM; RegisterFilled
+         Trade=SYSTEM, buildReconciledTrade bare=MANUAL_RECONCILED &
+         recovery=rec.Origin, history=MANUAL_RESTORED; restore carries
+         it.
   [ ] S2 management: `GetManualClosedTrades(window)` repo method +
          `GetManualJournal` gRPC RPC (manual+window, excludes
          RESTORED) returning open+closed manual trades.
