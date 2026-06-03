@@ -18,8 +18,25 @@ import {
 const BASE = '/api/v1/trading-plan';
 
 export async function getTradingPlan(): Promise<TradingPlanRecord> {
-  const { data } = await api.gateway.get<TradingPlanRecord>(BASE);
+  // Forward the browser IANA timezone so the gateway renders the
+  // auto-filled journal Date cell in the trader's local time, never
+  // raw UTC. A missing/invalid tz degrades to UTC server-side.
+  const params: Record<string, string> = {};
+  const tz = resolveBrowserTimeZone();
+  if (tz) params.tz = tz;
+  const { data } = await api.gateway.get<TradingPlanRecord>(BASE, { params });
   return data;
+}
+
+// resolveBrowserTimeZone returns the browser's IANA timezone
+// (e.g. "Europe/London"), or "" when the Intl API is unavailable so
+// the caller omits the tz param and the gateway falls back to UTC.
+function resolveBrowserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch {
+    return '';
+  }
 }
 
 export async function getTradingPlanStatus(): Promise<TradingPlanStatusView> {

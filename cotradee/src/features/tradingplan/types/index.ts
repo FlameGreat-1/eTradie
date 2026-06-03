@@ -36,6 +36,15 @@ export interface AccountParameters {
 // 25-column Daily Execution Journal. Field names lockstep with
 // src/tradingplan/models.go::JournalRow.
 export interface JournalRow {
+  // Hidden internal anchor binding an auto-populated row to the
+  // management trade whose objective cells filled it. Stamped by the
+  // gateway auto-fill; the SPA must preserve it verbatim through the
+  // edit + save round-trip so the binding survives (the PUT decodes
+  // with DisallowUnknownFields and would otherwise 400, and dropping
+  // it would let the next auto-fill duplicate the row). NOT rendered:
+  // the table and Excel export both iterate explicit column lists that
+  // exclude it. Empty/absent on rows the trader hand-types.
+  trade_id?: string;
   date: string;
   session: string;
   pair: string;
