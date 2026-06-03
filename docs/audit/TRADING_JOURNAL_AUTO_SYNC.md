@@ -277,9 +277,13 @@ history import must first be upgraded to recover real entry/exit pairs
          Trade=SYSTEM, buildReconciledTrade bare=MANUAL_RECONCILED &
          recovery=rec.Origin, history=MANUAL_RESTORED; restore carries
          it.
-  [ ] S2 management: `GetManualClosedTrades(window)` repo method +
+  [x] S2 management: `GetManualClosedTrades(window)` repo method +
          `GetManualJournal` gRPC RPC (manual+window, excludes
-         RESTORED) returning open+closed manual trades.
+         RESTORED) returning open+closed manual trades. DONE — proto
+         RPC + messages added (run `make proto-gen`); repo query +
+         grpc handler (open from monitor filtered to
+         origin=MANUAL_RECONCILED + closed from store) + mock/import
+         fixes. REQUIRES `make proto-gen` before this compiles.
   [ ] S3 gateway: management client read method; plan model
          `JournalAnnotations` + schema v2 + validation.
   [ ] S4 gateway: `GET /trading-plan/journal` composite + formatter;
