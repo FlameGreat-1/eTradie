@@ -244,31 +244,43 @@ func (e *BreakevenEngine) applyTimeTightening(ctx context.Context, trade *types.
 		newSL = entryPrice + halfDist
 	}
 
-	// Only tighten if the new SL is better than current.
-	trade.RLock()
+	// Read-compare-write under ONE write-lock window so the tighten
+	// decision cannot race a concurrent SL move (EM-F3). Only tighten
+	// if newSL is still better than the CURRENT SL at the moment we
+	// hold the lock; if a concurrent BE/trail already moved it past
+	// newSL, leave it and skip the broker call. We provisionally stamp
+	// the new SL while holding the lock and roll it back if the broker
+	// modification fails, so memory never claims an SL the broker
+	// rejected.
+	trade.Lock()
 	currentSL := trade.StopLoss
-	trade.RUnlock()
-
 	tighten := false
 	if isLong && newSL > currentSL {
 		tighten = true
 	} else if !isLong && newSL < currentSL {
 		tighten = true
 	}
-
 	if !tighten {
+		trade.Unlock()
 		return false, nil
 	}
-
-	// Preserve the broker's FINAL-target TP (TP3) on the SL move.
-	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, trade.BrokerTakeProfit()); err != nil {
-		return false, err
-	}
-
-	trade.Lock()
 	trade.StopLoss = newSL
 	trade.SLMoves++
 	trade.Unlock()
+
+	// Preserve the broker's FINAL-target TP (TP3) on the SL move.
+	if err := e.bp.ModifyPosition(ctx, trade.BrokerOrderID, newSL, trade.BrokerTakeProfit()); err != nil {
+		// Roll back the provisional in-memory SL so it matches broker reality.
+		trade.Lock()
+		if trade.StopLoss == newSL {
+			trade.StopLoss = currentSL
+			if trade.SLMoves > 0 {
+				trade.SLMoves--
+			}
+		}
+		trade.Unlock()
+		return false, err
+	}
 
 	userID := trade.UserID
 	if err := e.journal.UpdateTradeSL(ctx, userID, trade.TradeID, newSL); err != nil {
