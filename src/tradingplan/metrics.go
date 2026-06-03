@@ -34,6 +34,18 @@ const (
 	endpointGenerate = "generate"
 	endpointEdit     = "edit"
 	endpointReset    = "reset"
+
+	// Journal auto-fill row actions.
+	autofillUpdated  = "updated"
+	autofillFilled   = "filled"
+	autofillAppended = "appended"
+	autofillCapped   = "capped"
+
+	// Journal auto-fill per-request outcomes.
+	autofillApplied      = "applied"
+	autofillNoop         = "noop"
+	autofillReadError    = "read_error"
+	autofillPersistError = "persist_error"
 )
 
 var (
@@ -110,4 +122,29 @@ var (
 		Name: "trading_plan_balance_source_total",
 		Help: "Generation count by balance source (broker vs. fallback).",
 	}, []string{"source"})
+
+	// TradingPlanJournalAutofillRows counts journal rows touched by the
+	// manual-trade auto-fill, partitioned by action:
+	//   updated  - an existing bound row's objective cells changed,
+	//   filled   - a blank seed row was newly claimed + bound,
+	//   appended - a new row was appended past the seeded blanks,
+	//   capped   - a manual trade was DROPPED because the journal is at
+	//              journalMaxRows (the silent-data-loss canary; a
+	//              non-zero rate means a user's journal is full and new
+	//              manual trades are no longer being recorded).
+	TradingPlanJournalAutofillRows = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "trading_plan_journal_autofill_rows_total",
+		Help: "Journal rows touched by the manual-trade auto-fill, by action.",
+	}, []string{"action"})
+
+	// TradingPlanJournalAutofillTotal counts each plan GET that ran the
+	// auto-fill, partitioned by outcome:
+	//   applied       - the merge changed the plan and it was persisted,
+	//   noop          - nothing to apply (no facts / no change / no plan),
+	//   read_error    - the management read failed (best-effort skip),
+	//   persist_error - the transactional merge/persist failed.
+	TradingPlanJournalAutofillTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "trading_plan_journal_autofill_total",
+		Help: "Manual-trade journal auto-fill runs, partitioned by outcome.",
+	}, []string{"outcome"})
 )

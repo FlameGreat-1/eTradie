@@ -278,10 +278,11 @@ func (s *Store) AutoFillJournal(
 	userID string,
 	facts []ManualTradeFact,
 	loc *time.Location,
-) (*Plan, bool, error) {
+) (*Plan, mergeStats, error) {
+	var zero mergeStats
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: begin: %w", err)
+		return nil, zero, fmt.Errorf("tradingplan.AutoFillJournal: begin: %w", err)
 	}
 	// Rollback is a no-op after a successful Commit; safe to always defer.
 	defer func() { _ = tx.Rollback(ctx) }()
@@ -293,37 +294,39 @@ func (s *Store) AutoFillJournal(
 	).Scan(&planRaw)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, false, ErrNotFound
+			return nil, zero, ErrNotFound
 		}
-		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: select for update: %w", err)
+		return nil, zero, fmt.Errorf("tradingplan.AutoFillJournal: select for update: %w", err)
 	}
 	if len(planRaw) == 0 {
 		// Row exists but no plan blob (e.g. status='generating'/'none').
 		// Nothing to auto-fill; commit the (empty) tx to release the lock.
 		if err := tx.Commit(ctx); err != nil {
-			return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: commit: %w", err)
+			return nil, zero, fmt.Errorf("tradingplan.AutoFillJournal: commit: %w", err)
 		}
-		return nil, false, nil
+		return nil, zero, nil
 	}
 
 	var plan Plan
 	if err := json.Unmarshal(planRaw, &plan); err != nil {
-		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: unmarshal: %w", err)
+		return nil, zero, fmt.Errorf("tradingplan.AutoFillJournal: unmarshal: %w", err)
 	}
 
-	changed := mergeManualTrades(&plan, facts, loc)
-	if !changed {
-		// No objective cell changed; release the lock without a write.
+	stats := mergeManualTrades(&plan, facts, loc)
+	if !stats.changed() {
+		// No objective cell changed (possibly only capped); release the
+		// lock without a write. Stats are still returned so the caller
+		// can surface a cap-hit (stats.Capped) even on a no-write pass.
 		if err := tx.Commit(ctx); err != nil {
-			return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: commit: %w", err)
+			return nil, zero, fmt.Errorf("tradingplan.AutoFillJournal: commit: %w", err)
 		}
-		return &plan, false, nil
+		return &plan, stats, nil
 	}
 
 	plan.SchemaVersion = CurrentSchemaVersion
 	raw, err := json.Marshal(&plan)
 	if err != nil {
-		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: marshal: %w", err)
+		return nil, zero, fmt.Errorf("tradingplan.AutoFillJournal: marshal: %w", err)
 	}
 
 	// Update ONLY the plan blob + updated_at. status/version are an
@@ -334,13 +337,13 @@ func (s *Store) AutoFillJournal(
 		  WHERE user_id = $1`,
 		userID, raw, time.Now().UTC(),
 	); err != nil {
-		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: update: %w", err)
+		return nil, zero, fmt.Errorf("tradingplan.AutoFillJournal: update: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: commit: %w", err)
+		return nil, zero, fmt.Errorf("tradingplan.AutoFillJournal: commit: %w", err)
 	}
-	return &plan, true, nil
+	return &plan, stats, nil
 }
 
 // ReapStaleGenerating flips any row in status='generating' whose
