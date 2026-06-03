@@ -81,6 +81,10 @@ func (m *mockJournal) GetClosedTrades(ctx context.Context, userID string, limit,
 	return nil, 0, nil
 }
 
+func (m *mockJournal) GetManualClosedTrades(ctx context.Context, userID string, since, until time.Time, limit, offset int) ([]*journal.TradeRecord, int, error) {
+	return nil, 0, nil
+}
+
 type mockMonitor struct {
 	registerCount int32
 }
