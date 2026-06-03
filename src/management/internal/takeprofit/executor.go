@@ -143,10 +143,12 @@ func (e *Executor) executeTP(
 		return "", fmt.Errorf("%s close: %w", label, err)
 	}
 
-	// Layer 1: Broker deal history (exact profit, commissions, swaps)
+	// Layer 1: Broker deal history (exact profit, commissions, swaps).
+	// Pass the just-closed volume so the correct OUT deal is selected
+	// when several partial closes land in the same history window (EM-F4).
 	pnl := 0.0
 	pnlSource := "none"
-	if brokerPnL, ok := e.pollClosedDealProfit(ctx, brokerID, symbol); ok {
+	if brokerPnL, ok := e.pollClosedDealProfit(ctx, brokerID, symbol, closeVol); ok {
 		pnl = brokerPnL
 		pnlSource = "broker_history"
 	}
@@ -250,7 +252,8 @@ func (e *Executor) executeTP(
 
 // pollClosedDealProfit polls the broker deal history until the closed
 // deal for brokerOrderID is found or the deadline is reached.
-func (e *Executor) pollClosedDealProfit(ctx context.Context, brokerOrderID, symbol string) (float64, bool) {
+// closedVolume identifies the specific leg just closed (EM-F4).
+func (e *Executor) pollClosedDealProfit(ctx context.Context, brokerOrderID, symbol string, closedVolume float64) (float64, bool) {
 	const (
 		maxAttempts  = 5
 		pollInterval = 200 * time.Millisecond
@@ -263,7 +266,7 @@ func (e *Executor) pollClosedDealProfit(ctx context.Context, brokerOrderID, symb
 				return 0, false
 			}
 		}
-		if pnl, ok := e.fetchClosedDealProfit(ctx, brokerOrderID, symbol); ok {
+		if pnl, ok := e.fetchClosedDealProfit(ctx, brokerOrderID, symbol, closedVolume); ok {
 			return pnl, true
 		}
 	}
@@ -275,11 +278,14 @@ func (e *Executor) pollClosedDealProfit(ctx context.Context, brokerOrderID, symb
 // including commission and swap for all instrument types, so this is
 // the most accurate P&L source.
 //
-// Searches backward to find the MOST RECENT close deal matching this position.
-// This is critical because a position might have multiple partial
-// closes (multiple OUT deals). By searching backward, we grab the
-// one that was just executed.
-func (e *Executor) fetchClosedDealProfit(ctx context.Context, brokerOrderID, symbol string) (float64, bool) {
+// Searches backward to find the MOST RECENT close deal matching this
+// position. When several partial closes land in the same history window
+// (e.g. TP2 and TP3 near-simultaneously), "most recent" alone can pick
+// the wrong leg, so we first prefer the most-recent matching deal whose
+// Volume equals the just-closed volume within a lot epsilon (EM-F4),
+// and only fall back to the most-recent matching deal when no volume-
+// matched OUT deal is found (e.g. the broker reports aggregate volume).
+func (e *Executor) fetchClosedDealProfit(ctx context.Context, brokerOrderID, symbol string, closedVolume float64) (float64, bool) {
 	if brokerOrderID == "" {
 		return 0, false
 	}
@@ -292,23 +298,67 @@ func (e *Executor) fetchClosedDealProfit(ctx context.Context, brokerOrderID, sym
 		return 0, false
 	}
 
+	// lotEpsilon sits below the 0.01 minimum lot step so a deal whose
+	// volume equals the closed leg is matched without false positives.
+	const lotEpsilon = 0.0009
+
+	matches := func(deal interface{ symbolOf() string }) bool { return true } // placeholder removed below
+	_ = matches
+
+	var (
+		fallbackProfit float64
+		fallbackTicket string
+		haveFallback   bool
+	)
+
 	for i := len(history) - 1; i >= 0; i-- {
 		deal := history[i]
-		if deal.PositionID == brokerOrderID || deal.Ticket == brokerOrderID {
-			if deal.Symbol != "" && deal.Symbol != symbol {
-				continue // Different symbol, not our deal
-			}
-			totalProfit := deal.Profit + deal.Commission + deal.Swap
-			e.log.Info().
-				Str("broker_order_id", brokerOrderID).
-				Str("deal_ticket", deal.Ticket).
-				Float64("profit", deal.Profit).
-				Float64("commission", deal.Commission).
-				Float64("swap", deal.Swap).
-				Float64("total", totalProfit).
-				Msg("broker_deal_profit_resolved")
-			return totalProfit, true
+		if deal.PositionID != brokerOrderID && deal.Ticket != brokerOrderID {
+			continue
 		}
+		if deal.Symbol != "" && deal.Symbol != symbol {
+			continue // Different symbol, not our deal.
+		}
+
+		totalProfit := deal.Profit + deal.Commission + deal.Swap
+
+		// Preferred: the most-recent OUT deal whose volume matches the
+		// leg we just closed. Searching backward, the first such match
+		// is the most recent, so return immediately.
+		if closedVolume > 0 {
+			d := deal.Volume - closedVolume
+			if d < 0 {
+				d = -d
+			}
+			if d <= lotEpsilon {
+				e.log.Info().
+					Str("broker_order_id", brokerOrderID).
+					Str("deal_ticket", deal.Ticket).
+					Float64("deal_volume", deal.Volume).
+					Float64("closed_volume", closedVolume).
+					Float64("total", totalProfit).
+					Msg("broker_deal_profit_resolved_volume_matched")
+				return totalProfit, true
+			}
+		}
+
+		// Remember the most-recent matching deal as a fallback (first
+		// one seen searching backward).
+		if !haveFallback {
+			fallbackProfit = totalProfit
+			fallbackTicket = deal.Ticket
+			haveFallback = true
+		}
+	}
+
+	if haveFallback {
+		e.log.Info().
+			Str("broker_order_id", brokerOrderID).
+			Str("deal_ticket", fallbackTicket).
+			Float64("closed_volume", closedVolume).
+			Float64("total", fallbackProfit).
+			Msg("broker_deal_profit_resolved_recent_fallback")
+		return fallbackProfit, true
 	}
 
 	e.log.Warn().
