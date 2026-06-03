@@ -251,6 +251,98 @@ func (s *Store) UpdatePlanContent(ctx context.Context, userID string, plan *Plan
 	}, nil
 }
 
+// AutoFillJournal merges the user's manual-trade objective facts into
+// the existing journal rows of the stored plan and persists the result
+// ATOMICALLY under a row lock. It is the single source of truth for the
+// journal auto-populate write path; the handler never does its own
+// read-modify-write (which would race across concurrent loads).
+//
+// Concurrency: the row is locked with SELECT ... FOR UPDATE for the
+// duration of the transaction, so two concurrent plan loads for the
+// same user serialise here — the "claim the next blank row" decision and
+// the persist are atomic, eliminating the double-bind / lost-update
+// window.
+//
+// Semantics: this is an auto-fill, NOT a user edit, so it updates ONLY
+// the plan blob and updated_at — status and version are left untouched.
+// It is a no-op (returns the loaded plan, changed=false) when the user
+// has no row, the row has no plan, or the merge changed nothing. loc
+// renders the Date cell (nil -> UTC).
+//
+// Returns the effective plan (merged when changed, otherwise the loaded
+// plan), whether it changed, and any error. ErrNotFound is returned
+// when the user has no plan row so the caller can treat it as "nothing
+// to fill".
+func (s *Store) AutoFillJournal(
+	ctx context.Context,
+	userID string,
+	facts []ManualTradeFact,
+	loc *time.Location,
+) (*Plan, bool, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: begin: %w", err)
+	}
+	// Rollback is a no-op after a successful Commit; safe to always defer.
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var planRaw []byte
+	err = tx.QueryRow(ctx,
+		`SELECT plan FROM user_trading_plans WHERE user_id = $1 FOR UPDATE`,
+		userID,
+	).Scan(&planRaw)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, false, ErrNotFound
+		}
+		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: select for update: %w", err)
+	}
+	if len(planRaw) == 0 {
+		// Row exists but no plan blob (e.g. status='generating'/'none').
+		// Nothing to auto-fill; commit the (empty) tx to release the lock.
+		if err := tx.Commit(ctx); err != nil {
+			return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: commit: %w", err)
+		}
+		return nil, false, nil
+	}
+
+	var plan Plan
+	if err := json.Unmarshal(planRaw, &plan); err != nil {
+		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: unmarshal: %w", err)
+	}
+
+	changed := mergeManualTrades(&plan, facts, loc)
+	if !changed {
+		// No objective cell changed; release the lock without a write.
+		if err := tx.Commit(ctx); err != nil {
+			return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: commit: %w", err)
+		}
+		return &plan, false, nil
+	}
+
+	plan.SchemaVersion = CurrentSchemaVersion
+	raw, err := json.Marshal(&plan)
+	if err != nil {
+		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: marshal: %w", err)
+	}
+
+	// Update ONLY the plan blob + updated_at. status/version are an
+	// auto-fill no-op (this is not a user edit nor an LLM regeneration).
+	if _, err := tx.Exec(ctx,
+		`UPDATE user_trading_plans
+		    SET plan = $2, updated_at = $3
+		  WHERE user_id = $1`,
+		userID, raw, time.Now().UTC(),
+	); err != nil {
+		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: update: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, false, fmt.Errorf("tradingplan.AutoFillJournal: commit: %w", err)
+	}
+	return &plan, true, nil
+}
+
 // ReapStaleGenerating flips any row in status='generating' whose
 // updated_at is older than `staleness` to status='failed' with a
 // short user-safe message. This is the safety net for the case where
