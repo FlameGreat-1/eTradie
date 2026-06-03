@@ -525,8 +525,22 @@ manage a trade whose intent we cannot know. The broker SL/TP always
 protects it regardless.
 
 Progress:
-  [ ] S1 EM-F1 takeprofit lock-clean hit checks
-  [ ] S2 EM-F2 reconciler recover-system-row + POSITIONAL manual default
-  [ ] S3 EM-F3 breakeven time-tighten atomic
-  [ ] S4 EM-F4 partial-close PnL volume-matched attribution
-  [ ] S5 statuses flipped + MR opened
+  [x] S1 EM-F1 takeprofit lock-clean hit checks (tpReached helper; no
+         Trade method called outside the lock window)
+  [x] S2 EM-F2 reconciler recover-system-row + POSITIONAL manual default
+         (buildReconciledTrade; GetTradeByBrokerOrderID recovery first,
+         StyleManualDefault=POSITIONAL fallback; both import sites
+         delegate to the single helper; RemainingLotSize now persisted
+         on the manual-import row too)
+  [x] S3 EM-F3 breakeven time-tighten read-compare-write under one
+         write lock + rollback of provisional SL on broker failure
+  [x] S4 EM-F4 partial-close PnL volume-matched attribution
+         (closeVol threaded through poll/fetch; prefer volume-matched
+         OUT deal, fall back to most-recent matching deal)
+  [x] S5 statuses flipped + MR opened
+
+ALL EM-F items DONE. No price/value hardcoded; POSITIONAL chosen as the
+safest manual-default style (full management still runs, only the
+intraday-specific 3h SL-tighten + 16:30 EOD hard-close are avoided).
+Manual trades carry the trader's single broker TP as TP1; TP2/TP3 stay
+unset because the trader expressed one target (not fabricated).
