@@ -178,7 +178,7 @@ export function JournalSection({ value, editing, onChange, headerActions }: Prop
                       />
                     ) : (
                       <span className="block px-2 py-1.5 font-bold text-black dark:text-white tracking-tight">
-                        {row[c.key] || '\u2014'}
+                        {row[c.key] || '—'}
                       </span>
                     )}
                   </td>
@@ -192,7 +192,7 @@ export function JournalSection({ value, editing, onChange, headerActions }: Prop
                       aria-label={`Remove row ${idx + 1}`}
                       title="Remove row"
                     >
-                      \u00d7
+                      ×
                     </button>
                   </td>
                 )}
@@ -209,8 +209,8 @@ export function JournalSection({ value, editing, onChange, headerActions }: Prop
 
 // windowRangeLabel renders a human description of which 90-day window
 // is being viewed, e.g. window=0 -> "Current 90 days", window=1 ->
-// "91\u2013180 days ago". Mirrors the gateway's journalWindowBounds:
-// window N spans [now-(N+1)*days, now-N*days].
+// "91-180 days ago". Mirrors the gateway's journalWindowBounds: window
+// N spans [now-(N+1)*days, now-N*days].
 function windowRangeLabel(window: number, windowDays: number): string {
   if (window <= 0) return `Current ${windowDays} days`;
   const from = window * windowDays + 1;
@@ -225,7 +225,7 @@ function windowRangeLabel(window: number, windowDays: number): string {
  * (so a past-window row is byte-identical, and the hidden trade_id is
  * excluded exactly as it is in the live table and the Excel export).
  * Window navigation steps older/newer; page navigation walks the
- * closed set within a window. Local state only \u2014 it never touches the
+ * closed set within a window. Local state only — it never touches the
  * parent's draft / edit flow.
  */
 function JournalHistoryPanel() {
@@ -260,7 +260,7 @@ function JournalHistoryPanel() {
           <div className="text-sm font-bold text-black dark:text-white tracking-tight">{rangeLabel}</div>
           <div className="mt-0.5 text-[10px] font-medium text-black/40 dark:text-white/40">
             {totalClosed} closed {totalClosed === 1 ? 'trade' : 'trades'} in this window
-            {isFetching && ' \u00b7 updating\u2026'}
+            {isFetching && ' · updating…'}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -270,14 +270,14 @@ function JournalHistoryPanel() {
             disabled={window <= 1}
             className="rounded-lg border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-all disabled:opacity-20"
           >
-            \u2190 Newer
+            ← Newer
           </button>
           <button
             type="button"
             onClick={goOlderWindow}
             className="rounded-lg border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-all"
           >
-            Older \u2192
+            Older →
           </button>
         </div>
       </div>
@@ -288,7 +288,7 @@ function JournalHistoryPanel() {
         </div>
       ) : isLoading ? (
         <div className="py-10 text-center text-[11px] font-bold italic text-black/30 dark:text-white/30">
-          Loading\u2026
+          Loading…
         </div>
       ) : (
         <div className="overflow-x-auto -mx-1 px-1">
@@ -321,7 +321,7 @@ function JournalHistoryPanel() {
                   {COLUMNS.map((c) => (
                     <td key={c.key} className="px-1 py-1.5">
                       <span className="block px-2 py-1.5 font-bold text-black dark:text-white tracking-tight">
-                        {row[c.key] || '\u2014'}
+                        {row[c.key] || '—'}
                       </span>
                     </td>
                   ))}
@@ -339,7 +339,7 @@ function JournalHistoryPanel() {
           disabled={page <= 0}
           className="rounded-lg border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-all disabled:opacity-20"
         >
-          \u2190 Prev page
+          ← Prev page
         </button>
         <span className="text-[10px] font-black uppercase tracking-widest text-black/30 dark:text-white/30">
           Page {page + 1}
@@ -350,7 +350,7 @@ function JournalHistoryPanel() {
           disabled={!hasMore}
           className="rounded-lg border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white hover:border-black/30 dark:hover:border-white/30 transition-all disabled:opacity-20"
         >
-          Next page \u2192
+          Next page →
         </button>
       </div>
     </div>
