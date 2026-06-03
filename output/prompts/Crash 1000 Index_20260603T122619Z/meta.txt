@@ -1,0 +1,7 @@
+trace_id: 7521f7c53213e3d7c66876c98be099a4
+source: 
+user_id: f5306c6773ac8058b6f804c17b61c42a
+symbol: Crash 1000 Index
+model: gemini-3.5-flash
+max_output_tokens: 32768
+prompt_hash: 66d913ebcfb29b12560ba6b7e00bb6a2
