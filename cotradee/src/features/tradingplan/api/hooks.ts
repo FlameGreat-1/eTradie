@@ -8,12 +8,17 @@ import {
 import {
   generateTradingPlan,
   getTradingPlan,
+  getTradingPlanJournal,
   getTradingPlanStatus,
   resetTradingPlan,
   updateTradingPlan,
+  upsertJournalAnnotation,
 } from './client';
 import type {
   GenerateOptions,
+  JournalAnnotation,
+  JournalView,
+  JournalWindow,
   TradingPlan,
   TradingPlanRecord,
   TradingPlanStatusView,
@@ -23,6 +28,8 @@ export const tradingPlanKeys = {
   all: ['trading-plan'] as const,
   plan: () => [...tradingPlanKeys.all, 'plan'] as const,
   status: () => [...tradingPlanKeys.all, 'status'] as const,
+  journal: (window: JournalWindow) =>
+    [...tradingPlanKeys.all, 'journal', window] as const,
 } as const;
 
 /**
@@ -116,6 +123,49 @@ export function useUpdateTradingPlan(
     onSuccess: (data, variables, context) => {
       qc.setQueryData(tradingPlanKeys.plan(), data);
       qc.invalidateQueries({ queryKey: tradingPlanKeys.status() });
+      options?.onSuccess?.(data, variables, context);
+    },
+    ...options,
+  });
+}
+
+/**
+ * Composite Daily Execution Journal for the selected 90-day window.
+ * Objective facts come live from management; subjective cells come
+ * from the saved annotations. Re-fetches on window change. The browser
+ * timezone is resolved inside the client so the Date/Session cells
+ * render locally.
+ */
+export function useTradingPlanJournal(
+  window: JournalWindow = 'current',
+  options?: Omit<UseQueryOptions<JournalView>, 'queryKey' | 'queryFn'>,
+) {
+  return useQuery<JournalView>({
+    queryKey: tradingPlanKeys.journal(window),
+    queryFn: () => getTradingPlanJournal(window),
+    staleTime: 15 * 1000,
+    ...options,
+  });
+}
+
+/**
+ * Upsert one subjective annotation by trade_id. Invalidates every
+ * journal-window query (the saved cells must re-render) and the plan
+ * query (the plan blob now carries the new annotation).
+ */
+export function useUpsertJournalAnnotation(
+  options?: UseMutationOptions<
+    { saved: boolean; trade_id: string },
+    unknown,
+    JournalAnnotation
+  >,
+) {
+  const qc = useQueryClient();
+  return useMutation<{ saved: boolean; trade_id: string }, unknown, JournalAnnotation>({
+    mutationFn: (annotation) => upsertJournalAnnotation(annotation),
+    onSuccess: (data, variables, context) => {
+      qc.invalidateQueries({ queryKey: [...tradingPlanKeys.all, 'journal'] });
+      qc.invalidateQueries({ queryKey: tradingPlanKeys.plan() });
       options?.onSuccess?.(data, variables, context);
     },
     ...options,
