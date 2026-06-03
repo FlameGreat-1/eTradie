@@ -94,21 +94,30 @@ func (h *Handler) WithManualTradeReader(r ManualTradeReader) *Handler {
 	return h
 }
 
+// journalWindowDays is the rolling window the auto-fill keeps in the
+// plan blob. The Daily Execution Journal is a 90-day workbook: only
+// manual trades opened within the last journalWindowDays populate the
+// plan. Older trades are never lost — their objective facts live
+// permanently in management_trades and the UI pages back to previous
+// windows. The window (not a fixed row count) is what bounds the blob,
+// so the journal keeps logging forever.
+const journalWindowDays = 90
+
 // mergeStats reports the outcome of a mergeManualTrades pass so the
-// caller can decide whether to persist and can emit metrics. It makes
-// the cap-hit case (Capped > 0) observable instead of a silent drop.
+// caller can decide whether to persist and can emit metrics.
 type mergeStats struct {
 	Updated  int // existing bound rows whose objective cells changed
 	Filled   int // blank seed rows newly claimed + bound
 	Appended int // new rows appended past the seeded blanks
-	Capped   int // manual trades dropped because journalMaxRows is full
+	Rolled   int // auto rows reclaimed because they fell out of the window
+	Capped   int // trades not placed because journalMaxRows is full (extreme)
 }
 
 // changed reports whether the merge actually mutated the plan blob (so
 // the caller persists). A capped-only pass changes nothing and must NOT
-// trigger a write.
+// trigger a write; a roll-out DOES change the blob.
 func (m mergeStats) changed() bool {
-	return m.Updated > 0 || m.Filled > 0 || m.Appended > 0
+	return m.Updated > 0 || m.Filled > 0 || m.Appended > 0 || m.Rolled > 0
 }
 
 // mergeManualTrades fills the OBJECTIVE cells of the plan's existing
@@ -133,16 +142,53 @@ func (m mergeStats) changed() bool {
 // trades and hand-typed rows (no TradeID, but non-empty) are skipped
 // when scanning for a blank slot, so nothing the trader did is ever
 // clobbered.
-func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location) mergeStats {
+//
+// Windowing (W1): only facts opened within the last journalWindowDays
+// are merged; auto-bound rows whose trade fell out of the window are
+// rolled out (reset to blank) UNLESS the trader annotated them, so the
+// blob holds the current window plus any annotated rows and the
+// journal keeps logging forever without a fixed row cap. now is the
+// window anchor (caller passes time.Now()).
+func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location, now time.Time) mergeStats {
 	var stats mergeStats
-	if p == nil || len(facts) == 0 {
+	if p == nil {
 		return stats
 	}
 	if loc == nil {
 		loc = time.UTC
 	}
 
-	// Index existing rows already bound to a trade.
+	// Set of trades that are in the current window (by open date). Used
+	// both to gate merging and to decide which bound rows to roll out.
+	inWindow := make(map[string]bool, len(facts))
+	for _, f := range facts {
+		if f.TradeID != "" && factInWindow(f, now) {
+			inWindow[f.TradeID] = true
+		}
+	}
+
+	// ROLL-OUT phase: reclaim auto-bound rows whose trade is no longer
+	// in the window, so the seed slots free up and the blob tracks the
+	// current 90-day window. An annotated row (the trader typed a
+	// subjective cell) is ALWAYS kept — never lose human work.
+	for i := range p.Journal {
+		id := p.Journal[i].TradeID
+		if id == "" {
+			continue // hand-typed or blank row: never touched here.
+		}
+		if inWindow[id] {
+			continue // still in the current window.
+		}
+		if rowHasAnnotation(&p.Journal[i]) {
+			continue // trader annotated it: keep regardless of window.
+		}
+		// Stale, unannotated auto row -> reset to a blank, unbound slot.
+		// Its objective facts remain in management_trades.
+		p.Journal[i] = JournalRow{}
+		stats.Rolled++
+	}
+
+	// Index existing rows already bound to a trade (post roll-out).
 	boundRow := make(map[string]int, len(p.Journal))
 	for i := range p.Journal {
 		if id := p.Journal[i].TradeID; id != "" {
@@ -155,10 +201,18 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location) mer
 			continue
 		}
 		if idx, ok := boundRow[f.TradeID]; ok {
-			// Update the already-bound row in place.
+			// Update the already-bound row in place (open -> close), even
+			// if it is now just outside the window: a row already in the
+			// blob is kept current until it rolls out on a later pass.
 			if applyObjectiveCells(&p.Journal[idx], f, loc) {
 				stats.Updated++
 			}
+			continue
+		}
+		// New trade: only place it when it is in the current window.
+		// Out-of-window trades belong to a previous window the UI pages
+		// to (read from management_trades), not the live blob.
+		if !factInWindow(f, now) {
 			continue
 		}
 		// Claim the next fully-blank seed row.
@@ -169,9 +223,10 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location) mer
 			stats.Filled++
 			continue
 		}
-		// No blank row left: append, unless the cap is reached — in which
-		// case count it as Capped so the caller can surface the drop
-		// (metric + log) instead of losing the trade silently.
+		// No blank row left: append, unless the final hard safety bound
+		// is reached. After roll-out this is only possible with >200
+		// annotated rows inside one window; surface it (metric + log)
+		// rather than lose the trade silently.
 		if len(p.Journal) >= journalMaxRows {
 			stats.Capped++
 			continue
@@ -183,6 +238,33 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location) mer
 		stats.Appended++
 	}
 	return stats
+}
+
+// factInWindow reports whether a manual trade's open date is within the
+// current journalWindowDays window ending at now. An empty or
+// unparseable OpenedAt is treated as in-window so a bad timestamp never
+// silently drops a trade from the live journal.
+func factInWindow(f ManualTradeFact, now time.Time) bool {
+	ts := strings.TrimSpace(f.OpenedAt)
+	if ts == "" {
+		return true
+	}
+	opened, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return true
+	}
+	cutoff := now.Add(-time.Duration(journalWindowDays) * 24 * time.Hour)
+	return !opened.Before(cutoff)
+}
+
+// rowHasAnnotation reports whether the trader has filled ANY subjective
+// cell on the row. Such a row is never rolled out by the window, so no
+// human work is ever lost. The objective cells are excluded because
+// they are system-owned (auto-filled).
+func rowHasAnnotation(r *JournalRow) bool {
+	return r.HTFBias != "" || r.RuleFollowed != "" || r.EmotionBeforeTrade != "" ||
+		r.EmotionAfterTrade != "" || r.TradeQuality != "" || r.MistakeCategory != "" ||
+		r.NewsPresent != "" || r.ScreenshotLink != "" || r.Notes != ""
 }
 
 // nextBlankRow returns the index of the first fully-blank, unbound row
