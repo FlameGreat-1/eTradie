@@ -302,9 +302,6 @@ func (e *Executor) fetchClosedDealProfit(ctx context.Context, brokerOrderID, sym
 	// volume equals the closed leg is matched without false positives.
 	const lotEpsilon = 0.0009
 
-	matches := func(deal interface{ symbolOf() string }) bool { return true } // placeholder removed below
-	_ = matches
-
 	var (
 		fallbackProfit float64
 		fallbackTicket string
