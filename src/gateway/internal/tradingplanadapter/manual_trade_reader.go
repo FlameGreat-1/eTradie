@@ -77,8 +77,50 @@ func (m *ManualTradeReader) ManualTrades(ctx context.Context) ([]tradingplan.Man
 	if resp == nil {
 		return nil, nil
 	}
+	return factsFromEntries(resp.GetEntries()), nil
+}
 
-	entries := resp.GetEntries()
+// ManualTradesWindow satisfies tradingplan.ManualTradeReader. It reads
+// the user's manual trades whose open date falls in [since, until],
+// paginated by limit/offset, plus the total closed count in that window
+// (for the UI pager). A zero since/until is sent as an empty RFC3339
+// bound (unbounded on that side). Powers the read-only journal history
+// view paging back through previous 90-day windows.
+func (m *ManualTradeReader) ManualTradesWindow(
+	ctx context.Context,
+	since, until time.Time,
+	limit, offset int,
+) ([]tradingplan.ManualTradeFact, int, error) {
+	req := &managementv1.GetManualJournalRequest{
+		SinceRfc3339: rfc3339OrEmpty(since),
+		UntilRfc3339: rfc3339OrEmpty(until),
+		Limit:        int32(limit),
+		Offset:       int32(offset),
+	}
+	resp, err := m.client.GetManualJournal(ctx, req)
+	if err != nil {
+		return nil, 0, err
+	}
+	if resp == nil {
+		return nil, 0, nil
+	}
+	return factsFromEntries(resp.GetEntries()), int(resp.GetTotalClosed()), nil
+}
+
+// rfc3339OrEmpty renders a time as RFC3339, or "" for the zero time
+// (the management handler treats an empty bound as unbounded).
+func rfc3339OrEmpty(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+
+// factsFromEntries converts the generated proto ManualJournalEntry
+// messages into transport-agnostic tradingplan.ManualTradeFact values.
+// Shared by ManualTrades and ManualTradesWindow so the conversion lives
+// in exactly one place.
+func factsFromEntries(entries []*managementv1.ManualJournalEntry) []tradingplan.ManualTradeFact {
 	facts := make([]tradingplan.ManualTradeFact, 0, len(entries))
 	for _, e := range entries {
 		if e == nil {
@@ -108,5 +150,5 @@ func (m *ManualTradeReader) ManualTrades(ctx context.Context) ([]tradingplan.Man
 			ClosedAt:     e.GetClosedAt(),
 		})
 	}
-	return facts, nil
+	return facts
 }

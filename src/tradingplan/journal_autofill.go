@@ -81,7 +81,21 @@ type ManualTradeFact struct {
 // which holds the raw JWT the management auth interceptor resolves the
 // user from).
 type ManualTradeReader interface {
+	// ManualTrades returns all of the user's manual trades (open +
+	// closed) for the auto-fill of the CURRENT window. Unbounded read.
 	ManualTrades(ctx context.Context) ([]ManualTradeFact, error)
+
+	// ManualTradesWindow returns the user's manual trades whose open
+	// date falls in [since, until], paginated by limit/offset, plus the
+	// total closed count in that window (for the UI pager). It powers
+	// the read-only journal history view that pages back through
+	// PREVIOUS 90-day windows; those trades are served from the
+	// permanent management_trades record, never written to the plan.
+	ManualTradesWindow(
+		ctx context.Context,
+		since, until time.Time,
+		limit, offset int,
+	) (facts []ManualTradeFact, totalClosed int, err error)
 }
 
 // WithManualTradeReader injects the management-backed reader that feeds
