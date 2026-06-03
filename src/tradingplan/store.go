@@ -312,7 +312,7 @@ func (s *Store) AutoFillJournal(
 		return nil, zero, fmt.Errorf("tradingplan.AutoFillJournal: unmarshal: %w", err)
 	}
 
-	stats := mergeManualTrades(&plan, facts, loc)
+	stats := mergeManualTrades(&plan, facts, loc, time.Now().UTC())
 	if !stats.changed() {
 		// No objective cell changed (possibly only capped); release the
 		// lock without a write. Stats are still returned so the caller

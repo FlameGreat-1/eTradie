@@ -257,6 +257,9 @@ func (h *Handler) autoFillJournal(ctx context.Context, userID string, loc *time.
 	if stats.Appended > 0 {
 		TradingPlanJournalAutofillRows.WithLabelValues(autofillAppended).Add(float64(stats.Appended))
 	}
+	if stats.Rolled > 0 {
+		TradingPlanJournalAutofillRows.WithLabelValues(autofillRolled).Add(float64(stats.Rolled))
+	}
 	if stats.Capped > 0 {
 		TradingPlanJournalAutofillRows.WithLabelValues(autofillCapped).Add(float64(stats.Capped))
 		// The journal is full: new manual trades can no longer be
