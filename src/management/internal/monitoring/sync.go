@@ -4,6 +4,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -555,6 +556,7 @@ func (s *StateReconciler) buildReconciledTrade(
 		StopLoss:         pos.StopLoss,
 		InitialSL:        pos.StopLoss,
 		TP1Price:         pos.TakeProfit,
+		RRRatio:          plannedRR(pos.EntryPrice, pos.StopLoss, pos.TakeProfit),
 		TotalLotSize:     pos.Volume,
 		RemainingLotSize: pos.Volume,
 		Status:           constants.StatusActive,
@@ -574,6 +576,7 @@ func (s *StateReconciler) buildReconciledTrade(
 		StopLoss:         trade.StopLoss,
 		InitialSL:        trade.InitialSL,
 		TP1Price:         trade.TP1Price,
+		RRRatio:          trade.RRRatio,
 		TotalLotSize:     trade.TotalLotSize,
 		RemainingLotSize: trade.RemainingLotSize,
 		Status:           string(trade.Status),
@@ -585,4 +588,28 @@ func (s *StateReconciler) buildReconciledTrade(
 	}
 
 	return trade, nil
+}
+
+// plannedRR computes the planned reward:risk of a manually-opened
+// position from its broker entry, stop-loss and take-profit:
+//
+//	RR = |tp - entry| / |entry - sl|
+//
+// It returns 0 (RR unknown -> the journal cell stays blank) when the
+// stop-loss or take-profit is absent, or when the risk distance is
+// non-positive. We never fabricate a ratio for a manual trade that did
+// not set both a stop and a target.
+func plannedRR(entry, sl, tp float64) float64 {
+	if entry <= 0 || sl <= 0 || tp <= 0 {
+		return 0
+	}
+	risk := math.Abs(entry - sl)
+	if risk <= 0 {
+		return 0
+	}
+	reward := math.Abs(tp - entry)
+	if reward <= 0 {
+		return 0
+	}
+	return reward / risk
 }

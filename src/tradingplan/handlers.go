@@ -189,9 +189,11 @@ func (h *Handler) getPlan(w http.ResponseWriter, r *http.Request) {
 	if rec.Plan != nil {
 		TradingPlanFetchTotal.WithLabelValues(outcomeHit).Inc()
 		// Auto-populate the objective cells of the existing journal rows
-		// from the trader's manual trades, in place. Best-effort: a nil
-		// reader or a read error never blocks the plan load.
-		h.autoFillJournal(r.Context(), userID, rec)
+		// from the trader's manual trades, atomically under a row lock.
+		// Best-effort: a nil reader or any error never blocks the load.
+		if merged := h.autoFillJournal(r.Context(), userID, parseTZ(r)); merged != nil {
+			rec.Plan = merged
+		}
 	} else {
 		TradingPlanFetchTotal.WithLabelValues(outcomeEmpty).Inc()
 	}
@@ -206,33 +208,56 @@ func (h *Handler) getPlan(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// autoFillJournal merges the user's manual-trade objective facts into
-// the loaded plan's existing journal rows in place, then persists the
-// result so the row<->trade binding and the objective cells stick.
+// autoFillJournal reads the user's manual trades and merges their
+// objective facts into the stored plan's existing journal rows,
+// persisting the result atomically under a row lock
+// (Store.AutoFillJournal). Returns the merged plan when something
+// changed, or nil when there was nothing to apply (so the caller keeps
+// the already-loaded plan).
 //
 // Best-effort by design: when no reader is wired, the reader errors, or
-// the persist fails, the plan is still returned as loaded (possibly with
-// the in-memory merge applied) and the trader's manual workflow is
+// the transactional merge fails, it logs and returns nil; the plan GET
+// still returns the plan as loaded and the trader's manual workflow is
 // unaffected. The trader's subjective cells and hand-typed rows are
 // never touched by the merge (see mergeManualTrades).
-func (h *Handler) autoFillJournal(ctx context.Context, userID string, rec *Record) {
-	if h.manualTrades == nil || rec == nil || rec.Plan == nil {
-		return
+func (h *Handler) autoFillJournal(ctx context.Context, userID string, loc *time.Location) *Plan {
+	if h.manualTrades == nil {
+		return nil
 	}
 	facts, err := h.manualTrades.ManualTrades(ctx)
 	if err != nil {
 		h.log.Warn().Err(err).Str("user_id", userID).Msg("trading_plan_journal_autofill_read_failed")
-		return
+		return nil
 	}
-	if !mergeManualTrades(rec.Plan, facts) {
-		return
+	if len(facts) == 0 {
+		return nil
 	}
-	if _, err := h.store.UpdatePlanContent(ctx, userID, rec.Plan); err != nil {
-		// The merge already mutated rec.Plan in memory, so the response
-		// still reflects the auto-fill; we just could not persist it.
-		// The next GET recomputes from management, so this is recoverable.
-		h.log.Warn().Err(err).Str("user_id", userID).Msg("trading_plan_journal_autofill_persist_failed")
+	merged, changed, err := h.store.AutoFillJournal(ctx, userID, facts, loc)
+	if err != nil {
+		if !errors.Is(err, ErrNotFound) {
+			h.log.Warn().Err(err).Str("user_id", userID).Msg("trading_plan_journal_autofill_failed")
+		}
+		return nil
 	}
+	if !changed {
+		return nil
+	}
+	return merged
+}
+
+// parseTZ resolves the optional ?tz IANA timezone query param to a
+// *time.Location for rendering the auto-filled Date cell in the
+// trader's local time. An empty or invalid tz falls back to UTC so the
+// output stays deterministic.
+func parseTZ(r *http.Request) *time.Location {
+	tz := strings.TrimSpace(r.URL.Query().Get("tz"))
+	if tz == "" {
+		return time.UTC
+	}
+	if loc, err := time.LoadLocation(tz); err == nil {
+		return loc
+	}
+	return time.UTC
 }
 
 // putPlan handles in-app manual edits. Does NOT trigger an LLM call;
