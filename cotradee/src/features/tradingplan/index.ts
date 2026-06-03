@@ -13,6 +13,7 @@ export * from './api/hooks';
 export {
   generateTradingPlan,
   getTradingPlan,
+  getTradingPlanJournalHistory,
   getTradingPlanStatus,
   resetTradingPlan,
   updateTradingPlan,

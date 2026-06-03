@@ -122,6 +122,22 @@ export interface TradingPlanRecord {
   updated_at?: string;
 }
 
+// One page of a PREVIOUS journal window
+// (/api/v1/trading-plan/journal/history). The current window (window=0)
+// is the live auto-filled plan blob returned by GET /trading-plan; this
+// read-only projection serves older windows straight from the permanent
+// management_trades record so nothing is lost when a window rolls out.
+// Field names lockstep with the gateway handleJournalHistory response.
+export interface JournalHistoryPage {
+  window: number; // 0 = current 90 days, 1 = previous, ...
+  page: number; // 0-based page within the window's closed set
+  page_size: number;
+  total_closed: number; // total closed trades in this window
+  has_more: boolean; // another page exists after this one
+  window_days: number; // window length in days (90)
+  rows: JournalRow[];
+}
+
 // Lightweight projection (/api/v1/trading-plan/status).
 export interface TradingPlanStatusView {
   status: TradingPlanStatus;
