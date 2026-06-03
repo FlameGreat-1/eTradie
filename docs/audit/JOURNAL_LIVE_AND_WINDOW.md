@@ -35,10 +35,17 @@ count-bounded; `journalMaxRows` stops being a silent stop for auto
 trades.
 
 ## Steps
-  A. tracker (this commit).
-  B. L1 realtime wiring in eventMap.ts.
-  C. W1 backend: window-bounded merge + roll-out of stale unannotated
-     auto rows; metrics (rolled/kept); remove the silent cap stop.
-  D. W1 read/pagination for previous windows.
-  E. W1 frontend window/pagination affordance.
-  F. flip tracker DONE.
+  [x] A. tracker.
+  [x] B. L1 realtime wiring in eventMap.ts (['trading-plan'] on
+         TRADE_SYNCED / PARTIAL_CLOSE / TRADE_CLOSED).
+  [x] C. W1 backend: window-bounded merge + roll-out of stale
+         unannotated auto rows; rolled/capped metrics; the hard 200
+         stop is gone (window-bounded; journalMaxRows is now only a
+         final safety bound).
+  [x] D. W1 read/pagination: ManualTradesWindow reader port + adapter
+         (over the existing GetManualJournal since/until/limit/offset);
+         read-only GET /api/v1/trading-plan/journal/history?window&page
+         returning rows + total_closed + has_more.
+  [ ] E. W1 frontend: history client fn + hook + page-back affordance
+         in the journal view.
+  [ ] F. flip tracker to DONE.
