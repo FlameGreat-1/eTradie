@@ -226,22 +226,53 @@ func (h *Handler) autoFillJournal(ctx context.Context, userID string, loc *time.
 	}
 	facts, err := h.manualTrades.ManualTrades(ctx)
 	if err != nil {
+		TradingPlanJournalAutofillTotal.WithLabelValues(autofillReadError).Inc()
 		h.log.Warn().Err(err).Str("user_id", userID).Msg("trading_plan_journal_autofill_read_failed")
 		return nil
 	}
 	if len(facts) == 0 {
+		TradingPlanJournalAutofillTotal.WithLabelValues(autofillNoop).Inc()
 		return nil
 	}
-	merged, changed, err := h.store.AutoFillJournal(ctx, userID, facts, loc)
+	merged, stats, err := h.store.AutoFillJournal(ctx, userID, facts, loc)
 	if err != nil {
-		if !errors.Is(err, ErrNotFound) {
-			h.log.Warn().Err(err).Str("user_id", userID).Msg("trading_plan_journal_autofill_failed")
+		if errors.Is(err, ErrNotFound) {
+			// No plan row yet: nothing to fill, not an error.
+			TradingPlanJournalAutofillTotal.WithLabelValues(autofillNoop).Inc()
+			return nil
 		}
+		TradingPlanJournalAutofillTotal.WithLabelValues(autofillPersistError).Inc()
+		h.log.Warn().Err(err).Str("user_id", userID).Msg("trading_plan_journal_autofill_failed")
 		return nil
 	}
-	if !changed {
+
+	// Per-action row metrics (always recorded, even on a no-write pass,
+	// so a capped-only pass is still counted).
+	if stats.Updated > 0 {
+		TradingPlanJournalAutofillRows.WithLabelValues(autofillUpdated).Add(float64(stats.Updated))
+	}
+	if stats.Filled > 0 {
+		TradingPlanJournalAutofillRows.WithLabelValues(autofillFilled).Add(float64(stats.Filled))
+	}
+	if stats.Appended > 0 {
+		TradingPlanJournalAutofillRows.WithLabelValues(autofillAppended).Add(float64(stats.Appended))
+	}
+	if stats.Capped > 0 {
+		TradingPlanJournalAutofillRows.WithLabelValues(autofillCapped).Add(float64(stats.Capped))
+		// The journal is full: new manual trades can no longer be
+		// recorded for this user. Surface it loudly (was a silent drop).
+		h.log.Warn().
+			Str("user_id", userID).
+			Int("dropped", stats.Capped).
+			Int("cap", journalMaxRows).
+			Msg("trading_plan_journal_autofill_capped")
+	}
+
+	if !stats.changed() {
+		TradingPlanJournalAutofillTotal.WithLabelValues(autofillNoop).Inc()
 		return nil
 	}
+	TradingPlanJournalAutofillTotal.WithLabelValues(autofillApplied).Inc()
 	return merged
 }
 
