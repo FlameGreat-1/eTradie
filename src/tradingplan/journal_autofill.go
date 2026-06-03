@@ -94,9 +94,27 @@ func (h *Handler) WithManualTradeReader(r ManualTradeReader) *Handler {
 	return h
 }
 
+// mergeStats reports the outcome of a mergeManualTrades pass so the
+// caller can decide whether to persist and can emit metrics. It makes
+// the cap-hit case (Capped > 0) observable instead of a silent drop.
+type mergeStats struct {
+	Updated  int // existing bound rows whose objective cells changed
+	Filled   int // blank seed rows newly claimed + bound
+	Appended int // new rows appended past the seeded blanks
+	Capped   int // manual trades dropped because journalMaxRows is full
+}
+
+// changed reports whether the merge actually mutated the plan blob (so
+// the caller persists). A capped-only pass changes nothing and must NOT
+// trigger a write.
+func (m mergeStats) changed() bool {
+	return m.Updated > 0 || m.Filled > 0 || m.Appended > 0
+}
+
 // mergeManualTrades fills the OBJECTIVE cells of the plan's existing
-// journal rows from the user's manual trades, in place. Returns true
-// when the plan was modified (so the caller persists it).
+// journal rows from the user's manual trades, in place. Returns a
+// mergeStats describing what happened (so the caller can persist +
+// emit metrics, and so the cap-hit drop is observable).
 //
 // loc renders the Date cell in the trader's timezone (forwarded as ?tz
 // on the plan GET); a nil loc is treated as UTC so the result stays
@@ -107,15 +125,18 @@ func (h *Handler) WithManualTradeReader(r ManualTradeReader) *Handler {
 //      objective cells in place (handles open -> close progression).
 //   2. Otherwise claim the NEXT fully-blank seed row (no TradeID and
 //      every cell empty), bind it, and fill the objective cells.
-//   3. Otherwise append a new row (respecting journalMaxRows).
+//   3. Otherwise append a new row (respecting journalMaxRows); when the
+//      cap is reached the trade is counted as Capped (surfaced by the
+//      caller) rather than silently dropped.
 //
 // The trader's SUBJECTIVE cells are never written; rows bound to other
 // trades and hand-typed rows (no TradeID, but non-empty) are skipped
 // when scanning for a blank slot, so nothing the trader did is ever
 // clobbered.
-func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location) bool {
+func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location) mergeStats {
+	var stats mergeStats
 	if p == nil || len(facts) == 0 {
-		return false
+		return stats
 	}
 	if loc == nil {
 		loc = time.UTC
@@ -129,7 +150,6 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location) boo
 		}
 	}
 
-	changed := false
 	for _, f := range facts {
 		if f.TradeID == "" {
 			continue
@@ -137,7 +157,7 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location) boo
 		if idx, ok := boundRow[f.TradeID]; ok {
 			// Update the already-bound row in place.
 			if applyObjectiveCells(&p.Journal[idx], f, loc) {
-				changed = true
+				stats.Updated++
 			}
 			continue
 		}
@@ -146,20 +166,23 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location) boo
 			p.Journal[idx].TradeID = f.TradeID
 			applyObjectiveCells(&p.Journal[idx], f, loc)
 			boundRow[f.TradeID] = idx
-			changed = true
+			stats.Filled++
 			continue
 		}
-		// No blank row left: append (respect the cap).
+		// No blank row left: append, unless the cap is reached — in which
+		// case count it as Capped so the caller can surface the drop
+		// (metric + log) instead of losing the trade silently.
 		if len(p.Journal) >= journalMaxRows {
+			stats.Capped++
 			continue
 		}
 		row := JournalRow{TradeID: f.TradeID}
 		applyObjectiveCells(&row, f, loc)
 		p.Journal = append(p.Journal, row)
 		boundRow[f.TradeID] = len(p.Journal) - 1
-		changed = true
+		stats.Appended++
 	}
-	return changed
+	return stats
 }
 
 // nextBlankRow returns the index of the first fully-blank, unbound row
