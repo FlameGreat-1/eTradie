@@ -482,6 +482,83 @@ func (r *Repository) GetAllActiveTrades(ctx context.Context) ([]*TradeRecord, er
 	return trades, nil
 }
 
+// GetManualClosedTrades returns CLOSED trades whose origin is
+// OriginManualReconciled within an opened_at window, paginated and
+// newest-first, plus the total count of such trades in the window
+// (for the caller's pagination). It powers the trading-plan Daily
+// Execution Journal auto-populate (manual trades only).
+//
+// since/until are inclusive opened_at bounds; a zero time means
+// unbounded on that side. SYSTEM and MANUAL_RESTORED rows are excluded
+// by the origin filter. Scoped by user_id.
+func (r *Repository) GetManualClosedTrades(
+	ctx context.Context,
+	userID string,
+	since, until time.Time,
+	limit, offset int,
+) ([]*TradeRecord, int, error) {
+	if userID == "" {
+		return nil, 0, fmt.Errorf("get manual closed trades: user_id must not be empty")
+	}
+
+	where := "WHERE status = 'CLOSED' AND user_id = $1 AND origin = $2"
+	args := []interface{}{userID, OriginManualReconciled}
+	argIdx := 3
+	if !since.IsZero() {
+		where += fmt.Sprintf(" AND opened_at >= $%d", argIdx)
+		args = append(args, since)
+		argIdx++
+	}
+	if !until.IsZero() {
+		where += fmt.Sprintf(" AND opened_at <= $%d", argIdx)
+		args = append(args, until)
+		argIdx++
+	}
+
+	var total int
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM management_trades %s", where)
+	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count manual closed trades: %w", err)
+	}
+
+	if limit <= 0 {
+		limit = 200
+	}
+	query := fmt.Sprintf(`
+		SELECT trade_id, symbol, direction, entry_price, stop_loss,
+			tp1_price, tp2_price, tp3_price, exit_price,
+			risk_percent, total_lot_size, rr_ratio, r_multiple, gross_pnl,
+			outcome, session, setup_type, trading_style,
+			opened_at, closed_at, broker_order_id
+		FROM management_trades
+		%s
+		ORDER BY closed_at DESC
+		LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get manual closed trades: %w", err)
+	}
+	defer rows.Close()
+
+	var trades []*TradeRecord
+	for rows.Next() {
+		t := &TradeRecord{UserID: userID, Origin: OriginManualReconciled, Status: "CLOSED"}
+		if err := rows.Scan(
+			&t.TradeID, &t.Symbol, &t.Direction, &t.EntryPrice, &t.StopLoss,
+			&t.TP1Price, &t.TP2Price, &t.TP3Price, &t.ExitPrice,
+			&t.RiskPercent, &t.TotalLotSize, &t.RRRatio, &t.RMultiple, &t.GrossPnL,
+			&t.Outcome, &t.Session, &t.SetupType, &t.TradingStyle,
+			&t.OpenedAt, &t.ClosedAt, &t.BrokerOrderID,
+		); err != nil {
+			return nil, 0, fmt.Errorf("scan manual closed trade: %w", err)
+		}
+		trades = append(trades, t)
+	}
+	return trades, total, nil
+}
+
 // GetClosedTrades returns closed trades with pagination and optional filters.
 func (r *Repository) GetClosedTrades(ctx context.Context, userID string, limit, offset int, symbolFilter, styleFilter string) ([]*TradeRecord, int, error) {
 	if userID == "" {
