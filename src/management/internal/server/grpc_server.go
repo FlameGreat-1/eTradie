@@ -25,6 +25,7 @@ type JournalStore interface {
 	InsertTrade(ctx context.Context, t *journal.TradeRecord) error
 	GetTradeByBrokerOrderID(ctx context.Context, userID, brokerOrderID string) (*journal.TradeRecord, error)
 	GetClosedTrades(ctx context.Context, userID string, limit, offset int, symbolFilter, styleFilter string) ([]*journal.TradeRecord, int, error)
+	GetManualClosedTrades(ctx context.Context, userID string, since, until time.Time, limit, offset int) ([]*journal.TradeRecord, int, error)
 }
 
 // TradeMonitor defines the active trade tracking operations required by the gRPC server.
@@ -421,6 +422,118 @@ func (s *ManagementServer) GetPerformanceMetrics(ctx context.Context, req *manag
 		WinRateByStyle:       summary.WinRateByStyle,
 		WinRateBySetup:       summary.WinRateBySetup,
 		WinRateBySession:     summary.WinRateBySession,
+	}, nil
+}
+
+// GetManualJournal returns the user's manually-executed / reconciled
+// trades (origin = MANUAL_RECONCILED) within a time window, both open
+// and closed, for the 90-Day Trading Plan's Daily Execution Journal
+// auto-populate. System trades and MANUAL_RESTORED history rows are
+// excluded. Open trades carry is_open=true with blank close cells.
+func (s *ManagementServer) GetManualJournal(ctx context.Context, req *managementv1.GetManualJournalRequest) (*managementv1.GetManualJournalResponse, error) {
+	userID := auth.UserIDFromContext(ctx)
+	if userID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "user_id not found in context")
+	}
+
+	// Parse optional RFC3339 window bounds; empty = unbounded.
+	var since, until time.Time
+	if s := strings.TrimSpace(req.GetSinceRfc3339()); s != "" {
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "since_rfc3339 must be RFC3339: %v", err)
+		}
+		since = t
+	}
+	if u := strings.TrimSpace(req.GetUntilRfc3339()); u != "" {
+		t, err := time.Parse(time.RFC3339, u)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "until_rfc3339 must be RFC3339: %v", err)
+		}
+		until = t
+	}
+
+	entries := make([]*managementv1.ManualJournalEntry, 0)
+
+	// OPEN manual trades from the live monitor (always returned in full).
+	for _, t := range s.monitor.GetAllTrades() {
+		t.RLock()
+		if t.UserID != userID || t.Origin != journal.OriginManualReconciled || t.Status == constants.StatusClosed {
+			t.RUnlock()
+			continue
+		}
+		openedAt := t.OpenedAt
+		// Apply the same window filter to open trades as the closed query.
+		if (!since.IsZero() && openedAt.Before(since)) || (!until.IsZero() && openedAt.After(until)) {
+			t.RUnlock()
+			continue
+		}
+		entries = append(entries, &managementv1.ManualJournalEntry{
+			TradeId:       t.TradeID,
+			Symbol:        t.Symbol,
+			Direction:     string(t.Direction),
+			TradingStyle:  string(t.TradingStyle),
+			SetupType:     t.SetupType,
+			EntryPrice:    t.EntryPrice,
+			StopLoss:      t.InitialSL,
+			Tp1Price:      t.TP1Price,
+			Tp2Price:      t.TP2Price,
+			Tp3Price:      t.TP3Price,
+			ExitPrice:     0,
+			RiskPercent:   t.RiskPercent,
+			TotalLotSize:  t.TotalLotSize,
+			RrRatio:       t.RRRatio,
+			RMultiple:     0,
+			GrossPnl:      0,
+			Outcome:       "",
+			Session:       t.Session,
+			IsOpen:        true,
+			OpenedAt:      openedAt.Format(time.RFC3339),
+			ClosedAt:      "",
+			BrokerOrderId: t.BrokerOrderID,
+		})
+		t.RUnlock()
+	}
+
+	// CLOSED manual trades from the journal store (paginated window).
+	closed, totalClosed, err := s.journal.GetManualClosedTrades(ctx, userID, since, until, int(req.GetLimit()), int(req.GetOffset()))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get manual closed trades: %v", err)
+	}
+	for _, t := range closed {
+		closedAt := ""
+		if t.ClosedAt != nil {
+			closedAt = t.ClosedAt.Format(time.RFC3339)
+		}
+		entries = append(entries, &managementv1.ManualJournalEntry{
+			TradeId:       t.TradeID,
+			Symbol:        t.Symbol,
+			Direction:     t.Direction,
+			TradingStyle:  t.TradingStyle,
+			SetupType:     t.SetupType,
+			EntryPrice:    t.EntryPrice,
+			StopLoss:      t.StopLoss,
+			Tp1Price:      t.TP1Price,
+			Tp2Price:      t.TP2Price,
+			Tp3Price:      t.TP3Price,
+			ExitPrice:     t.ExitPrice,
+			RiskPercent:   t.RiskPercent,
+			TotalLotSize:  t.TotalLotSize,
+			RrRatio:       t.RRRatio,
+			RMultiple:     t.RMultiple,
+			GrossPnl:      t.GrossPnL,
+			Outcome:       t.Outcome,
+			Session:       t.Session,
+			IsOpen:        false,
+			OpenedAt:      t.OpenedAt.Format(time.RFC3339),
+			ClosedAt:      closedAt,
+			BrokerOrderId: t.BrokerOrderID,
+		})
+	}
+
+	return &managementv1.GetManualJournalResponse{
+		Entries:     entries,
+		TotalClosed: int32(totalClosed),
 	}, nil
 }
 
