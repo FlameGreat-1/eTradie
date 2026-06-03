@@ -53,15 +53,22 @@ func (e *Executor) Evaluate(ctx context.Context, trade *types.Trade, checkPrice 
 	entryPrice := trade.EntryPrice
 	riskAmount := trade.RiskAmount
 	userID := trade.UserID
+	isLong := trade.IsLong()
 	trade.RUnlock()
 
+	// Evaluate TP hits against the SNAPSHOTTED prices + direction taken
+	// under the RLock above. We deliberately do NOT call trade.IsTP*Hit
+	// here: those helpers re-read t.TP*Price / t.IsLong() off the struct
+	// with no lock held, which is a data race under `go test -race` even
+	// though the fields are immutable post-registration.
+
 	// TP3 check first (runner close - full close of remaining).
-	if !tp3Hit && tp2Hit && tp3Price > 0 && trade.IsTP3Hit(checkPrice) {
+	if !tp3Hit && tp2Hit && tp3Price > 0 && tpReached(isLong, checkPrice, tp3Price) {
 		return e.executeTP(ctx, trade, brokerID, tradeID, symbol, entryPrice, checkPrice, riskAmount, remaining, "TP3", constants.EventTP3Hit, tp3Pct, true, userID)
 	}
 
 	// TP2 check.
-	if !tp2Hit && tp1Hit && tp2Price > 0 && trade.IsTP2Hit(checkPrice) {
+	if !tp2Hit && tp1Hit && tp2Price > 0 && tpReached(isLong, checkPrice, tp2Price) {
 		closeVol := totalLot * float64(tp2Pct) / 100.0
 		if closeVol > remaining {
 			closeVol = remaining
@@ -70,7 +77,7 @@ func (e *Executor) Evaluate(ctx context.Context, trade *types.Trade, checkPrice 
 	}
 
 	// TP1 check.
-	if !tp1Hit && tp1Price > 0 && trade.IsTP1Hit(checkPrice) {
+	if !tp1Hit && tp1Price > 0 && tpReached(isLong, checkPrice, tp1Price) {
 		closeVol := totalLot * float64(tp1Pct) / 100.0
 		if closeVol > remaining {
 			closeVol = remaining
@@ -79,6 +86,20 @@ func (e *Executor) Evaluate(ctx context.Context, trade *types.Trade, checkPrice 
 	}
 
 	return "", nil
+}
+
+// tpReached reports whether checkPrice has reached a take-profit level
+// for the given direction. Mirrors Trade.IsTP*Hit but operates on
+// snapshotted values so the caller holds no lock (EM-F1). A non-positive
+// tpPrice ("not set") never triggers; callers already gate on tp* > 0.
+func tpReached(isLong bool, checkPrice, tpPrice float64) bool {
+	if tpPrice <= 0 {
+		return false
+	}
+	if isLong {
+		return checkPrice >= tpPrice
+	}
+	return checkPrice <= tpPrice
 }
 
 func (e *Executor) executeTP(
