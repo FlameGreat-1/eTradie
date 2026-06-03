@@ -35,13 +35,20 @@ const INVALIDATION_MAP: Record<string, ReadonlyArray<readonly unknown[]>> = {
   /* ── Trade manager lifecycle ── */
   BREAKEVEN_SET:       [['management', 'trades'], ['execution', 'state']],
   TRAILING_SL_MOVED:   [['management', 'trades'], ['execution', 'state']],
-  TRADE_SYNCED:        [['management', 'trades'], ['execution', 'state']],
+  // TRADE_SYNCED fires when the reconciler adopts a manually-opened
+  // position. ['trading-plan'] is invalidated so the Daily Execution
+  // Journal refetches and the gateway auto-fill surfaces the new
+  // manual-trade row live (same rail as every other surface), with no
+  // browser refresh. The prefix matches both ['trading-plan','plan']
+  // and ['trading-plan','status'].
+  TRADE_SYNCED:        [['management', 'trades'], ['execution', 'state'], ['trading-plan']],
   PARTIAL_CLOSE:       [
     ['management', 'trades'],
     ['management', 'journal'],
     ['management', 'metrics'],
     ['execution', 'state'],
     ['execution', 'account'],
+    ['trading-plan'],
   ],
   TRADE_CLOSED:        [
     ['management', 'trades'],
@@ -49,6 +56,7 @@ const INVALIDATION_MAP: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ['management', 'metrics'],
     ['execution', 'state'],
     ['execution', 'account'],
+    ['trading-plan'],
   ],
   PERFORMANCE_REPORT:  [['management', 'metrics']],
   MANAGEMENT_HANDOFF_FAILED: [['management', 'trades']],
