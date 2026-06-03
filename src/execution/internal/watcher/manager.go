@@ -77,18 +77,25 @@ type WatcherUsage interface {
 	DecrementWatchers(ctx context.Context, userID string) error
 }
 
+// IdempotencyClearer is the contract to clear a failed idempotency record,
+// allowing a previously failed cycle to be retried on subsequent analysis.
+type IdempotencyClearer interface {
+	Delete(ctx context.Context, userID, key string) error
+}
+
 // Manager tracks all active instant-mode watchers. Thread-safe.
 // Provides Arm/Disarm lifecycle and coordinates graceful shutdown.
 type Manager struct {
-	broker    broker.Port
-	gateway   GatewayPort
-	audit     *audit.Logger
-	transport *alertredis.Transport
-	store     WatcherPersistence
-	usage     WatcherUsage
-	tickCache *TickCache
-	cfg       Config
-	log       zerolog.Logger
+	broker      broker.Port
+	gateway     GatewayPort
+	audit       *audit.Logger
+	transport   *alertredis.Transport
+	store       WatcherPersistence
+	usage       WatcherUsage
+	idempotency IdempotencyClearer
+	tickCache   *TickCache
+	cfg         Config
+	log         zerolog.Logger
 
 	mu           sync.RWMutex
 	watchers     map[string]*Watcher // key: order.WatcherID
@@ -131,6 +138,16 @@ func NewManager(
 func (m *Manager) WithUsage(u WatcherUsage) *Manager {
 	m.mu.Lock()
 	m.usage = u
+	m.mu.Unlock()
+	return m
+}
+
+// WithIdempotency attaches an idempotency clearer. If a market order
+// fails outright, the manager will use this to delete the idempotency
+// record, unblocking subsequent attempts.
+func (m *Manager) WithIdempotency(idc IdempotencyClearer) *Manager {
+	m.mu.Lock()
+	m.idempotency = idc
 	m.mu.Unlock()
 	return m
 }
@@ -191,13 +208,14 @@ func (m *Manager) Arm(order *models.Order) {
 	}
 
 	w := &Watcher{
-		order:     order,
-		broker:    m.broker,
-		gateway:   m.gateway,
-		audit:     m.audit,
-		transport: m.transport,
-		tickCache: m.tickCache,
-		cfg:       m.cfg,
+		order:       order,
+		broker:      m.broker,
+		gateway:     m.gateway,
+		audit:       m.audit,
+		transport:   m.transport,
+		tickCache:   m.tickCache,
+		cfg:         m.cfg,
+		idempotency: m.idempotency,
 		log: m.log.With().
 			Str("watcher_id", order.WatcherID).
 			Str("symbol", order.Symbol).
@@ -453,6 +471,7 @@ type Watcher struct {
 	transport      *alertredis.Transport
 	tickCache      *TickCache
 	cfg            Config
+	idempotency    IdempotencyClearer
 	timeoutMinutes int // Resolved style-specific timeout (set in run())
 	log            zerolog.Logger
 	done           chan struct{}
@@ -1054,6 +1073,16 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	result, err := w.broker.PlaceMarketOrder(ctx, placement)
 	if err != nil {
 		w.log.Error().Err(err).Msg("watcher_market_order_failed")
+
+		if w.idempotency != nil {
+			idemKey := w.order.IdempotencyKey
+			if idemKey == "" {
+				idemKey = w.order.OrderID
+			}
+			if clErr := w.idempotency.Delete(ctx, w.order.UserID, idemKey); clErr != nil {
+				w.log.Warn().Err(clErr).Msg("failed_to_clear_idempotency_after_market_order_failure")
+			}
+		}
 
 		if w.transport != nil {
 			w.transport.Publish(ctx,

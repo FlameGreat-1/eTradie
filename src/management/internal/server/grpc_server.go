@@ -125,7 +125,7 @@ func (s *ManagementServer) RegisterFilledTrade(ctx context.Context, req *managem
 		return &managementv1.RegisterFilledTradeResponse{
 			Success: true,
 			TradeId: existingTrade.TradeID,
-			Message: fmt.Sprintf("Trade already registered (idempotent). Monitoring active."),
+			Message: "Trade already registered (idempotent). Monitoring active.",
 		}, nil
 	}
 

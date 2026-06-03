@@ -1026,7 +1026,7 @@ string HandleOrderSend(CJAVal &cmd)
          request.price = price;
       
       request.price = NormalizePrice(symbol, request.price);
-      request.type_filling = ORDER_FILLING_IOC;
+      request.type_filling = GetSupportedFillingMode(symbol);
    }
    else if(type_str == "LIMIT")
    {
@@ -1265,7 +1265,7 @@ string HandlePositionClosePartial(CJAVal &cmd)
    request.volume       = volume;
    request.type         = (type == POSITION_TYPE_BUY) ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
    request.deviation    = MAX_SLIPPAGE;
-   request.type_filling = ORDER_FILLING_IOC;
+   request.type_filling = GetSupportedFillingMode(symbol);
    request.magic        = MAGIC_NUMBER;
 
    // Get current price
@@ -1338,7 +1338,7 @@ string HandlePositionClose(CJAVal &cmd)
    request.volume       = volume;
    request.type         = (type == POSITION_TYPE_BUY) ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
    request.deviation    = MAX_SLIPPAGE;
-   request.type_filling = ORDER_FILLING_IOC;
+   request.type_filling = GetSupportedFillingMode(symbol);
    request.magic        = MAGIC_NUMBER;
 
    // Get current price
@@ -1396,6 +1396,34 @@ string HandlePositionClose(CJAVal &cmd)
 // constraints (min/max lot from broker, stop levels, symbol availability).
 // Duplicating risk logic here with hardcoded literals would silently
 // override the platform's per-user, dashboard-configurable decisions.
+
+//+------------------------------------------------------------------+
+//| Get Supported Filling Mode for Symbol                            |
+//|                                                                  |
+//| Different brokers/symbols support different filling modes:        |
+//|   - Deriv synthetics (Crash/Boom): FOK only                     |
+//|   - Most FX brokers: IOC                                        |
+//|   - Some exchanges: RETURN                                      |
+//|                                                                  |
+//| Query the symbol's SYMBOL_FILLING_MODE bitmask and return the    |
+//| first supported mode. This eliminates the hardcoded IOC that     |
+//| caused error 10030 on Deriv synthetics.                          |
+//+------------------------------------------------------------------+
+ENUM_ORDER_TYPE_FILLING GetSupportedFillingMode(string symbol)
+{
+   int filling_mode = (int)SymbolInfoInteger(symbol, SYMBOL_FILLING_MODE);
+   
+   // Check FOK first (required by Deriv synthetics like Crash/Boom)
+   if((filling_mode & SYMBOL_FILLING_FOK) != 0)
+      return ORDER_FILLING_FOK;
+   
+   // Then IOC (most FX brokers)
+   if((filling_mode & SYMBOL_FILLING_IOC) != 0)
+      return ORDER_FILLING_IOC;
+   
+   // Fallback to RETURN (exchange-style)
+   return ORDER_FILLING_RETURN;
+}
 
 //+------------------------------------------------------------------+
 //| Validate Stop Loss and Take Profit Levels                        |

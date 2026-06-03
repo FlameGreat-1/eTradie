@@ -136,6 +136,8 @@ class ForexFactoryCalendarProvider(BaseCalendarProvider):
         impact = _IMPACT_MAP.get(
             str(row.get("impact", "")).strip().lower(), EventImpact.LOW
         )
+        if impact != EventImpact.HIGH:
+            return None
 
         return CalendarEvent(
             event_name=title,

@@ -118,6 +118,13 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
 
   // Handle pulse frames: update existing phase row in-place or append new.
   if (frame.type === 'pulse') {
+    // Guard: ignore straggler pulse frames that arrive after a 'final'
+    // frame has already settled the stream. Without this, a late pulse
+    // hits the startingFresh path, wipes reasoning, and resurrects the
+    // terminal — the exact backwards behaviour the user reported.
+    if (!state.isStreaming && state.pulses.length === 0 && state.reasoning) {
+      return state;
+    }
     const { phase, message, source, completed } = frame;
 
     // Fresh run vs between-symbol lull:
@@ -198,13 +205,12 @@ function reducer(state: LiveStreamState, action: Action): LiveStreamState {
       };
     case 'final':
       // Per-symbol completion marker on a shared per-user channel.
-      // Settle isStreaming=false so a single-symbol run stops its live
-      // indicator and shows "Analysis Complete". Pulses are NOT cleared
-      // and the transport is NOT closed: if another symbol in a
-      // multi-symbol cycle is still working, its next pulse/status
-      // frame flips isStreaming back to true (both branches set
-      // isStreaming:true), re-activating the indicator.
-      return { ...state, isStreaming: false, symbol, status: 'Analysis Complete', error: null, reasoning: currentReasoning, analysisId: currentAnalysisId };
+      // Settle isStreaming=false so the live indicator stops and the
+      // overlay shows "Analysis Complete". Clear pulses so the
+      // ThinkingTerminal collapses and only the reasoning text remains.
+      // Multi-symbol cycles are safe: the next symbol's LOADING pulse
+      // re-creates the array and flips isStreaming back to true.
+      return { ...state, isStreaming: false, symbol, status: 'Analysis Complete', error: null, reasoning: currentReasoning, analysisId: currentAnalysisId, pulses: [] };
     case 'error':
       return { ...state, isStreaming: false, symbol, status: 'Error', error: frame.message, reasoning: currentReasoning, analysisId: currentAnalysisId };
     default:

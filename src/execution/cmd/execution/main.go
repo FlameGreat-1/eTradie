@@ -179,7 +179,8 @@ func main() {
 	if _, err := pool.Exec(ctx, billingstore.SchemaSQL()); err != nil {
 		log.Fatal().Err(err).Msg("billing_schema_apply_failed")
 	}
-	wm = wm.WithUsage(&watcherUsageAdapter{store: billingstore.NewUsageStore(pool)})
+	wm = wm.WithUsage(&watcherUsageAdapter{store: billingstore.NewUsageStore(pool)}).
+		WithIdempotency(idempotencyStore)
 
 	e := executor.NewExecutor(
 		bp,

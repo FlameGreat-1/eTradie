@@ -191,6 +191,28 @@ func (s *IdempotencyStore) RecordResult(
 	return nil
 }
 
+// Delete removes the idempotency record. Used when a watcher fails
+// to place a market order, allowing subsequent cycles for the same
+// setup to retry instead of being blocked as duplicates.
+func (s *IdempotencyStore) Delete(
+	ctx context.Context,
+	userID, key string,
+) error {
+	if userID == "" || key == "" {
+		return fmt.Errorf("idempotency: user_id and idempotency_key are required")
+	}
+	const deleteSQL = `DELETE FROM execution_order_idempotency WHERE user_id = $1 AND idempotency_key = $2`
+	_, err := s.pool.Exec(ctx, deleteSQL, userID, key)
+	if err != nil {
+		return fmt.Errorf("idempotency: delete: %w", err)
+	}
+	s.log.Info().
+		Str("user_id", userID).
+		Str("idempotency_key", key).
+		Msg("idempotency_cleared")
+	return nil
+}
+
 // GarbageCollect prunes records older than the supplied cutoff. Run
 // from a periodic goroutine (every hour by default) to keep the
 // table bounded - the idempotency window is finite (24h default).

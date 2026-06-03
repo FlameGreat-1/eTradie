@@ -2,6 +2,7 @@ package tradingplanadapter
 
 import (
 	"context"
+	"time"
 
 	managementv1 "github.com/flamegreat-1/etradie/proto/management/v1"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/management"

@@ -338,8 +338,12 @@ func (h *Handler) handleJournalHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows := make([]JournalRow, 0, len(facts))
+	var closedInPage int
 	for _, f := range facts {
 		rows = append(rows, rowFromFact(f, loc))
+		if !f.IsOpen {
+			closedInPage++
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -347,7 +351,7 @@ func (h *Handler) handleJournalHistory(w http.ResponseWriter, r *http.Request) {
 		"page":         page,
 		"page_size":    journalHistoryPageSize,
 		"total_closed": totalClosed,
-		"has_more":     offset+len(facts) < totalClosed,
+		"has_more":     offset+closedInPage < totalClosed,
 		"window_days":  journalWindowDays,
 		"rows":         rows,
 	})

@@ -251,6 +251,18 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location, now
 		boundRow[f.TradeID] = len(p.Journal) - 1
 		stats.Appended++
 	}
+
+	// Compact fully-blank unbound rows so they don't linger in the UI
+	// or Excel export.
+	compacted := make([]JournalRow, 0, len(p.Journal))
+	for i := range p.Journal {
+		if p.Journal[i].TradeID == "" && rowIsEmpty(&p.Journal[i]) {
+			continue
+		}
+		compacted = append(compacted, p.Journal[i])
+	}
+	p.Journal = compacted
+
 	return stats
 }
 
