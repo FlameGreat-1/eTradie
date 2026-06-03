@@ -25,6 +25,7 @@ const (
 	ManagementService_GetTradeJournal_FullMethodName       = "/management.v1.ManagementService/GetTradeJournal"
 	ManagementService_GetPerformanceMetrics_FullMethodName = "/management.v1.ManagementService/GetPerformanceMetrics"
 	ManagementService_GetHealth_FullMethodName             = "/management.v1.ManagementService/GetHealth"
+	ManagementService_GetManualJournal_FullMethodName      = "/management.v1.ManagementService/GetManualJournal"
 )
 
 // ManagementServiceClient is the client API for ManagementService service.
@@ -52,6 +53,13 @@ type ManagementServiceClient interface {
 	GetPerformanceMetrics(ctx context.Context, in *GetPerformanceMetricsRequest, opts ...grpc.CallOption) (*GetPerformanceMetricsResponse, error)
 	// GetHealth returns the management service's health status.
 	GetHealth(ctx context.Context, in *GetHealthRequest, opts ...grpc.CallOption) (*GetHealthResponse, error)
+	// GetManualJournal returns the user's manually-executed / reconciled
+	// trades (origin = MANUAL_RECONCILED) within a time window, BOTH open
+	// and closed. It powers the 90-Day Trading Plan's Daily Execution
+	// Journal auto-populate: the gateway composites these objective facts
+	// with the trader's saved subjective annotations. System-executed
+	// trades and rough MANUAL_RESTORED history rows are excluded.
+	GetManualJournal(ctx context.Context, in *GetManualJournalRequest, opts ...grpc.CallOption) (*GetManualJournalResponse, error)
 }
 
 type managementServiceClient struct {
@@ -122,6 +130,16 @@ func (c *managementServiceClient) GetHealth(ctx context.Context, in *GetHealthRe
 	return out, nil
 }
 
+func (c *managementServiceClient) GetManualJournal(ctx context.Context, in *GetManualJournalRequest, opts ...grpc.CallOption) (*GetManualJournalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetManualJournalResponse)
+	err := c.cc.Invoke(ctx, ManagementService_GetManualJournal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ManagementServiceServer is the server API for ManagementService service.
 // All implementations must embed UnimplementedManagementServiceServer
 // for forward compatibility.
@@ -147,6 +165,13 @@ type ManagementServiceServer interface {
 	GetPerformanceMetrics(context.Context, *GetPerformanceMetricsRequest) (*GetPerformanceMetricsResponse, error)
 	// GetHealth returns the management service's health status.
 	GetHealth(context.Context, *GetHealthRequest) (*GetHealthResponse, error)
+	// GetManualJournal returns the user's manually-executed / reconciled
+	// trades (origin = MANUAL_RECONCILED) within a time window, BOTH open
+	// and closed. It powers the 90-Day Trading Plan's Daily Execution
+	// Journal auto-populate: the gateway composites these objective facts
+	// with the trader's saved subjective annotations. System-executed
+	// trades and rough MANUAL_RESTORED history rows are excluded.
+	GetManualJournal(context.Context, *GetManualJournalRequest) (*GetManualJournalResponse, error)
 	mustEmbedUnimplementedManagementServiceServer()
 }
 
@@ -174,6 +199,9 @@ func (UnimplementedManagementServiceServer) GetPerformanceMetrics(context.Contex
 }
 func (UnimplementedManagementServiceServer) GetHealth(context.Context, *GetHealthRequest) (*GetHealthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetHealth not implemented")
+}
+func (UnimplementedManagementServiceServer) GetManualJournal(context.Context, *GetManualJournalRequest) (*GetManualJournalResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetManualJournal not implemented")
 }
 func (UnimplementedManagementServiceServer) mustEmbedUnimplementedManagementServiceServer() {}
 func (UnimplementedManagementServiceServer) testEmbeddedByValue()                           {}
@@ -304,6 +332,24 @@ func _ManagementService_GetHealth_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ManagementService_GetManualJournal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetManualJournalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ManagementServiceServer).GetManualJournal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ManagementService_GetManualJournal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ManagementServiceServer).GetManualJournal(ctx, req.(*GetManualJournalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ManagementService_ServiceDesc is the grpc.ServiceDesc for ManagementService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -334,6 +380,10 @@ var ManagementService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetHealth",
 			Handler:    _ManagementService_GetHealth_Handler,
+		},
+		{
+			MethodName: "GetManualJournal",
+			Handler:    _ManagementService_GetManualJournal_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

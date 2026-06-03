@@ -1438,6 +1438,356 @@ func (x *GetHealthResponse) GetActiveTrades() int32 {
 	return 0
 }
 
+// GetManualJournalRequest selects the user's manual trades for the
+// journal view. since_rfc3339 / until_rfc3339 bound the window (the
+// current 90-day window by default, computed by the caller); empty
+// bounds mean unbounded on that side. Pagination via limit/offset
+// applies to the CLOSED set; open trades are always returned in full
+// (a user has few concurrently-open manual trades).
+type GetManualJournalRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SinceRfc3339  string                 `protobuf:"bytes,1,opt,name=since_rfc3339,json=sinceRfc3339,proto3" json:"since_rfc3339,omitempty"` // inclusive lower bound on opened_at; "" = unbounded
+	UntilRfc3339  string                 `protobuf:"bytes,2,opt,name=until_rfc3339,json=untilRfc3339,proto3" json:"until_rfc3339,omitempty"` // inclusive upper bound on opened_at; "" = unbounded
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`                                  // max closed entries (default 200)
+	Offset        int32                  `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`                                // pagination offset into the closed set
+	TraceId       string                 `protobuf:"bytes,5,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetManualJournalRequest) Reset() {
+	*x = GetManualJournalRequest{}
+	mi := &file_management_v1_management_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetManualJournalRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetManualJournalRequest) ProtoMessage() {}
+
+func (x *GetManualJournalRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_management_v1_management_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetManualJournalRequest.ProtoReflect.Descriptor instead.
+func (*GetManualJournalRequest) Descriptor() ([]byte, []int) {
+	return file_management_v1_management_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetManualJournalRequest) GetSinceRfc3339() string {
+	if x != nil {
+		return x.SinceRfc3339
+	}
+	return ""
+}
+
+func (x *GetManualJournalRequest) GetUntilRfc3339() string {
+	if x != nil {
+		return x.UntilRfc3339
+	}
+	return ""
+}
+
+func (x *GetManualJournalRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *GetManualJournalRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *GetManualJournalRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+// ManualJournalEntry is one manually-executed/reconciled trade with the
+// objective facts the journal can auto-fill. Subjective columns
+// (emotions, quality, mistake, rule-followed, HTF bias, screenshot,
+// notes) are NOT here — they live in the gateway plan keyed by trade_id.
+type ManualJournalEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TradeId       string                 `protobuf:"bytes,1,opt,name=trade_id,json=tradeId,proto3" json:"trade_id,omitempty"`
+	Symbol        string                 `protobuf:"bytes,2,opt,name=symbol,proto3" json:"symbol,omitempty"`
+	Direction     string                 `protobuf:"bytes,3,opt,name=direction,proto3" json:"direction,omitempty"` // "BUY" | "SELL"
+	TradingStyle  string                 `protobuf:"bytes,4,opt,name=trading_style,json=tradingStyle,proto3" json:"trading_style,omitempty"`
+	SetupType     string                 `protobuf:"bytes,5,opt,name=setup_type,json=setupType,proto3" json:"setup_type,omitempty"`
+	EntryPrice    float64                `protobuf:"fixed64,6,opt,name=entry_price,json=entryPrice,proto3" json:"entry_price,omitempty"`
+	StopLoss      float64                `protobuf:"fixed64,7,opt,name=stop_loss,json=stopLoss,proto3" json:"stop_loss,omitempty"` // initial SL
+	Tp1Price      float64                `protobuf:"fixed64,8,opt,name=tp1_price,json=tp1Price,proto3" json:"tp1_price,omitempty"`
+	Tp2Price      float64                `protobuf:"fixed64,9,opt,name=tp2_price,json=tp2Price,proto3" json:"tp2_price,omitempty"`
+	Tp3Price      float64                `protobuf:"fixed64,10,opt,name=tp3_price,json=tp3Price,proto3" json:"tp3_price,omitempty"`
+	ExitPrice     float64                `protobuf:"fixed64,11,opt,name=exit_price,json=exitPrice,proto3" json:"exit_price,omitempty"` // 0 while open
+	RiskPercent   float64                `protobuf:"fixed64,12,opt,name=risk_percent,json=riskPercent,proto3" json:"risk_percent,omitempty"`
+	TotalLotSize  float64                `protobuf:"fixed64,13,opt,name=total_lot_size,json=totalLotSize,proto3" json:"total_lot_size,omitempty"`
+	RrRatio       float64                `protobuf:"fixed64,14,opt,name=rr_ratio,json=rrRatio,proto3" json:"rr_ratio,omitempty"`       // planned R:R
+	RMultiple     float64                `protobuf:"fixed64,15,opt,name=r_multiple,json=rMultiple,proto3" json:"r_multiple,omitempty"` // achieved R (0 while open)
+	GrossPnl      float64                `protobuf:"fixed64,16,opt,name=gross_pnl,json=grossPnl,proto3" json:"gross_pnl,omitempty"`    // realized P&L (0 while open)
+	Outcome       string                 `protobuf:"bytes,17,opt,name=outcome,proto3" json:"outcome,omitempty"`                        // WIN | LOSS | BREAKEVEN | "" while open
+	Session       string                 `protobuf:"bytes,18,opt,name=session,proto3" json:"session,omitempty"`
+	IsOpen        bool                   `protobuf:"varint,19,opt,name=is_open,json=isOpen,proto3" json:"is_open,omitempty"`      // true = live trade; close cells still blank
+	OpenedAt      string                 `protobuf:"bytes,20,opt,name=opened_at,json=openedAt,proto3" json:"opened_at,omitempty"` // RFC3339
+	ClosedAt      string                 `protobuf:"bytes,21,opt,name=closed_at,json=closedAt,proto3" json:"closed_at,omitempty"` // RFC3339; "" while open
+	BrokerOrderId string                 `protobuf:"bytes,22,opt,name=broker_order_id,json=brokerOrderId,proto3" json:"broker_order_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ManualJournalEntry) Reset() {
+	*x = ManualJournalEntry{}
+	mi := &file_management_v1_management_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ManualJournalEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ManualJournalEntry) ProtoMessage() {}
+
+func (x *ManualJournalEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_management_v1_management_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ManualJournalEntry.ProtoReflect.Descriptor instead.
+func (*ManualJournalEntry) Descriptor() ([]byte, []int) {
+	return file_management_v1_management_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ManualJournalEntry) GetTradeId() string {
+	if x != nil {
+		return x.TradeId
+	}
+	return ""
+}
+
+func (x *ManualJournalEntry) GetSymbol() string {
+	if x != nil {
+		return x.Symbol
+	}
+	return ""
+}
+
+func (x *ManualJournalEntry) GetDirection() string {
+	if x != nil {
+		return x.Direction
+	}
+	return ""
+}
+
+func (x *ManualJournalEntry) GetTradingStyle() string {
+	if x != nil {
+		return x.TradingStyle
+	}
+	return ""
+}
+
+func (x *ManualJournalEntry) GetSetupType() string {
+	if x != nil {
+		return x.SetupType
+	}
+	return ""
+}
+
+func (x *ManualJournalEntry) GetEntryPrice() float64 {
+	if x != nil {
+		return x.EntryPrice
+	}
+	return 0
+}
+
+func (x *ManualJournalEntry) GetStopLoss() float64 {
+	if x != nil {
+		return x.StopLoss
+	}
+	return 0
+}
+
+func (x *ManualJournalEntry) GetTp1Price() float64 {
+	if x != nil {
+		return x.Tp1Price
+	}
+	return 0
+}
+
+func (x *ManualJournalEntry) GetTp2Price() float64 {
+	if x != nil {
+		return x.Tp2Price
+	}
+	return 0
+}
+
+func (x *ManualJournalEntry) GetTp3Price() float64 {
+	if x != nil {
+		return x.Tp3Price
+	}
+	return 0
+}
+
+func (x *ManualJournalEntry) GetExitPrice() float64 {
+	if x != nil {
+		return x.ExitPrice
+	}
+	return 0
+}
+
+func (x *ManualJournalEntry) GetRiskPercent() float64 {
+	if x != nil {
+		return x.RiskPercent
+	}
+	return 0
+}
+
+func (x *ManualJournalEntry) GetTotalLotSize() float64 {
+	if x != nil {
+		return x.TotalLotSize
+	}
+	return 0
+}
+
+func (x *ManualJournalEntry) GetRrRatio() float64 {
+	if x != nil {
+		return x.RrRatio
+	}
+	return 0
+}
+
+func (x *ManualJournalEntry) GetRMultiple() float64 {
+	if x != nil {
+		return x.RMultiple
+	}
+	return 0
+}
+
+func (x *ManualJournalEntry) GetGrossPnl() float64 {
+	if x != nil {
+		return x.GrossPnl
+	}
+	return 0
+}
+
+func (x *ManualJournalEntry) GetOutcome() string {
+	if x != nil {
+		return x.Outcome
+	}
+	return ""
+}
+
+func (x *ManualJournalEntry) GetSession() string {
+	if x != nil {
+		return x.Session
+	}
+	return ""
+}
+
+func (x *ManualJournalEntry) GetIsOpen() bool {
+	if x != nil {
+		return x.IsOpen
+	}
+	return false
+}
+
+func (x *ManualJournalEntry) GetOpenedAt() string {
+	if x != nil {
+		return x.OpenedAt
+	}
+	return ""
+}
+
+func (x *ManualJournalEntry) GetClosedAt() string {
+	if x != nil {
+		return x.ClosedAt
+	}
+	return ""
+}
+
+func (x *ManualJournalEntry) GetBrokerOrderId() string {
+	if x != nil {
+		return x.BrokerOrderId
+	}
+	return ""
+}
+
+type GetManualJournalResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entries       []*ManualJournalEntry  `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	TotalClosed   int32                  `protobuf:"varint,2,opt,name=total_closed,json=totalClosed,proto3" json:"total_closed,omitempty"` // total closed manual trades in the window (for paging)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetManualJournalResponse) Reset() {
+	*x = GetManualJournalResponse{}
+	mi := &file_management_v1_management_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetManualJournalResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetManualJournalResponse) ProtoMessage() {}
+
+func (x *GetManualJournalResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_management_v1_management_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetManualJournalResponse.ProtoReflect.Descriptor instead.
+func (*GetManualJournalResponse) Descriptor() ([]byte, []int) {
+	return file_management_v1_management_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *GetManualJournalResponse) GetEntries() []*ManualJournalEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
+func (x *GetManualJournalResponse) GetTotalClosed() int32 {
+	if x != nil {
+		return x.TotalClosed
+	}
+	return 0
+}
+
 var File_management_v1_management_proto protoreflect.FileDescriptor
 
 const file_management_v1_management_proto_rawDesc = "" +
@@ -1605,14 +1955,52 @@ const file_management_v1_management_proto_rawDesc = "" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12!\n" +
 	"\fdb_connected\x18\x02 \x01(\bR\vdbConnected\x12)\n" +
 	"\x10broker_connected\x18\x03 \x01(\bR\x0fbrokerConnected\x12#\n" +
-	"\ractive_trades\x18\x04 \x01(\x05R\factiveTrades2\xf4\x04\n" +
+	"\ractive_trades\x18\x04 \x01(\x05R\factiveTrades\"\xac\x01\n" +
+	"\x17GetManualJournalRequest\x12#\n" +
+	"\rsince_rfc3339\x18\x01 \x01(\tR\fsinceRfc3339\x12#\n" +
+	"\runtil_rfc3339\x18\x02 \x01(\tR\funtilRfc3339\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x05R\x06offset\x12\x19\n" +
+	"\btrace_id\x18\x05 \x01(\tR\atraceId\"\xac\x05\n" +
+	"\x12ManualJournalEntry\x12\x19\n" +
+	"\btrade_id\x18\x01 \x01(\tR\atradeId\x12\x16\n" +
+	"\x06symbol\x18\x02 \x01(\tR\x06symbol\x12\x1c\n" +
+	"\tdirection\x18\x03 \x01(\tR\tdirection\x12#\n" +
+	"\rtrading_style\x18\x04 \x01(\tR\ftradingStyle\x12\x1d\n" +
+	"\n" +
+	"setup_type\x18\x05 \x01(\tR\tsetupType\x12\x1f\n" +
+	"\ventry_price\x18\x06 \x01(\x01R\n" +
+	"entryPrice\x12\x1b\n" +
+	"\tstop_loss\x18\a \x01(\x01R\bstopLoss\x12\x1b\n" +
+	"\ttp1_price\x18\b \x01(\x01R\btp1Price\x12\x1b\n" +
+	"\ttp2_price\x18\t \x01(\x01R\btp2Price\x12\x1b\n" +
+	"\ttp3_price\x18\n" +
+	" \x01(\x01R\btp3Price\x12\x1d\n" +
+	"\n" +
+	"exit_price\x18\v \x01(\x01R\texitPrice\x12!\n" +
+	"\frisk_percent\x18\f \x01(\x01R\vriskPercent\x12$\n" +
+	"\x0etotal_lot_size\x18\r \x01(\x01R\ftotalLotSize\x12\x19\n" +
+	"\brr_ratio\x18\x0e \x01(\x01R\arrRatio\x12\x1d\n" +
+	"\n" +
+	"r_multiple\x18\x0f \x01(\x01R\trMultiple\x12\x1b\n" +
+	"\tgross_pnl\x18\x10 \x01(\x01R\bgrossPnl\x12\x18\n" +
+	"\aoutcome\x18\x11 \x01(\tR\aoutcome\x12\x18\n" +
+	"\asession\x18\x12 \x01(\tR\asession\x12\x17\n" +
+	"\ais_open\x18\x13 \x01(\bR\x06isOpen\x12\x1b\n" +
+	"\topened_at\x18\x14 \x01(\tR\bopenedAt\x12\x1b\n" +
+	"\tclosed_at\x18\x15 \x01(\tR\bclosedAt\x12&\n" +
+	"\x0fbroker_order_id\x18\x16 \x01(\tR\rbrokerOrderId\"z\n" +
+	"\x18GetManualJournalResponse\x12;\n" +
+	"\aentries\x18\x01 \x03(\v2!.management.v1.ManualJournalEntryR\aentries\x12!\n" +
+	"\ftotal_closed\x18\x02 \x01(\x05R\vtotalClosed2\xd9\x05\n" +
 	"\x11ManagementService\x12l\n" +
 	"\x13RegisterFilledTrade\x12).management.v1.RegisterFilledTradeRequest\x1a*.management.v1.RegisterFilledTradeResponse\x12f\n" +
 	"\x11UpdateTradeStatus\x12'.management.v1.UpdateTradeStatusRequest\x1a(.management.v1.UpdateTradeStatusResponse\x12c\n" +
 	"\x10GetManagedTrades\x12&.management.v1.GetManagedTradesRequest\x1a'.management.v1.GetManagedTradesResponse\x12`\n" +
 	"\x0fGetTradeJournal\x12%.management.v1.GetTradeJournalRequest\x1a&.management.v1.GetTradeJournalResponse\x12r\n" +
 	"\x15GetPerformanceMetrics\x12+.management.v1.GetPerformanceMetricsRequest\x1a,.management.v1.GetPerformanceMetricsResponse\x12N\n" +
-	"\tGetHealth\x12\x1f.management.v1.GetHealthRequest\x1a .management.v1.GetHealthResponseBBZ@github.com/flamegreat-1/etradie/proto/management/v1;managementv1b\x06proto3"
+	"\tGetHealth\x12\x1f.management.v1.GetHealthRequest\x1a .management.v1.GetHealthResponse\x12c\n" +
+	"\x10GetManualJournal\x12&.management.v1.GetManualJournalRequest\x1a'.management.v1.GetManualJournalResponseBBZ@github.com/flamegreat-1/etradie/proto/management/v1;managementv1b\x06proto3"
 
 var (
 	file_management_v1_management_proto_rawDescOnce sync.Once
@@ -1626,7 +2014,7 @@ func file_management_v1_management_proto_rawDescGZIP() []byte {
 	return file_management_v1_management_proto_rawDescData
 }
 
-var file_management_v1_management_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_management_v1_management_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_management_v1_management_proto_goTypes = []any{
 	(*RegisterFilledTradeRequest)(nil),    // 0: management.v1.RegisterFilledTradeRequest
 	(*RegisterFilledTradeResponse)(nil),   // 1: management.v1.RegisterFilledTradeResponse
@@ -1642,35 +2030,41 @@ var file_management_v1_management_proto_goTypes = []any{
 	(*GetPerformanceMetricsResponse)(nil), // 11: management.v1.GetPerformanceMetricsResponse
 	(*GetHealthRequest)(nil),              // 12: management.v1.GetHealthRequest
 	(*GetHealthResponse)(nil),             // 13: management.v1.GetHealthResponse
-	nil,                                   // 14: management.v1.GetPerformanceMetricsResponse.WinRateBySymbolEntry
-	nil,                                   // 15: management.v1.GetPerformanceMetricsResponse.WinRateByStyleEntry
-	nil,                                   // 16: management.v1.GetPerformanceMetricsResponse.WinRateBySetupEntry
-	nil,                                   // 17: management.v1.GetPerformanceMetricsResponse.WinRateBySessionEntry
+	(*GetManualJournalRequest)(nil),       // 14: management.v1.GetManualJournalRequest
+	(*ManualJournalEntry)(nil),            // 15: management.v1.ManualJournalEntry
+	(*GetManualJournalResponse)(nil),      // 16: management.v1.GetManualJournalResponse
+	nil,                                   // 17: management.v1.GetPerformanceMetricsResponse.WinRateBySymbolEntry
+	nil,                                   // 18: management.v1.GetPerformanceMetricsResponse.WinRateByStyleEntry
+	nil,                                   // 19: management.v1.GetPerformanceMetricsResponse.WinRateBySetupEntry
+	nil,                                   // 20: management.v1.GetPerformanceMetricsResponse.WinRateBySessionEntry
 }
 var file_management_v1_management_proto_depIdxs = []int32{
 	6,  // 0: management.v1.GetManagedTradesResponse.trades:type_name -> management.v1.ManagedTrade
 	9,  // 1: management.v1.GetTradeJournalResponse.entries:type_name -> management.v1.JournalEntry
-	14, // 2: management.v1.GetPerformanceMetricsResponse.win_rate_by_symbol:type_name -> management.v1.GetPerformanceMetricsResponse.WinRateBySymbolEntry
-	15, // 3: management.v1.GetPerformanceMetricsResponse.win_rate_by_style:type_name -> management.v1.GetPerformanceMetricsResponse.WinRateByStyleEntry
-	16, // 4: management.v1.GetPerformanceMetricsResponse.win_rate_by_setup:type_name -> management.v1.GetPerformanceMetricsResponse.WinRateBySetupEntry
-	17, // 5: management.v1.GetPerformanceMetricsResponse.win_rate_by_session:type_name -> management.v1.GetPerformanceMetricsResponse.WinRateBySessionEntry
-	0,  // 6: management.v1.ManagementService.RegisterFilledTrade:input_type -> management.v1.RegisterFilledTradeRequest
-	2,  // 7: management.v1.ManagementService.UpdateTradeStatus:input_type -> management.v1.UpdateTradeStatusRequest
-	4,  // 8: management.v1.ManagementService.GetManagedTrades:input_type -> management.v1.GetManagedTradesRequest
-	7,  // 9: management.v1.ManagementService.GetTradeJournal:input_type -> management.v1.GetTradeJournalRequest
-	10, // 10: management.v1.ManagementService.GetPerformanceMetrics:input_type -> management.v1.GetPerformanceMetricsRequest
-	12, // 11: management.v1.ManagementService.GetHealth:input_type -> management.v1.GetHealthRequest
-	1,  // 12: management.v1.ManagementService.RegisterFilledTrade:output_type -> management.v1.RegisterFilledTradeResponse
-	3,  // 13: management.v1.ManagementService.UpdateTradeStatus:output_type -> management.v1.UpdateTradeStatusResponse
-	5,  // 14: management.v1.ManagementService.GetManagedTrades:output_type -> management.v1.GetManagedTradesResponse
-	8,  // 15: management.v1.ManagementService.GetTradeJournal:output_type -> management.v1.GetTradeJournalResponse
-	11, // 16: management.v1.ManagementService.GetPerformanceMetrics:output_type -> management.v1.GetPerformanceMetricsResponse
-	13, // 17: management.v1.ManagementService.GetHealth:output_type -> management.v1.GetHealthResponse
-	12, // [12:18] is the sub-list for method output_type
-	6,  // [6:12] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	17, // 2: management.v1.GetPerformanceMetricsResponse.win_rate_by_symbol:type_name -> management.v1.GetPerformanceMetricsResponse.WinRateBySymbolEntry
+	18, // 3: management.v1.GetPerformanceMetricsResponse.win_rate_by_style:type_name -> management.v1.GetPerformanceMetricsResponse.WinRateByStyleEntry
+	19, // 4: management.v1.GetPerformanceMetricsResponse.win_rate_by_setup:type_name -> management.v1.GetPerformanceMetricsResponse.WinRateBySetupEntry
+	20, // 5: management.v1.GetPerformanceMetricsResponse.win_rate_by_session:type_name -> management.v1.GetPerformanceMetricsResponse.WinRateBySessionEntry
+	15, // 6: management.v1.GetManualJournalResponse.entries:type_name -> management.v1.ManualJournalEntry
+	0,  // 7: management.v1.ManagementService.RegisterFilledTrade:input_type -> management.v1.RegisterFilledTradeRequest
+	2,  // 8: management.v1.ManagementService.UpdateTradeStatus:input_type -> management.v1.UpdateTradeStatusRequest
+	4,  // 9: management.v1.ManagementService.GetManagedTrades:input_type -> management.v1.GetManagedTradesRequest
+	7,  // 10: management.v1.ManagementService.GetTradeJournal:input_type -> management.v1.GetTradeJournalRequest
+	10, // 11: management.v1.ManagementService.GetPerformanceMetrics:input_type -> management.v1.GetPerformanceMetricsRequest
+	12, // 12: management.v1.ManagementService.GetHealth:input_type -> management.v1.GetHealthRequest
+	14, // 13: management.v1.ManagementService.GetManualJournal:input_type -> management.v1.GetManualJournalRequest
+	1,  // 14: management.v1.ManagementService.RegisterFilledTrade:output_type -> management.v1.RegisterFilledTradeResponse
+	3,  // 15: management.v1.ManagementService.UpdateTradeStatus:output_type -> management.v1.UpdateTradeStatusResponse
+	5,  // 16: management.v1.ManagementService.GetManagedTrades:output_type -> management.v1.GetManagedTradesResponse
+	8,  // 17: management.v1.ManagementService.GetTradeJournal:output_type -> management.v1.GetTradeJournalResponse
+	11, // 18: management.v1.ManagementService.GetPerformanceMetrics:output_type -> management.v1.GetPerformanceMetricsResponse
+	13, // 19: management.v1.ManagementService.GetHealth:output_type -> management.v1.GetHealthResponse
+	16, // 20: management.v1.ManagementService.GetManualJournal:output_type -> management.v1.GetManualJournalResponse
+	14, // [14:21] is the sub-list for method output_type
+	7,  // [7:14] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_management_v1_management_proto_init() }
@@ -1684,7 +2078,7 @@ func file_management_v1_management_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_management_v1_management_proto_rawDesc), len(file_management_v1_management_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   18,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
