@@ -94,15 +94,13 @@ func (h *Handler) WithManualTradeReader(r ManualTradeReader) *Handler {
 	return h
 }
 
-// autoFillTimeZone is the location used to render the Date/Session
-// cells. The plan/journal has no per-request tz channel today, so we
-// use UTC deterministically rather than guess; this matches how the
-// rest of the stored plan is rendered.
-var autoFillTimeZone = time.UTC
-
 // mergeManualTrades fills the OBJECTIVE cells of the plan's existing
 // journal rows from the user's manual trades, in place. Returns true
 // when the plan was modified (so the caller persists it).
+//
+// loc renders the Date cell in the trader's timezone (forwarded as ?tz
+// on the plan GET); a nil loc is treated as UTC so the result stays
+// deterministic when no tz is supplied.
 //
 // Binding rule (one trade = one row):
 //   1. If a row already carries this trade's TradeID, update its
@@ -115,9 +113,12 @@ var autoFillTimeZone = time.UTC
 // trades and hand-typed rows (no TradeID, but non-empty) are skipped
 // when scanning for a blank slot, so nothing the trader did is ever
 // clobbered.
-func mergeManualTrades(p *Plan, facts []ManualTradeFact) bool {
+func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location) bool {
 	if p == nil || len(facts) == 0 {
 		return false
+	}
+	if loc == nil {
+		loc = time.UTC
 	}
 
 	// Index existing rows already bound to a trade.
@@ -135,7 +136,7 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact) bool {
 		}
 		if idx, ok := boundRow[f.TradeID]; ok {
 			// Update the already-bound row in place.
-			if applyObjectiveCells(&p.Journal[idx], f) {
+			if applyObjectiveCells(&p.Journal[idx], f, loc) {
 				changed = true
 			}
 			continue
@@ -143,7 +144,7 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact) bool {
 		// Claim the next fully-blank seed row.
 		if idx := nextBlankRow(p.Journal); idx >= 0 {
 			p.Journal[idx].TradeID = f.TradeID
-			applyObjectiveCells(&p.Journal[idx], f)
+			applyObjectiveCells(&p.Journal[idx], f, loc)
 			boundRow[f.TradeID] = idx
 			changed = true
 			continue
@@ -153,7 +154,7 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact) bool {
 			continue
 		}
 		row := JournalRow{TradeID: f.TradeID}
-		applyObjectiveCells(&row, f)
+		applyObjectiveCells(&row, f, loc)
 		p.Journal = append(p.Journal, row)
 		boundRow[f.TradeID] = len(p.Journal) - 1
 		changed = true
@@ -194,10 +195,10 @@ func rowIsEmpty(r *JournalRow) bool {
 //
 // Close cells (Exit / RRAchieved / PnL / Outcome) stay blank while the
 // trade is open and fill once management closes it.
-func applyObjectiveCells(r *JournalRow, f ManualTradeFact) bool {
+func applyObjectiveCells(r *JournalRow, f ManualTradeFact, loc *time.Location) bool {
 	before := *r
 
-	r.Date = formatJournalDate(f.OpenedAt)
+	r.Date = formatJournalDate(f.OpenedAt, loc)
 	r.Session = f.Session
 	r.Pair = f.Symbol
 	r.Direction = formatDirection(f.Direction)
@@ -231,8 +232,9 @@ func applyObjectiveCells(r *JournalRow, f ManualTradeFact) bool {
 // ---------------------------------------------------------------------------
 
 // formatJournalDate renders an RFC3339 opened_at as "YYYY-MM-DD HH:MM"
-// in the journal timezone. Empty / unparseable -> empty cell.
-func formatJournalDate(rfc3339 string) string {
+// in the supplied timezone (nil -> UTC). Empty / unparseable -> empty
+// cell.
+func formatJournalDate(rfc3339 string, loc *time.Location) string {
 	rfc3339 = strings.TrimSpace(rfc3339)
 	if rfc3339 == "" {
 		return ""
@@ -241,7 +243,10 @@ func formatJournalDate(rfc3339 string) string {
 	if err != nil {
 		return ""
 	}
-	return t.In(autoFillTimeZone).Format("2006-01-02 15:04")
+	if loc == nil {
+		loc = time.UTC
+	}
+	return t.In(loc).Format("2006-01-02 15:04")
 }
 
 // formatDirection maps the broker BUY/SELL convention to the trader-
