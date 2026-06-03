@@ -32,13 +32,7 @@ import (
 // field is added or removed from Plan. The frontend persists the
 // schema_version alongside every plan so a future migration knows
 // which payloads need upgrading.
-//
-// v2 added Plan.JournalAnnotations (the trader's subjective journal
-// columns keyed by management trade_id) for the manual-trade journal
-// auto-populate. A v1 plan loads with an empty annotations slice,
-// which is the correct "nothing annotated yet" state, so no data
-// migration is required (the plan is a JSONB blob).
-const CurrentSchemaVersion = 2
+const CurrentSchemaVersion = 1
 
 // ---------------------------------------------------------------------------
 // Status — lifecycle of a user's plan
@@ -154,35 +148,6 @@ type JournalRow struct {
 	Notes              string `json:"notes"`
 }
 
-// JournalAnnotation holds ONLY the trader's subjective journal columns
-// for one manually-executed / reconciled trade, keyed by the
-// management trade ID.
-//
-// The objective columns (pair, direction, style, setup, entry, SL, TP,
-// size, exit, R:R, P&L, outcome, date, session) are NOT stored here:
-// they are served live from the management service's manual-trade
-// record (GetManualJournal) and composited with this annotation by
-// trade_id in the gateway journal view. This keeps a single source of
-// truth for trade facts (management_trades) and persists only what the
-// trader types.
-//
-// All fields are free-text strings; the trader fills them at their own
-// pace, so none are required. An annotation with an empty TradeID is
-// invalid and dropped by Validate (it could never composite against a
-// trade).
-type JournalAnnotation struct {
-	TradeID            string `json:"trade_id"`
-	HTFBias            string `json:"htf_bias"`
-	RuleFollowed       string `json:"rule_followed"`
-	EmotionBeforeTrade string `json:"emotion_before_trade"`
-	EmotionAfterTrade  string `json:"emotion_after_trade"`
-	TradeQuality       string `json:"trade_quality"`
-	MistakeCategory    string `json:"mistake_category"`
-	NewsPresent        string `json:"news_present"`
-	ScreenshotLink     string `json:"screenshot_link"`
-	Notes              string `json:"notes"`
-}
-
 // ---------------------------------------------------------------------------
 // Section 4 — Weekly Review prompts
 // ---------------------------------------------------------------------------
@@ -240,13 +205,6 @@ type Plan struct {
 	TraderProfile TraderProfile       `json:"trader_profile"`
 	Account       AccountParameters   `json:"account"`
 	Journal       []JournalRow        `json:"journal"`
-	// JournalAnnotations holds the trader's subjective columns for
-	// auto-populated manual trades, keyed by management trade_id. The
-	// objective columns are composited live from management in the
-	// journal view; only these annotations persist in the plan. The
-	// legacy Journal above is retained for fully hand-typed rows (e.g.
-	// trades on a different account the system never saw).
-	JournalAnnotations []JournalAnnotation `json:"journal_annotations"`
 	WeeklyReview  WeeklyReview        `json:"weekly_review"`
 	Scorecard     DisciplineScorecard `json:"scorecard"`
 	Objectives    Objectives          `json:"objectives"`

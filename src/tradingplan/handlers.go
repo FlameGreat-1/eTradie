@@ -62,13 +62,6 @@ type Handler struct {
 	generateLimiter *userRateLimiter
 	editLimiter     *userRateLimiter
 	resetLimiter    *userRateLimiter
-
-	// journalReader is the optional management-backed reader powering
-	// the composite Daily Execution Journal (GET .../journal). Injected
-	// via WithJournalReader after the management client is built in the
-	// container; nil disables only the journal GET (503), leaving every
-	// other endpoint working. See journal.go.
-	journalReader JournalReader
 }
 
 // NewHandler builds a Handler. internalSecret is the same value the
@@ -122,11 +115,6 @@ func (h *Handler) RegisterRoutes(
 	mux.Handle("/api/v1/trading-plan/status", wrap(h.handleStatus))
 	mux.Handle("/api/v1/trading-plan/generate", wrap(h.handleGenerate))
 	mux.Handle("/api/v1/trading-plan/reset", wrap(h.handleReset))
-
-	// Daily Execution Journal auto-populate (manual-trade composite view
-	// + subjective-annotation upsert). Defined in journal.go.
-	mux.Handle("/api/v1/trading-plan/journal", wrap(h.handleJournal))
-	mux.Handle("/api/v1/trading-plan/journal/annotation", wrap(h.handleJournalAnnotation))
 }
 
 // RegisterInternalRoutes mounts the engine-callable surface.

@@ -189,46 +189,6 @@ func Validate(p *Plan) error {
 		row.Notes = trimString(row.Notes, journalCellMaxLen)
 	}
 
-	// -- Section 3b: Journal Annotations (subjective, keyed by trade) --
-	// These are the trader's free-text columns for auto-populated
-	// manual trades. Objective facts are NOT here (composited live
-	// from management). Drop annotations with a blank trade_id (they
-	// can never composite), de-dupe by trade_id keeping the last
-	// write, trim every cell, and cap the list at journalMaxRows. No
-	// field is required; the trader fills them at their own pace.
-	cleanedAnnotations := make([]JournalAnnotation, 0, len(p.JournalAnnotations))
-	annotationIndex := make(map[string]int, len(p.JournalAnnotations))
-	for _, a := range p.JournalAnnotations {
-		a.TradeID = trimString(a.TradeID, journalCellMaxLen)
-		if a.TradeID == "" {
-			continue
-		}
-		a.HTFBias = trimString(a.HTFBias, journalCellMaxLen)
-		a.RuleFollowed = trimString(a.RuleFollowed, journalCellMaxLen)
-		a.EmotionBeforeTrade = trimString(a.EmotionBeforeTrade, journalCellMaxLen)
-		a.EmotionAfterTrade = trimString(a.EmotionAfterTrade, journalCellMaxLen)
-		a.TradeQuality = trimString(a.TradeQuality, journalCellMaxLen)
-		a.MistakeCategory = trimString(a.MistakeCategory, journalCellMaxLen)
-		a.NewsPresent = trimString(a.NewsPresent, journalCellMaxLen)
-		a.ScreenshotLink = trimString(a.ScreenshotLink, journalCellMaxLen)
-		a.Notes = trimString(a.Notes, journalCellMaxLen)
-		if phrase, ok := containsBannedPhrase(a.Notes); ok {
-			errs.add("journal_annotations.notes",
-				fmt.Sprintf("banned phrase %q not allowed in a trading plan", phrase))
-			continue
-		}
-		if idx, seen := annotationIndex[a.TradeID]; seen {
-			cleanedAnnotations[idx] = a
-			continue
-		}
-		annotationIndex[a.TradeID] = len(cleanedAnnotations)
-		cleanedAnnotations = append(cleanedAnnotations, a)
-	}
-	if len(cleanedAnnotations) > journalMaxRows {
-		cleanedAnnotations = cleanedAnnotations[:journalMaxRows]
-	}
-	p.JournalAnnotations = cleanedAnnotations
-
 	// -- Section 4: Weekly Review --------------------------------------
 	cleanedPrompts := make([]string, 0, len(p.WeeklyReview.Prompts))
 	for _, q := range p.WeeklyReview.Prompts {

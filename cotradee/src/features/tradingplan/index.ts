@@ -13,10 +13,8 @@ export * from './api/hooks';
 export {
   generateTradingPlan,
   getTradingPlan,
-  getTradingPlanJournal,
   getTradingPlanStatus,
   resetTradingPlan,
   updateTradingPlan,
-  upsertJournalAnnotation,
 } from './api/client';
-export { downloadPlanAsExcel, downloadJournalAsExcel } from './lib/excel';
+export { downloadPlanAsExcel } from './lib/excel';

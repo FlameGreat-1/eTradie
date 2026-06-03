@@ -63,82 +63,6 @@ export interface JournalRow {
   notes: string;
 }
 
-// -- Section 3b -------------------------------------------------------------
-// JournalAnnotation holds ONLY the trader's subjective journal columns
-// for one manually-executed / reconciled trade, keyed by the management
-// trade_id. Lockstep with src/tradingplan/models.go::JournalAnnotation.
-// The objective columns are composited live from the management service
-// in the journal view and are never stored here.
-export interface JournalAnnotation {
-  trade_id: string;
-  htf_bias: string;
-  rule_followed: string;
-  emotion_before_trade: string;
-  emotion_after_trade: string;
-  trade_quality: string;
-  mistake_category: string;
-  news_present: string;
-  screenshot_link: string;
-  notes: string;
-}
-
-// CompositeJournalRow is one Daily-Execution-Journal row as served by
-// GET /api/v1/trading-plan/journal: the OBJECTIVE cells (read-only,
-// deterministically formatted by the gateway from the management
-// manual-trade record) joined with the trader's SUBJECTIVE cells (from
-// the saved annotation). Lockstep with tradingplan.CompositeJournalRow.
-// is_open => the close cells (exit / rr_achieved / pnl / outcome) are
-// blank and the trade is still live.
-export interface CompositeJournalRow {
-  trade_id: string;
-  is_open: boolean;
-
-  // Objective (read-only, formatted by the gateway per design §7).
-  date: string;
-  session: string;
-  pair: string;
-  direction: string;
-  style: string;
-  setup_type: string;
-  entry: string;
-  stop_loss: string;
-  take_profit: string;
-  risk_percent: string;
-  position_size: string;
-  exit: string;
-  rr_planned: string;
-  rr_achieved: string;
-  pnl: string;
-  outcome: string;
-
-  // Subjective (editable, from the saved annotation).
-  htf_bias: string;
-  rule_followed: string;
-  emotion_before_trade: string;
-  emotion_after_trade: string;
-  trade_quality: string;
-  mistake_category: string;
-  news_present: string;
-  screenshot_link: string;
-  notes: string;
-}
-
-// JournalWindow selects which 90-day window the composite view shows.
-// 'current' is the most recent 90 days; 'previous' is the 90 days
-// before that (the UI pages back without ever losing a trade).
-export type JournalWindow = 'current' | 'previous';
-
-// JournalView is the GET /api/v1/trading-plan/journal response. rows are
-// ordered newest-first (open trades first, then closed within the
-// window); total_closed is the count of closed manual trades in the
-// window for the paging affordance; window_days is the window span (90).
-export interface JournalView {
-  window: JournalWindow;
-  rows: CompositeJournalRow[];
-  total_closed: number;
-  window_days: number;
-}
-
 // -- Section 4 --------------------------------------------------------------
 export interface WeeklyReview {
   prompts: string[];
@@ -164,12 +88,6 @@ export interface TradingPlan {
   trader_profile: TraderProfile;
   account: AccountParameters;
   journal: JournalRow[];
-  // Subjective annotations for auto-populated manual trades, keyed by
-  // management trade_id (schema v2). The objective columns are
-  // composited live from management in the journal view; only these
-  // annotations persist in the plan. Optional on the wire so a v1 plan
-  // (no annotations yet) still type-checks.
-  journal_annotations?: JournalAnnotation[];
   weekly_review: WeeklyReview;
   scorecard: DisciplineScorecard;
   objectives: Objectives;

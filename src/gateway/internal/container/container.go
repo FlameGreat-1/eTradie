@@ -27,7 +27,6 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore"
 	"github.com/flamegreat-1/etradie/src/mails"
 	"github.com/flamegreat-1/etradie/src/performancereview"
-	"github.com/flamegreat-1/etradie/src/gateway/internal/tradingplanadapter"
 	"github.com/flamegreat-1/etradie/src/support"
 	"github.com/flamegreat-1/etradie/src/tradingplan"
 	"github.com/flamegreat-1/etradie/src/tradingsystem"
@@ -131,18 +130,6 @@ func New(
 			log.Warn().Err(err).Msg("failed_to_connect_to_management_engine")
 			// We don't fail container creation if management is down, Gateway can still route to Execution.
 		}
-	}
-
-	// Inject the management-backed manual-trade reader that powers the
-	// trading-plan Daily Execution Journal composite view. Guarded on
-	// BOTH the handler and the client being non-nil: NewJournalReader
-	// returns a nil *JournalReader when the client is nil, and boxing a
-	// nil concrete pointer into the JournalReader interface would defeat
-	// the handler's nil-check (the interface would be non-nil). When
-	// management is unavailable the reader is simply never set and the
-	// journal GET degrades to 503 while every other endpoint works.
-	if tradingPlanHandler != nil && mgmtClient != nil {
-		tradingPlanHandler.WithJournalReader(tradingplanadapter.NewJournalReader(mgmtClient))
 	}
 
 	// Pipeline Orchestrator.

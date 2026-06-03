@@ -31,10 +31,9 @@ const (
 	outcomeEmpty           = "empty"
 	outcomeUnauthorized    = "unauthorized"
 
-	endpointGenerate          = "generate"
-	endpointEdit              = "edit"
-	endpointReset             = "reset"
-	endpointJournalAnnotation = "journal_annotation"
+	endpointGenerate = "generate"
+	endpointEdit     = "edit"
+	endpointReset    = "reset"
 )
 
 var (
@@ -111,20 +110,4 @@ var (
 		Name: "trading_plan_balance_source_total",
 		Help: "Generation count by balance source (broker vs. fallback).",
 	}, []string{"source"})
-
-	// TradingPlanJournalTotal counts every GET
-	// /api/v1/trading-plan/journal (the manual-trade composite view).
-	// 'success' is a served view; 'error' covers a nil reader (503),
-	// a management read failure (502), or a plan-load failure (500).
-	TradingPlanJournalTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "trading_plan_journal_total",
-		Help: "Daily Execution Journal composite-view fetch outcomes.",
-	}, []string{"outcome"})
-
-	// TradingPlanJournalAnnotationTotal counts every PUT
-	// /api/v1/trading-plan/journal/annotation (subjective upsert).
-	TradingPlanJournalAnnotationTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "trading_plan_journal_annotation_total",
-		Help: "Daily Execution Journal subjective-annotation upsert outcomes.",
-	}, []string{"outcome"})
 )
