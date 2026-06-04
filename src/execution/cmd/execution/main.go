@@ -389,6 +389,25 @@ func main() {
 	)
 	go reconciler.Loop(gcCtx)
 
+	// Watcher token-refresh loop. A live INSTANT watcher forwards the
+	// user's JWT to the gateway ConfirmSetup RPC; that token is only
+	// re-minted when the user makes an authenticated request. A watcher
+	// can outlive the access-token TTL by a wide margin (default 45m
+	// timeout, up to 7 days for positional, vs ~15m JWT TTL), so an idle
+	// owner's watcher would start failing ConfirmSetup with "token is
+	// expired". This loop proactively mints a fresh service token per
+	// active watcher owner every ReconcileIntervalSecs (well under the
+	// JWT TTL) using the same tokenService + RefreshUserOrderIdentity
+	// machinery the reconciler and restore paths use. Runs on gcCtx so
+	// it stops together with the other background loops at shutdown.
+	go watcherTokenRefreshLoop(
+		gcCtx,
+		wm,
+		userStore,
+		tokenService,
+		time.Duration(cfg.ReconcileIntervalSecs)*time.Second,
+	)
+
 	// Section 7 Step C (CHECKLIST): eager position preload on startup.
 	//
 	// Before the gRPC listener opens, eagerly call Refresh() for every
@@ -567,6 +586,85 @@ func snapshotRetentionLoop(
 			}
 			if pruned > 0 {
 				log.Info().Int64("pruned", pruned).Time("cutoff", cutoff).Msg("snapshot_retention_ran")
+			}
+		}
+	}
+}
+
+// watcherTokenRefreshLoop proactively re-mints service tokens for the
+// owners of live watchers so a watcher never fails its gateway
+// ConfirmSetup call with an expired JWT.
+//
+// Every interval it enumerates the distinct user IDs of currently-armed
+// watchers (Manager.ActiveUserIDs), looks each up, skips missing or
+// inactive users, mints a fresh short-lived service token via
+// tokenService.IssueServiceToken (identical to the reconciler + restore
+// paths), and pushes the new identity onto every matching watcher via
+// Manager.RefreshUserOrderIdentity. That method is a no-op when the
+// token/tier/status are unchanged, and the watcher reads the latest
+// token every tick through IdentityCtx, so the next confirmation after a
+// refresh authenticates cleanly.
+//
+// interval is ReconcileIntervalSecs (default 60s), comfortably under the
+// access-token TTL, so a live watcher's token is always refreshed before
+// it expires. Exits when ctx is cancelled (engine shutdown).
+func watcherTokenRefreshLoop(
+	ctx context.Context,
+	wm *watcher.Manager,
+	users *auth.UserStore,
+	tokens *auth.TokenService,
+	interval time.Duration,
+) {
+	if wm == nil || users == nil || tokens == nil || interval <= 0 {
+		return
+	}
+	log := observability.Logger("watcher_token_refresh")
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			userIDs := wm.ActiveUserIDs()
+			if len(userIDs) == 0 {
+				continue
+			}
+			for _, uid := range userIDs {
+				lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				user, err := users.GetUserByID(lookupCtx, uid)
+				cancel()
+				if err != nil || user == nil {
+					log.Warn().Err(err).Str("user_id", uid).Msg("watcher_token_refresh_user_lookup_failed")
+					continue
+				}
+				if !user.Active {
+					log.Warn().Str("user_id", uid).Msg("watcher_token_refresh_skipped_inactive_user")
+					continue
+				}
+				token, err := tokens.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status)
+				if err != nil {
+					log.Warn().Err(err).Str("user_id", uid).Msg("watcher_token_refresh_issue_failed")
+					continue
+				}
+				claims := &auth.Claims{
+					UserID:   user.ID,
+					Username: user.Username,
+					Role:     user.Role,
+					Tier:     user.Tier,
+					Status:   user.Status,
+				}
+				// Refresh BOTH token consumers of a live INSTANT watcher:
+				//   1. the Order's AuthToken (forwarded to the gateway
+				//      ConfirmSetup RPC), and
+				//   2. the TickCache's per-user identity (used by the
+				//      tick poller's /internal/broker/tick_price calls).
+				// The tick cache holds its own copy of the token set at
+				// arm time; without this it would keep polling with the
+				// expired arming JWT and the watcher would never see
+				// price enter the entry zone.
+				wm.RefreshUserOrderIdentity(claims, token)
+				wm.TickCache().SetServiceIdentity(claims, token)
 			}
 		}
 	}
