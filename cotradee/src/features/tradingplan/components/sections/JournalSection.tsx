@@ -167,7 +167,7 @@ export function JournalSection({ value, editing, onChange, headerActions }: Prop
             {value.map((row, idx) => (
               <tr key={idx} className="group hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
                 {COLUMNS.map((c) => (
-                  <td key={c.key} className="px-1 py-1.5">
+                  <td key={c.key} className="px-1 py-1.5 max-w-0">
                     {editing ? (
                       <input
                         type="text"
@@ -177,7 +177,10 @@ export function JournalSection({ value, editing, onChange, headerActions }: Prop
                         aria-label={`${c.label} row ${idx + 1}`}
                       />
                     ) : (
-                      <span className="block px-2 py-1.5 font-bold text-black dark:text-white tracking-tight">
+                      <span 
+                        className="block truncate px-2 py-1.5 font-bold text-black dark:text-white tracking-tight"
+                        title={row[c.key]}
+                      >
                         {row[c.key] || '—'}
                       </span>
                     )}
@@ -319,8 +322,11 @@ function JournalHistoryPanel() {
               {rows.map((row, idx) => (
                 <tr key={idx} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
                   {COLUMNS.map((c) => (
-                    <td key={c.key} className="px-1 py-1.5">
-                      <span className="block px-2 py-1.5 font-bold text-black dark:text-white tracking-tight">
+                    <td key={c.key} className="px-1 py-1.5 max-w-0">
+                      <span 
+                        className="block truncate px-2 py-1.5 font-bold text-black dark:text-white tracking-tight"
+                        title={row[c.key]}
+                      >
                         {row[c.key] || '—'}
                       </span>
                     </td>

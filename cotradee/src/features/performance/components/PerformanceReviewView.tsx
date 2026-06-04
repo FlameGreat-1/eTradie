@@ -30,13 +30,14 @@ type Tab = PerformanceReviewPeriod | 'history';
  */
 export function PerformanceReviewView() {
   const [tab, setTab] = useState<Tab>('weekly');
+  const [journalMode, setJournalMode] = useState<import('../types').JournalMode>('system');
   const period: PerformanceReviewPeriod = tab === 'history' ? 'weekly' : tab;
 
   const { data: latest, isLoading } = usePerformanceReviewLatest(period);
   const generate = useGeneratePerformanceReview();
 
   const handleGenerate = (p: PerformanceReviewPeriod) => {
-    generate.mutate(p, {
+    generate.mutate({ period: p, journalMode }, {
       onSuccess: () =>
         toast({
           title: 'Review queued',
@@ -68,6 +69,8 @@ export function PerformanceReviewView() {
             period={period}
             windowLabel={windowLabel}
             isGenerating={generate.isPending}
+            journalMode={journalMode}
+            setJournalMode={setJournalMode}
             onGenerate={() => handleGenerate(period)}
           />
 
@@ -152,11 +155,15 @@ function HeaderRow({
   period,
   windowLabel,
   isGenerating,
+  journalMode,
+  setJournalMode,
   onGenerate,
 }: {
   period: PerformanceReviewPeriod;
   windowLabel: string;
   isGenerating: boolean;
+  journalMode: import('../types').JournalMode;
+  setJournalMode: (m: import('../types').JournalMode) => void;
   onGenerate: () => void;
 }) {
   return (
@@ -169,17 +176,37 @@ function HeaderRow({
           {windowLabel || 'No window yet.'}
         </p>
       </div>
-      <button
-        type="button"
-        onClick={onGenerate}
-        disabled={isGenerating}
-        className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold
-                   bg-black dark:bg-white text-white dark:text-black hover:opacity-90
-                   disabled:opacity-60 disabled:cursor-not-allowed transition-opacity focus-ring"
-      >
-        <RefreshCcw size={14} aria-hidden className={isGenerating ? 'animate-spin' : ''} />
-        Run review now
-      </button>
+      <div className="flex flex-row items-center gap-2 sm:gap-3">
+        {/* Journal Mode Toggle */}
+        <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-xl p-1 border border-black/10 dark:border-white/10 shrink-0">
+          {(['system', 'manual'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setJournalMode(mode)}
+              className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${
+                journalMode === mode
+                  ? 'bg-black dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 dark:shadow-white/10'
+                  : 'text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white'
+              }`}
+            >
+              {mode === 'system' ? 'System' : 'Manual'}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={isGenerating}
+          className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold
+                     bg-black dark:bg-white text-white dark:text-black hover:opacity-90
+                     disabled:opacity-60 disabled:cursor-not-allowed transition-opacity focus-ring"
+        >
+          <RefreshCcw size={14} aria-hidden className={isGenerating ? 'animate-spin' : ''} />
+          Run review now
+        </button>
+      </div>
     </div>
   );
 }

@@ -143,6 +143,21 @@ const INVALIDATION_MAP: Record<string, ReadonlyArray<readonly unknown[]>> = {
 export function applyEventInvalidations(qc: QueryClient, event: RealtimeEvent): void {
   const keys = INVALIDATION_MAP[event.type];
   if (!keys || keys.length === 0) return;
+  
+  // TRADE_SYNCED arrives from the monitoring engine mere milliseconds after the trade
+  // is inserted into Postgres. We add a 500ms delay before refetching so the DB
+  // transaction is guaranteed to be fully settled and visible to the API's auto-fill query.
+  // Without this, the API fetches the plan before the new trade is visible, resulting in
+  // the table not showing the new trade until the user manually refreshes the page.
+  if (event.type === 'TRADE_SYNCED') {
+    setTimeout(() => {
+      for (const key of keys) {
+        void qc.invalidateQueries({ queryKey: key as unknown[] });
+      }
+    }, 500);
+    return;
+  }
+
   for (const key of keys) {
     void qc.invalidateQueries({ queryKey: key as unknown[] });
   }

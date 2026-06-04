@@ -101,9 +101,10 @@ export function usePerformanceReviewHistory(
 export function useGeneratePerformanceReview() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (period: PerformanceReviewPeriod) => generateReview(period),
-    onSuccess: (_data, period) => {
-      qc.invalidateQueries({ queryKey: performanceReviewKeys.latest(period) });
+    mutationFn: (params: { period: PerformanceReviewPeriod; journalMode?: import('../types').JournalMode }) =>
+      generateReview(params.period, params.journalMode),
+    onSuccess: (_data, params) => {
+      qc.invalidateQueries({ queryKey: performanceReviewKeys.latest(params.period) });
       qc.invalidateQueries({ queryKey: ['performance-review', 'history'] });
     },
   });

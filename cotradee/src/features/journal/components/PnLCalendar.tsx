@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { usePnLCalendar } from '@/features/journal/api/journal';
 import { useBrokerAccount } from '@/features/execution/api/brokerAccount';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
@@ -81,7 +82,7 @@ export default function PnLCalendar({ onClose }: PnLCalendarProps) {
 
   const monthLabel = `${year}-${String(month).padStart(2, '0')}`;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
@@ -210,7 +211,8 @@ export default function PnLCalendar({ onClose }: PnLCalendarProps) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

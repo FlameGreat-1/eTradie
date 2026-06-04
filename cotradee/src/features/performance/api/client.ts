@@ -53,10 +53,11 @@ export async function listReviewHistory(
 
 export async function generateReview(
   period: PerformanceReviewPeriod,
+  journalMode?: import('../types').JournalMode,
 ): Promise<PerformanceReviewGenerateResponse> {
   const { data } = await api.gateway.post<PerformanceReviewGenerateResponse>(
     `${BASE}/generate`,
-    { period },
+    { period, journal_mode: journalMode },
   );
   return data;
 }

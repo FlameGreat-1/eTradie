@@ -1,4 +1,4 @@
-import { useState } from 'react';
+
 import { useGenerateTradingPlan } from '../api/hooks';
 import { toast } from '@/hooks/useToast';
 import type { TradingPlanStatus } from '../types';
@@ -23,18 +23,9 @@ interface Props {
  */
 export function GenerateBanner({ status, lastError }: Props) {
   const generate = useGenerateTradingPlan();
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [fallbackBalance, setFallbackBalance] = useState('');
-  const [fallbackCurrency, setFallbackCurrency] = useState('USD');
 
   const onGenerate = () => {
-    const opts: { fallback_balance?: number; fallback_currency?: string } = {};
-    const parsed = parseFloat(fallbackBalance);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      opts.fallback_balance = parsed;
-      opts.fallback_currency = fallbackCurrency.trim() || 'USD';
-    }
-    generate.mutate(opts, {
+    generate.mutate({}, {
       onSuccess: () => {
         toast({
           title: 'Plan generation started',
@@ -70,7 +61,7 @@ export function GenerateBanner({ status, lastError }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-8 shadow-sm transition-all duration-500">
+    <div className="flex flex-col items-center justify-center text-center rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-12 shadow-sm transition-all duration-500">
       {status === 'failed' && lastError && (
         <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-[11px] font-bold text-red-500 tracking-tight leading-relaxed">
           <span className="uppercase text-[9px] font-black tracking-widest bg-red-500/10 px-2 py-0.5 rounded-full mr-2">Error</span>
@@ -80,13 +71,13 @@ export function GenerateBanner({ status, lastError }: Props) {
       <h3 className="text-xl font-bold text-black dark:text-white tracking-tight">
         {status === 'failed' ? 'Retry generation' : 'Generate your 90-day plan'}
       </h3>
-      <p className="mt-2 text-xs font-medium text-black/40 dark:text-white/40 max-w-2xl leading-relaxed">
+      <p className="mt-2 text-xs font-medium text-black/40 dark:text-white/40 max-w-2xl leading-relaxed mx-auto">
         Exoper AI will build a personalised workbook from your Trading System and your
         current account balance. The plan is exportable to Excel and printable; the
         Exoper analysis engine never uses it.
       </p>
 
-      <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div className="mt-8">
         <button
           type="button"
           onClick={onGenerate}
@@ -95,44 +86,7 @@ export function GenerateBanner({ status, lastError }: Props) {
         >
           {generate.isPending ? 'Starting…' : status === 'failed' ? 'Retry' : 'Generate plan'}
         </button>
-        <button
-          type="button"
-          onClick={() => setShowAdvanced((v) => !v)}
-          className="text-[10px] font-black text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white uppercase tracking-widest transition-colors px-3 py-1"
-        >
-          {showAdvanced ? 'Hide options' : 'Advanced: override balance'}
-        </button>
       </div>
-
-      {showAdvanced && (
-        <div className="mt-8 grid grid-cols-1 gap-4 rounded-xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] p-6 sm:grid-cols-2 animate-in fade-in slide-in-from-top-2 duration-300">
-          <label className="flex flex-col gap-2">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">Fallback balance</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              value={fallbackBalance}
-              onChange={(e) => setFallbackBalance(e.target.value)}
-              placeholder="e.g. 10000"
-              className="rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-2 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
-            />
-          </label>
-          <label className="flex flex-col gap-2">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30 ml-1">Currency</span>
-            <input
-              type="text"
-              value={fallbackCurrency}
-              onChange={(e) => setFallbackCurrency(e.target.value.toUpperCase().slice(0, 8))}
-              placeholder="USD"
-              className="rounded-lg border border-black/10 dark:border-white/10 bg-white dark:bg-black px-4 py-2 text-sm font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:border-brand transition-all outline-none"
-            />
-          </label>
-          <p className="col-span-1 sm:col-span-2 text-[10px] text-black/30 dark:text-white/30 font-medium px-1">
-            Used only when your broker has no balance available. Leave blank to use the broker's reported balance.
-          </p>
-        </div>
-      )}
     </div>
   );
 }

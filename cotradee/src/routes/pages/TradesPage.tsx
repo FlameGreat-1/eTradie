@@ -124,7 +124,7 @@ export default function TradesPage() {
                   <Th align="right">Entry</Th>
                   <Th align="right">Current</Th>
                   <Th align="right">SL</Th>
-                  <Th align="right">TP1</Th>
+                  <Th align="right">TP</Th>
                   <Th align="right">Lot</Th>
                   <Th align="right">P&amp;L</Th>
                   <Th align="center">Progress</Th>

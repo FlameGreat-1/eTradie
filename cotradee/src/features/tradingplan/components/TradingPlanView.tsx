@@ -21,6 +21,7 @@ import { ScorecardSection } from './sections/ScorecardSection';
 import { ObjectivesSection } from './sections/ObjectivesSection';
 import { FooterMetadata } from './sections/FooterMetadata';
 import { GenerateBanner } from './GenerateBanner';
+import { FloatingCalendarButton } from '@/features/journal/components/FloatingCalendarButton';
 
 /**
  * Top-level Trading Plan view. Rendered inside the swipe-toggle on
@@ -343,6 +344,9 @@ export function TradingPlanView() {
           <FooterMetadata plan={draft} />
         </div>
       )}
+
+      {/* Floating Action Button for PnL Calendar */}
+      <FloatingCalendarButton />
     </div>
   );
 }

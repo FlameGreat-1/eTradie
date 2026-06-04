@@ -11,6 +11,8 @@
 
 export type PerformanceReviewPeriod = 'weekly' | 'monthly';
 
+export type JournalMode = 'system' | 'manual';
+
 export type PerformanceReviewStatus = 'generating' | 'ready' | 'failed' | 'none';
 
 export type ConfidenceBand = 'high' | 'medium' | 'low' | 'insufficient';
@@ -182,6 +184,7 @@ export interface PerformanceReviewRecord {
   period?: PerformanceReviewPeriod;
   period_start?: string;
   period_end?: string;
+  journal_mode?: JournalMode;
   status: PerformanceReviewStatus;
   has_review: boolean;
   review?: PerformanceReview | null;
@@ -200,6 +203,7 @@ export interface PerformanceReviewHistoryRow {
   period: PerformanceReviewPeriod;
   period_start: string;
   period_end: string;
+  journal_mode: JournalMode;
   status: PerformanceReviewStatus;
   last_error?: string;
   created_at: string;
@@ -223,5 +227,6 @@ export interface PerformanceReviewGenerateResponse {
   period: PerformanceReviewPeriod;
   period_start: string;
   period_end: string;
+  journal_mode: JournalMode;
   message: string;
 }

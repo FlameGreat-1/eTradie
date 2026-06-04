@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import AuthLayout from '@/components/layout/AuthLayout';
+import { ChunkErrorBoundary } from './ChunkErrorBoundary';
 
 /* ─── Lazy-loaded pages ──────────────────────────────────── */
 const LandingPage  = lazy(() => import('@/features/landing/LandingPage'));
@@ -100,8 +101,9 @@ function RootRedirect() {
 
 export default function AppRoutes() {
   return (
-    <Suspense fallback={<SmartSuspenseLoader />}>
-      <Routes>
+    <ChunkErrorBoundary fallback={<SmartSuspenseLoader />}>
+      <Suspense fallback={<SmartSuspenseLoader />}>
+        <Routes>
         {/* ── Public landing page ──────────────────────────── */}
         <Route
           path="/landing"
@@ -250,5 +252,6 @@ export default function AppRoutes() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
+    </ChunkErrorBoundary>
   );
 }

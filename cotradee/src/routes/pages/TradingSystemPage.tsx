@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from '@/hooks/useToast';
 import { LogoLoader } from '@/components/ui/LogoLoader';
 import BuilderPage from '@/features/tradingsystem/components/BuilderPage';
-import { ReviewStep } from '@/features/tradingsystem/components/steps/ReviewStep';
+
 import {
   useResetTradingSystem,
   useTradingSystem,
@@ -274,11 +274,7 @@ export default function TradingSystemPage() {
 
   if (!isActive && view === 'plan') {
     return (
-      <div className={`flex flex-col h-full bg-app transition-all duration-300 ${
-        view === 'system'
-          ? 'lg:max-w-7xl lg:mx-auto'
-          : 'w-full'
-      }`}>
+      <div className={`flex flex-col h-full bg-app transition-all duration-300 w-full`}>
         <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0">
           <div>
             <h1 className="text-base font-semibold text-content">
@@ -512,11 +508,3 @@ export default function TradingSystemPage() {
   );
 }
 
-function formatDate(iso?: string): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
-}

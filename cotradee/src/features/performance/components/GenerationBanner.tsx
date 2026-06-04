@@ -17,14 +17,17 @@ export function GenerationBanner({ period, message }: GenerationBannerProps) {
     <div
       role="status"
       aria-live="polite"
-      className="flex items-center gap-3 px-4 sm:px-5 py-3 rounded-2xl border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02]"
+      className="flex flex-col items-center justify-center gap-6 rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-12 text-center shadow-sm"
     >
-      <Loader2 size={16} className="animate-spin text-black/60 dark:text-white/60 shrink-0" aria-hidden />
-      <div className="min-w-0">
-        <p className="text-xs sm:text-sm font-bold text-black dark:text-white">
-          Generating your {period} performance review
-        </p>
-        <p className="mt-0.5 text-[11px] sm:text-xs text-black/50 dark:text-white/50 truncate">
+      <div className="relative flex h-16 w-16 items-center justify-center">
+        <div className="absolute inset-0 animate-ping rounded-full bg-brand/20" />
+        <span className="relative inline-block h-10 w-10 animate-spin rounded-full border-4 border-brand border-t-transparent shadow-lg shadow-brand/20" />
+      </div>
+      <div className="space-y-2">
+        <h3 className="text-xl font-bold text-black dark:text-white tracking-tight uppercase">
+          Generating your {period} review
+        </h3>
+        <p className="text-xs font-medium text-black/40 dark:text-white/40 max-w-sm leading-relaxed mx-auto">
           {message || 'Analyzing your trade history against your trading system. This typically takes 20\u201360 seconds.'}
         </p>
       </div>
