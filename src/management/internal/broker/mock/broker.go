@@ -48,7 +48,7 @@ func (b *Broker) GetSymbolInfo(_ context.Context, symbol string) (*broker.Symbol
 	if si, ok := b.symbols[symbol]; ok {
 		return si, nil
 	}
-	return &broker.SymbolInfo{Symbol: symbol, Point: 0.00001, Digits: 5}, nil
+	return &broker.SymbolInfo{Symbol: symbol, Point: 0.00001, Digits: 5, TradeTickValue: 1.0, TradeTickSize: 0.00001}, nil
 }
 
 // SetTickPrice sets a simulated tick price for testing.
@@ -74,6 +74,18 @@ func (b *Broker) GetTickPrice(_ context.Context, symbol string) (*broker.TickPri
 		return &broker.TickPrice{Bid: 1.08000, Ask: 1.08020}, nil
 	}
 	return tp, nil
+}
+
+func (b *Broker) GetAccountInfo(_ context.Context) (*broker.AccountInfo, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return &broker.AccountInfo{
+		Balance:    10000.0,
+		Equity:     10000.0,
+		Margin:     0.0,
+		FreeMargin: 10000.0,
+		Currency:   "USD",
+	}, nil
 }
 
 func (b *Broker) GetPosition(_ context.Context, ticket string) (*broker.PositionInfo, error) {

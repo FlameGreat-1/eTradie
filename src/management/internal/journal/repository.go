@@ -335,6 +335,54 @@ func (r *Repository) UpdateTradeSL(ctx context.Context, userID, tradeID string, 
 	return nil
 }
 
+// UpdateTradeManualMod persists the SL, TP, RR, and Risk fields when a manual modification is detected.
+func (r *Repository) UpdateTradeManualMod(ctx context.Context, userID, tradeID string, newSL, newTP, newRR, newRiskAmt, newRiskPct float64) error {
+	if userID == "" {
+		return fmt.Errorf("update manual mod for trade %s: user_id must not be empty", tradeID)
+	}
+
+	_, err := r.pool.Exec(ctx, `
+		UPDATE management_trades SET
+			stop_loss = $3,
+			tp1_price = $4,
+			rr_ratio = $5,
+			risk_amount = $6,
+			risk_percent = $7,
+			sl_adjustments = sl_adjustments + 1,
+			updated_at = NOW()
+		WHERE trade_id = $1 AND user_id = $2`,
+		tradeID, userID, newSL, newTP, newRR, newRiskAmt, newRiskPct,
+	)
+	if err != nil {
+		return fmt.Errorf("update manual mod for trade %s: %w", tradeID, err)
+	}
+	return nil
+}
+
+// ResurrectTrade changes a closed trade back to ACTIVE status (if MT5 reports it open).
+func (r *Repository) ResurrectTrade(ctx context.Context, userID, tradeID string, volume float64) error {
+	if userID == "" {
+		return fmt.Errorf("resurrect trade %s: user_id must not be empty", tradeID)
+	}
+
+	_, err := r.pool.Exec(ctx, `
+		UPDATE management_trades SET
+			status = 'ACTIVE',
+			remaining_lot_size = $3,
+			closed_at = NULL,
+			exit_price = 0,
+			gross_pnl = 0,
+			outcome = '',
+			updated_at = NOW()
+		WHERE trade_id = $1 AND user_id = $2`,
+		tradeID, userID, volume,
+	)
+	if err != nil {
+		return fmt.Errorf("resurrect trade %s: %w", tradeID, err)
+	}
+	return nil
+}
+
 // UpdateTradeRuntime persists the worker-mutated runtime state of an active
 // trade so a restart can resume EXACTLY where the worker left off (audit
 // EM-C1/EM-C2): remaining open volume, TP-hit flags, break-even flag, and the
@@ -363,6 +411,7 @@ func (r *Repository) UpdateTradeRuntime(ctx context.Context, userID, tradeID str
 	}
 	return nil
 }
+
 
 // UpdateTradePointDigits persists a self-healed broker point/digits onto
 // the managed-trade row so the heal survives the next restart (audit

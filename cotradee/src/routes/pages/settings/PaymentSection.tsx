@@ -134,7 +134,7 @@ function PaymentMethodsCard() {
         />
       ) : (
         <PaymentMethodPopulated
-          method={data}
+          method={data as any}
           onUpdate={() => openPortal.mutate()}
           updating={openPortal.isPending}
         />

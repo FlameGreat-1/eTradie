@@ -97,7 +97,7 @@ export function useSaveTradingSystem(
     onSuccess: (data, variables, context) => {
       qc.setQueryData(tradingSystemKeys.profile(), data);
       qc.invalidateQueries({ queryKey: tradingSystemKeys.status() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, context as any, undefined as any);
     },
     ...options,
   });
@@ -116,7 +116,7 @@ export function useSkipTradingSystem(
     mutationFn: () => skipTradingSystem(),
     onSuccess: (data, variables, context) => {
       qc.setQueryData(tradingSystemKeys.status(), data);
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, context as any, undefined as any);
     },
     ...options,
   });
@@ -135,7 +135,7 @@ export function useResetTradingSystem(
     mutationFn: () => resetTradingSystem(),
     onSuccess: (data, variables, context) => {
       qc.invalidateQueries({ queryKey: tradingSystemKeys.all });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, context as any, undefined as any);
     },
     ...options,
   });

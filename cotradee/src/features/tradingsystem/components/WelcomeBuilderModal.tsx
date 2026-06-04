@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BuilderModal } from '@/features/tradingsystem/components/BuilderModal';
 import { useTradingSystemStatus } from '@/features/tradingsystem/api/hooks';
-import { ArrowRight, Cpu } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 /**
  * WelcomeBuilderModal

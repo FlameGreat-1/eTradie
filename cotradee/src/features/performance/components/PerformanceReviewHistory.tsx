@@ -4,7 +4,7 @@ import {
   usePerformanceReviewById,
   usePerformanceReviewHistory,
 } from '../api/hooks';
-import type { PerformanceReviewHistoryRow, PerformanceReviewPeriod } from '../types';
+import type { JournalMode, PerformanceReviewHistoryRow, PerformanceReviewPeriod } from '../types';
 import { PerformanceReviewSections } from './PerformanceReviewSections';
 
 /**
@@ -15,12 +15,13 @@ import { PerformanceReviewSections } from './PerformanceReviewSections';
  * Responsive: the list is a single column on mobile and a two-pane
  * (list + detail) layout on lg+.
  */
-export function PerformanceReviewHistory() {
+export function PerformanceReviewHistory({ journalMode }: { journalMode: JournalMode }) {
   const [period, setPeriod] = useState<PerformanceReviewPeriod | 'all'>('all');
   const [offset, setOffset] = useState(0);
   const limit = 20;
   const { data, isLoading } = usePerformanceReviewHistory(
     period === 'all' ? undefined : period,
+    journalMode,
     offset,
     limit,
   );

@@ -169,7 +169,13 @@ func (h *Handler) handleLatest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rec, err := h.store.GetLatest(r.Context(), userID, period)
+	journalModeStr := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("journal_mode")))
+	journalMode := JournalMode(journalModeStr)
+	if !journalMode.IsValid() {
+		journalMode = JournalModeSystem
+	}
+
+	rec, err := h.store.GetLatest(r.Context(), userID, period, journalMode)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			PerfReviewFetchTotal.WithLabelValues(outcomeEmpty).Inc()
@@ -225,10 +231,15 @@ func (h *Handler) handleHistory(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	journalModeStr := strings.ToLower(strings.TrimSpace(q.Get("journal_mode")))
+	journalMode := JournalMode(journalModeStr)
+	if !journalMode.IsValid() {
+		journalMode = JournalModeSystem
+	}
 	offset, _ := strconv.Atoi(q.Get("offset"))
 	limit, _ := strconv.Atoi(q.Get("limit"))
 
-	recs, total, err := h.store.ListHistory(r.Context(), userID, period, offset, limit)
+	recs, total, err := h.store.ListHistory(r.Context(), userID, period, journalMode, offset, limit)
 	if err != nil {
 		PerfReviewFetchTotal.WithLabelValues(outcomeError).Inc()
 		h.log.Error().Err(err).Str("user_id", userID).Msg("performance_review_history_failed")
@@ -322,7 +333,8 @@ func (h *Handler) handleByID(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 type generateRequest struct {
-	Period string `json:"period"`
+	Period      string `json:"period"`
+	JournalMode string `json:"journal_mode"`
 }
 
 func (h *Handler) handleGenerate(w http.ResponseWriter, r *http.Request) {
@@ -394,7 +406,14 @@ func (h *Handler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 
 	periodStart, periodEnd := computeWindow(period, time.Now().UTC())
 
-	if _, err := h.store.MarkGenerating(r.Context(), userID, period, periodStart, periodEnd); err != nil {
+	// Parse journal_mode from the request body. Default to 'system'
+	// for backwards compatibility with existing clients.
+	journalMode := JournalMode(strings.ToLower(strings.TrimSpace(body.JournalMode)))
+	if !journalMode.IsValid() {
+		journalMode = JournalModeSystem
+	}
+
+	if _, err := h.store.MarkGenerating(r.Context(), userID, period, periodStart, periodEnd, journalMode); err != nil {
 		PerfReviewGenerateTotal.WithLabelValues(outcomeError, string(period)).Inc()
 		h.log.Error().Err(err).Str("user_id", userID).Msg("performance_review_mark_generating_failed")
 		writeError(w, http.StatusInternalServerError, "failed to record generation state")
@@ -407,6 +426,7 @@ func (h *Handler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 		PeriodStart:    periodStart,
 		PeriodEnd:      periodEnd,
 		ProfileVersion: sysRec.Version,
+		JournalMode:    journalMode,
 	}
 
 	// Capture the authenticated user's full claims BEFORE detaching
@@ -431,7 +451,7 @@ func (h *Handler) handleGenerate(w http.ResponseWriter, r *http.Request) {
 			failCtx, failCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer failCancel()
 			msg := "failed to start review generation"
-			if markErr := h.store.MarkFailed(failCtx, userID, period, periodStart, msg); markErr != nil {
+			if markErr := h.store.MarkFailed(failCtx, userID, period, periodStart, journalMode, msg); markErr != nil {
 				h.log.Error().Err(markErr).Str("user_id", userID).Msg("performance_review_mark_failed_after_dispatch")
 			}
 		}
@@ -484,8 +504,9 @@ func computeWindow(period Period, now time.Time) (time.Time, time.Time) {
 // ---------------------------------------------------------------------------
 
 type internalCallbackBody struct {
-	UserID string  `json:"user_id"`
-	Review *Review `json:"review"`
+	UserID      string  `json:"user_id"`
+	JournalMode string  `json:"journal_mode"`
+	Review      *Review `json:"review"`
 }
 
 func (h *Handler) handleInternalCallback(w http.ResponseWriter, r *http.Request) {
@@ -551,7 +572,12 @@ func (h *Handler) handleInternalCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rec, err := h.store.Save(r.Context(), userID, body.Review)
+	journalMode := JournalMode(strings.ToLower(strings.TrimSpace(body.JournalMode)))
+	if !journalMode.IsValid() {
+		journalMode = JournalModeSystem
+	}
+
+	rec, err := h.store.Save(r.Context(), userID, body.Review, journalMode)
 	if err != nil {
 		PerfReviewCallbackTotal.WithLabelValues(outcomeError, periodLabel).Inc()
 		h.log.Error().Err(err).Str("user_id", userID).Msg("performance_review_callback_save_failed")
@@ -588,6 +614,7 @@ type internalFailBody struct {
 	UserID      string `json:"user_id"`
 	Period      string `json:"period"`
 	PeriodStart string `json:"period_start"`
+	JournalMode string `json:"journal_mode"`
 	Message     string `json:"message"`
 }
 
@@ -631,7 +658,11 @@ func (h *Handler) handleInternalFail(w http.ResponseWriter, r *http.Request) {
 	if message == "" {
 		message = "review generation failed; please try again"
 	}
-	if err := h.store.MarkFailed(r.Context(), userID, period, periodStart, message); err != nil {
+	journalMode := JournalMode(strings.ToLower(strings.TrimSpace(body.JournalMode)))
+	if !journalMode.IsValid() {
+		journalMode = JournalModeSystem
+	}
+	if err := h.store.MarkFailed(r.Context(), userID, period, periodStart, journalMode, message); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			// Idempotent: a fail-callback that arrives before the
 			// generating row was written is harmless; ack and move on.
@@ -701,7 +732,11 @@ func (h *Handler) handleInternalPrior(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "before must be RFC3339")
 		return
 	}
-	rec, err := h.store.GetLatestReadyBefore(r.Context(), userID, period, before)
+	journalMode := JournalMode(strings.ToLower(strings.TrimSpace(q.Get("journal_mode"))))
+	if !journalMode.IsValid() {
+		journalMode = JournalModeSystem
+	}
+	rec, err := h.store.GetLatestReadyBefore(r.Context(), userID, period, before, journalMode)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeError(w, http.StatusNotFound, "no prior review")
@@ -782,16 +817,17 @@ func (h *Handler) verifyInternalSecret(r *http.Request) bool {
 // returns last_error so the SPA renders a retry CTA.
 func recordResponse(rec *Record) map[string]interface{} {
 	return map[string]interface{}{
-		"id":           rec.ID,
-		"period":       string(rec.Period),
-		"period_start": rec.PeriodStart,
-		"period_end":   rec.PeriodEnd,
-		"status":       string(rec.Status),
-		"has_review":   rec.Review != nil,
-		"review":       rec.Review,
-		"last_error":   rec.LastError,
-		"created_at":   rec.CreatedAt,
-		"updated_at":   rec.UpdatedAt,
+		"id":            rec.ID,
+		"period":        string(rec.Period),
+		"period_start":  rec.PeriodStart,
+		"period_end":    rec.PeriodEnd,
+		"status":        string(rec.Status),
+		"journal_mode":  string(rec.JournalMode),
+		"has_review":    rec.Review != nil,
+		"review":        rec.Review,
+		"last_error":    rec.LastError,
+		"created_at":    rec.CreatedAt,
+		"updated_at":    rec.UpdatedAt,
 	}
 }
 
@@ -799,14 +835,15 @@ func recordResponse(rec *Record) map[string]interface{} {
 // fetches the full review on demand via GET /:id.
 func historyRowResponse(rec *Record) map[string]interface{} {
 	return map[string]interface{}{
-		"id":           rec.ID,
-		"period":       string(rec.Period),
-		"period_start": rec.PeriodStart,
-		"period_end":   rec.PeriodEnd,
-		"status":       string(rec.Status),
-		"last_error":   rec.LastError,
-		"created_at":   rec.CreatedAt,
-		"updated_at":   rec.UpdatedAt,
+		"id":            rec.ID,
+		"period":        string(rec.Period),
+		"period_start":  rec.PeriodStart,
+		"period_end":    rec.PeriodEnd,
+		"status":        string(rec.Status),
+		"journal_mode":  string(rec.JournalMode),
+		"last_error":    rec.LastError,
+		"created_at":    rec.CreatedAt,
+		"updated_at":    rec.UpdatedAt,
 	}
 }
 

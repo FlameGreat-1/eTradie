@@ -63,7 +63,7 @@ function joinList(items: string[]): string {
   return items.join(', ');
 }
 
-function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps, hideHeader, hideSectionEdits }: Props) {
+function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps, hideHeader }: Props) {
   const { identity, sessions, risk, structural, entry, filtering, psychology, confluence, automation, assets, management } = profile;
   
   const content = (

@@ -125,7 +125,7 @@ export function useGenerateTradingPlan(
         }),
       );
       qc.invalidateQueries({ queryKey: tradingPlanKeys.plan() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, context as any, undefined as any);
     },
     ...options,
   });
@@ -145,7 +145,7 @@ export function useUpdateTradingPlan(
     onSuccess: (data, variables, context) => {
       qc.setQueryData(tradingPlanKeys.plan(), data);
       qc.invalidateQueries({ queryKey: tradingPlanKeys.status() });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, context as any, undefined as any);
     },
     ...options,
   });
@@ -159,7 +159,7 @@ export function useResetTradingPlan(
     mutationFn: () => resetTradingPlan(),
     onSuccess: (data, variables, context) => {
       qc.invalidateQueries({ queryKey: tradingPlanKeys.all });
-      options?.onSuccess?.(data, variables, context);
+      options?.onSuccess?.(data, variables, context as any, undefined as any);
     },
     ...options,
   });

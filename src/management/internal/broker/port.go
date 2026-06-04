@@ -21,15 +21,26 @@ type TickPrice struct {
 	Ask float64
 }
 
+// AccountInfo holds the live account balance.
+type AccountInfo struct {
+	Balance    float64
+	Equity     float64
+	Margin     float64
+	FreeMargin float64
+	Currency   string
+}
+
 // SymbolInfo holds the instrument metadata the management engine needs
 // for pip-scale math (break-even buffer, trailing). Sourced from the
 // engine's /internal/broker/symbol_info endpoint — the SAME source the
 // execution sizing engine uses — so the pip model stays consistent
 // across modules.
 type SymbolInfo struct {
-	Symbol string
-	Point  float64
-	Digits int
+	Symbol         string
+	Point          float64
+	Digits         int
+	TradeTickValue float64 // value of one tick movement for 1 lot in deposit currency
+	TradeTickSize  float64 // size of one tick in price terms
 }
 
 // PositionInfo holds broker-reported position state.
@@ -73,6 +84,9 @@ type Port interface {
 	// GetTickPrice returns the latest bid/ask for a symbol.
 	// Called on every tick poll cycle to evaluate SL/TP hits.
 	GetTickPrice(ctx context.Context, symbol string) (*TickPrice, error)
+
+	// GetAccountInfo returns live account balance, equity, margin.
+	GetAccountInfo(ctx context.Context) (*AccountInfo, error)
 
 	// GetPosition returns the current broker state of a specific position.
 	// Used to verify position still exists and get current unrealized P&L.

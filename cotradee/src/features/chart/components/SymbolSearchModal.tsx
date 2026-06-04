@@ -25,7 +25,7 @@ function categorizeSymbol(sym: BrokerSymbol): string {
 }
 
 const CATEGORIES = ['All', 'Forex', 'Crypto', 'Indices', 'Commodities', 'Stocks', 'Metals'];
-const MAX_DISPLAY = 500;
+
 
 interface SymbolSearchModalProps {
   isOpen: boolean;

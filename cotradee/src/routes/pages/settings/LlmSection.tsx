@@ -66,7 +66,7 @@ export default function LlmSection() {
   const platformKeyOn = platformKeyAvailable && !active;
 
   const conns: Record<string, unknown>[] = Array.isArray(connections) ? connections : [];
-  const providerMap: Record<string, unknown> = providers ?? {};
+
 
   const platformKeyCopy = copy('platformKey');
 

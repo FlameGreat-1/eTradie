@@ -86,6 +86,7 @@ export default function ProFeatureLock({
       <div
         className="pointer-events-none select-none opacity-40"
         aria-hidden="true"
+        // @ts-expect-error React 19 inert attribute
         inert=""
       >
         {children}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Cpu, Key, Link2, Save, RefreshCw, ChevronDown } from 'lucide-react';
+import { Cpu, Key, Link2, RefreshCw, ChevronDown } from 'lucide-react';
 import { useProcessorConfig, useProcessorModels, useUpdateProcessorConfig } from '../api/admin';
 
 export function AdminProcessorConfigPanel() {

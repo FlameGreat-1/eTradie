@@ -42,6 +42,7 @@ class DispatchBody(BaseModel):
     period_start: datetime
     period_end: datetime
     profile_version: int = Field(..., ge=0)
+    journal_mode: str = Field(default="system", pattern=r"^(system|manual)$")
     # Identity fields forwarded by the gateway so the engine can apply
     # tier policy on the dispatch path. Optional on the wire for the
     # same backward-compatibility reason as trading-plan.
@@ -126,12 +127,11 @@ async def dispatch_generation(
             detail="performance review generator is not configured",
         )
 
-    # Key includes period_start so two distinct windows (e.g. last
     # week and the week before) do not coalesce onto the same
     # single-flight slot when the user retries near a boundary.
     key = (
         f"performance_review:{gen_req.user_id}:{gen_req.period}:"
-        f"{gen_req.period_start.isoformat()}"
+        f"{gen_req.period_start.isoformat()}:{gen_req.journal_mode}"
     )
     spawned = await container.background_tasks.schedule_once(
         key,
@@ -179,6 +179,7 @@ async def dispatch_performance_review(
         period_start=body.period_start,
         period_end=body.period_end,
         profile_version=body.profile_version,
+        journal_mode=body.journal_mode,
         role=role,
         tier=tier,
     )

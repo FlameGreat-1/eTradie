@@ -36,12 +36,15 @@ services:
     command: >
       redis-server
       --maxmemory 128mb
-      --maxmemory-policy allkeys-lru
-      --save ""
-      --appendonly no
+      --maxmemory-policy volatile-lru
+      --save 300 1
+      --appendonly yes
+      --appendfsync everysec
       --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - etradie-net
     healthcheck:
@@ -53,7 +56,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 192M
 
   chromadb:
     # Pinned to the same minor as helm/data-layer/values.yaml so dev
@@ -506,6 +509,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
     driver: local
   prometheus_data:
     driver: local

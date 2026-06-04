@@ -476,7 +476,7 @@ func (s *ManagementServer) GetManualJournal(ctx context.Context, req *management
 			TradingStyle:  string(t.TradingStyle),
 			SetupType:     t.SetupType,
 			EntryPrice:    t.EntryPrice,
-			StopLoss:      t.InitialSL,
+			StopLoss:      t.StopLoss,
 			Tp1Price:      t.TP1Price,
 			Tp2Price:      t.TP2Price,
 			Tp3Price:      t.TP3Price,

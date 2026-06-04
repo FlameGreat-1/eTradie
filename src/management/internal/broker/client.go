@@ -154,6 +154,28 @@ func (c *Client) ClosePosition(ctx context.Context, ticket string) error {
 	return nil
 }
 
+func (c *Client) GetAccountInfo(ctx context.Context) (*AccountInfo, error) {
+	var resp struct {
+		Balance    float64 `json:"balance"`
+		Equity     float64 `json:"equity"`
+		Margin     float64 `json:"margin"`
+		FreeMargin float64 `json:"margin_free"`
+		Currency   string  `json:"currency"`
+	}
+
+	if err := c.get(ctx, "/internal/broker/account_info", &resp); err != nil {
+		return nil, fmt.Errorf("get account info: %w", err)
+	}
+
+	return &AccountInfo{
+		Balance:    resp.Balance,
+		Equity:     resp.Equity,
+		Margin:     resp.Margin,
+		FreeMargin: resp.FreeMargin,
+		Currency:   resp.Currency,
+	}, nil
+}
+
 // post performs an HTTP POST with JSON body and decodes the response.
 func (c *Client) post(ctx context.Context, path string, payload interface{}, dest interface{}) error {
 	start := time.Now()
@@ -190,6 +212,45 @@ func (c *Client) post(ctx context.Context, path string, payload interface{}, des
 		respBody, _ := io.ReadAll(resp.Body)
 		observability.BrokerCallTotal.WithLabelValues(path, "http_error").Inc()
 		return fmt.Errorf("http post %s: status %d: %s", path, resp.StatusCode, string(respBody))
+	}
+
+	observability.BrokerCallTotal.WithLabelValues(path, "success").Inc()
+
+	if err := json.NewDecoder(resp.Body).Decode(dest); err != nil {
+		return fmt.Errorf("decode response from %s: %w", path, err)
+	}
+
+	return nil
+}
+
+// get performs an HTTP GET and decodes the response.
+func (c *Client) get(ctx context.Context, path string, dest interface{}) error {
+	start := time.Now()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+
+	if err := c.stampInternalAuth(ctx, req); err != nil {
+		observability.BrokerCallTotal.WithLabelValues(path, "auth_error").Inc()
+		return fmt.Errorf("http get %s: %w", path, err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		observability.BrokerCallTotal.WithLabelValues(path, "error").Inc()
+		return fmt.Errorf("http get %s: %w", path, err)
+	}
+	defer resp.Body.Close()
+
+	elapsed := time.Since(start).Seconds()
+	observability.BrokerCallDuration.WithLabelValues(path).Observe(elapsed)
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		observability.BrokerCallTotal.WithLabelValues(path, "http_error").Inc()
+		return fmt.Errorf("http get %s: status %d: %s", path, resp.StatusCode, string(respBody))
 	}
 
 	observability.BrokerCallTotal.WithLabelValues(path, "success").Inc()

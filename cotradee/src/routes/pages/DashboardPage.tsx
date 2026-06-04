@@ -37,7 +37,7 @@ function normalizeSymbol(s: string | undefined | null): string {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+
 
   const { data: symbolData } = useSymbols();
   const { data: execState } = useExecutionState();
@@ -54,7 +54,7 @@ export default function DashboardPage() {
 
   const noBroker = !broker.isLoading && !broker.data;
 
-  const hasSkippedOnboarding = sessionStorage.getItem('exoper_onboarding_skipped') === 'true';
+
 
   // Show WelcomeSetupCard for users who skipped onboarding (no broker)
   const needsOnboarding = noBroker;

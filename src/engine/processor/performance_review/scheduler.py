@@ -218,49 +218,52 @@ async def _run_period_cron(app: FastAPI, period: str) -> None:
     coalesced = 0
     errored = 0
     for uid, role, tier in users:
-        gen_req = GenerationRequest(
-            user_id=uid,
-            period=period,
-            period_start=period_start,
-            period_end=period_end,
-            # Sentinel value; the generator self-heals via _fetch_profile.
-            profile_version=0,
-            role=role,
-            tier=tier,
-        )
-        try:
-            result = await dispatch_generation(container, gen_req)
-        except HTTPException as exc:
-            # 503 = generator not configured; same answer every user
-            # would give, so abort the cron run rather than spam logs.
-            logger.error(
-                "performance_review_cron_generator_unavailable",
-                extra={
-                    "period": period,
-                    "status": exc.status_code,
-                    "detail": str(exc.detail),
-                },
+        for jmode in ("system", "manual"):
+            gen_req = GenerationRequest(
+                user_id=uid,
+                period=period,
+                period_start=period_start,
+                period_end=period_end,
+                # Sentinel value; the generator self-heals via _fetch_profile.
+                profile_version=0,
+                journal_mode=jmode,
+                role=role,
+                tier=tier,
             )
-            return
-        except Exception as exc:  # noqa: BLE001
-            errored += 1
-            logger.warning(
-                "performance_review_cron_dispatch_error",
-                extra={
-                    "user_id": uid,
-                    "period": period,
-                    "error": str(exc),
-                    "error_type": type(exc).__name__,
-                },
-            )
-            continue
-        if result.get("spawned"):
-            dispatched += 1
-        else:
-            # The job was coalesced by the single-flight slot (a
-            # previous manual /generate or the same cron tick from a
-            # race-prone deploy). Expected; not an error.
-            coalesced += 1
+            try:
+                result = await dispatch_generation(container, gen_req)
+            except HTTPException as exc:
+                # 503 = generator not configured; same answer every user
+                # would give, so abort the cron run rather than spam logs.
+                logger.error(
+                    "performance_review_cron_generator_unavailable",
+                    extra={
+                        "period": period,
+                        "status": exc.status_code,
+                        "detail": str(exc.detail),
+                    },
+                )
+                return
+            except Exception as exc:  # noqa: BLE001
+                errored += 1
+                logger.warning(
+                    "performance_review_cron_dispatch_error",
+                    extra={
+                        "user_id": uid,
+                        "period": period,
+                        "journal_mode": jmode,
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                continue
+            if result.get("spawned"):
+                dispatched += 1
+            else:
+                # The job was coalesced by the single-flight slot (a
+                # previous manual /generate or the same cron tick from a
+                # race-prone deploy). Expected; not an error.
+                coalesced += 1
 
     logger.info(
         "performance_review_cron_completed",

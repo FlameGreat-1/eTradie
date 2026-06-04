@@ -14,7 +14,7 @@ import {
   ChevronRight,
   ChevronLeft,
 } from 'lucide-react';
-import { SIDEBAR_WIDTH } from '@/utils/constants';
+
 
 const EXPANDED_WIDTH = 200;
 const COLLAPSED_WIDTH = 48;

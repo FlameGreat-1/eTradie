@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LifeBuoy, MessageSquarePlus, Inbox, Users, X, BookOpen, HelpCircle } from 'lucide-react';
+import { MessageSquarePlus, Inbox, Users, X, BookOpen, HelpCircle } from 'lucide-react';
 import { useAuth } from '@/features/auth';
 
 /**

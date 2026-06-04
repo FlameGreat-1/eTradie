@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSymbols, useBrokerSymbols, useUpdateSymbols } from '@/features/symbols/api/symbols';
 import { useActiveBrokerConnection } from '@/features/broker/api/brokerConnections';
 import { useTierGate } from '@/features/auth/hooks/useTierGate';
-import { BarChart3, Check, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { BarChart3, Check, ChevronRight, Loader2 } from 'lucide-react';
 import { SymbolCombobox } from '@/features/symbols/components/SymbolCombobox';
 
 // One-time cleanup key. Old builds stored user-typed symbols here;
@@ -16,10 +16,9 @@ export function SymbolsStep({ onComplete }: Props) {
   const { data: symbolData } = useSymbols();
   
   // Get active connection to check provisioning status
-  const { data: activeBrokerConn, isLoading: activeBrokerLoading } = useActiveBrokerConnection(
-    undefined, 
-    { refetchInterval: (query) => query.state.data?.connection?.status === 'provisioning' ? 3000 : false }
-  );
+  const { data: activeBrokerConn, isLoading: activeBrokerLoading } = useActiveBrokerConnection({
+    refetchInterval: (query: any) => query.state.data?.connection?.status === 'provisioning' ? 3000 : false
+  });
   
   // The catalog is populated asynchronously by BrokerSyncService
   // immediately after step 0 (BrokerStep) succeeds. On a slow broker
@@ -31,7 +30,7 @@ export function SymbolsStep({ onComplete }: Props) {
     data: brokerCatalog,
     isLoading: catalogLoading,
   } = useBrokerSymbols({
-    refetchInterval: (query) => {
+    refetchInterval: (query: any) => {
       const count = query.state.data?.symbols.length ?? 0;
       return count === 0 ? 3000 : false;
     },

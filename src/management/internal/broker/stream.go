@@ -82,9 +82,11 @@ func (s *Stream) GetTickPrice(ctx context.Context, symbol string) (*TickPrice, e
 // specification but we decode just what we use.
 func (s *Stream) GetSymbolInfo(ctx context.Context, symbol string) (*SymbolInfo, error) {
 	var resp struct {
-		Symbol string  `json:"symbol"`
-		Point  float64 `json:"point"`
-		Digits int     `json:"digits"`
+		Symbol         string  `json:"symbol"`
+		Point          float64 `json:"point"`
+		Digits         int     `json:"digits"`
+		TradeTickValue float64 `json:"trade_tick_value"`
+		TradeTickSize  float64 `json:"trade_tick_size"`
 	}
 
 	if err := s.get(ctx, fmt.Sprintf("/internal/broker/symbol_info?symbol=%s", url.QueryEscape(symbol)), &resp); err != nil {
@@ -92,9 +94,11 @@ func (s *Stream) GetSymbolInfo(ctx context.Context, symbol string) (*SymbolInfo,
 	}
 
 	return &SymbolInfo{
-		Symbol: resp.Symbol,
-		Point:  resp.Point,
-		Digits: resp.Digits,
+		Symbol:         resp.Symbol,
+		Point:          resp.Point,
+		Digits:         resp.Digits,
+		TradeTickValue: resp.TradeTickValue,
+		TradeTickSize:  resp.TradeTickSize,
 	}, nil
 }
 

@@ -2,11 +2,16 @@ package analytics
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -170,6 +175,17 @@ type TradeRow struct {
 	PartialCloses   int       `json:"partial_closes"`
 	OpenedAt        time.Time `json:"opened_at"`
 	ClosedAt        time.Time `json:"closed_at"`
+
+	// Manual Journal subjective fields (only populated when
+	// journal_mode = "manual"). Added directly to the TradeRow
+	// because the Python LLM prompt passes this list exactly.
+	RuleFollowed       string `json:"rule_followed,omitempty"`
+	EmotionBeforeTrade string `json:"emotion_before_trade,omitempty"`
+	EmotionAfterTrade  string `json:"emotion_after_trade,omitempty"`
+	TradeQuality       string `json:"trade_quality,omitempty"`
+	MistakeCategory    string `json:"mistake_category,omitempty"`
+	NewsPresent        string `json:"news_present,omitempty"`
+	Notes              string `json:"notes,omitempty"`
 }
 
 // Confidence is the deterministic data-quality stamp the LLM is
@@ -188,6 +204,7 @@ func (a *PerformanceAggregator) Aggregate(
 	userID string,
 	period string,
 	periodStart, periodEnd time.Time,
+	journalMode string,
 ) (*Bundle, error) {
 	if userID == "" {
 		return nil, fmt.Errorf("performance_aggregator: user_id is required")
@@ -244,6 +261,12 @@ func (a *PerformanceAggregator) Aggregate(
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("performance_aggregator: rows: %w", err)
+	}
+
+	if journalMode == "manual" {
+		if err := a.mergeManualJournal(ctx, userID, periodStart, periodEnd, &all); err != nil {
+			a.log.Warn().Err(err).Str("user_id", userID).Msg("failed to merge manual journal; proceeding with system trades only")
+		}
 	}
 
 	b.Confidence = computeConfidence(len(all))
@@ -309,6 +332,7 @@ func computeSummary(trades []TradeRow) Summary {
 		setups     = make(map[string]struct{})
 		currentW   int
 		currentL   int
+		durCount   int
 	)
 	for _, t := range trades {
 		switch t.Outcome {
@@ -341,7 +365,10 @@ func computeSummary(trades []TradeRow) Summary {
 		if t.RMultiple < worstR {
 			worstR = t.RMultiple
 		}
-		sumDur += float64(t.DurationMinutes)
+		if t.DurationMinutes > 0 {
+			sumDur += float64(t.DurationMinutes)
+			durCount++
+		}
 		if t.Symbol != "" {
 			symbols[t.Symbol] = struct{}{}
 		}
@@ -354,7 +381,9 @@ func computeSummary(trades []TradeRow) Summary {
 	s.WorstRMultiple = roundTo(worstR, 3)
 	s.WinRatePct = roundTo(float64(s.Wins)/float64(len(trades))*100, 2)
 	s.LossRatePct = roundTo(float64(s.Losses)/float64(len(trades))*100, 2)
-	s.AvgDurationMinutes = roundTo(sumDur/float64(len(trades)), 2)
+	if durCount > 0 {
+		s.AvgDurationMinutes = roundTo(sumDur/float64(durCount), 2)
+	}
 	s.DistinctSymbols = len(symbols)
 	s.DistinctSetups = len(setups)
 
@@ -556,3 +585,149 @@ func roundTo(v float64, places int) float64 {
 	shift := math.Pow(10, float64(places))
 	return math.Round(v*shift) / shift
 }
+
+func (a *PerformanceAggregator) mergeManualJournal(
+	ctx context.Context,
+	userID string,
+	periodStart, periodEnd time.Time,
+	trades *[]TradeRow,
+) error {
+	var planRaw []byte
+	err := a.pool.QueryRow(ctx, `
+		SELECT plan
+		  FROM user_trading_plans
+		 WHERE user_id = $1
+		   AND status  = 'active'
+	`, userID).Scan(&planRaw)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil // No active plan, nothing to merge
+		}
+		return fmt.Errorf("query plan: %w", err)
+	}
+
+	type minimalPlan struct {
+		Journal []struct {
+			TradeID            string `json:"trade_id"`
+			Date               string `json:"date"`
+			RuleFollowed       string `json:"rule_followed"`
+			EmotionBeforeTrade string `json:"emotion_before_trade"`
+			EmotionAfterTrade  string `json:"emotion_after_trade"`
+			TradeQuality       string `json:"trade_quality"`
+			MistakeCategory    string `json:"mistake_category"`
+			NewsPresent        string `json:"news_present"`
+			Notes              string `json:"notes"`
+			Session            string `json:"session"`
+			Pair               string `json:"pair"`
+			Direction          string `json:"direction"`
+			Style              string `json:"style"`
+			SetupType          string `json:"setup_type"`
+			RiskPercent        string `json:"risk_percent"`
+			RRPlanned          string `json:"rr_planned"`
+			RRAchieved         string `json:"rr_achieved"`
+			PnL                string `json:"pnl"`
+			Outcome            string `json:"outcome"`
+		} `json:"journal"`
+	}
+
+	var plan minimalPlan
+	if err := json.Unmarshal(planRaw, &plan); err != nil {
+		return fmt.Errorf("unmarshal plan: %w", err)
+	}
+
+	// 1. Index subjective data for autofilled trades
+	subjectiveByTrade := make(map[string]int)
+	for i, jrow := range plan.Journal {
+		if jrow.TradeID != "" {
+			subjectiveByTrade[jrow.TradeID] = i
+		}
+	}
+
+	// 2. Merge subjective data into existing system trades
+	for i := range *trades {
+		t := &(*trades)[i]
+		if idx, ok := subjectiveByTrade[t.TradeID]; ok {
+			jrow := plan.Journal[idx]
+			t.RuleFollowed = jrow.RuleFollowed
+			t.EmotionBeforeTrade = jrow.EmotionBeforeTrade
+			t.EmotionAfterTrade = jrow.EmotionAfterTrade
+			t.TradeQuality = jrow.TradeQuality
+			t.MistakeCategory = jrow.MistakeCategory
+			t.NewsPresent = jrow.NewsPresent
+			t.Notes = jrow.Notes
+		}
+	}
+
+	// 3. Extract purely manual hand-typed trades
+	for _, jrow := range plan.Journal {
+		if jrow.TradeID != "" || jrow.Date == "" {
+			continue
+		}
+		openedAt, err := parseDateRobustly(jrow.Date)
+		if err != nil || openedAt.Before(periodStart) || openedAt.After(periodEnd) {
+			continue
+		}
+
+		tr := TradeRow{
+			Symbol:             jrow.Pair,
+			Direction:          jrow.Direction,
+			TradingStyle:       jrow.Style,
+			SetupType:          jrow.SetupType,
+			Session:            jrow.Session,
+			Outcome:            strings.ToUpper(strings.TrimSpace(jrow.Outcome)),
+			OpenedAt:           openedAt,
+			ClosedAt:           openedAt,
+			RiskPercent:        parseNumericString(jrow.RiskPercent),
+			GrossPnL:           parseNumericString(jrow.PnL),
+			RMultiple:          parseNumericString(jrow.RRAchieved),
+			RuleFollowed:       jrow.RuleFollowed,
+			EmotionBeforeTrade: jrow.EmotionBeforeTrade,
+			EmotionAfterTrade:  jrow.EmotionAfterTrade,
+			TradeQuality:       jrow.TradeQuality,
+			MistakeCategory:    jrow.MistakeCategory,
+			NewsPresent:        jrow.NewsPresent,
+			Notes:              jrow.Notes,
+		}
+
+		*trades = append(*trades, tr)
+	}
+
+	// Re-sort by ClosedAt
+	sort.Slice(*trades, func(i, j int) bool {
+		return (*trades)[i].ClosedAt.Before((*trades)[j].ClosedAt)
+	})
+
+	return nil
+}
+
+func parseDateRobustly(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02", s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("02/01/2006", s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("01/02/2006", s); err == nil {
+		return t, nil
+	}
+	return time.Time{}, errors.New("unparseable date")
+}
+
+func parseNumericString(s string) float64 {
+	s = strings.ReplaceAll(s, "$", "")
+	s = strings.ReplaceAll(s, "R", "")
+	s = strings.ReplaceAll(s, "%", "")
+	s = strings.ReplaceAll(s, ",", "")
+	s = strings.ReplaceAll(s, "+", "")
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	v, _ := strconv.ParseFloat(s, 64)
+	return v
+}
+

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { X, Check, CreditCard, ShieldCheck, Zap, ExternalLink, KeyRound, Server, Sparkles } from 'lucide-react';
+import { X, Check, CreditCard, ShieldCheck, ExternalLink, KeyRound, Server, Sparkles } from 'lucide-react';
 import { AxiosError } from 'axios';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/axios';

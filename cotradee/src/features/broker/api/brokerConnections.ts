@@ -48,7 +48,7 @@ export function useBrokerConnections() {
   });
 }
 
-export function useActiveBrokerConnection() {
+export function useActiveBrokerConnection(options?: any) {
   const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['broker', 'connections', 'active'],
@@ -57,6 +57,7 @@ export function useActiveBrokerConnection() {
       return data.connection ?? null;
     },
     enabled: isAuthenticated,
+    ...options,
   });
 }
 

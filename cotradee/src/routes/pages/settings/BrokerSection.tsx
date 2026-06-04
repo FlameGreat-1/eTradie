@@ -3,7 +3,7 @@ import {
   useBrokerConnections, useActiveBrokerConnection,
   useCreateBrokerConnection, useActivateBroker, useTestBrokerConnection, useDeleteBrokerConnection,
 } from '@/features/broker/api/brokerConnections';
-import { Plus, Trash2, Zap, Check, AlertCircle, ChevronDown, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Zap, Check, ChevronDown, Loader2 } from 'lucide-react';
 
 type BrokerForm = {
   connection_type: 'ea' | 'metaapi' | 'hosted';

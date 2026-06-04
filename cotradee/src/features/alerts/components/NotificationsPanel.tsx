@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Inbox, AlertTriangle, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { Inbox, AlertTriangle, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { useRecentEvents } from '@/features/alerts/api/events';
 import { presentUserEvent } from '@/features/realtime/eventPresentation';
 import { formatRelativeTime } from '@/utils/formatters';

@@ -100,6 +100,7 @@ class GenerationRequest:
     period_start: datetime    # inclusive
     period_end: datetime      # inclusive
     profile_version: int
+    journal_mode: str = "system"  # 'system' | 'manual'
     role: str = "etradie"
     tier: str = "free"
 
@@ -248,6 +249,7 @@ class PerformanceReviewGenerator:
             period=req.period,
             period_start=req.period_start.isoformat(),
             period_end=req.period_end.isoformat(),
+            journal_mode=req.journal_mode,
             profile=profile,
             profile_version=effective_version,
             aggregation=aggregation,
@@ -431,6 +433,7 @@ class PerformanceReviewGenerator:
             "period": req.period,
             "period_start": req.period_start.isoformat(),
             "period_end": req.period_end.isoformat(),
+            "journal_mode": req.journal_mode,
         }
         try:
             resp = await self._http.post(
@@ -577,6 +580,7 @@ class PerformanceReviewGenerator:
             f"{self._base_url}/internal/performance-review/prior"
             f"?user_id={req.user_id}&period={req.period}"
             f"&before={req.period_start.isoformat()}"
+            f"&journal_mode={req.journal_mode}"
         )
         try:
             resp = await self._http.get(
@@ -807,7 +811,7 @@ class PerformanceReviewGenerator:
             try:
                 resp = await self._http.post(
                     url,
-                    json={"user_id": req.user_id, "review": review},
+                    json={"user_id": req.user_id, "journal_mode": req.journal_mode, "review": review},
                     headers=headers,
                 )
             except (httpx.TimeoutException, httpx.HTTPError) as exc:
@@ -906,6 +910,7 @@ class PerformanceReviewGenerator:
                     "user_id": req.user_id,
                     "period": req.period,
                     "period_start": req.period_start.isoformat(),
+                    "journal_mode": req.journal_mode,
                     "message": message,
                 },
                 headers={

@@ -47,6 +47,7 @@ func (s *Store) MarkGenerating(
 	userID string,
 	period Period,
 	periodStart, periodEnd time.Time,
+	journalMode JournalMode,
 ) (int64, error) {
 	if userID == "" {
 		return 0, errors.New("performancereview.MarkGenerating: user_id is required")
@@ -57,20 +58,23 @@ func (s *Store) MarkGenerating(
 	if periodEnd.Before(periodStart) {
 		return 0, errors.New("performancereview.MarkGenerating: period_end must be on or after period_start")
 	}
+	if !journalMode.IsValid() {
+		journalMode = JournalModeSystem
+	}
 
 	now := time.Now().UTC()
 	var id int64
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO user_performance_reviews
-		  (user_id, period, period_start, period_end, status, review, last_error, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, 'generating', NULL, '', $5, $5)
-		ON CONFLICT (user_id, period, period_start) DO UPDATE
-		   SET status      = 'generating',
-		       period_end  = EXCLUDED.period_end,
-		       last_error  = '',
-		       updated_at  = EXCLUDED.updated_at
+		  (user_id, period, period_start, period_end, status, review, last_error, journal_mode, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, 'generating', NULL, '', $5, $6, $6)
+		ON CONFLICT (user_id, period, period_start, journal_mode) DO UPDATE
+		   SET status       = 'generating',
+		       period_end   = EXCLUDED.period_end,
+		       last_error   = '',
+		       updated_at   = EXCLUDED.updated_at
 		RETURNING id`,
-		userID, string(period), periodStart, periodEnd, now,
+		userID, string(period), periodStart, periodEnd, string(journalMode), now,
 	).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("performancereview.MarkGenerating: %w", err)
@@ -86,6 +90,7 @@ func (s *Store) MarkFailed(
 	userID string,
 	period Period,
 	periodStart time.Time,
+	journalMode JournalMode,
 	message string,
 ) error {
 	if userID == "" {
@@ -98,12 +103,13 @@ func (s *Store) MarkFailed(
 	res, err := s.pool.Exec(ctx, `
 		UPDATE user_performance_reviews
 		   SET status     = 'failed',
-		       last_error = $4,
-		       updated_at = $5
+		       last_error = $5,
+		       updated_at = $6
 		 WHERE user_id      = $1
 		   AND period       = $2
-		   AND period_start = $3`,
-		userID, string(period), periodStart, message, now,
+		   AND period_start = $3
+		   AND journal_mode = $4`,
+		userID, string(period), periodStart, string(journalMode), message, now,
 	)
 	if err != nil {
 		return fmt.Errorf("performancereview.MarkFailed: %w", err)
@@ -152,6 +158,7 @@ func (s *Store) Save(
 	ctx context.Context,
 	userID string,
 	review *Review,
+	journalMode JournalMode,
 ) (*Record, error) {
 	if userID == "" {
 		return nil, errors.New("performancereview.Save: user_id is required")
@@ -183,16 +190,16 @@ func (s *Store) Save(
 	)
 	err = s.pool.QueryRow(ctx, `
 		INSERT INTO user_performance_reviews
-		  (user_id, period, period_start, period_end, status, review, last_error, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, 'ready', $5, '', $6, $6)
-		ON CONFLICT (user_id, period, period_start) DO UPDATE
+		  (user_id, period, period_start, period_end, status, review, last_error, journal_mode, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, 'ready', $5, '', $6, $7, $7)
+		ON CONFLICT (user_id, period, period_start, journal_mode) DO UPDATE
 		   SET status     = 'ready',
 		       period_end = EXCLUDED.period_end,
 		       review     = EXCLUDED.review,
 		       last_error = '',
 		       updated_at = EXCLUDED.updated_at
 		RETURNING id, created_at, updated_at`,
-		userID, string(review.Period), review.PeriodStart, review.PeriodEnd, raw, now,
+		userID, string(review.Period), review.PeriodStart, review.PeriodEnd, raw, string(journalMode), now,
 	).Scan(&id, &createdAt, &updatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("performancereview.Save: upsert: %w", err)
@@ -221,6 +228,7 @@ func (s *Store) GetLatest(
 	ctx context.Context,
 	userID string,
 	period Period,
+	journalMode JournalMode,
 ) (*Record, error) {
 	if userID == "" {
 		return nil, errors.New("performancereview.GetLatest: user_id is required")
@@ -235,17 +243,18 @@ func (s *Store) GetLatest(
 	rec.UserID = userID
 	rec.Period = period
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, period_start, period_end, status, review, last_error, created_at, updated_at
+		SELECT id, period_start, period_end, status, review, last_error, journal_mode, created_at, updated_at
 		  FROM user_performance_reviews
 		 WHERE user_id = $1
 		   AND period  = $2
+		   AND journal_mode = $3
 		 ORDER BY updated_at DESC
 		 LIMIT 1`,
-		userID, string(period),
+		userID, string(period), string(journalMode),
 	).Scan(
 		&rec.ID, &rec.PeriodStart, &rec.PeriodEnd,
 		&rec.Status, &reviewRaw, &rec.LastError,
-		&rec.CreatedAt, &rec.UpdatedAt,
+		&rec.JournalMode, &rec.CreatedAt, &rec.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -277,7 +286,7 @@ func (s *Store) GetByID(ctx context.Context, userID string, id int64) (*Record, 
 	rec.UserID = userID
 	rec.ID = id
 	err := s.pool.QueryRow(ctx, `
-		SELECT period, period_start, period_end, status, review, last_error, created_at, updated_at
+		SELECT period, period_start, period_end, status, review, last_error, journal_mode, created_at, updated_at
 		  FROM user_performance_reviews
 		 WHERE id      = $1
 		   AND user_id = $2`,
@@ -285,7 +294,7 @@ func (s *Store) GetByID(ctx context.Context, userID string, id int64) (*Record, 
 	).Scan(
 		&period, &rec.PeriodStart, &rec.PeriodEnd,
 		&rec.Status, &reviewRaw, &rec.LastError,
-		&rec.CreatedAt, &rec.UpdatedAt,
+		&rec.JournalMode, &rec.CreatedAt, &rec.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -317,6 +326,7 @@ func (s *Store) ListHistory(
 	ctx context.Context,
 	userID string,
 	period Period,
+	journalMode JournalMode,
 	offset, limit int,
 ) ([]*Record, int, error) {
 	if userID == "" {
@@ -332,9 +342,9 @@ func (s *Store) ListHistory(
 		limit = HistoryMaxLimit
 	}
 
-	where := "WHERE user_id = $1"
-	args := []interface{}{userID}
-	idx := 2
+	where := "WHERE user_id = $1 AND journal_mode = $2"
+	args := []interface{}{userID, string(journalMode)}
+	idx := 3
 	if period != "" {
 		if !period.IsValid() {
 			return nil, 0, fmt.Errorf("performancereview.ListHistory: invalid period %q", string(period))
@@ -353,7 +363,7 @@ func (s *Store) ListHistory(
 	}
 
 	query := fmt.Sprintf(`
-		SELECT id, period, period_start, period_end, status, last_error, created_at, updated_at
+		SELECT id, period, period_start, period_end, status, last_error, journal_mode, created_at, updated_at
 		  FROM user_performance_reviews
 		  %s
 		 ORDER BY updated_at DESC
@@ -376,7 +386,7 @@ func (s *Store) ListHistory(
 		rec.UserID = userID
 		if err := rows.Scan(
 			&rec.ID, &period, &rec.PeriodStart, &rec.PeriodEnd,
-			&rec.Status, &rec.LastError, &rec.CreatedAt, &rec.UpdatedAt,
+			&rec.Status, &rec.LastError, &rec.JournalMode, &rec.CreatedAt, &rec.UpdatedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("performancereview.ListHistory: scan: %w", err)
 		}
@@ -445,6 +455,7 @@ func (s *Store) GetLatestReadyBefore(
 	userID string,
 	period Period,
 	before time.Time,
+	journalMode JournalMode,
 ) (*Record, error) {
 	if userID == "" {
 		return nil, errors.New("performancereview.GetLatestReadyBefore: user_id is required")
@@ -459,19 +470,20 @@ func (s *Store) GetLatestReadyBefore(
 	rec.UserID = userID
 	rec.Period = period
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, period_start, period_end, status, review, last_error, created_at, updated_at
+		SELECT id, period_start, period_end, status, review, last_error, journal_mode, created_at, updated_at
 		  FROM user_performance_reviews
 		 WHERE user_id      = $1
 		   AND period       = $2
-		   AND status       = 'ready'
 		   AND period_start < $3
+		   AND status       = 'ready'
+		   AND journal_mode = $4
 		 ORDER BY period_start DESC
 		 LIMIT 1`,
-		userID, string(period), before,
+		userID, string(period), before, string(journalMode),
 	).Scan(
 		&rec.ID, &rec.PeriodStart, &rec.PeriodEnd,
 		&rec.Status, &reviewRaw, &rec.LastError,
-		&rec.CreatedAt, &rec.UpdatedAt,
+		&rec.JournalMode, &rec.CreatedAt, &rec.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

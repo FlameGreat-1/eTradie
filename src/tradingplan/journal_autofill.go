@@ -251,17 +251,10 @@ func mergeManualTrades(p *Plan, facts []ManualTradeFact, loc *time.Location, now
 		boundRow[f.TradeID] = len(p.Journal) - 1
 		stats.Appended++
 	}
-
-	// Compact fully-blank unbound rows so they don't linger in the UI
-	// or Excel export.
-	compacted := make([]JournalRow, 0, len(p.Journal))
-	for i := range p.Journal {
-		if p.Journal[i].TradeID == "" && rowIsEmpty(&p.Journal[i]) {
-			continue
-		}
-		compacted = append(compacted, p.Journal[i])
-	}
-	p.Journal = compacted
+	// Note: We deliberately DO NOT compact fully-blank unbound rows here.
+	// The 90-day plan is generated with exactly 65 seeded empty rows to serve
+	// as a visual workbook for the quarter. Compacting them away defeats the
+	// psychological purpose of the structured plan.
 
 	return stats
 }
@@ -367,7 +360,6 @@ func applyObjectiveCells(r *JournalRow, f ManualTradeFact, loc *time.Location) b
 	r.Pair = f.Symbol
 	r.Direction = formatDirection(f.Direction)
 	r.Style = formatStyle(f.TradingStyle)
-	r.SetupType = f.SetupType
 	r.Entry = formatPrice(f.EntryPrice)
 	r.StopLoss = formatPrice(f.StopLoss)
 	r.TakeProfit = formatTakeProfit(f.TP1Price, f.TP2Price, f.TP3Price)

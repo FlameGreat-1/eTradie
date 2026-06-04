@@ -91,7 +91,7 @@ interface Props {
 }
 
 export default function BuilderPage({ onComplete, onSkip, embedded = false }: Props) {
-  const { data: existing, isLoading, isError, error: loadError } = useTradingSystem();
+  const { data: existing, isLoading } = useTradingSystem();
   const saveMutation = useSaveTradingSystem();
   const skipMutation = useSkipTradingSystem();
   // Post-save plan trigger. Fires in the background once the trading

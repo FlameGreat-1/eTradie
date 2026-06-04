@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { POLL_RETRY, adaptiveInterval } from '@/lib/queryHelpers';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import type {
+  JournalMode,
   PerformanceReviewHistoryPage,
   PerformanceReviewPeriod,
   PerformanceReviewRecord,
@@ -19,11 +20,11 @@ import {
  */
 export const performanceReviewKeys = {
   all: ['performance-review'] as const,
-  latest: (period: PerformanceReviewPeriod) =>
-    ['performance-review', 'latest', period] as const,
+  latest: (period: PerformanceReviewPeriod, journalMode: JournalMode = 'system') =>
+    ['performance-review', 'latest', period, journalMode] as const,
   byId: (id: number) => ['performance-review', 'by-id', id] as const,
-  history: (period: PerformanceReviewPeriod | 'all', offset: number, limit: number) =>
-    ['performance-review', 'history', period, offset, limit] as const,
+  history: (period: PerformanceReviewPeriod | 'all', journalMode: JournalMode, offset: number, limit: number) =>
+    ['performance-review', 'history', period, journalMode, offset, limit] as const,
 };
 
 /**
@@ -41,11 +42,11 @@ export const performanceReviewKeys = {
  * we always want a fast poll while the LLM is in flight, even if a
  * prior 5xx caused an error — so it returns a raw number.
  */
-export function usePerformanceReviewLatest(period: PerformanceReviewPeriod) {
+export function usePerformanceReviewLatest(period: PerformanceReviewPeriod, journalMode: JournalMode = 'system') {
   const { isAuthenticated } = useAuth();
   return useQuery<PerformanceReviewRecord>({
-    queryKey: performanceReviewKeys.latest(period),
-    queryFn: () => getLatestReview(period),
+    queryKey: performanceReviewKeys.latest(period, journalMode),
+    queryFn: () => getLatestReview(period, journalMode),
     refetchInterval: (q) => {
       const data = q.state.data as PerformanceReviewRecord | undefined;
       if (data?.status === 'generating') return 6_000;
@@ -79,13 +80,14 @@ export function usePerformanceReviewById(id: number | null | undefined) {
  */
 export function usePerformanceReviewHistory(
   period?: PerformanceReviewPeriod,
+  journalMode: JournalMode = 'system',
   offset = 0,
   limit = 20,
 ) {
   const { isAuthenticated } = useAuth();
   return useQuery<PerformanceReviewHistoryPage>({
-    queryKey: performanceReviewKeys.history(period ?? 'all', offset, limit),
-    queryFn: () => listReviewHistory(period, offset, limit),
+    queryKey: performanceReviewKeys.history(period ?? 'all', journalMode, offset, limit),
+    queryFn: () => listReviewHistory(period, journalMode, offset, limit),
     enabled: isAuthenticated,
     staleTime: 5_000,
     retry: POLL_RETRY,
@@ -101,10 +103,10 @@ export function usePerformanceReviewHistory(
 export function useGeneratePerformanceReview() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (params: { period: PerformanceReviewPeriod; journalMode?: import('../types').JournalMode }) =>
+    mutationFn: (params: { period: PerformanceReviewPeriod; journalMode?: JournalMode }) =>
       generateReview(params.period, params.journalMode),
     onSuccess: (_data, params) => {
-      qc.invalidateQueries({ queryKey: performanceReviewKeys.latest(params.period) });
+      qc.invalidateQueries({ queryKey: performanceReviewKeys.latest(params.period, params.journalMode) });
       qc.invalidateQueries({ queryKey: ['performance-review', 'history'] });
     },
   });

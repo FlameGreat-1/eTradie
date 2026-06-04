@@ -350,6 +350,12 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 		breakevenSet := t.BreakevenSet
 		tradeID := t.TradeID
 		symbol := t.Symbol
+		
+		// Capture fields needed for recalculations
+		entryPrice := t.EntryPrice
+		totalLotSize := t.TotalLotSize
+		currentRiskAmt := t.RiskAmount
+		currentRiskPct := t.RiskPercent
 		t.RUnlock()
 
 		bPos, exists := brokerState[ticket]
@@ -389,6 +395,30 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 		}
 
 		if bPos.StopLoss != dbSL || bPos.TakeProfit != dbTP {
+			var newRR, newRiskAmt, newRiskPct float64
+
+			newRR = plannedRR(entryPrice, bPos.StopLoss, bPos.TakeProfit)
+
+			// Retain old risk if we fail to recalculate
+			newRiskAmt = currentRiskAmt
+			newRiskPct = currentRiskPct
+
+			if bPos.StopLoss > 0 && entryPrice > 0 {
+				if symInfo, err := s.bp.GetSymbolInfo(ctx, symbol); err == nil && symInfo != nil {
+					if symInfo.TradeTickSize > 0 && symInfo.TradeTickValue > 0 {
+						slDistance := math.Abs(entryPrice - bPos.StopLoss)
+						ticks := slDistance / symInfo.TradeTickSize
+						calcRiskAmount := ticks * symInfo.TradeTickValue * totalLotSize
+
+						if accInfo, err := s.bp.GetAccountInfo(ctx); err == nil && accInfo != nil && accInfo.Balance > 0 {
+							calcRiskPct := (calcRiskAmount / accInfo.Balance) * 100.0
+							newRiskAmt = math.Round(calcRiskAmount*100) / 100
+							newRiskPct = math.Round(calcRiskPct*100) / 100
+						}
+					}
+				}
+			}
+
 			s.log.Info().
 				Str("ticket", ticket).
 				Float64("old_sl", dbSL).Float64("new_sl", bPos.StopLoss).
@@ -399,14 +429,14 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 			t.StopLoss = bPos.StopLoss
 			t.Swap = bPos.Swap
 			t.Commission = bPos.Commission
-			if bPos.TakeProfit != 0 {
-				t.TP1Price = bPos.TakeProfit
-				// We don't overwrite TP2/TP3 as they are logical, but TP1 is the broker TP.
-			}
+			t.TP1Price = bPos.TakeProfit
+			t.RRRatio = newRR
+			t.RiskAmount = newRiskAmt
+			t.RiskPercent = newRiskPct
 			t.Unlock()
 
-			// Persist the SL change to the journal
-			_ = s.repo.UpdateTradeSL(ctx, s.userID, tradeID, bPos.StopLoss)
+			// Persist the changes to the journal
+			_ = s.repo.UpdateTradeManualMod(ctx, s.userID, tradeID, bPos.StopLoss, bPos.TakeProfit, newRR, newRiskAmt, newRiskPct)
 
 			// Publish an alert so the React dashboard updates its lines instantly
 			s.transport.Publish(ctx, alert.NewEvent(
@@ -484,6 +514,26 @@ func (s *StateReconciler) buildReconciledTrade(
 			Str("style", rec.TradingStyle).
 			Msg("reconciled_position_matched_system_trade_recovering_full_plan")
 
+		// If the DB says it was closed but the broker is telling us it's open, resurrect it.
+		// Also sync the volume with the current reality at the broker.
+		status := constants.TradeStatus(rec.Status)
+		if status == constants.StatusClosed {
+			s.log.Warn().
+				Str("ticket", pos.Ticket).
+				Msg("resurrecting_closed_trade_because_broker_reports_it_active")
+			status = constants.StatusActive
+			
+			// Revert the database state back to active
+			if err := s.repo.ResurrectTrade(ctx, s.userID, rec.TradeID, pos.Volume); err != nil {
+				s.log.Error().Err(err).Str("trade_id", rec.TradeID).Msg("journal_resurrect_trade_failed")
+			}
+		}
+
+		remaining := rec.RemainingLotSize
+		if pos.Volume > 0 && pos.Volume != remaining {
+			remaining = pos.Volume
+		}
+
 		return &types.Trade{
 			TradeID:          rec.TradeID,
 			Symbol:           rec.Symbol,
@@ -514,12 +564,12 @@ func (s *StateReconciler) buildReconciledTrade(
 			TP3Price:         rec.TP3Price,
 			TP3Pct:           rec.TP3Pct,
 			TotalLotSize:     rec.TotalLotSize,
-			RemainingLotSize: rec.RemainingLotSize,
+			RemainingLotSize: remaining,
 			RiskAmount:       rec.RiskAmount,
 			RiskPercent:      rec.RiskPercent,
 			RRRatio:          rec.RRRatio,
 			Slippage:         rec.Slippage,
-			Status:           constants.TradeStatus(rec.Status),
+			Status:           status,
 			BreakevenSet:     rec.BreakevenSet,
 			TP1Hit:           rec.TP1Hit,
 			TP2Hit:           rec.TP2Hit,
@@ -538,6 +588,17 @@ func (s *StateReconciler) buildReconciledTrade(
 		Str("style", string(constants.StyleManualDefault)).
 		Msg("discovered_manual_position_importing_as_positional")
 
+	now := time.Now().UTC()
+	hour := now.Hour()
+	activeSession := "ASIAN"
+	if hour >= 7 && hour < 13 {
+		activeSession = "LONDON_OPEN"
+	} else if hour >= 13 && hour < 17 {
+		activeSession = "LONDON_NY_OVERLAP"
+	} else if hour >= 17 && hour < 22 {
+		activeSession = "NEW_YORK"
+	}
+
 	trade := &types.Trade{
 		TradeID:          GenerateTradeID(),
 		Symbol:           pos.Symbol,
@@ -552,6 +613,7 @@ func (s *StateReconciler) buildReconciledTrade(
 		TradingStyle:     constants.StyleManualDefault,
 		Grade:            "MANUAL/RECONCILED",
 		Origin:           journal.OriginManualReconciled,
+		Session:          activeSession,
 		EntryPrice:       pos.EntryPrice,
 		StopLoss:         pos.StopLoss,
 		InitialSL:        pos.StopLoss,
@@ -560,7 +622,30 @@ func (s *StateReconciler) buildReconciledTrade(
 		TotalLotSize:     pos.Volume,
 		RemainingLotSize: pos.Volume,
 		Status:           constants.StatusActive,
-		OpenedAt:         time.Now().UTC(),
+		OpenedAt:         now,
+	}
+
+	// Calculate Risk Percent using MT5's native trade_tick_value.
+	// This works for ALL instruments (FX, indices, synthetics, metals,
+	// stocks) and ALL account currencies because trade_tick_value is
+	// already denominated in the account's deposit currency by MT5.
+	//
+	// Formula: RiskAmount = (SL_distance / tick_size) * tick_value * volume
+	if pos.StopLoss > 0 && pos.EntryPrice > 0 {
+		if symInfo, err := s.bp.GetSymbolInfo(ctx, pos.Symbol); err == nil && symInfo != nil {
+			if symInfo.TradeTickSize > 0 && symInfo.TradeTickValue > 0 {
+				slDistance := math.Abs(pos.EntryPrice - pos.StopLoss)
+				ticks := slDistance / symInfo.TradeTickSize
+				riskAmount := ticks * symInfo.TradeTickValue * pos.Volume
+
+				if accInfo, err := s.bp.GetAccountInfo(ctx); err == nil && accInfo != nil && accInfo.Balance > 0 {
+					riskPct := (riskAmount / accInfo.Balance) * 100.0
+
+					trade.RiskAmount = math.Round(riskAmount*100) / 100
+					trade.RiskPercent = math.Round(riskPct*100) / 100
+				}
+			}
+		}
 	}
 
 	dbRecord := &journal.TradeRecord{
@@ -572,6 +657,7 @@ func (s *StateReconciler) buildReconciledTrade(
 		TradingStyle:     string(trade.TradingStyle),
 		Grade:            trade.Grade,
 		Origin:           trade.Origin,
+		Session:          trade.Session,
 		EntryPrice:       trade.EntryPrice,
 		StopLoss:         trade.StopLoss,
 		InitialSL:        trade.InitialSL,
@@ -579,6 +665,8 @@ func (s *StateReconciler) buildReconciledTrade(
 		RRRatio:          trade.RRRatio,
 		TotalLotSize:     trade.TotalLotSize,
 		RemainingLotSize: trade.RemainingLotSize,
+		RiskAmount:       trade.RiskAmount,
+		RiskPercent:      trade.RiskPercent,
 		Status:           string(trade.Status),
 		OpenedAt:         trade.OpenedAt,
 	}

@@ -372,11 +372,11 @@ function createClient(baseURL: string): AxiosInstance {
               data?.error || 'Action restricted by your subscription tier.',
             variant: 'warning',
           });
-        } else if (data?.error) {
+        } else if ((data as any)?.error) {
           // Surface the server's real reason instead of guessing.
           toast({
             title: 'Forbidden',
-            description: data.error,
+            description: (data as any).error,
             variant: 'destructive',
           });
         }

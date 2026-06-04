@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Save, Check, ChevronDown, Loader2 } from 'lucide-react';
+import { Save, Check } from 'lucide-react';
 
 import ProFeatureLock from '@/components/ui/ProFeatureLock';
 import { useTierGate } from '@/features/auth/hooks/useTierGate';

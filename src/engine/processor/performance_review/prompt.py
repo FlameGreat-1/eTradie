@@ -81,7 +81,12 @@ METHOD (non-negotiable):
     allow-list, risk percent exceeded, setups outside the catalogue,
     rule violations, etc.). Cite the rule and the observed counter-
     example. If no meaningful gap exists, say so plainly.
- 6. 'psychological_warnings' is the early-warning surface. Only emit
+ 6. If the aggregation bundle contains subjective fields (e.g.
+    'emotion_before_trade', 'mistake_category', 'trade_quality',
+    'notes'), you MUST incorporate the trader's self-reported feelings
+    and annotations into the 'emotional_intelligence' and 'behavioral_analysis'
+    sections.
+ 7. 'psychological_warnings' is the early-warning surface. Only emit
     a warning when the bundle's behavior block supports it:
       - 'Revenge trading tendency' when after_loss_within_hour_count
         is significant relative to total losses.
@@ -128,6 +133,7 @@ def build_user_prompt(
     period: str,
     period_start: str,
     period_end: str,
+    journal_mode: str,
     profile: dict[str, Any],
     profile_version: int,
     aggregation: dict[str, Any],
@@ -163,6 +169,7 @@ USER:           {user_id}
 PERIOD:         {period_capital}
 PERIOD START:   {period_start}
 PERIOD END:     {period_end}
+JOURNAL MODE:   {journal_mode.capitalize()} (source of truth for trades)
 PROFILE VERSION (trading-system version observed): {profile_version}
 
 DETERMINISTIC AGGREGATION BUNDLE (ground truth; do not invent numbers):

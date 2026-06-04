@@ -166,7 +166,7 @@ function TradingChartInner({
   const [overlayPos, setOverlayPos] = useState({ x: 12, y: 12 });
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, initX: 0, initY: 0 });
-  const { data: candleData, isFetching } = useChartCandles(symbol, timeframe);
+  const { data: candleData } = useChartCandles(symbol, timeframe);
 
   const applyPalette = useCallback(() => {
     const chart = chartRef.current;

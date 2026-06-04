@@ -361,32 +361,55 @@ type Review struct {
 // Record - one row in user_performance_reviews
 // ---------------------------------------------------------------------------
 
+// JournalMode identifies whether the performance review was generated
+// using the System Journal (objective trades from management_trades)
+// or the Manual Journal (the 26-column Daily Execution Journal from
+// the Trading Plan that includes both auto-filled objective data AND
+// the trader's subjective annotations).
+type JournalMode string
+
+const (
+	JournalModeSystem JournalMode = "system"
+	JournalModeManual JournalMode = "manual"
+)
+
+// IsValidJournalMode reports whether the value is a recognised mode.
+func (m JournalMode) IsValid() bool {
+	switch m {
+	case JournalModeSystem, JournalModeManual:
+		return true
+	}
+	return false
+}
+
 // Record is the gateway-side representation of one row. The primary
 // key is (user_id, period, period_start) so every successful run is
 // preserved; the SPA's history view paginates over them.
 type Record struct {
-	ID          int64     `json:"id"`
-	UserID      string    `json:"user_id"`
-	Period      Period    `json:"period"`
-	PeriodStart time.Time `json:"period_start"`
-	PeriodEnd   time.Time `json:"period_end"`
-	Status      Status    `json:"status"`
-	Review      *Review   `json:"review,omitempty"`
-	LastError   string    `json:"last_error,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          int64       `json:"id"`
+	UserID      string      `json:"user_id"`
+	Period      Period      `json:"period"`
+	PeriodStart time.Time   `json:"period_start"`
+	PeriodEnd   time.Time   `json:"period_end"`
+	Status      Status      `json:"status"`
+	JournalMode JournalMode `json:"journal_mode"`
+	Review      *Review     `json:"review,omitempty"`
+	LastError   string      `json:"last_error,omitempty"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
 }
 
 // StatusView is the lightweight projection returned by the GET status
 // endpoint. Same shape philosophy as tradingplan.StatusView.
 type StatusView struct {
-	Period      Period     `json:"period"`
-	Status      Status     `json:"status"`
-	HasReview   bool       `json:"has_review"`
-	PeriodStart *time.Time `json:"period_start,omitempty"`
-	PeriodEnd   *time.Time `json:"period_end,omitempty"`
-	LastError   string     `json:"last_error,omitempty"`
-	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+	Period      Period      `json:"period"`
+	Status      Status      `json:"status"`
+	JournalMode JournalMode `json:"journal_mode"`
+	HasReview   bool        `json:"has_review"`
+	PeriodStart *time.Time  `json:"period_start,omitempty"`
+	PeriodEnd   *time.Time  `json:"period_end,omitempty"`
+	LastError   string      `json:"last_error,omitempty"`
+	UpdatedAt   *time.Time  `json:"updated_at,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -399,11 +422,12 @@ type StatusView struct {
 // as raw bytes so the gateway does not need to import the journal or
 // tradingsystem types here.
 type GenerationRequest struct {
-	UserID         string    `json:"user_id"`
-	Period         Period    `json:"period"`
-	PeriodStart    time.Time `json:"period_start"`
-	PeriodEnd      time.Time `json:"period_end"`
-	ProfileVersion int       `json:"profile_version"`
+	UserID         string      `json:"user_id"`
+	Period         Period      `json:"period"`
+	PeriodStart    time.Time   `json:"period_start"`
+	PeriodEnd      time.Time   `json:"period_end"`
+	ProfileVersion int         `json:"profile_version"`
+	JournalMode    JournalMode `json:"journal_mode"`
 }
 
 // History page caps. Performance reviews are small (~10-30 KB JSONB);

@@ -86,6 +86,7 @@ func (d *Dispatcher) Dispatch(
 		"period_start":    req.PeriodStart,
 		"period_end":      req.PeriodEnd,
 		"profile_version": req.ProfileVersion,
+		"journal_mode":    string(req.JournalMode),
 		// Identity fields are also placed in the body for the same
 		// reason as trading-plan: header-stripping intermediaries
 		// must never be able to silently downgrade the dispatch to

@@ -30,10 +30,16 @@ type Tab = PerformanceReviewPeriod | 'history';
  */
 export function PerformanceReviewView() {
   const [tab, setTab] = useState<Tab>('weekly');
-  const [journalMode, setJournalMode] = useState<import('../types').JournalMode>('system');
+  const [journalMode, _setJournalMode] = useState<import('../types').JournalMode>(
+    () => (localStorage.getItem('exoper_perf_journal_mode') as import('../types').JournalMode) || 'system',
+  );
+  const setJournalMode = (m: import('../types').JournalMode) => {
+    localStorage.setItem('exoper_perf_journal_mode', m);
+    _setJournalMode(m);
+  };
   const period: PerformanceReviewPeriod = tab === 'history' ? 'weekly' : tab;
 
-  const { data: latest, isLoading } = usePerformanceReviewLatest(period);
+  const { data: latest, isLoading } = usePerformanceReviewLatest(period, journalMode);
   const generate = useGeneratePerformanceReview();
 
   const handleGenerate = (p: PerformanceReviewPeriod) => {
@@ -62,7 +68,7 @@ export function PerformanceReviewView() {
       <Tabs tab={tab} setTab={setTab} />
 
       {tab === 'history' ? (
-        <PerformanceReviewHistory />
+        <PerformanceReviewHistory journalMode={journalMode} />
       ) : (
         <>
           <HeaderRow

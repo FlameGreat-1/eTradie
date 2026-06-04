@@ -19,8 +19,10 @@ const BASE = '/api/v1/performance-review';
 
 export async function getLatestReview(
   period: PerformanceReviewPeriod,
+  journalMode?: import('../types').JournalMode,
 ): Promise<PerformanceReviewRecord> {
   const params = new URLSearchParams({ period });
+  if (journalMode) params.set('journal_mode', journalMode);
   const { data } = await api.gateway.get<PerformanceReviewRecord>(
     `${BASE}/latest?${params.toString()}`,
   );
@@ -38,11 +40,13 @@ export async function getReviewById(
 
 export async function listReviewHistory(
   period?: PerformanceReviewPeriod,
+  journalMode?: import('../types').JournalMode,
   offset = 0,
   limit = 20,
 ): Promise<PerformanceReviewHistoryPage> {
   const params = new URLSearchParams();
   if (period) params.set('period', period);
+  if (journalMode) params.set('journal_mode', journalMode);
   params.set('offset', String(offset));
   params.set('limit', String(limit));
   const { data } = await api.gateway.get<PerformanceReviewHistoryPage>(

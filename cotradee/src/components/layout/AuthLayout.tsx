@@ -5,7 +5,7 @@ import '@/features/landing/landing.css';
 import { useTheme } from '@/providers/ThemeProvider';
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
-  const { theme } = useTheme();
+  useTheme();
 
   return (
     <div className="landing-page min-h-screen flex flex-col-reverse md:flex-row relative overflow-hidden transition-colors duration-500"

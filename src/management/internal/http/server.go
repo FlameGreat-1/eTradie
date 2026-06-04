@@ -373,6 +373,7 @@ type perfReviewAggregateBody struct {
 	Period      string `json:"period"`
 	PeriodStart string `json:"period_start"`
 	PeriodEnd   string `json:"period_end"`
+	JournalMode string `json:"journal_mode"`
 }
 
 // POST /internal/performance-review/aggregate
@@ -423,9 +424,18 @@ func (s *Server) handlePerfReviewAggregate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	bundle, err := s.aggregator.Aggregate(r.Context(), userID, period, periodStart, periodEnd)
+	journalMode := strings.ToLower(strings.TrimSpace(body.JournalMode))
+	if journalMode == "" {
+		journalMode = "system"
+	}
+	if journalMode != "system" && journalMode != "manual" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "journal_mode must be 'system' or 'manual'"})
+		return
+	}
+
+	bundle, err := s.aggregator.Aggregate(r.Context(), userID, period, periodStart, periodEnd, journalMode)
 	if err != nil {
-		s.log.Error().Err(err).Str("user_id", userID).Str("period", period).Msg("perf_review_aggregate_failed")
+		s.log.Error().Err(err).Str("user_id", userID).Str("period", period).Str("journal_mode", journalMode).Msg("perf_review_aggregate_failed")
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to aggregate performance data"})
 		return
 	}
