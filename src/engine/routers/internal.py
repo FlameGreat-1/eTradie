@@ -693,6 +693,15 @@ async def internal_debug_runcycle(
             subdirectory="runcycle",
         )
     except Exception as exc:
+        # Fire-and-forget contract: this endpoint persists debug
+        # artifacts only and "does NOT affect the main pipeline flow".
+        # A write failure (e.g. a non-writable /output in the
+        # container) must therefore NEVER surface as an HTTP 500 on
+        # the gateway's background call -- that just produces
+        # engine_http_error_response noise for a successful cycle.
+        # Log for observability (same as before) and degrade to a
+        # 200 "skipped" response, mirroring the already-graceful
+        # prompt-payload save path in the processor.
         logger.error(
             "debug_runcycle_save_failed",
             extra={
@@ -701,10 +710,12 @@ async def internal_debug_runcycle(
                 "trace_id": body.trace_id,
             },
         )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to save runcycle debug output: {exc}",
-        )
+        return {
+            "status": "skipped",
+            "symbol": symbol,
+            "reason": str(exc),
+            "output_files": {},
+        }
 
     return {
         "status": "saved",
