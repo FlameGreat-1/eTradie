@@ -647,13 +647,24 @@ func watcherTokenRefreshLoop(
 					log.Warn().Err(err).Str("user_id", uid).Msg("watcher_token_refresh_issue_failed")
 					continue
 				}
-				wm.RefreshUserOrderIdentity(&auth.Claims{
+				claims := &auth.Claims{
 					UserID:   user.ID,
 					Username: user.Username,
 					Role:     user.Role,
 					Tier:     user.Tier,
 					Status:   user.Status,
-				}, token)
+				}
+				// Refresh BOTH token consumers of a live INSTANT watcher:
+				//   1. the Order's AuthToken (forwarded to the gateway
+				//      ConfirmSetup RPC), and
+				//   2. the TickCache's per-user identity (used by the
+				//      tick poller's /internal/broker/tick_price calls).
+				// The tick cache holds its own copy of the token set at
+				// arm time; without this it would keep polling with the
+				// expired arming JWT and the watcher would never see
+				// price enter the entry zone.
+				wm.RefreshUserOrderIdentity(claims, token)
+				wm.TickCache().SetServiceIdentity(claims, token)
 			}
 		}
 	}
