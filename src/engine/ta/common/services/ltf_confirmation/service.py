@@ -428,61 +428,47 @@ class LTFConfirmationService:
         ob_upper: float,
         ob_lower: float,
     ) -> bool:
-        """Check if the exact OB zone is still fresh (not body-mitigated).
+        """Check if the exact OB zone is still fresh (unmitigated).
 
-        True mitigation means a candle's BODY (not wick) has closed
-        through a significant portion of the zone. The threshold is
-        controlled by SMCConfig.zone_mitigation_body_threshold.
+        Enforces the framework's authoritative close-beyond-extreme
+        rule, identical to ``ZoneValidator.validate_zone_freshness``
+        which is the single source of truth for mitigation across the
+        entire system (also used by the TA orchestrator's OB pass):
 
-        For BULLISH OB (demand): mitigation = bearish candle body
-        closes down through the zone (sellers absorbed the demand).
+          - Bullish OB (demand): invalid as soon as any candle CLOSES
+            strictly below ``ob_lower``.
+          - Bearish OB (supply): invalid as soon as any candle CLOSES
+            strictly above ``ob_upper``.
 
-        For BEARISH OB (supply): mitigation = bullish candle body
-        closes up through the zone (buyers absorbed the supply).
+        This is a wick-tolerant test on purpose.  A candle that wicks
+        into the OB but closes back outside is the RTO leg itself --
+        the exact entry opportunity this confirmation pulse looks for.
+        Only a CLOSE beyond the extreme counts as mitigation, per
+        SMC-MS-003 / SMC-MS-004 / SMC-OB-004 / SMC-MIT-001 /
+        SMC-INV-005.
+
+        No body-percentage threshold is applied: the framework defines
+        mitigation in binary close-beyond terms, and SMCConfig
+        deliberately exposes no body-threshold knob (see config.py).
 
         Returns True if the OB is still fresh (NOT mitigated).
         """
-        zone_size = ob_upper - ob_lower
-        if zone_size <= 0:
+        if ob_upper - ob_lower <= 0:
             return True  # Invalid zone data, fail-open.
 
-        threshold_pct = self._config.zone_mitigation_body_threshold / 100.0
-
         for candle in sequence.candles:
-            body_top = max(candle.open, candle.close)
-            body_bottom = min(candle.open, candle.close)
-
-            # Calculate how much of the candle body overlaps with the OB zone.
-            overlap_top = min(body_top, ob_upper)
-            overlap_bottom = max(body_bottom, ob_lower)
-            overlap = max(0.0, overlap_top - overlap_bottom)
-
-            if overlap <= 0:
-                continue
-
-            body_overlap_ratio = overlap / zone_size
-
-            if body_overlap_ratio < threshold_pct:
-                continue
-
-            # Body overlaps significantly. Now check direction:
-            # For BULLISH OB: mitigated by a bearish candle closing
-            # through it (candle.close < candle.open AND body enters zone).
             if direction == Direction.BULLISH:
-                if candle.close < candle.open and body_bottom <= ob_lower:
-                    # Bearish candle body closed through the bottom of
-                    # the bullish OB -> demand absorbed -> mitigated.
+                # Bullish OB (demand): mitigated once price CLOSES
+                # completely below the zone's low.
+                if candle.close < ob_lower:
                     return False
-
-            # For BEARISH OB: mitigated by a bullish candle closing
-            # through it (candle.close > candle.open AND body enters zone).
             elif direction == Direction.BEARISH:
-                if candle.close > candle.open and body_top >= ob_upper:
-                    # Bullish candle body closed through the top of
-                    # the bearish OB -> supply absorbed -> mitigated.
+                # Bearish OB (supply): mitigated once price CLOSES
+                # completely above the zone's high.
+                if candle.close > ob_upper:
                     return False
 
-        return True  # No candle body mitigated the zone.
+        return True  # No candle closed beyond the zone extreme.
 
     def _check_no_opposing_bms(
         self,
