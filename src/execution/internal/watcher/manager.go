@@ -313,6 +313,35 @@ func (m *Manager) ActiveCount() int {
 	return len(m.watchers)
 }
 
+// ActiveUserIDs returns the distinct, non-empty user IDs that own at
+// least one currently-armed watcher. Used by the background
+// token-refresh loop so it only mints fresh service tokens for owners
+// that actually have a live watcher (instead of scanning the whole
+// user table). Thread-safe; the per-Order field is read under the
+// Order's own RLock so it never observes a partial identity update
+// from RefreshUserOrderIdentity.
+func (m *Manager) ActiveUserIDs() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	seen := make(map[string]struct{}, len(m.watchers))
+	ids := make([]string, 0, len(m.watchers))
+	for _, w := range m.watchers {
+		w.order.RLock()
+		uid := w.order.UserID
+		w.order.RUnlock()
+		if uid == "" {
+			continue
+		}
+		if _, ok := seen[uid]; ok {
+			continue
+		}
+		seen[uid] = struct{}{}
+		ids = append(ids, uid)
+	}
+	return ids
+}
+
 // Shutdown cancels all active watchers and waits for them to finish.
 // Must be called during service shutdown to prevent goroutine leaks.
 func (m *Manager) Shutdown() {
