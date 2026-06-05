@@ -244,9 +244,14 @@ class BrokerConnectionRepository:
         if mt5_password and mt5_password.strip():
             encrypted_mt5_password = _encrypt(mt5_password)
 
-        row_key_version: Optional[int] = None
-        if encrypted_ea_token is not None or encrypted_mt5_password is not None:
-            row_key_version = active_key_version()
+        # Both ciphertexts are freshly written under the active KEK here,
+        # so this resolves to the active version when either secret is
+        # present and None when neither is. Routed through the shared
+        # helper so create() and update_connection() derive key_version
+        # the same way.
+        row_key_version: Optional[int] = self._effective_key_version(
+            encrypted_mt5_password, encrypted_ea_token
+        )
 
         # Validate any caller-supplied id up front so an invalid value
         # fails the request cleanly rather than at INSERT time.
