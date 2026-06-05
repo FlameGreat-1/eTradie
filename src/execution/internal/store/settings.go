@@ -39,7 +39,18 @@ const (
 	KeyMaxConcurrentTrades = "max_concurrent_trades"
 	KeyDailyLossLimitPct   = "daily_loss_limit_pct"
 	KeyWeeklyDrawdownPct   = "weekly_drawdown_pct"
+	// Kill-switch keys (CHECKLIST Section 8). Stored as "true"/"false".
+	KeyGlobalTradingHalted = "global_trading_halted"
+	KeyUserTradingHalted   = "user_trading_halted"
 )
+
+// KillSwitchGlobalScope is the reserved sentinel user_id under which
+// the platform-wide global kill switch is persisted. Real user ids are
+// UUIDs, so this value can never collide with a tenant. Storing the
+// global flag in the same execution_settings table (under this scope)
+// keeps a SINGLE source of truth and reuses the existing
+// (user_id, key) unique index with no schema migration.
+const KillSwitchGlobalScope = "__global__"
 
 // Settings holds all dashboard-configurable execution parameters.
 type Settings struct {
@@ -47,6 +58,9 @@ type Settings struct {
 	MaxConcurrentTrades int     `json:"max_concurrent_trades"`
 	DailyLossLimitPct   float64 `json:"daily_loss_limit_pct"`
 	WeeklyDrawdownPct   float64 `json:"weekly_drawdown_pct"`
+	// Kill-switch flags (CHECKLIST Section 8). Default false (not halted).
+	GlobalTradingHalted bool `json:"global_trading_halted"`
+	UserTradingHalted   bool `json:"user_trading_halted"`
 }
 
 // SettingsStore handles PostgreSQL persistence for runtime-configurable
@@ -173,6 +187,59 @@ func (s *SettingsStore) SaveAll(ctx context.Context, userID string, settings *Se
 	return nil
 }
 
+// IsGlobalHalted reports whether the platform-wide kill switch is
+// engaged. A missing row means not-halted (false, nil). A read error
+// returns (false, err) so the caller applies its own fail-safe policy.
+func (s *SettingsStore) IsGlobalHalted(ctx context.Context) (bool, error) {
+	return s.readHalt(ctx, KillSwitchGlobalScope, KeyGlobalTradingHalted)
+}
+
+// IsUserHalted reports whether the per-user kill switch is engaged for
+// userID. Same missing-row / error semantics as IsGlobalHalted.
+func (s *SettingsStore) IsUserHalted(ctx context.Context, userID string) (bool, error) {
+	return s.readHalt(ctx, userID, KeyUserTradingHalted)
+}
+
+// readHalt is the shared bool-setting reader for the two kill switches.
+func (s *SettingsStore) readHalt(ctx context.Context, scope, key string) (bool, error) {
+	readCtx, cancel := context.WithTimeout(ctx, settingsReadTimeout)
+	defer cancel()
+
+	var value string
+	err := s.pool.QueryRow(readCtx, selectSettingSQL, scope, key).Scan(&value)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil // un-set == not halted
+		}
+		return false, fmt.Errorf("settings: read halt %s/%s: %w", scope, key, err)
+	}
+	b, perr := strconv.ParseBool(value)
+	if perr != nil {
+		return false, fmt.Errorf("settings: parse halt %s/%s value %q: %w", scope, key, value, perr)
+	}
+	return b, nil
+}
+
+// SetGlobalHalted engages or releases the platform-wide kill switch.
+// actor is the admin user id (from JWT) recorded in the log line.
+func (s *SettingsStore) SetGlobalHalted(ctx context.Context, halted bool, actor string) error {
+	if err := s.Set(ctx, KillSwitchGlobalScope, KeyGlobalTradingHalted, strconv.FormatBool(halted)); err != nil {
+		return err
+	}
+	s.log.Warn().Bool("halted", halted).Str("actor", actor).Msg("global_kill_switch_changed")
+	return nil
+}
+
+// SetUserHalted engages or releases the per-user kill switch for
+// userID. actor is the requesting user id (self) or an admin id.
+func (s *SettingsStore) SetUserHalted(ctx context.Context, userID string, halted bool, actor string) error {
+	if err := s.Set(ctx, userID, KeyUserTradingHalted, strconv.FormatBool(halted)); err != nil {
+		return err
+	}
+	s.log.Warn().Str("user_id", userID).Bool("halted", halted).Str("actor", actor).Msg("user_kill_switch_changed")
+	return nil
+}
+
 func validateSetting(key, value string) error {
 	switch key {
 	case KeyExecutionMode:
@@ -194,6 +261,10 @@ func validateSetting(key, value string) error {
 		f, err := strconv.ParseFloat(value, 64)
 		if err != nil || f < 1.0 || f > 20.0 {
 			return fmt.Errorf("settings: %s must be 1.0..20.0, got %q", key, value)
+		}
+	case KeyGlobalTradingHalted, KeyUserTradingHalted:
+		if _, err := strconv.ParseBool(value); err != nil {
+			return fmt.Errorf("settings: %s must be a bool (true/false), got %q", key, value)
 		}
 	default:
 		return fmt.Errorf("settings: unknown key %q", key)
@@ -220,6 +291,18 @@ func applySetting(s *Settings, key, value string, log zerolog.Logger) {
 	case KeyWeeklyDrawdownPct:
 		if f, err := strconv.ParseFloat(value, 64); err == nil {
 			s.WeeklyDrawdownPct = f
+		} else {
+			log.Warn().Str("key", key).Str("value", value).Msg("invalid_setting_value")
+		}
+	case KeyGlobalTradingHalted:
+		if b, err := strconv.ParseBool(value); err == nil {
+			s.GlobalTradingHalted = b
+		} else {
+			log.Warn().Str("key", key).Str("value", value).Msg("invalid_setting_value")
+		}
+	case KeyUserTradingHalted:
+		if b, err := strconv.ParseBool(value); err == nil {
+			s.UserTradingHalted = b
 		} else {
 			log.Warn().Str("key", key).Str("value", value).Msg("invalid_setting_value")
 		}
