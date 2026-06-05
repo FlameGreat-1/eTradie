@@ -17,6 +17,12 @@ podAnnotations:
   tier: staging
 
 config:
+  # Staging is prod-like for the auth/security posture: arm the same
+  # fail-closed guards as production. Broker behaviour stays mock
+  # (see brokerMode below); APP_ENV only governs the security guards.
+  # Audit ref: A2.
+  app:
+    env: "staging"
   management:
     brokerMode: "mock"
     logLevel: "DEBUG"
