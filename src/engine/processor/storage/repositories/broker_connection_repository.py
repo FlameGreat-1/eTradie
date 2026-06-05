@@ -575,6 +575,38 @@ class BrokerConnectionRepository:
 
     # -- Internal helpers ------------------------------------------------------
 
+    @staticmethod
+    def _effective_key_version(*ciphertexts: Optional[str]) -> Optional[int]:
+        """Truthful key_version for a row from its stored ciphertexts.
+
+        broker_connections has two encrypted columns but a single
+        key_version column, so the column must answer "is this row FULLY
+        on the active KEK?". Given the ciphertext values that WILL be
+        stored (None for an absent secret):
+
+          - returns None when ANY non-null ciphertext is legacy / non-v2
+            (no versioned wrap), so the re-wrap job still selects the
+            row; otherwise
+          - returns the MINIMUM KEK version across all non-null
+            ciphertexts, so the row reads 'active' only when every secret
+            it holds is wrapped under the active KEK.
+
+        Returns None when the row carries no secret at all.
+        """
+        versions: list[int] = []
+        for ciphertext in ciphertexts:
+            if not ciphertext:
+                continue  # absent secret -- does not constrain the version
+            version = key_version_of(ciphertext)
+            if version is None:
+                # A legacy / non-v2 token is present: the row is not
+                # fully on any versioned KEK.
+                return None
+            versions.append(version)
+        if not versions:
+            return None
+        return min(versions)
+
     async def _deactivate_all(self, user_id: str) -> None:
         """Deactivate all connections for this user."""
         stmt = (
