@@ -153,7 +153,108 @@ CREATE INDEX IF NOT EXISTS idx_auth_password_resets_expires_at ON auth_password_
 CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_password_resets_user_active
     ON auth_password_resets (user_id)
     WHERE consumed = FALSE;
+
+-- Password history. Stores prior password hashes so a change/reset can
+-- reject reuse of the last N passwords (Tier 1 "Password history
+-- controls"). Only HASHES are stored (Argon2id, or legacy bcrypt for
+-- rows recorded before the migration); never plaintext. Bounded per
+-- user by the store's prune-on-insert.
+CREATE TABLE IF NOT EXISTS auth_password_history (
+    id            TEXT PRIMARY KEY,
+    user_id       TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    password_hash TEXT NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_password_history_user_created
+    ON auth_password_history (user_id, created_at DESC);
 `
+}
+
+// ---------------------------------------------------------------------------
+// Password History Store
+// ---------------------------------------------------------------------------
+
+// PasswordHistorySize is the number of prior passwords a user may not
+// reuse. A change/reset whose new password matches any of the most
+// recent PasswordHistorySize hashes is rejected.
+const PasswordHistorySize = 5
+
+// PasswordHistoryStore persists prior password hashes for reuse
+// prevention.
+type PasswordHistoryStore struct {
+	pool *pgxpool.Pool
+}
+
+// NewPasswordHistoryStore creates a history store on the given pool.
+func NewPasswordHistoryStore(pool *pgxpool.Pool) *PasswordHistoryStore {
+	return &PasswordHistoryStore{pool: pool}
+}
+
+// RecordHash appends a password hash to the user's history and prunes
+// rows beyond PasswordHistorySize so the table stays bounded. Called
+// AFTER a successful password change/reset with the newly-stored hash.
+func (s *PasswordHistoryStore) RecordHash(ctx context.Context, userID, passwordHash string) error {
+	if userID == "" || passwordHash == "" {
+		return fmt.Errorf("password history: user_id and hash are required")
+	}
+	if _, err := s.pool.Exec(ctx,
+		`INSERT INTO auth_password_history (id, user_id, password_hash, created_at)
+		 VALUES ($1, $2, $3, NOW())`,
+		GenerateID(), userID, passwordHash,
+	); err != nil {
+		return fmt.Errorf("password history: insert: %w", err)
+	}
+	// Prune everything older than the most recent PasswordHistorySize
+	// rows for this user.
+	if _, err := s.pool.Exec(ctx,
+		`DELETE FROM auth_password_history
+		  WHERE user_id = $1
+		    AND id NOT IN (
+		        SELECT id FROM auth_password_history
+		         WHERE user_id = $1
+		         ORDER BY created_at DESC
+		         LIMIT $2
+		    )`,
+		userID, PasswordHistorySize,
+	); err != nil {
+		return fmt.Errorf("password history: prune: %w", err)
+	}
+	return nil
+}
+
+// IsReused reports whether plaintext matches any of the user's most
+// recent PasswordHistorySize stored hashes. Uses VerifyPassword so both
+// Argon2id and legacy bcrypt history rows are compared correctly.
+func (s *PasswordHistoryStore) IsReused(ctx context.Context, userID, plaintext string) (bool, error) {
+	if userID == "" || plaintext == "" {
+		return false, nil
+	}
+	rows, err := s.pool.Query(ctx,
+		`SELECT password_hash FROM auth_password_history
+		  WHERE user_id = $1
+		  ORDER BY created_at DESC
+		  LIMIT $2`,
+		userID, PasswordHistorySize,
+	)
+	if err != nil {
+		return false, fmt.Errorf("password history: query: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var hash string
+		if err := rows.Scan(&hash); err != nil {
+			return false, fmt.Errorf("password history: scan: %w", err)
+		}
+		if VerifyPassword(hash, plaintext) == nil {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("password history: rows: %w", err)
+	}
+	return false, nil
 }
 
 // ---------------------------------------------------------------------------
