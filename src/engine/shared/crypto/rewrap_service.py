@@ -73,7 +73,12 @@ _TARGETS: tuple[_Target, ...] = (
 
 @dataclass
 class RewrapStats:
-    """Outcome of a re-wrap run, per table and in aggregate."""
+    """Outcome of a re-wrap run, per table and in aggregate.
+
+    The same counters are populated for a dry run and a live run, so a
+    ``--dry-run`` sizing pass reports exactly what a subsequent live run
+    would change; only the live run actually writes.
+    """
 
     active_version: int
     scanned_rows: int = 0
@@ -93,6 +98,15 @@ class RewrapStats:
         }
 
 
+def _empty_table_stats() -> dict[str, int]:
+    return {
+        "scanned_rows": 0,
+        "rewrapped_rows": 0,
+        "rewrapped_columns": 0,
+        "failed_columns": 0,
+    }
+
+
 class CredentialRewrapService:
     """Re-wraps stored credentials onto the active KEK version."""
 
@@ -106,7 +120,8 @@ class CredentialRewrapService:
         """Re-wrap every credential not already on the active KEK version.
 
         When ``dry_run`` is True, no write happens; the stats report how
-        many columns/rows WOULD be re-wrapped (for pre-rotation sizing).
+        many columns/rows WOULD be re-wrapped (identical accounting to a
+        live run, for pre-rotation sizing).
         """
         active = active_key_version()
         stats = RewrapStats(active_version=active)
@@ -133,8 +148,14 @@ class CredentialRewrapService:
         dry_run: bool,
         stats: RewrapStats,
     ) -> dict[str, int]:
-        """Process one credential table in keyset-paginated batches."""
-        table_stats = {"scanned_rows": 0, "rewrapped_rows": 0, "rewrapped_columns": 0, "failed_columns": 0}
+        """Process one credential table.
+
+        Reads are keyset-paginated by id (stable, memory-bounded). Each
+        row that needs re-wrapping is persisted in its OWN transaction
+        (see ``_persist_row``) so an interrupted run leaves only
+        unprocessed rows for the next run -- the run is resumable.
+        """
+        table_stats = _empty_table_stats()
         col_list = ", ".join((target.id_column, *target.encrypted_columns))
         cursor: Optional[str] = None
 
@@ -186,25 +207,26 @@ class CredentialRewrapService:
     ) -> None:
         """Re-wrap any stale encrypted column on a single row.
 
-        Each row is its own committed transaction so an interrupted run
-        leaves only unprocessed rows for the next run (resumable). A
+        Columns that need re-wrapping are determined FIRST, so the dry
+        run and the live run account identically (same rewrapped_rows
+        and rewrapped_columns for the same data). The live run then
+        persists the new ciphertext in its own committed transaction; a
         per-column failure is logged + counted but never aborts the run.
         """
         row_id = row[target.id_column]
         updates: dict[str, str] = {}
+        stale_columns = 0
 
         for col in target.encrypted_columns:
             ciphertext = row.get(col)
             if not ciphertext:
                 continue  # NULL column (no secret stored) -- nothing to do.
+            if not needs_rewrap(ciphertext):
+                continue
+            stale_columns += 1
+            if dry_run:
+                continue  # dry run only sizes; it never re-encrypts.
             try:
-                if not needs_rewrap(ciphertext):
-                    continue
-                if dry_run:
-                    # Count what WOULD change without producing new ct.
-                    stats.rewrapped_columns += 1
-                    table_stats["rewrapped_columns"] += 1
-                    continue
                 updates[col] = rewrap_credential(ciphertext)
             except Exception as exc:  # noqa: BLE001 - isolate per-column failure
                 stats.failed_columns += 1
@@ -219,14 +241,21 @@ class CredentialRewrapService:
                     },
                 )
 
-        if dry_run or not updates:
+        # Dry run sizes by stale columns (nothing can fail); the live run
+        # counts only columns that were SUCCESSFULLY re-encrypted, so a
+        # column that raised is reflected in failed_columns and excluded
+        # from the re-wrapped totals. With no failures the two counts are
+        # identical, so dry-run sizing matches the live outcome.
+        if dry_run:
+            if stale_columns:
+                self._account_row(stats, table_stats, columns=stale_columns)
             return
 
+        if not updates:
+            return  # nothing stale, or every stale column failed.
+
         await self._persist_row(target, row_id, updates)
-        stats.rewrapped_rows += 1
-        table_stats["rewrapped_rows"] += 1
-        stats.rewrapped_columns += len(updates)
-        table_stats["rewrapped_columns"] += len(updates)
+        self._account_row(stats, table_stats, columns=len(updates))
         logger.info(
             "credential_rewrap_row_rewrapped",
             extra={
@@ -236,6 +265,23 @@ class CredentialRewrapService:
                 "active_version": stats.active_version,
             },
         )
+
+    @staticmethod
+    def _account_row(
+        stats: RewrapStats,
+        table_stats: dict[str, int],
+        *,
+        columns: int,
+    ) -> None:
+        """Record one re-wrapped row (and its columns) in both aggregates.
+
+        Single place that mutates the row/column counters so the
+        per-table totals and the run-level aggregate can never diverge.
+        """
+        stats.rewrapped_rows += 1
+        stats.rewrapped_columns += columns
+        table_stats["rewrapped_rows"] += 1
+        table_stats["rewrapped_columns"] += columns
 
     async def _persist_row(
         self,

@@ -33,9 +33,9 @@ from engine.processor.storage.schemas.broker_connection_schema import (
     BrokerConnectionRow,
 )
 from engine.shared.crypto import (
-    active_key_version,
     decrypt_credential as _decrypt,
     encrypt_credential as _encrypt,
+    key_version_of,
 )
 from engine.shared.logging import get_logger
 
@@ -243,9 +243,14 @@ class BrokerConnectionRepository:
         if mt5_password and mt5_password.strip():
             encrypted_mt5_password = _encrypt(mt5_password)
 
-        row_key_version: Optional[int] = None
-        if encrypted_ea_token is not None or encrypted_mt5_password is not None:
-            row_key_version = active_key_version()
+        # Both ciphertexts are freshly written under the active KEK here,
+        # so this resolves to the active version when either secret is
+        # present and None when neither is. Routed through the shared
+        # helper so create() and update_connection() derive key_version
+        # the same way.
+        row_key_version: Optional[int] = self._effective_key_version(
+            encrypted_mt5_password, encrypted_ea_token
+        )
 
         # Validate any caller-supplied id up front so an invalid value
         # fails the request cleanly rather than at INSERT time.
@@ -392,7 +397,6 @@ class BrokerConnectionRepository:
             values["ea_port"] = ea_port
         if ea_auth_token is not None:
             values["ea_auth_token_encrypted"] = _encrypt(ea_auth_token)
-            values["key_version"] = active_key_version()
         if metaapi_account_id is not None:
             values["metaapi_account_id"] = metaapi_account_id
         if metaapi_region is not None:
@@ -405,7 +409,6 @@ class BrokerConnectionRepository:
             values["mt5_login"] = mt5_login
         if mt5_password is not None:
             values["mt5_password_encrypted"] = _encrypt(mt5_password)
-            values["key_version"] = active_key_version()
         if mt5_symbol is not None:
             # Empty string is rejected upstream by the resolver; we only
             # arrive here with a non-empty stripped string when a
@@ -413,6 +416,26 @@ class BrokerConnectionRepository:
             values["mt5_symbol"] = mt5_symbol.strip()
         if platform is not None:
             values["platform"] = platform
+
+        # When a credential column is rewritten, recompute key_version
+        # from the post-update view of BOTH encrypted columns so the
+        # metadata stays truthful even on a partial update (only one of
+        # the two secrets changed). The other column keeps whatever
+        # version it was already on; the row reads 'active' only when
+        # every stored secret is on the active KEK.
+        if (
+            "mt5_password_encrypted" in values
+            or "ea_auth_token_encrypted" in values
+        ):
+            existing = await self.get_by_id(connection_id, user_id)
+            if existing is not None:
+                mt5_ct = values.get(
+                    "mt5_password_encrypted", existing.mt5_password_encrypted
+                )
+                ea_ct = values.get(
+                    "ea_auth_token_encrypted", existing.ea_auth_token_encrypted
+                )
+                values["key_version"] = self._effective_key_version(mt5_ct, ea_ct)
 
         stmt = (
             update(BrokerConnectionRow)
@@ -573,6 +596,38 @@ class BrokerConnectionRepository:
         return True
 
     # -- Internal helpers ------------------------------------------------------
+
+    @staticmethod
+    def _effective_key_version(*ciphertexts: Optional[str]) -> Optional[int]:
+        """Truthful key_version for a row from its stored ciphertexts.
+
+        broker_connections has two encrypted columns but a single
+        key_version column, so the column must answer "is this row FULLY
+        on the active KEK?". Given the ciphertext values that WILL be
+        stored (None for an absent secret):
+
+          - returns None when ANY non-null ciphertext is legacy / non-v2
+            (no versioned wrap), so the re-wrap job still selects the
+            row; otherwise
+          - returns the MINIMUM KEK version across all non-null
+            ciphertexts, so the row reads 'active' only when every secret
+            it holds is wrapped under the active KEK.
+
+        Returns None when the row carries no secret at all.
+        """
+        versions: list[int] = []
+        for ciphertext in ciphertexts:
+            if not ciphertext:
+                continue  # absent secret -- does not constrain the version
+            version = key_version_of(ciphertext)
+            if version is None:
+                # A legacy / non-v2 token is present: the row is not
+                # fully on any versioned KEK.
+                return None
+            versions.append(version)
+        if not versions:
+            return None
+        return min(versions)
 
     async def _deactivate_all(self, user_id: str) -> None:
         """Deactivate all connections for this user."""
