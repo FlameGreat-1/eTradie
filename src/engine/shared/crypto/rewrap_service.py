@@ -221,12 +221,13 @@ class CredentialRewrapService:
             ciphertext = row.get(col)
             if not ciphertext:
                 continue  # NULL column (no secret stored) -- nothing to do.
+            if not needs_rewrap(ciphertext):
+                continue
+            stale_columns += 1
+            if dry_run:
+                continue  # dry run only sizes; it never re-encrypts.
             try:
-                if not needs_rewrap(ciphertext):
-                    continue
-                stale_columns += 1
-                if not dry_run:
-                    updates[col] = rewrap_credential(ciphertext)
+                updates[col] = rewrap_credential(ciphertext)
             except Exception as exc:  # noqa: BLE001 - isolate per-column failure
                 stats.failed_columns += 1
                 table_stats["failed_columns"] += 1
@@ -240,28 +241,30 @@ class CredentialRewrapService:
                     },
                 )
 
-        if stale_columns == 0:
+        # Dry run sizes by stale columns (nothing can fail); the live run
+        # counts only columns that were SUCCESSFULLY re-encrypted, so a
+        # column that raised is reflected in failed_columns and excluded
+        # from the re-wrapped totals. With no failures the two counts are
+        # identical, so dry-run sizing matches the live outcome.
+        if dry_run:
+            if stale_columns:
+                self._account_row(stats, table_stats, columns=stale_columns)
             return
 
-        if not dry_run:
-            await self._persist_row(target, row_id, updates)
+        if not updates:
+            return  # nothing stale, or every stale column failed.
 
-        self._account_row(
-            stats,
-            table_stats,
-            columns=stale_columns,
+        await self._persist_row(target, row_id, updates)
+        self._account_row(stats, table_stats, columns=len(updates))
+        logger.info(
+            "credential_rewrap_row_rewrapped",
+            extra={
+                "table": target.table,
+                "row_id": str(row_id),
+                "columns": list(updates.keys()),
+                "active_version": stats.active_version,
+            },
         )
-
-        if not dry_run:
-            logger.info(
-                "credential_rewrap_row_rewrapped",
-                extra={
-                    "table": target.table,
-                    "row_id": str(row_id),
-                    "columns": list(updates.keys()),
-                    "active_version": stats.active_version,
-                },
-            )
 
     @staticmethod
     def _account_row(
