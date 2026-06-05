@@ -104,16 +104,30 @@ func (ts *TokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
 		return nil, fmt.Errorf("missing or invalid 'role' claim")
 	}
 
+	// Validate the issuer. Tokens are minted with iss = cfg.Issuer;
+	// a token whose issuer does not match (e.g. one signed with the
+	// same HMAC secret for a different purpose) is rejected. Tier 4
+	// "Token issuer validation".
+	if iss, ok := mapClaims["iss"].(string); !ok || iss != ts.cfg.Issuer {
+		return nil, fmt.Errorf("invalid or missing 'iss' claim")
+	}
+
+	// tier is an entitlement floor, not a security gate. Defaulting a
+	// missing tier to "free" is fail-SAFE (least privilege), so it is
+	// permitted to default.
 	if tier, ok := mapClaims["tier"].(string); ok {
 		claims.Tier = tier
 	} else {
 		claims.Tier = "free"
 	}
 
-	if status, ok := mapClaims["status"].(string); ok {
+	// status IS a security gate (active / suspended / deactivated).
+	// A token missing or carrying a non-string status is rejected
+	// rather than coerced to "active" -- fail CLOSED, not open.
+	if status, ok := mapClaims["status"].(string); ok && status != "" {
 		claims.Status = status
 	} else {
-		claims.Status = "active"
+		return nil, fmt.Errorf("missing or invalid 'status' claim")
 	}
 
 	if iat, ok := mapClaims["iat"].(float64); ok {
