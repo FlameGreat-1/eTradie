@@ -54,8 +54,14 @@ Branch: `tier1-identity-hardening`.
         (the service-token consumers); gateway left nil. Revocation
         triggers: BumpTokenEpoch on admin deactivate, change-password,
         and reset redemption.
-- [ ] 10. Anti-ATO notifications: email the user on password
-        change/reset and on a new-device/new-IP login.
+- [x] 10. Anti-ATO notifications. mails/security_alert_template.go
+        (PasswordChanged + NewLogin templates, HTML-escaped, shared
+        meta block); SessionStore.HasPriorSessionFromIP for new-device
+        detection (checked BEFORE session insert, fail-open);
+        Handler.WithSecurityNotifications + nil-safe fire-and-forget
+        notifyPasswordChanged / notifyNewLogin; wired into login
+        (new IP), change-password, and reset redemption; gateway
+        injects the existing *mails.Sender.
 - [ ] 11. Remove/secure the unused peer-only RateLimitMiddleware
         variant once #6 lands (or confirm no caller).
 - [ ] 12. Tests for all of the above + final wiring verification.
@@ -76,4 +82,4 @@ Branch: `tier1-identity-hardening`.
 - Reuse detection: a revoked-but-unexpired refresh token presented again
   triggers full session-family revocation + a security log event.
 
-## STATUS: IN PROGRESS (items 1-9 landed; 10-12 pending)
+## STATUS: IN PROGRESS (items 1-10 landed; 11-12 pending)
