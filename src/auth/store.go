@@ -681,6 +681,32 @@ func (s *SessionStore) RevokeOldestSession(ctx context.Context, userID string) e
 	return nil
 }
 
+// HasPriorSessionFromIP reports whether the user already has at least
+// one session originating from the given client IP. Used by the login
+// path to detect a sign-in from a new device/location: call it BEFORE
+// inserting the new session, so an IP never seen for this user returns
+// false and the handler emits a new-sign-in security notification.
+//
+// A blank clientIP returns (false, nil) WITHOUT a query: an unknown
+// origin is treated as "not a known device" but we do not want every
+// IP-less request (e.g. a misconfigured proxy) to silently match. The
+// caller decides whether to notify on a blank IP.
+func (s *SessionStore) HasPriorSessionFromIP(ctx context.Context, userID, clientIP string) (bool, error) {
+	if userID == "" || clientIP == "" {
+		return false, nil
+	}
+	var exists bool
+	err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS (
+		   SELECT 1 FROM auth_sessions
+		    WHERE user_id = $1 AND client_ip = $2
+		 )`, userID, clientIP).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("has prior session from ip: %w", err)
+	}
+	return exists, nil
+}
+
 // CleanupExpiredSessions deletes sessions that expired more than
 // 24 hours ago. Called periodically to keep the table small.
 func (s *SessionStore) CleanupExpiredSessions(ctx context.Context) (int64, error) {
