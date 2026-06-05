@@ -40,9 +40,20 @@ Branch: `tier1-identity-hardening`.
         VerifyPassword); reject last PasswordHistorySize=5 on
         change/reset; seeded on register; fail-open on store error;
         wired from authPool in gateway main.
-- [ ] 9. Service-token revocation: make the 30-day service tokens
-        revocable (jti denylist or per-user token-version epoch) so a
-        leaked service token can be killed before expiry.
+- [x] 9. Service-token revocation via per-user TOKEN EPOCH.
+        auth_users.token_epoch column + User.TokenEpoch +
+        Claims.TokenEpoch ('tv') + Claims.TokenType ('token_type').
+        IssueTokenPair + IssueServiceToken stamp 'tv'; signature
+        change propagated to ALL issuers (execution reconcile_identity
+        + main.go restore/coldstart/preload/refresh-loop; management
+        main.go restore+renewal; management supervisor). Enforcement:
+        TokenService.WithEpochResolver(UserStore) -> VerifyAccessToken
+        rejects a SERVICE token whose tv < current epoch, FAIL-CLOSED
+        on resolver error or unknown user; access tokens skip the
+        lookup (stateless). Resolver wired only in execution+management
+        (the service-token consumers); gateway left nil. Revocation
+        triggers: BumpTokenEpoch on admin deactivate, change-password,
+        and reset redemption.
 - [ ] 10. Anti-ATO notifications: email the user on password
         change/reset and on a new-device/new-IP login.
 - [ ] 11. Remove/secure the unused peer-only RateLimitMiddleware
@@ -65,4 +76,4 @@ Branch: `tier1-identity-hardening`.
 - Reuse detection: a revoked-but-unexpired refresh token presented again
   triggers full session-family revocation + a security log event.
 
-## STATUS: IN PROGRESS (items 1-5 landed; 6-12 pending)
+## STATUS: IN PROGRESS (items 1-9 landed; 10-12 pending)
