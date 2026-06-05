@@ -14,6 +14,46 @@ import (
 	"github.com/flamegreat-1/etradie/src/execution/internal/state"
 )
 
+// check0KillSwitch is the pre-everything backstop for the global and
+// per-user execution kill switches (CHECKLIST Section 8). It is wired
+// FIRST in the validator chain so an engaged switch blocks order
+// placement at the cheapest possible point, before any broker-touching
+// or stateful work.
+//
+// It reads only the already-resolved RuntimeParams (no I/O), keeping it
+// on the cheap path and trivially testable, matching every other
+// check's pure-function shape. The halt state itself is resolved once
+// per trade by the gRPC server's resolveRuntimeParams from the settings
+// store (the single source of truth), so a dashboard toggle takes
+// effect on the very next trade with no redeploy.
+//
+// Analysis is NOT affected: only order placement is blocked. Global is
+// evaluated before user so the platform-wide reason wins when both are
+// engaged.
+func check0KillSwitch(
+	_ context.Context,
+	_ *models.TradeRequest,
+	_ *config.Config,
+	params *RuntimeParams,
+	_ *state.Manager,
+	_ broker.Port,
+	_ time.Time,
+) models.ValidationResult {
+	if params != nil && params.GlobalTradingHalted {
+		return halted(
+			constants.CheckKillSwitch,
+			"global execution kill switch is engaged: trading is halted platform-wide by an administrator",
+		)
+	}
+	if params != nil && params.UserTradingHalted {
+		return halted(
+			constants.CheckKillSwitch,
+			"per-user execution kill switch is engaged: trading is halted for this account",
+		)
+	}
+	return pass()
+}
+
 // check4NewsLockout intentionally passes: news protection is owned by
 // the gateway, which holds the economic calendar (Module B has no
 // calendar access). The protection is enforced at three points, so

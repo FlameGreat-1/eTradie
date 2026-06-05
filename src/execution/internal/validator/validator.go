@@ -20,6 +20,11 @@ type RuntimeParams struct {
 	MaxConcurrentTrades int
 	DailyLossLimitPct   float64
 	WeeklyDrawdownPct   float64
+	// Kill-switch flags (CHECKLIST Section 8), resolved per-trade from
+	// the settings store. When either is true, check0KillSwitch blocks
+	// placement. Global takes precedence over user in the reason text.
+	GlobalTradingHalted bool
+	UserTradingHalted   bool
 }
 
 // checkFunc is the signature for each pre-execution check.
@@ -35,6 +40,7 @@ type checkFunc func(
 ) models.ValidationResult
 
 // Validator runs the pre-execution checks sequentially.
+// Check 0 (kill switch) is the pre-everything backstop and runs first.
 // Checks 1-3 are handled by the gateway. Module B owns 4-14.
 // Check 14 (min stop distance) is the execution-side backstop for the
 // upstream structural stop-loss; it runs before position sizing.
@@ -54,6 +60,7 @@ func NewValidator(cfg *config.Config, sm *state.Manager, bp broker.Port) *Valida
 		state:  sm,
 		broker: bp,
 		checks: []checkFunc{
+			check0KillSwitch,
 			check4NewsLockout,
 			check5SessionFilter,
 			check6SamePairPosition,
