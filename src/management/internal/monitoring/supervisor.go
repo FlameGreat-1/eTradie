@@ -22,7 +22,7 @@ type UserLister interface {
 // ServiceTokenIssuer mints a service token for a user. Implemented by
 // auth.TokenService.
 type ServiceTokenIssuer interface {
-	IssueServiceToken(userID, username string, role auth.Role, tier, status string) (string, error)
+	IssueServiceToken(userID, username string, role auth.Role, tier, status string, tokenEpoch int) (string, error)
 }
 
 // reconcilerHandle tracks one running per-user reconciler.
@@ -131,7 +131,7 @@ func (s *ReconcilerSupervisor) reconcileUsers(ctx context.Context) {
 		if _, ok := s.running[uid]; ok {
 			continue
 		}
-		svcToken, tokenErr := s.tokens.IssueServiceToken(u.ID, u.Username, u.Role, u.Tier, u.Status)
+		svcToken, tokenErr := s.tokens.IssueServiceToken(u.ID, u.Username, u.Role, u.Tier, u.Status, u.TokenEpoch)
 		if tokenErr != nil {
 			s.log.Warn().Err(tokenErr).Str("user_id", uid).Msg("reconciler_token_issue_failed")
 			continue

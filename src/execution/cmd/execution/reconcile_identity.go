@@ -15,7 +15,7 @@ type userLookup interface {
 
 // tokenIssuer is the narrow surface for issuing service tokens.
 type tokenIssuer interface {
-	IssueServiceToken(userID, username string, role auth.Role, tier, status string) (string, error)
+	IssueServiceToken(userID, username string, role auth.Role, tier, status string, tokenEpoch int) (string, error)
 }
 
 // reconcileIdentityProvider implements state.IdentityProvider by
@@ -41,7 +41,7 @@ func (p *reconcileIdentityProvider) IdentityContext(ctx context.Context, userID 
 	if u == nil || !u.Active {
 		return nil, fmt.Errorf("reconcile identity: user %s missing or inactive", userID)
 	}
-	token, err := p.tokens.IssueServiceToken(u.ID, u.Username, u.Role, u.Tier, u.Status)
+	token, err := p.tokens.IssueServiceToken(u.ID, u.Username, u.Role, u.Tier, u.Status, u.TokenEpoch)
 	if err != nil {
 		return nil, fmt.Errorf("reconcile identity: issue service token for %s: %w", userID, err)
 	}

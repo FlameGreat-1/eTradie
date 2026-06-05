@@ -244,7 +244,7 @@ func main() {
 				log.Warn().Str("user_id", uid).Msg("skipping_watcher_restore_for_deactivated_user")
 				continue
 			}
-			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status)
+			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status, user.TokenEpoch)
 			if err != nil {
 				log.Error().Err(err).Str("user_id", uid).Msg("watcher_restore_service_token_failed")
 				continue
@@ -346,7 +346,7 @@ func main() {
 		users, userErr := userStore.ListActiveUsers(ctx)
 		if userErr == nil && len(users) > 0 {
 			for _, u := range users {
-				startupToken, tokenErr := tokenService.IssueServiceToken(u.ID, u.Username, u.Role, u.Tier, u.Status)
+				startupToken, tokenErr := tokenService.IssueServiceToken(u.ID, u.Username, u.Role, u.Tier, u.Status, u.TokenEpoch)
 				if tokenErr == nil {
 					wm.TickCache().SetServiceIdentity(&auth.Claims{
 						UserID:   u.ID,
@@ -437,7 +437,7 @@ func main() {
 				// Build a per-user identity context the same way the
 				// reconciler does: issue a service token, inject it.
 				svcToken, tokenErr := tokenService.IssueServiceToken(
-					u.ID, u.Username, u.Role, u.Tier, u.Status,
+					u.ID, u.Username, u.Role, u.Tier, u.Status, u.TokenEpoch,
 				)
 				if tokenErr != nil {
 					log.Warn().Err(tokenErr).Str("user_id", u.ID).Msg("preload_positions_token_failed")
@@ -642,7 +642,7 @@ func watcherTokenRefreshLoop(
 					log.Warn().Str("user_id", uid).Msg("watcher_token_refresh_skipped_inactive_user")
 					continue
 				}
-				token, err := tokens.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status)
+				token, err := tokens.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status, user.TokenEpoch)
 				if err != nil {
 					log.Warn().Err(err).Str("user_id", uid).Msg("watcher_token_refresh_issue_failed")
 					continue

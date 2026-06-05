@@ -322,7 +322,7 @@ func main() {
 				log.Warn().Str("user_id", userID).Str("username", user.Username).Msg("skipping_service_token_for_deactivated_user")
 				continue
 			}
-			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status)
+			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status, user.TokenEpoch)
 			if err != nil {
 				log.Error().Err(err).Str("user_id", userID).Msg("service_token_issue_failed")
 				continue
@@ -480,7 +480,7 @@ func main() {
 						continue
 					}
 
-					svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status)
+					svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status, user.TokenEpoch)
 					if err != nil {
 						renewalLog.Error().Err(err).Str("user_id", uid).Msg("renewal_token_issue_failed")
 						continue
