@@ -69,6 +69,60 @@ export function useUpdateExecutionSettings() {
   });
 }
 
+/* ── Kill switch (gateway control plane) ──────────────────────── */
+
+export interface KillSwitchState {
+  global_halted: boolean;
+  user_halted: boolean;
+  effective: boolean;
+}
+
+/**
+ * Current kill-switch state for the caller: the platform-wide global
+ * flag, this user's own flag, and the effective (global || user)
+ * verdict. Served by the gateway; refetched live on EXECUTION_HALTED
+ * via the realtime invalidation map.
+ */
+export function useKillSwitch() {
+  const { isAuthenticated } = useAuth();
+  return useQuery<KillSwitchState>({
+    queryKey: ['execution', 'settings', 'kill-switch'],
+    queryFn: async () => {
+      const { data } = await api.gateway.get('/api/v1/execution/kill-switch');
+      return data;
+    },
+    enabled: isAuthenticated,
+  });
+}
+
+/** Toggle the caller's OWN per-user kill switch. */
+export function useSetUserKillSwitch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (halted: boolean) => {
+      const { data } = await api.gateway.put('/api/v1/execution/kill-switch', { halted });
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['execution', 'settings'] }),
+  });
+}
+
+/** Toggle the platform-wide global kill switch (admin only; the server
+ *  enforces the admin role). */
+export function useSetGlobalKillSwitch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (halted: boolean) => {
+      const { data } = await api.gateway.put('/api/v1/admin/execution/kill-switch', {
+        scope: 'global',
+        halted,
+      });
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['execution', 'settings'] }),
+  });
+}
+
 export function useCancelOrder() {
   const qc = useQueryClient();
   return useMutation({
