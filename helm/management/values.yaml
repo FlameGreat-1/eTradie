@@ -95,6 +95,11 @@ service:
 # MANAGEMENT_<KEY> env var read by
 # src/management/internal/config/config.go via envconfig.
 config:
+  # Application environment. SAFE default of "development"; the
+  # production / staging overlays override to arm the prod
+  # fail-closed guards. Audit ref: A2.
+  app:
+    env: "development"
   management:
     grpcPort: "50054"
     httpPort: "8083"

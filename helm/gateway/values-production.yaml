@@ -16,6 +16,12 @@ podAnnotations:
   tier: production
 
 config:
+  # Arms every Go-service prod fail-closed guard: HIBP breach check
+  # (Tier 1 item 7), mandatory Redis attempt limiter, cookie-Secure
+  # enforcement, and the JWT/DB/admin-secret-required checks.
+  # Audit ref: A2.
+  app:
+    env: "production"
   gateway:
     logLevel: "INFO"
     logJson: "true"

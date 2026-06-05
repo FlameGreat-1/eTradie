@@ -154,7 +154,11 @@ def _verify_token(token: str) -> AuthenticatedUser:
             algorithms=["HS256"],
             issuer=_get_jwt_issuer(),
             options={
-                "require": ["sub", "username", "role", "exp", "iat"],
+                # `status` is REQUIRED: it is a security gate (active /
+                # suspended / deactivated), not optional metadata. This
+                # mirrors the Go gateway's VerifyAccessToken, which fails
+                # closed on a missing status claim. Audit ref: A1.
+                "require": ["sub", "username", "role", "exp", "iat", "status"],
                 "verify_exp": True,
                 "verify_iss": True,
             },
@@ -171,12 +175,24 @@ def _verify_token(token: str) -> AuthenticatedUser:
     username = payload.get("username")
     role = payload.get("role")
     tier = payload.get("tier", "free")
-    status = payload.get("status", "active")
+    # `status` is a security gate. Fail CLOSED: a missing, empty, or
+    # non-string status is rejected rather than coerced to "active".
+    # This matches the Go gateway's VerifyAccessToken (Tier 1 item 4)
+    # so both verifiers of the same token agree. `tier` keeps its
+    # "free" default because defaulting an entitlement floor down is
+    # fail-SAFE (least privilege). Audit ref: A1.
+    status = payload.get("status")
 
     if not user_id or not username or not role:
         raise HTTPException(
             status_code=401,
             detail="Token missing required claims (sub, username, role)",
+        )
+
+    if not isinstance(status, str) or not status.strip():
+        raise HTTPException(
+            status_code=401,
+            detail="Token missing required claim (status)",
         )
 
     if role not in ("admin", "etradie"):

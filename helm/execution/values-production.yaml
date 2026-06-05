@@ -16,6 +16,11 @@ podAnnotations:
   tier: production
 
 config:
+  # Arms the execution prod fail-closed guards
+  # (ENGINE_INTERNAL_SHARED_SECRET required under brokerMode=mt5,
+  # JWT-secret-required). Audit ref: A2.
+  app:
+    env: "production"
   execution:
     # Real broker. The Python engine's broker bridge does the actual
     # MT5 socket work; this service just dispatches via HTTP.

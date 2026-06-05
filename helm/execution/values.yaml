@@ -79,6 +79,11 @@ service:
 # Go service actually reads via envconfig.Process("EXECUTION", ...).
 # Source: src/execution/internal/config/config.go.
 config:
+  # Application environment. SAFE default of "development"; the
+  # production / staging overlays override to arm the prod
+  # fail-closed guards. Audit ref: A2.
+  app:
+    env: "development"
   execution:
     grpcPort: "50053"
     httpPort: "8080"

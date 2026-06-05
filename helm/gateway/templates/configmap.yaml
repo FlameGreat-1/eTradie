@@ -7,6 +7,16 @@ metadata:
     {{- include "gateway.labels" . | nindent 4 }}
     app.kubernetes.io/component: config
 data:
+  # Application environment. Read by the Go services via
+  # appEnv()/isProdLikeEnv() (src/auth/config.go) and
+  # isProdLikeEnvContainer() (gateway container) to ARM the prod
+  # fail-closed guards: HIBP breach check, mandatory Redis attempt
+  # limiter, cookie-Secure enforcement, and the
+  # JWT/DB/admin-secret-required checks. Sourced from
+  # .Values.config.app.env (development in base values, production /
+  # staging in the overlays). Audit ref: A2.
+  APP_ENV: {{ .Values.config.app.env | quote }}
+
   # Gateway core
   GATEWAY_ENABLED: {{ .Values.config.gateway.enabled | quote }}
   GATEWAY_HTTP_PORT: {{ .Values.config.gateway.httpPort | quote }}

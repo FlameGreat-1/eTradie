@@ -7,6 +7,14 @@ metadata:
     {{- include "execution.labels" . | nindent 4 }}
     app.kubernetes.io/component: config
 data:
+  # Application environment. Read by the Go service via
+  # appEnv()/isProdLikeEnv() (src/auth/config.go) to ARM the prod
+  # fail-closed guards (ENGINE_INTERNAL_SHARED_SECRET-required under
+  # mt5 mode, JWT-secret-required, etc). Sourced from
+  # .Values.config.app.env (development in base values, production /
+  # staging in the overlays). Audit ref: A2.
+  APP_ENV: {{ .Values.config.app.env | quote }}
+
   # Server.
   EXECUTION_GRPC_PORT: {{ .Values.config.execution.grpcPort | quote }}
   EXECUTION_HTTP_PORT: {{ .Values.config.execution.httpPort | quote }}
