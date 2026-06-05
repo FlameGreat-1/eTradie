@@ -97,7 +97,7 @@ resource "vault_kv_secret_v2" "engine" {
   name                = "etradie/services/engine/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate keys: database_url, postgres_user, postgres_password, redis_url, redis_password, broker_encryption_key, llm_encryption_key, auth_jwt_secret, cftc_app_token, fred_api_key, twelvedata_api_key, processor_anthropic_api_key, processor_openai_api_key, processor_gemini_api_key, mt5_metaapi_token. Note: rag_chroma_auth_token is NOT in this path; populate etradie/data-layer/chromadb/${var.environment}:auth_token instead (single source of truth shared with the ChromaDB server)."
+    bootstrap = "placeholder; populate keys: database_url, postgres_user, postgres_password, redis_url, redis_password, broker_encryption_key, llm_encryption_key, auth_jwt_secret, cftc_app_token, fred_api_key, twelvedata_api_key, processor_anthropic_api_key, processor_openai_api_key, processor_gemini_api_key, mt5_metaapi_token. broker_encryption_key is KEK version 1 for credential-at-rest envelope encryption. To ROTATE the credential KEK, add broker_encryption_key_v<n> (n>=2, e.g. broker_encryption_key_v2 = openssl rand -hex 32) and declare it in helm/engine values externalSecrets.engine.rotationKeyVersions; the engine activates the highest version, the re-wrap routine migrates rows, then remove the old version to revoke it. Note: rag_chroma_auth_token is NOT in this path; populate etradie/data-layer/chromadb/${var.environment}:auth_token instead (single source of truth shared with the ChromaDB server)."
   })
   lifecycle {
     ignore_changes = [data_json]
