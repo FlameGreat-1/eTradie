@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from engine.processor.config import get_processor_config
 from engine.processor.storage.schemas.llm_connection_schema import LLMConnectionRow
 from engine.shared.crypto import (
+    active_key_version,
     decrypt_credential as _decrypt,
     encrypt_credential as _encrypt,
 )
@@ -79,6 +80,7 @@ class LLMConnectionRepository:
             provider=provider,
             model_name=model_name,
             api_key_encrypted=_encrypt(api_key),
+            key_version=active_key_version(),
             base_url=base_url,
             temperature=temperature,
             max_output_tokens=max_output_tokens,
@@ -130,6 +132,7 @@ class LLMConnectionRepository:
             provider=provider,
             model_name=model_name,
             api_key_encrypted=_encrypt(api_key),
+            key_version=active_key_version(),
             base_url=base_url,
             temperature=temperature,
             max_output_tokens=max_output_tokens,
@@ -310,6 +313,7 @@ class LLMConnectionRepository:
             values["model_name"] = model_name
         if api_key is not None:
             values["api_key_encrypted"] = _encrypt(api_key)
+            values["key_version"] = active_key_version()
         if base_url is not None:
             values["base_url"] = base_url
         if temperature is not None:
