@@ -92,7 +92,7 @@ Shared module `src/engine/shared/crypto/` (`credential_cipher.py`):
 | --- | --- |
 | AES-256 at rest | DONE - data layer is AES-256-GCM (v2 envelope: 256-bit DEK, 96-bit random nonce, AEAD tag). encrypt() writes v2; decrypt() reads v2/v1/legacy; the re-wrap job upgrades legacy+v1 -> v2 with no migration. The DEK wrap stays Fernet (it only protects the 32-byte DEK, never credential bytes). |
 | Key encryption keys (KEK) | DONE - per-record DEK wrapped by a versioned KEK. |
-| Separate encryption service | In-house envelope now; Vault Transit is a documented drop-in future step (swap the KEK-wrap call, no stored-ciphertext change). |
+| Separate encryption service | PLANNED - Vault Transit KEK. Concrete scoped spec in TIER3_VAULT_TRANSIT_PLAN.md. Staged as its own MR because it makes the cipher API async (ripples through ~5 call sites) and introduces a money-path availability decision (DEK-cache TTL + Transit-outage posture) the operator must sign off. The v2 envelope already isolates the wrap step, so it is a localized change (credential_cipher.py + VaultClient + Terraform). |
 | Envelope encryption | DONE - active v2: v2:<kv>:<wrapped_dek>:<nonce>:<gcm_ct||tag>; v1 (Fernet data layer) still decrypted + upgraded on re-wrap. |
 | Master key outside DB | DONE (already; Vault). |
 | Key rotation process | DONE - versioned KEK map + rewrap service, no plaintext re-encrypt. |
