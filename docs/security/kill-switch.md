@@ -1,0 +1,201 @@
+# Execution Kill Switch — Design, Wiring & Continuation Record
+
+> **CHECKLIST Section 8 — Kill Switches.** Branch: `feat/section8-kill-switch`.
+> This document is the single source of truth for the feature. It is written
+> so that if work is interrupted, the next engineer/session can resume from
+> the **Progress Tracker** below without re-deriving anything.
+
+---
+
+## 1. Confirmed semantics (product decision — do not change without sign-off)
+
+A kill switch **halts EXECUTION while ANALYSIS keeps running.** The engine still
+performs TA/Macro/RAG/LLM analysis and shows the user what *would* have traded;
+only **new order placement** is blocked.
+
+Two scopes:
+
+| Scope | Who controls it | Effect |
+|---|---|---|
+| **Global** | **Admin only** | Blocks order placement for **all** users, platform-wide. |
+| **Per-user** | **User** (own) **+ Admin** (override any user) | Blocks order placement for that one user. |
+
+Rules:
+- **No strategy-level switch.** The system runs a single strategy; out of scope.
+- **No auto-flatten.** The switch stops *new* orders only. It does **NOT** close
+  open positions. Flattening is a separate, deliberate action (not in this work).
+- **Global is evaluated before per-user** so the platform-wide reason wins when both are set.
+- Industry posture: halt at the boundary **closest to the broker** (execution),
+  with a **defense-in-depth** gate at the gateway so we don't even route.
+
+---
+
+## 2. Architecture facts (traced end-to-end in `main` — verified, not assumed)
+
+- **Analysis -> execution handoff is `routing.Router.executeTrade()`** in
+  `src/gateway/internal/routing/router.go`, which calls `r.execution.Execute(ctx, decision)`.
+  This runs INSIDE the orchestrator's per-symbol pipeline (`orchestrator.processSymbol`
+  -> `o.router.Route(...)`), AFTER all analysis. **This is the gateway enforcement point.**
+  There is no separate "dispatch" RPC; routing is in-process.
+- **`Router.executeTrade` already has a per-user Free-tier execution block** that
+  returns a structured `map[string]interface{}{"status":"blocked", ...}` before calling
+  execution. The kill-switch gateway gate is modeled on this exact pattern.
+- **Execution validator** (`src/execution/internal/validator/validator.go`) runs an
+  ordered check slice via `Validate(ctx, req, params *RuntimeParams)`, fail-fast.
+  This is the **authoritative backstop** — it also covers resting LIMIT orders and
+  armed INSTANT watchers because their fire paths re-validate.
+- **Single source of truth = execution `SettingsStore`** (Postgres,
+  `src/execution/internal/store/settings.go`). The validator already reads it per-trade
+  via `ExecutionServer.resolveRuntimeParams`. The global flag is stored under the
+  reserved sentinel user_id `__global__` (`KillSwitchGlobalScope`) in the same
+  `execution_settings` table — no schema migration, reuses the `(user_id,key)` unique index.
+- **Gateway must NOT keep its own copy** of halt state (no split-brain). It reads the
+  execution service's halt state over gRPC and the toggle endpoints WRITE through to
+  the execution service. One store, one truth.
+- Roles: only `admin` and `etradie`. Admin check pattern in gateway = `RequireAdmin`
+  wrapper / `claims.Role == auth.RoleAdmin` (see `admin_quota_handler`, commit `fd399a95`).
+- Gateway per-user runtime settings also exist in `src/gateway/internal/settingsstore/store.go`
+  (Redis) but are NOT used for the kill switch — execution Postgres is the truth.
+
+---
+
+## 3. Fail-safe posture (decided, documented in code)
+
+- An engaged kill switch is a **durable Postgres row** set deliberately by an operator.
+- A transient settings-store **READ error defaults the flag to `false` (NOT halted)**
+  and logs WARN. Rationale: a DB blip must not self-inflict a platform-wide outage.
+  The gateway is the primary gate; the durable flag is re-read on the next healthy query.
+- A **WRITE error on a toggle propagates** to the caller (the API returns 5xx) so an
+  operator never believes a halt succeeded when it didn't.
+
+---
+
+## 4. Layers & exact contract
+
+```
+  [Client dashboard]  user halt toggle  ---\
+  [Admin dashboard]   global/user toggle ---+--> Gateway gRPC (Set/GetHaltState)
+                                            |        writes/reads via ExecutionPort
+                                            v
+  Gateway Router.executeTrade  --(reads halt state)-->  PRIMARY GATE (blocks routing)
+                                            |
+                                            v   if not halted, Execute(...)
+  Execution ExecuteTrade -> Validate -> check0KillSwitch  --> AUTHORITATIVE BACKSTOP
+        (reads RuntimeParams.{Global,User}TradingHalted from SettingsStore, Postgres)
+```
+
+- **Execution-side terminal outcome:** `OutcomeHalted` -> `StatusHalted` ("HALTED"),
+  audit action `EXECUTION_HALTED`, alert `TypeExecutionHalted` (CRITICAL).
+- **`check0KillSwitch`** is check number **0** (wired FIRST), pure function reading
+  only `RuntimeParams` (no I/O).
+
+---
+
+## 5. Files to touch (complete map)
+
+### Execution (Go) — DONE on this branch
+- `src/execution/internal/constants/constants.go` — `CheckKillSwitch=0`, `OutcomeHalted`,
+  `StatusHalted`, `ActionExecutionHalted`. **[done]**
+- `src/execution/internal/validator/result.go` — `halted()` helper. **[done]**
+- `src/execution/internal/store/settings.go` — keys `KeyGlobalTradingHalted`,
+  `KeyUserTradingHalted`; `KillSwitchGlobalScope="__global__"`; `Settings` fields;
+  `validateSetting`/`applySetting`; `IsGlobalHalted`/`IsUserHalted`/`readHalt`/
+  `SetGlobalHalted`/`SetUserHalted`; added `errors` + `pgx` imports. **[done]**
+- `src/execution/internal/validator/validator.go` — `RuntimeParams.{Global,User}TradingHalted`;
+  `check0KillSwitch` first in chain. **[done]**
+- `src/execution/internal/validator/checks.go` — `check0KillSwitch` impl. **[done]**
+- `src/execution/internal/server/grpc_server.go` — `resolveRuntimeParams` reads halt flags
+  (fail-safe); `outcomeToStatus` maps HALTED; ExecuteTrade halt alert+audit branch. **[done]**
+- `src/execution/internal/audit/logger.go` — `LogExecutionHalted`. **[done]**
+- `src/alert/event.go` — `TypeExecutionHalted`. **[done]**
+
+### Execution gRPC surface — TODO
+- `proto/execution/v1/*.proto` — add RPCs:
+  - `GetHaltState(GetHaltStateRequest) returns (GetHaltStateResponse{ bool global, bool user })`
+  - `SetHaltState(SetHaltStateRequest{ enum scope[GLOBAL|USER], string target_user_id, bool halted }) returns (SetHaltStateResponse{ bool global, bool user })`
+  - Regenerate Go stubs (`make proto` / buf — check repo's proto gen command).
+- `src/execution/internal/server/grpc_server.go` — implement `GetHaltState` (calls
+  `IsGlobalHalted`+`IsUserHalted`) and `SetHaltState` (calls `SetGlobalHalted`/`SetUserHalted`;
+  **enforce: GLOBAL scope requires `claims.Role==admin`**; USER scope requires self OR admin).
+  Actor for audit = `claims.UserID`.
+
+### Gateway (Go) — TODO
+- `src/gateway/internal/ports/<ports file>` — **FIND IT FIRST** (not at
+  `internal/ports/ports.go`; locate the file defining `ExecutionPort` with `Execute` +
+  `GetState`). Add to the interface: `HaltState(ctx) (global bool, user bool, err error)`
+  and `SetHaltState(ctx, scope, targetUserID string, halted bool) (global, user bool, err error)`.
+- Gateway execution client adapter (the concrete `ExecutionPort` impl, likely under
+  `src/gateway/internal/infra/` or `.../execution/`) — implement the two new methods by
+  calling the new execution gRPC RPCs.
+- `src/gateway/internal/routing/router.go` — in `executeTrade`, **before**
+  `r.execution.Execute`, add the kill-switch gate (mirror the Free-tier block):
+  read `HaltState`; if global -> return `{status:"halted", scope:"global", ...}` + publish
+  `TypeExecutionHalted`; else if user -> same with `scope:"user"`. Fail-safe: if the
+  `HaltState` read errors, **log and fall through** (execution backstop still enforces).
+- `src/gateway/internal/server/grpc_server.go` + `proto/gateway/v1/*.proto` — add RPCs:
+  - `SetUserKillSwitch(bool halted)` — client, user-scoped to `claims.UserID`.
+  - `SetGlobalKillSwitch(bool halted)` — admin only (role check).
+  - `SetUserKillSwitchForUser(target_user_id, bool halted)` — admin override.
+  - `GetKillSwitchState()` — returns global + caller's user flag (admin may pass target).
+  - Surface state in `GetGatewayConfig` response (add `ExecutionHaltedGlobal` +
+    `ExecutionHaltedUser` fields to the proto + handler).
+- Gateway HTTP layer (the SPA-facing API; find the handler that maps HTTP->gateway gRPC,
+  e.g. admin handler + a client settings handler) — expose:
+  - `PUT /api/v1/execution/kill-switch` (client, self) `{ "halted": true|false }`.
+  - `PUT /api/v1/admin/execution/kill-switch/global` (admin) `{ "halted": ... }`.
+  - `PUT /api/v1/admin/execution/kill-switch/user/{user_id}` (admin override).
+  - `GET /api/v1/execution/kill-switch` (state for the dashboard).
+  - Reuse the standard chain: authMiddleware -> (RequireAdmin for admin routes) -> csrfMiddleware.
+  - **No quick actions / no secrets in code.**
+
+### Observability — TODO
+- `src/gateway/internal/observability/` — counter `gateway_execution_halted_total{scope}`
+  incremented in the router gate. (Execution side already increments
+  `ExecutionTotal{...,"HALTED"}` via the existing outcome label + `validation_rejections{check_0}`.)
+- Optional: PrometheusRule alert when a global halt is engaged (info-level, it is deliberate).
+
+### Frontend (separate repo `cotradee/`) — OUT OF SCOPE here, NOTE ONLY
+- Add `EXECUTION_HALTED` to `cotradee/src/features/realtime/eventMap.ts` + types.ts.
+- Admin dashboard: global + per-user toggle. Client dashboard: own toggle + halted banner.
+
+### Tests — TODO
+- `validator` unit test: global halt -> HALTED; user halt -> HALTED; neither -> pass;
+  global precedence over user.
+- `settings` store test: round-trip Set/IsGlobalHalted + Set/IsUserHalted; missing row=false.
+- gateway router test: halted state short-circuits before `execution.Execute`.
+- gRPC authz test: non-admin cannot set GLOBAL; user can set own; admin can set any.
+
+---
+
+## 6. Progress Tracker (update as you go)
+
+- [x] Step 1 — Execution constants + result helper + settings keys/helpers (+ import fix)
+- [x] Step 2 — Execution validator `check0KillSwitch` + RuntimeParams + gRPC resolve/map/alert
+- [x] Step 2c — `audit.LogExecutionHalted`
+- [x] Step 2d — `alert.TypeExecutionHalted`
+- [x] Step 6 — THIS DOC
+- [ ] Step 3 — Execution gRPC `GetHaltState`/`SetHaltState` (+ proto + authz)
+- [ ] Step 4 — Gateway `ExecutionPort` methods + client adapter
+- [ ] Step 5 — Gateway `Router.executeTrade` primary gate
+- [ ] Step 6b — Gateway gRPC + proto toggle/get RPCs + `GetGatewayConfig` fields
+- [ ] Step 7 — Gateway HTTP endpoints (client + admin) with auth/CSRF chain
+- [ ] Step 8 — Observability counter (+ optional alert rule)
+- [ ] Step 9 — Tests (validator, settings, router, authz)
+- [ ] Step 10 — Open MR; note frontend follow-up in `cotradee/`
+
+## 7. Immediate next action for the resuming session
+
+1. **Locate the `ExecutionPort` interface file** (grep the gateway for `Execute(ctx`
+   and `GetState(ctx`). It is NOT `internal/ports/ports.go`.
+2. Add proto RPCs `GetHaltState`/`SetHaltState` to `proto/execution/v1`, regenerate stubs.
+3. Implement them in execution `grpc_server.go` with the authz rules in section 5.
+4. Then proceed down the tracker.
+
+## 8. Definition of done
+
+- Flip user switch -> that user's next analysis still runs, trade is blocked with
+  `HALTED`, banner shows; other users unaffected.
+- Flip global (admin) -> all users blocked; analysis still runs; non-admin cannot flip it.
+- Resting limit orders / armed watchers do not fire while halted.
+- Releasing the switch resumes placement on the next trade with no redeploy.
+- No split-brain: gateway and execution agree because both read the one Postgres source.
