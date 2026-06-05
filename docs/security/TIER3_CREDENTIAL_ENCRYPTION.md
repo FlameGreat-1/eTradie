@@ -193,3 +193,34 @@ removed rather than left as dead/trap code.
   multi-batch keyset pagination; per-table totals == aggregate.
 - `tests/processor/storage/repositories/test_broker_connection_key_version.py`:
   `_effective_key_version` (none / all-active / any-legacy / min).
+
+### Re-audit follow-up: shippable re-wrap Job
+
+A second end-to-end audit found the re-wrap CLI
+(`python -m engine.shared.crypto`) was described across the codebase as
+a one-shot Kubernetes Job but had NO shippable manifest -- so the Tier 3
+"key rotation process" and "emergency key revocation" items were
+operationally undeployable (operators had to hand-craft a Job or
+`kubectl exec`). Resolved by adding the Job to the engine chart:
+
+  - `helm/engine/templates/rewrap-job.yaml` -- a `batch/v1` Job gated by
+    `.Values.rotationJob.enabled` (default false, so it is INERT on a
+    normal release). It is a plain Job, not a Helm hook, because a
+    rotation is operator-initiated maintenance, not a release event.
+  - Wiring mirrors the engine Deployment + its `migrate` init container:
+    same ServiceAccount (-> same Vault K8s-auth role), `envFrom` the
+    engine ConfigMap + Vault-backed Secret (so `BROKER_ENCRYPTION_KEY`
+    and every `BROKER_ENCRYPTION_KEY_V<n>` reach the Job identically),
+    same image, restricted securityContext, and the engine selector
+    labels so the EXISTING engine NetworkPolicy (Postgres + DNS egress)
+    applies to the Job pod.
+  - Safety: `restartPolicy: Never` + `backoffLimit` (the re-wrap is
+    resumable per row; re-run rather than auto-restart a partial run),
+    `activeDeadlineSeconds` cap, `ttlSecondsAfterFinished` cleanup, and a
+    unique `nameSuffix` so repeated rotations create fresh Jobs.
+  - `.Values.rotationJob` block + a NOTES.txt runbook document the
+    dry-run-size -> execute -> revoke flow.
+
+With this, the full rotation/revocation path is deployable end to end:
+add KEK version (Vault + `rotationKeyVersions`) -> engine rolls -> run
+the Job -> remove the old version to revoke.

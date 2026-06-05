@@ -1,0 +1,144 @@
+{{- /*
+Credential re-wrap Job (Tier 3 KEK rotation / emergency revocation).
+
+Runs the shipped CLI `python -m engine.shared.crypto`, which walks the
+broker_connections + llm_connections credential tables and re-wraps
+every ciphertext onto the ACTIVE KEK version (the highest configured
+BROKER_ENCRYPTION_KEY_V<n>). The plaintext credential is never touched;
+only the envelope is re-wrapped, so this is safe against live data and
+is resumable (each row is its own committed transaction).
+
+This is INERT by default (rotationJob.enabled=false). An operator runs a
+rotation explicitly:
+
+  1. Add the new KEK version to Vault + externalSecrets.engine.
+     rotationKeyVersions and let the engine roll (the new version becomes
+     the active write key).
+  2. (optional) Size the work:
+       helm upgrade ... \
+         --set rotationJob.enabled=true \
+         --set rotationJob.dryRun=true \
+         --set rotationJob.nameSuffix=$(date +%s)
+  3. Execute the re-wrap:
+       helm upgrade ... \
+         --set rotationJob.enabled=true \
+         --set rotationJob.nameSuffix=$(date +%s)
+     (or `kubectl create job --from=...` against a rendered manifest).
+  4. When the Job reports 0 rows remaining on the old version, REMOVE
+     the old version from Vault + rotationKeyVersions to REVOKE it.
+
+The Job is a plain batch/v1 Job (NOT a Helm hook) because a rotation is
+operator-initiated maintenance, not a release lifecycle event.
+*/ -}}
+{{- if .Values.rotationJob.enabled }}
+{{- $suffix := default (.Release.Revision | toString) .Values.rotationJob.nameSuffix -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "engine.fullname" . }}-credential-rewrap-{{ $suffix }}
+  namespace: {{ include "engine.namespace" . }}
+  labels:
+    {{- include "engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: credential-rewrap
+  annotations:
+    description: "Tier 3 credential KEK rotation / revocation re-wrap job."
+spec:
+  # The re-wrap is resumable per row; do NOT auto-restart a partial run.
+  # An operator re-runs the Job (which is a no-op for already-active
+  # rows) instead. backoffLimit allows a small number of retries for
+  # transient infra (DB connect blip) before the Job is marked Failed.
+  backoffLimit: {{ .Values.rotationJob.backoffLimit | default 2 }}
+  # Cap a stuck run so it cannot hang indefinitely holding a slot.
+  activeDeadlineSeconds: {{ .Values.rotationJob.activeDeadlineSeconds | default 3600 }}
+  # Auto-clean the completed Job (and its pod) after this many seconds.
+  ttlSecondsAfterFinished: {{ .Values.rotationJob.ttlSecondsAfterFinished | default 86400 }}
+  template:
+    metadata:
+      labels:
+        {{- /*
+        Carry the engine selector labels so the EXISTING engine
+        NetworkPolicy (egress to Postgres + cluster DNS) applies to this
+        pod with no additional policy. The extra component label
+        distinguishes it in `kubectl get pods` without affecting the
+        NetworkPolicy podSelector match.
+        */ -}}
+        {{- include "engine.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: credential-rewrap
+        app.kubernetes.io/part-of: etradie
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "engine.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken | default false }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.podSecurityContext.runAsUser | default 1000 }}
+        runAsGroup: {{ .Values.podSecurityContext.runAsGroup | default 1000 }}
+        fsGroup: {{ .Values.podSecurityContext.fsGroup | default 1000 }}
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: credential-rewrap
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: {{ .Values.securityContext.runAsUser | default 1000 }}
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          command:
+            - python
+            - -m
+            - engine.shared.crypto
+          args:
+            {{- if .Values.rotationJob.dryRun }}
+            - --dry-run
+            {{- end }}
+            - --batch-size
+            - {{ .Values.rotationJob.batchSize | default 200 | quote }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "engine.configMapName" . }}
+                optional: false
+            {{- if .Values.externalSecrets.enabled }}
+            - secretRef:
+                name: {{ include "engine.secretName" . }}
+                optional: false
+            {{- end }}
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: HOME
+              value: "/home/etradie"
+          resources:
+            {{- toYaml (.Values.rotationJob.resources | default .Values.initContainer.resources) | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: model-cache
+              mountPath: /home/etradie/.cache
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.volumes.tmp.emptyDir.sizeLimit | default "128Mi" }}
+        - name: model-cache
+          emptyDir:
+            sizeLimit: {{ .Values.volumes.modelCache.emptyDir.sizeLimit | default "2Gi" }}
+      dnsPolicy: ClusterFirst
+{{- end }}

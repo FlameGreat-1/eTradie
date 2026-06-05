@@ -369,6 +369,49 @@ externalSecrets:
     #       property: broker_encryption_key_v2
     rotationKeyVersions: []
 
+# Credential re-wrap Job (Tier 3 KEK rotation / emergency revocation).
+# Renders templates/rewrap-job.yaml, which runs the shipped CLI
+# `python -m engine.shared.crypto` to re-wrap every stored broker + LLM
+# credential onto the ACTIVE KEK version. INERT by default: the Job only
+# renders when an operator explicitly enables it during a rotation.
+#
+# Rotation runbook:
+#   1. Add the new key to Vault + externalSecrets.engine.rotationKeyVersions
+#      and let the engine roll (the new version becomes the active write
+#      key; the cipher still holds the old version for decryption).
+#   2. (optional) Size the work without writing:
+#        helm upgrade ... --set rotationJob.enabled=true \
+#          --set rotationJob.dryRun=true \
+#          --set rotationJob.nameSuffix=$(date +%s)
+#   3. Execute the re-wrap:
+#        helm upgrade ... --set rotationJob.enabled=true \
+#          --set rotationJob.nameSuffix=$(date +%s)
+#   4. When the Job reports 0 rows on the old version, REMOVE the old
+#      version from Vault + rotationKeyVersions to REVOKE it.
+rotationJob:
+  # Gate. Keep false in the committed overlays; flip only for a rotation.
+  enabled: false
+  # When true, the Job runs `--dry-run`: it counts the rows/columns that
+  # WOULD be re-wrapped and writes NOTHING (pre-rotation sizing).
+  dryRun: false
+  # Keyset page size for the table scans (CLI --batch-size).
+  batchSize: 200
+  # Unique suffix so repeated rotations create distinct Jobs instead of
+  # colliding with an immutable completed Job. Empty -> release revision.
+  # Set to a timestamp (e.g. $(date +%s)) when running back-to-back.
+  nameSuffix: ""
+  # Retries for transient infra (DB connect blip) before the Job is
+  # marked Failed. The re-wrap itself is resumable, so a re-run is safe.
+  backoffLimit: 2
+  # Hard cap on a single run so a stuck Job cannot hang indefinitely.
+  activeDeadlineSeconds: 3600
+  # Auto-clean the completed Job + its pod after this many seconds.
+  ttlSecondsAfterFinished: 86400
+  # Optional resource override. Empty -> reuse the migrate init
+  # container's modest envelope (it is the same image, a short-lived
+  # batch task, not a long-running server).
+  resources: {}
+
 resources:
   requests:
     cpu: 500m
