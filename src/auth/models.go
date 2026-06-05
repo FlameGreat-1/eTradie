@@ -83,6 +83,10 @@ type User struct {
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 	LastLoginAt    *time.Time `json:"last_login_at,omitempty"`
+	// TokenEpoch is the per-user token-version counter. It is stamped
+	// into issued JWTs as the 'tv' claim; bumping it (BumpTokenEpoch)
+	// revokes every outstanding token carrying an older value.
+	TokenEpoch     int        `json:"-"`
 }
 
 // Auth provider identifiers persisted in auth_users.auth_provider.
@@ -189,6 +193,10 @@ type Claims struct {
 	Status   string `json:"status"`
 	IssuedAt int64  `json:"iat"`
 	Expiry   int64  `json:"exp"`
+	// TokenEpoch is the 'tv' claim: the user's token-version at issue
+	// time. The service-token verification path rejects a token whose
+	// TokenEpoch is below the user's current epoch (revocation).
+	TokenEpoch int `json:"tv"`
 }
 
 // IsExpired checks whether the token has passed its expiry time.

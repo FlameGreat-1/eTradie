@@ -37,6 +37,7 @@ func (ts *TokenService) IssueTokenPair(user *User) (*TokenPair, string, error) {
 		"iss":      ts.cfg.Issuer,
 		"iat":      now.Unix(),
 		"exp":      accessExpiry.Unix(),
+		"tv":       user.TokenEpoch,
 	}
 
 	// Sign the access token with HMAC-SHA256.
@@ -138,6 +139,14 @@ func (ts *TokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
 		claims.Expiry = int64(exp)
 	}
 
+	// 'tv' (token epoch / version). Best-effort parse: a token minted
+	// before this claim existed parses as 0. The service-token
+	// consumption path enforces it against the user's current epoch;
+	// the stateless verifier only surfaces the value.
+	if tv, ok := mapClaims["tv"].(float64); ok {
+		claims.TokenEpoch = int(tv)
+	}
+
 	// Double-check expiry (jwt.Parse already checks, but be explicit).
 	if claims.IsExpired() {
 		return nil, fmt.Errorf("token expired")
@@ -161,7 +170,7 @@ func (ts *TokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
 // autonomous 24/7 operations. They are re-issued on service restart for
 // each user with active trades, and replaced by fresh user session tokens
 // when the user authenticates.
-func (ts *TokenService) IssueServiceToken(userID, username string, role Role, tier, statusClaim string) (string, error) {
+func (ts *TokenService) IssueServiceToken(userID, username string, role Role, tier, statusClaim string, tokenEpoch int) (string, error) {
 	if userID == "" {
 		return "", fmt.Errorf("issue service token: userID must not be empty")
 	}
@@ -191,6 +200,7 @@ func (ts *TokenService) IssueServiceToken(userID, username string, role Role, ti
 		"iat":        now.Unix(),
 		"exp":        expiry.Unix(),
 		"token_type": "svc",
+		"tv":         tokenEpoch,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
