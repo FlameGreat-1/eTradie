@@ -78,6 +78,25 @@ func (l *Logger) LogValidationRejected(ctx context.Context, req *models.TradeReq
 	})
 }
 
+// LogExecutionHalted records an order blocked by the global or per-user
+// execution kill switch (CHECKLIST Section 8). Distinct from a normal
+// validation rejection so the audit trail can be filtered for halts.
+func (l *Logger) LogExecutionHalted(ctx context.Context, req *models.TradeRequest, reason string) {
+	l.auditStore.Write(ctx, &store.AuditEntry{
+		UserID:          auth.UserIDFromContext(ctx),
+		Action:          string(constants.ActionExecutionHalted),
+		Symbol:          req.Symbol,
+		Direction:       string(req.Direction),
+		AnalysisID:      req.AnalysisID,
+		TraceID:         req.TraceID,
+		Grade:           req.Grade,
+		TradingStyle:    string(req.TradingStyle),
+		Session:         req.Session,
+		RejectionCheck:  int32(constants.CheckKillSwitch),
+		RejectionReason: reason,
+	})
+}
+
 // LogLotSizeCalculated records the full sizing calculation breakdown.
 func (l *Logger) LogLotSizeCalculated(ctx context.Context, req *models.TradeRequest, sizing *models.SizingResult) {
 	l.auditStore.Write(ctx, &store.AuditEntry{
