@@ -391,6 +391,7 @@ func (s *HTTPServer) publishKillSwitchEvent(ctx context.Context, userID, scope s
 	if halted {
 		verb = "engaged"
 	}
+	observability.KillSwitchChangedTotal.WithLabelValues(scope, verb).Inc()
 	msg := fmt.Sprintf("Execution kill switch %s (%s scope)", verb, scope)
 	evt := alert.NewEvent(alert.SourceExecution, alert.TypeExecutionHalted, alert.SeverityCritical, msg).
 		WithDetails(map[string]interface{}{
