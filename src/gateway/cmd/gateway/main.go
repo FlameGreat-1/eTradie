@@ -164,6 +164,11 @@ func main() {
 		log.Info().Msg("auth_password_breach_check_disabled")
 	}
 
+	// Password history (no-reuse of the last N passwords). The
+	// auth_password_history table is created by auth.SchemaSQL() above.
+	authHandler.WithPasswordHistory(auth.NewPasswordHistoryStore(authPool))
+	log.Info().Int("history_size", auth.PasswordHistorySize).Msg("auth_password_history_enabled")
+
 	// ── Cookie consent (GDPR / ePrivacy audit trail) ─────────────
 	// Same pool, same idempotent-DDL pattern as every other store.
 	// The consent service is independent of execution / engine /
