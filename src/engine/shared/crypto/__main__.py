@@ -3,9 +3,9 @@
 Usage (as a Kubernetes Job or `kubectl exec` on an engine pod, which
 already has the engine env + Vault-sourced KEKs):
 
-    python -m engine.shared.crypto.rewrap_service              # execute
-    python -m engine.shared.crypto.rewrap_service --dry-run    # report only
-    python -m engine.shared.crypto.rewrap_service --batch-size 500
+    python -m engine.shared.crypto              # execute
+    python -m engine.shared.crypto --dry-run    # report only
+    python -m engine.shared.crypto --batch-size 500
 
 Exit codes:
     0  success (including a no-op run with nothing to re-wrap)

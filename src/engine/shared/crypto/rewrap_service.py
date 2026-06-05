@@ -14,9 +14,9 @@ Operational model
    shared cipher now treats version <n> as the ACTIVE write key while
    still holding the previous version for decryption.
 2. Operator runs this service (one-shot Job: ``python -m
-   engine.shared.crypto.rewrap_service``). Every row is decrypted with
-   whatever version applies and re-encrypted under version <n>;
-   ``key_version`` is updated to <n>.
+   engine.shared.crypto``). Every row is decrypted with whatever
+   version applies and re-encrypted under version <n>; ``key_version``
+   is updated to <n>.
 3. Once the run reports 0 remaining rows on old versions, the operator
    REMOVES the old KEK version from Vault + rotationKeyVersions to
    REVOKE it. No ciphertext references it any more.
