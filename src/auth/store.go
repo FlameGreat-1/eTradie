@@ -58,6 +58,12 @@ ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS auth_provider  TEXT NOT NULL DEF
 ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS avatar_url     TEXT NOT NULL DEFAULT '';
 ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Per-user token epoch. Stamped into issued JWTs as the 'tv' claim;
+-- bumping it invalidates every outstanding token (notably the
+-- long-lived service tokens) carrying an older value. Default 1 so
+-- existing rows have a valid epoch immediately.
+ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS token_epoch INTEGER NOT NULL DEFAULT 1;
+
 -- Allow federated accounts to have no local password.
 ALTER TABLE auth_users ALTER COLUMN password_hash DROP NOT NULL;
 ALTER TABLE auth_users ALTER COLUMN password_hash SET DEFAULT '';
@@ -492,6 +498,7 @@ func (s *UserStore) CountAdmins(ctx context.Context) (int, error) {
 const userColumns = `a.id, a.username, a.email, a.password_hash, a.role, a.active,
         a.auth_provider, a.avatar_url, a.email_verified,
         a.created_at, a.updated_at, a.last_login_at,
+        a.token_epoch,
         COALESCE(b.tier, 'free'), COALESCE(b.status, 'active')`
 
 func (s *UserStore) scanUser(row pgx.Row) (*User, error) {
@@ -502,6 +509,7 @@ func (s *UserStore) scanUser(row pgx.Row) (*User, error) {
 		&u.Role, &u.Active,
 		&u.AuthProvider, &u.AvatarURL, &u.EmailVerified,
 		&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt,
+		&u.TokenEpoch,
 		&u.Tier, &u.Status,
 	)
 	if err != nil {
@@ -524,6 +532,7 @@ func (s *UserStore) scanUserFromRows(rows pgx.Rows) (*User, error) {
 		&u.Role, &u.Active,
 		&u.AuthProvider, &u.AvatarURL, &u.EmailVerified,
 		&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt,
+		&u.TokenEpoch,
 		&u.Tier, &u.Status,
 	)
 	if err != nil {
@@ -533,6 +542,41 @@ func (s *UserStore) scanUserFromRows(rows pgx.Rows) (*User, error) {
 		u.PasswordHash = *passwordHash
 	}
 	return u, nil
+}
+
+// GetTokenEpoch returns the user's current token epoch. Used by the
+// service-token verification path to reject tokens minted before a
+// revocation (epoch bump). Returns (0, nil) when the user does not
+// exist so the caller treats it as an invalid token.
+func (s *UserStore) GetTokenEpoch(ctx context.Context, userID string) (int, error) {
+	var epoch int
+	err := s.pool.QueryRow(ctx,
+		`SELECT token_epoch FROM auth_users WHERE id = $1`, userID,
+	).Scan(&epoch)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("get token epoch: %w", err)
+	}
+	return epoch, nil
+}
+
+// BumpTokenEpoch increments the user's token epoch and returns the new
+// value. This is the revocation operation: every token carrying an
+// older 'tv' claim is rejected on its next verify. Used on admin
+// deactivation and as the operator lever to kill a leaked service
+// token.
+func (s *UserStore) BumpTokenEpoch(ctx context.Context, userID string) (int, error) {
+	var epoch int
+	err := s.pool.QueryRow(ctx,
+		`UPDATE auth_users SET token_epoch = token_epoch + 1, updated_at = NOW()
+		  WHERE id = $1 RETURNING token_epoch`, userID,
+	).Scan(&epoch)
+	if err != nil {
+		return 0, fmt.Errorf("bump token epoch: %w", err)
+	}
+	return epoch, nil
 }
 
 // ---------------------------------------------------------------------------
