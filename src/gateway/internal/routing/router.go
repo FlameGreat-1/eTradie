@@ -371,6 +371,57 @@ func (r *Router) executeTrade(
 		return map[string]interface{}{"status": "pending", "reason": "execution_engine_not_implemented"}
 	}
 
+	// Kill-switch primary gate (CHECKLIST Section 8). Defense-in-depth:
+	// block routing here so a halted user/platform does not even reach
+	// the broker round-trip. Analysis has already run; only placement is
+	// blocked. The execution validator's check0KillSwitch is the
+	// AUTHORITATIVE enforcement point, so this gate fails OPEN on a read
+	// error (proceed to Execute) rather than converting an execution
+	// blip into a routing outage. The empty targetUserID makes the
+	// execution server resolve the caller from the forwarded JWT.
+	if globalHalted, userHalted, err := r.execution.HaltState(ctx, ""); err != nil {
+		r.log.Warn().
+			Err(err).
+			Str("symbol", decision.Symbol).
+			Str("trace_id", traceID).
+			Msg("kill_switch_state_read_failed_failing_open_to_validator_backstop")
+	} else if globalHalted || userHalted {
+		scope := "user"
+		reason := "Execution is halted for your account (kill switch engaged)."
+		if globalHalted {
+			scope = "global"
+			reason = "Execution is halted platform-wide by an administrator (kill switch engaged)."
+		}
+
+		r.log.Warn().
+			Str("symbol", decision.Symbol).
+			Str("direction", decision.Direction).
+			Str("scope", scope).
+			Str("trace_id", traceID).
+			Msg("execution_blocked_by_kill_switch")
+
+		if r.transport != nil {
+			r.transport.Publish(ctx,
+				alert.NewEvent(alert.SourceGateway, alert.TypeExecutionHalted, alert.SeverityCritical,
+					fmt.Sprintf("Trade blocked for %s: %s", decision.Symbol, reason)).
+					WithUserID(auth.UserIDFromContext(ctx)).
+					WithSymbol(decision.Symbol).
+					WithDirection(decision.Direction).
+					WithTraceID(traceID).
+					WithDetails(map[string]interface{}{
+						"scope":  scope,
+						"reason": reason,
+					}),
+			)
+		}
+
+		return map[string]interface{}{
+			"status": "halted",
+			"scope":  scope,
+			"reason": reason,
+		}
+	}
+
 	if r.usageStore != nil && claims != nil {
 		_ = r.usageStore.IncrementMetric(ctx, claims.UserID, "execution_attempts", 1)
 	}
