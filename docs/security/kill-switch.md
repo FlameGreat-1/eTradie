@@ -277,10 +277,15 @@ client toggle + banner -> `PUT/GET /api/v1/kill-switch`.
       approach; see section 5b for rationale)
 - [x] Step 4 — Observability counter `kill_switch_changed_total`
 - [x] Step 5 — Tests: `check0KillSwitch` unit tests
-- [~] DEFERRED — Gateway primary gate + `GetHaltState` gRPC RPC
-      (optimization only; validator backstop is authoritative — section 5b)
+- [x] gRPC RPCs `GetHaltState`/`SetHaltState` (proto + execution server + authz)
+- [x] Gateway `ExecutionPort` methods + `ExecutionGRPCAdapter` impl
+- [x] Gateway `Router.executeTrade` PRIMARY GATE (fail-open to validator)
+- [x] Gateway control surface `kill_switch_handler.go` (client + admin) + wiring
+- [x] Removed execution HTTP kill-switch endpoints (gateway = sole control plane)
+- [x] settings validate/apply unit tests
+- [ ] POST-MERGE: regenerate proto stubs (buf generate / make proto)
 - [ ] FOLLOW-UP (separate `cotradee/` repo) — frontend toggles + EXECUTION_HALTED
-- [ ] Open MR
+- [x] Open MR (v1: !98 superseded) ; v2 MR opened on this branch
 
 ## 7. Immediate next action for the resuming session
 
