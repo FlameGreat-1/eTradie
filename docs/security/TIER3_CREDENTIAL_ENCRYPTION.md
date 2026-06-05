@@ -54,14 +54,28 @@ Shared module `src/engine/shared/crypto/` (`credential_cipher.py`):
 ## Steps
 
 - [x] 0. Tracker (this file).
-- [ ] 1. Shared `engine/shared/crypto` module (cipher + versioned KEK + tests-friendly pure funcs).
-- [ ] 2. Broker repo -> use shared module (drop local _derive/_encrypt/_decrypt; keep public `decrypt_credential`).
-- [ ] 3. LLM repo -> use shared module (removes the DATABASE_URL/hardcoded foot-gun; keep public `decrypt_api_key`).
-- [ ] 4. DB migration 0033: add `key_version` (smallint) to broker_connections + llm_connections (nullable; informational/operability).
-- [ ] 5. Wire `key_version` write-through in both repos on create/update.
+- [x] 1. Shared `engine/shared/crypto` module (cipher + versioned KEK + pure funcs). Commit: shared envelope cipher.
+- [x] 2. Broker repo -> shared module (local _derive/_encrypt/_decrypt removed; public `decrypt_credential` kept). Reads back-compatible.
+- [x] 3. LLM repo -> shared module (DATABASE_URL/hardcoded foot-gun removed; public `decrypt_api_key` kept). Reads back-compatible.
+- [ ] 4. DB migration 0033: add `key_version` (smallint, nullable) to broker_connections + llm_connections (operability/observability).
+- [ ] 5. Wire `key_version` write-through in both repos on create/update (stamp active_key_version() alongside each new ciphertext).
 - [ ] 6. ExternalSecret + Helm values: optional `BROKER_ENCRYPTION_KEY_V<n>` plumbing for rotation.
 - [ ] 7. Re-wrap maintenance routine + admin/ops entrypoint (rotation/revocation execution).
 - [ ] 8. Final verification pass: grep all consumers, confirm no dead code / mismatch, update this tracker to DONE.
+
+### Verification notes (steps 1-3)
+- Back-compat proof: shared cipher normalises BROKER_ENCRYPTION_KEY via
+  sha256->urlsafe_b64 (identical to both old _derive funcs) and decrypts
+  any non-"v1:" token as a legacy bare-Fernet token, so existing
+  broker_connections.{mt5_password_encrypted,ea_auth_token_encrypted}
+  and llm_connections.api_key_encrypted rows decrypt unchanged.
+- Broker repo: re/logger still used; os removed (only the router reads
+  EA env vars, not the repo). No dead imports.
+- LLM repo: base64/hashlib/os/Fernet imports removed; none referenced
+  elsewhere in the file. No dead imports.
+- Public helper names unchanged (decrypt_credential, decrypt_api_key) so
+  routers/broker_connections.py, the mt5 factory, and the processor
+  config loader need no changes.
 
 ## Notes / decisions log
 
