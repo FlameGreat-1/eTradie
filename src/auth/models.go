@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 // ---------------------------------------------------------------------------
@@ -93,35 +91,45 @@ const (
 	AuthProviderGoogle = "google"
 )
 
-// Password length policy. Bcrypt accepts at most 72 bytes; bytes past
-// 72 are silently truncated so we refuse them up front. The minimum is
-// the lower bound used historically by SetPassword. Exported so the
-// public GET /auth/password/policy endpoint and the SPA's reset form
-// can mirror the same numbers without copy-pasting magic constants.
+// Password length policy. The minimum is the platform lower bound; the
+// maximum (72) is retained as a hard upper bound shared with the
+// legacy bcrypt verification path and to cap hashing cost. Exported so
+// the public GET /auth/password/policy endpoint and the SPA's reset
+// form can mirror the same numbers without copy-pasting magic
+// constants. Enforced (together with the complexity rules) by
+// ValidatePasswordComplexity, which SetPassword calls.
 const (
 	PasswordMinLength = 8
 	PasswordMaxLength = 72
 )
 
-// SetPassword hashes the plaintext password with bcrypt (cost 12)
-// and stores the result in PasswordHash.
+// SetPassword validates the plaintext against the platform complexity
+// policy (length + character classes + common-password + identity
+// substring) and, on success, stores an Argon2id hash in PasswordHash.
+//
+// The user's own Username/Email are passed to the validator so a
+// password that embeds the account identity is rejected. Callers that
+// build a User must set Username/Email BEFORE calling SetPassword
+// (every call site does; admin-set passwords with no known identity
+// pass empty strings, which the validator tolerates).
 func (u *User) SetPassword(plaintext string) error {
-	if len(plaintext) < PasswordMinLength {
-		return fmt.Errorf("password must be at least %d characters", PasswordMinLength)
+	if err := ValidatePasswordComplexity(plaintext, u.Username, u.Email); err != nil {
+		return err
 	}
-	if len(plaintext) > PasswordMaxLength {
-		return fmt.Errorf("password must be at most %d characters", PasswordMaxLength)
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(plaintext), 12)
+	hash, err := HashPassword(plaintext)
 	if err != nil {
 		return fmt.Errorf("hash password: %w", err)
 	}
-	u.PasswordHash = string(hash)
+	u.PasswordHash = hash
 	return nil
 }
 
 // CheckPassword compares a plaintext password against the stored hash.
 // Returns nil on match, error otherwise.
+//
+// Verification is scheme-detecting (VerifyPassword): it validates the
+// current Argon2id hashes AND legacy bcrypt hashes, so accounts created
+// before the Argon2id migration authenticate unchanged.
 //
 // For accounts whose AuthProvider is not "local" (e.g. "google"),
 // password login is disabled by design: PasswordHash is empty and
@@ -134,7 +142,19 @@ func (u *User) CheckPassword(plaintext string) error {
 	if u.PasswordHash == "" {
 		return fmt.Errorf("password login is not configured for this account")
 	}
-	return bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(plaintext))
+	return VerifyPassword(u.PasswordHash, plaintext)
+}
+
+// NeedsPasswordRehash reports whether this user's stored hash should be
+// transparently upgraded to current Argon2id parameters after a
+// successful CheckPassword. True for a legacy bcrypt hash or a
+// weaker-parameter Argon2id hash. The login path uses this to re-hash
+// and persist without involving the user.
+func (u *User) NeedsPasswordRehash() bool {
+	if u.PasswordHash == "" {
+		return false
+	}
+	return NeedsRehash(u.PasswordHash)
 }
 
 // IsAdmin returns true if the user has the admin role.
