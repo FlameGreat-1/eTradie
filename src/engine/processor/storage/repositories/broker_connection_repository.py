@@ -33,7 +33,6 @@ from engine.processor.storage.schemas.broker_connection_schema import (
     BrokerConnectionRow,
 )
 from engine.shared.crypto import (
-    active_key_version,
     decrypt_credential as _decrypt,
     encrypt_credential as _encrypt,
     key_version_of,
