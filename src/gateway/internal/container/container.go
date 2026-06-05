@@ -33,6 +33,20 @@ import (
 	"github.com/flamegreat-1/etradie/src/tradingsystem"
 )
 
+// isProdLikeEnvContainer reports whether the runtime environment is
+// production or staging, by the same APP_ENV/ENV/ENVIRONMENT precedence
+// the gateway config and the Go services use. Used to enforce that the
+// Redis-backed auth attempt limiter is mandatory in prod/staging.
+func isProdLikeEnvContainer() bool {
+	for _, k := range []string{"APP_ENV", "ENV", "ENVIRONMENT"} {
+		switch strings.ToLower(strings.TrimSpace(os.Getenv(k))) {
+		case "production", "prod", "staging":
+			return true
+		}
+	}
+	return false
+}
+
 // Container holds all gateway components and manages their lifecycle.
 type Container struct {
 	Cfg              *config.Config
@@ -89,6 +103,40 @@ func New(
 	redisClient, err := infra.NewRedisClient(cfg.RedisURL, cfg.RedisMaxConnections)
 	if err != nil {
 		return nil, fmt.Errorf("container: redis: %w", err)
+	}
+
+	// Cluster-wide auth abuse control (login/register/refresh rate limit
+	// + per-account lockout). Backed by Redis so the limit is shared
+	// across every gateway replica instead of being per-pod.
+	//
+	// Fail-closed posture: in production/staging the Redis-backed
+	// limiter is MANDATORY. We never fall back to a per-pod in-memory
+	// limiter in a prod-like environment, because that silently
+	// reintroduces the brute-force bypass this control exists to close.
+	// redisClient is non-nil here (NewRedisClient returned no error
+	// above), so the limiter is always wired in prod; the explicit
+	// guard documents and enforces the invariant for any future
+	// refactor that might make the client optional.
+	if isProdLikeEnvContainer() {
+		if redisClient == nil || redisClient.RawClient() == nil {
+			return nil, fmt.Errorf(
+				"container: a Redis-backed auth attempt limiter is required in production/staging; " +
+					"refusing to start with a per-pod in-memory fallback that would bypass cluster-wide login rate limiting",
+			)
+		}
+		authHandler.WithAttemptLimiter(server.NewRedisAttemptLimiter(redisClient.RawClient()))
+		log.Info().Msg("auth_attempt_limiter_redis_backed_enabled")
+	} else if redisClient != nil && redisClient.RawClient() != nil {
+		// Dev/test with Redis available: still use the real limiter so
+		// local behaviour matches production.
+		authHandler.WithAttemptLimiter(server.NewRedisAttemptLimiter(redisClient.RawClient()))
+		log.Info().Msg("auth_attempt_limiter_redis_backed_enabled_dev")
+	} else {
+		// Dev/test without Redis: explicit, loudly-logged in-memory
+		// limiter. Never selected in prod-like environments (guarded
+		// above).
+		authHandler.WithAttemptLimiter(auth.NewDevAttemptLimiter())
+		log.Warn().Msg("auth_attempt_limiter_in_memory_dev_only: per-pod limiter; NOT for production")
 	}
 
 	engineHTTP := infra.NewEngineHTTPClient(cfg.EngineHTTPURL, cfg.EngineInternalSharedSecret, cfg.CycleTimeoutSeconds)
