@@ -190,6 +190,89 @@ func parseArgon2id(stored string) (mem, time uint32, threads uint8, salt, key []
 }
 
 // ---------------------------------------------------------------------------
+// Strong random password generation
+// ---------------------------------------------------------------------------
+
+const (
+	_pwLower   = "abcdefghijkmnpqrstuvwxyz"   // no l/o (confusable)
+	_pwUpper   = "ABCDEFGHJKLMNPQRSTUVWXYZ"   // no I/O
+	_pwDigit   = "23456789"                   // no 0/1
+	_pwSymbol  = "!@#$%^&*()-_=+[]{}"
+	_pwAll     = _pwLower + _pwUpper + _pwDigit + _pwSymbol
+)
+
+// GenerateStrongPassword returns a cryptographically random password of
+// length n (clamped to a minimum of 16) that is guaranteed to contain
+// at least one lowercase, uppercase, digit, and symbol -- i.e. it
+// satisfies ValidatePasswordComplexity by construction. Used for the
+// admin-seed fallback when AUTH_ADMIN_PASSWORD is not configured.
+func GenerateStrongPassword(n int) (string, error) {
+	if n < 16 {
+		n = 16
+	}
+	if n > PasswordMaxLength {
+		n = PasswordMaxLength
+	}
+
+	out := make([]byte, 0, n)
+	// Guarantee one of each class first.
+	for _, set := range []string{_pwLower, _pwUpper, _pwDigit, _pwSymbol} {
+		c, err := randChar(set)
+		if err != nil {
+			return "", err
+		}
+		out = append(out, c)
+	}
+	// Fill the remainder from the full alphabet.
+	for len(out) < n {
+		c, err := randChar(_pwAll)
+		if err != nil {
+			return "", err
+		}
+		out = append(out, c)
+	}
+	// Fisher-Yates shuffle so the guaranteed-class characters are not
+	// pinned to the first four positions.
+	for i := len(out) - 1; i > 0; i-- {
+		j, err := randInt(i + 1)
+		if err != nil {
+			return "", err
+		}
+		out[i], out[j] = out[j], out[i]
+	}
+	return string(out), nil
+}
+
+// randChar returns a uniformly random byte from set using crypto/rand.
+func randChar(set string) (byte, error) {
+	idx, err := randInt(len(set))
+	if err != nil {
+		return 0, err
+	}
+	return set[idx], nil
+}
+
+// randInt returns a uniformly random int in [0, max) using crypto/rand
+// with rejection sampling to avoid modulo bias.
+func randInt(max int) (int, error) {
+	if max <= 0 {
+		return 0, fmt.Errorf("randInt: max must be positive")
+	}
+	// 256 mod max gives the number of values that would bias; reject
+	// any byte in the top biased range.
+	limit := 256 - (256 % max)
+	buf := make([]byte, 1)
+	for {
+		if _, err := rand.Read(buf); err != nil {
+			return 0, fmt.Errorf("randInt: read random: %w", err)
+		}
+		if int(buf[0]) < limit {
+			return int(buf[0]) % max, nil
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Complexity policy
 // ---------------------------------------------------------------------------
 
