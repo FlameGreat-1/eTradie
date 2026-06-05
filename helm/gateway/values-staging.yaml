@@ -12,6 +12,10 @@ podAnnotations:
   tier: staging
 
 config:
+  # Staging is prod-like: arm the same fail-closed guards as
+  # production so staging exercises the real posture. Audit ref: A2.
+  app:
+    env: "staging"
   gateway:
     logLevel: "DEBUG"
     logJson: "true"

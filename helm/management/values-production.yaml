@@ -18,6 +18,11 @@ podAnnotations:
   tier: production
 
 config:
+  # Arms the management prod fail-closed guards
+  # (JWT-secret-required, ENGINE_INTERNAL_SHARED_SECRET under mt5).
+  # Audit ref: A2.
+  app:
+    env: "production"
   management:
     brokerMode: "mt5"
     logLevel: "INFO"
