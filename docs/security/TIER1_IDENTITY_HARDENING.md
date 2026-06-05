@@ -62,8 +62,14 @@ Branch: `tier1-identity-hardening`.
         notifyPasswordChanged / notifyNewLogin; wired into login
         (new IP), change-password, and reset redemption; gateway
         injects the existing *mails.Sender.
-- [ ] 11. Remove/secure the unused peer-only RateLimitMiddleware
-        variant once #6 lands (or confirm no caller).
+- [x] 11. Removed the dead peer-only RateLimitMiddleware + peerOnly
+        helper (footgun: collapses to one global bucket behind the
+        ingress; zero callers). RateLimiter +
+        RateLimitMiddlewareWithResolver retained (auth/consent/support
+        all use them). Documented the intentional two-layer design
+        (per-pod in-memory burst guard + cluster-wide Redis
+        AttemptLimiter) in RegisterRoutes so the dev fallback is not
+        mistaken for redundancy.
 - [ ] 12. Tests for all of the above + final wiring verification.
 
 ## Design decisions / back-compat
@@ -82,4 +88,4 @@ Branch: `tier1-identity-hardening`.
 - Reuse detection: a revoked-but-unexpired refresh token presented again
   triggers full session-family revocation + a security log event.
 
-## STATUS: IN PROGRESS (items 1-10 landed; 11-12 pending)
+## STATUS: IN PROGRESS (items 1-11 landed; 12 pending)
