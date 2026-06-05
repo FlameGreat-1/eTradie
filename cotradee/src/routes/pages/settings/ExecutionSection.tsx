@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Save } from 'lucide-react';
+import { Save, ShieldAlert, ShieldCheck } from 'lucide-react';
 import {
   useExecutionSettings,
   useUpdateExecutionSettings,
+  useKillSwitch,
+  useSetUserKillSwitch,
+  useSetGlobalKillSwitch,
 } from '@/features/execution/api/brokerAccount';
+import { useAuth, isAdmin } from '@/features/auth';
 import ProFeatureLock from '@/components/ui/ProFeatureLock';
 
 export default function ExecutionSection() {
   const { data: settings } = useExecutionSettings();
   const updateSettings = useUpdateExecutionSettings();
+  const { user } = useAuth();
+  const admin = isAdmin(user);
 
   const [form, setForm] = useState({
     execution_mode: 'AUTO',
@@ -44,6 +50,7 @@ export default function ExecutionSection() {
         <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Execution Settings</h3>
       </div>
       <ProFeatureLock feature="execution" variant="overlay">
+        <KillSwitchCard admin={admin} />
         <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-6 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-widest text-black/40 dark:text-white/40">Execution Mode</span>
@@ -102,6 +109,99 @@ export default function ExecutionSection() {
           </button>
         </div>
       </ProFeatureLock>
+    </div>
+  );
+}
+
+// KillSwitchCard renders the halt banner, the per-user toggle (every
+// Pro user), and the admin-only global toggle. A halt blocks order
+// placement only; analysis keeps running, so the copy says so.
+function KillSwitchCard({ admin }: { admin: boolean }) {
+  const { data: ks } = useKillSwitch();
+  const setUser = useSetUserKillSwitch();
+  const setGlobal = useSetGlobalKillSwitch();
+
+  const globalHalted = ks?.global_halted ?? false;
+  const userHalted = ks?.user_halted ?? false;
+  const effective = ks?.effective ?? false;
+
+  return (
+    <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-5 shadow-sm">
+      <div className="flex items-center gap-2">
+        {effective ? (
+          <ShieldAlert size={16} strokeWidth={3} className="text-red-500" />
+        ) : (
+          <ShieldCheck size={16} strokeWidth={3} className="text-emerald-500" />
+        )}
+        <span className="text-[10px] font-black uppercase tracking-widest text-black/40 dark:text-white/40">
+          Kill Switch
+        </span>
+      </div>
+
+      {effective && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/[0.06] px-4 py-3 text-xs font-bold text-red-600 dark:text-red-400">
+          {globalHalted
+            ? 'Execution is halted platform-wide by an administrator. Analysis keeps running; no new trades are placed.'
+            : 'Execution is halted for your account. Analysis keeps running; no new trades are placed.'}
+        </div>
+      )}
+
+      <Toggle
+        label="Halt my execution"
+        hint="Blocks new trades on your account. Analysis continues."
+        checked={userHalted}
+        disabled={setUser.isPending}
+        onChange={(v) => setUser.mutate(v)}
+      />
+
+      {admin && (
+        <Toggle
+          label="Global halt (all users)"
+          hint="Admin only. Blocks new trades for every user platform-wide."
+          checked={globalHalted}
+          disabled={setGlobal.isPending}
+          onChange={(v) => setGlobal.mutate(v)}
+        />
+      )}
+    </div>
+  );
+}
+
+function Toggle({
+  label,
+  hint,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm font-bold text-black dark:text-white">{label}</span>
+        <span className="text-[11px] font-medium text-black/40 dark:text-white/40">{hint}</span>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors duration-300 disabled:opacity-40 ${
+          checked ? 'bg-red-500' : 'bg-black/15 dark:bg-white/15'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-300 ${
+            checked ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </button>
     </div>
   );
 }
