@@ -87,6 +87,15 @@ type Handler struct {
 	// do not need to inject one and a half-wired Handler still serves
 	// traffic safely.
 	log zerolog.Logger
+
+	// attempts is the cluster-wide abuse-control limiter (rate limit +
+	// per-account lockout) for the credential-attack surface
+	// (login/register/refresh). Injected by the gateway with a
+	// Redis-backed implementation (mandatory in prod/staging) via
+	// WithAttemptLimiter. When nil, the per-route in-memory limiter
+	// applied in RegisterRoutes is the only control — a posture the
+	// gateway wiring permits ONLY in dev/test.
+	attempts AttemptLimiter
 }
 
 // NewHandler creates the auth HTTP handler.
@@ -105,6 +114,50 @@ func NewHandler(users *UserStore, sessions *SessionStore, tokens *TokenService, 
 // route serves traffic.
 func (h *Handler) WithLogger(log zerolog.Logger) {
 	h.log = log
+}
+
+// WithAttemptLimiter injects the cluster-wide abuse-control limiter.
+// Symmetric with WithOAuth / WithPasswordReset; called once at startup
+// before any route serves traffic. The gateway passes a Redis-backed
+// implementation (mandatory in prod/staging). When never called, the
+// login/register/refresh routes fall back to the per-route in-memory
+// limiter wired in RegisterRoutes — a dev/test-only posture.
+func (h *Handler) WithAttemptLimiter(a AttemptLimiter) {
+	h.attempts = a
+}
+
+// rateGate applies the cluster-wide rate limit for the given scope when
+// an AttemptLimiter is injected. Returns true when the request may
+// proceed. On denial it writes a 429 with Retry-After and returns false
+// so the caller early-returns. When no limiter is injected it returns
+// true (the per-route in-memory limiter from RegisterRoutes is then the
+// active control), so this is safe to call unconditionally.
+func (h *Handler) rateGate(w http.ResponseWriter, r *http.Request, scope string) bool {
+	if h.attempts == nil {
+		return true
+	}
+	ip := h.cfg.IPResolver().Resolve(r)
+	allowed, retryAfter := h.attempts.AllowRequest(r.Context(), scope, ip)
+	if allowed {
+		return true
+	}
+	writeRetryAfter(w, retryAfter)
+	writeAuthError(w, http.StatusTooManyRequests, "rate limit exceeded, try again later")
+	return false
+}
+
+// writeRetryAfter sets the Retry-After header (seconds, rounded up, min 1).
+func writeRetryAfter(w http.ResponseWriter, d time.Duration) {
+	secs := int(d.Seconds())
+	if d > 0 && secs < 1 {
+		secs = 1
+	}
+	if secs < 0 {
+		secs = 0
+	}
+	if secs > 0 {
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", secs))
+	}
 }
 
 // RegisterRoutes mounts all auth routes on the given mux.
@@ -192,6 +245,25 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cluster-wide IP rate gate (defeats per-pod-limit bypass at scale).
+	if !h.rateGate(w, r, ScopeLogin) {
+		return
+	}
+
+	// Per-account lockout key. Normalised so the counter is stable
+	// across case/whitespace variants of the same username.
+	accountKey := strings.ToLower(req.Username)
+
+	// Pre-check the lock BEFORE any DB read or password compute so a
+	// locked account costs no work and a generic 429 is returned.
+	if h.attempts != nil {
+		if locked, retryAfter := h.attempts.IsLocked(r.Context(), accountKey); locked {
+			writeRetryAfter(w, retryAfter)
+			writeAuthError(w, http.StatusTooManyRequests, "too many failed attempts; account temporarily locked, try again later")
+			return
+		}
+	}
+
 	user, err := h.users.GetUserByUsername(r.Context(), req.Username)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "internal error")
@@ -206,8 +278,25 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := user.CheckPassword(req.Password); err != nil {
+		// Record the failure against the account and, if it crosses the
+		// lockout threshold, surface a 429 + Retry-After so the client
+		// learns to back off. The wording is intentionally close to the
+		// rate-limit message and never confirms whether the username
+		// exists.
+		if h.attempts != nil {
+			if locked, retryAfter := h.attempts.RegisterFailure(r.Context(), accountKey); locked {
+				writeRetryAfter(w, retryAfter)
+				writeAuthError(w, http.StatusTooManyRequests, "too many failed attempts; account temporarily locked, try again later")
+				return
+			}
+		}
 		writeAuthError(w, http.StatusUnauthorized, "invalid username or password")
 		return
+	}
+
+	// Successful credential check: clear the failed-attempt counter.
+	if h.attempts != nil {
+		h.attempts.ResetFailures(r.Context(), accountKey)
 	}
 
 	// Transparent hash upgrade: if the stored hash is legacy bcrypt (or
@@ -294,6 +383,10 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.rateGate(w, r, ScopeRegister) {
+		return
+	}
+
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -374,6 +467,10 @@ type refreshRequest struct {
 func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeAuthError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	if !h.rateGate(w, r, ScopeRefresh) {
 		return
 	}
 
