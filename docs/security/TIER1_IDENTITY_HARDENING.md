@@ -31,11 +31,15 @@ Branch: `tier1-identity-hardening`.
         mandatory, NO silent in-memory fallback), dev-only explicit
         in-memory mode with a loud warning. Fail-open on Redis ERROR
         (availability over a login-wide outage), logged at WARN.
-- [ ] 7. Password breach detection (HaveIBeenPwned k-anonymity range
-        API) wired into SetPassword's validation path, fail-open on
-        API outage (never block a user because HIBP is down).
-- [ ] 8. Password history controls: store last N Argon2id hashes per
-        user; reject reuse on change/reset.
+- [x] 7. Password breach detection (HIBP k-anonymity). breach.go
+        (HIBPBreachChecker + NoopBreachChecker), enforced on
+        register/change/reset, fail-open on API error, env-gated wiring
+        (on in prod/staging, off in dev unless AUTH_BREACH_CHECK_ENABLED).
+- [x] 8. Password history controls. auth_password_history table +
+        PasswordHistoryStore (RecordHash with prune, IsReused via
+        VerifyPassword); reject last PasswordHistorySize=5 on
+        change/reset; seeded on register; fail-open on store error;
+        wired from authPool in gateway main.
 - [ ] 9. Service-token revocation: make the 30-day service tokens
         revocable (jti denylist or per-user token-version epoch) so a
         leaked service token can be killed before expiry.
