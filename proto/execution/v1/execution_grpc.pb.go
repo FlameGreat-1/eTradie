@@ -22,6 +22,8 @@ const (
 	ExecutionService_ExecuteTrade_FullMethodName       = "/execution.v1.ExecutionService/ExecuteTrade"
 	ExecutionService_CancelPendingOrder_FullMethodName = "/execution.v1.ExecutionService/CancelPendingOrder"
 	ExecutionService_GetExecutionState_FullMethodName  = "/execution.v1.ExecutionService/GetExecutionState"
+	ExecutionService_GetHaltState_FullMethodName       = "/execution.v1.ExecutionService/GetHaltState"
+	ExecutionService_SetHaltState_FullMethodName       = "/execution.v1.ExecutionService/SetHaltState"
 )
 
 // ExecutionServiceClient is the client API for ExecutionService service.
@@ -42,6 +44,17 @@ type ExecutionServiceClient interface {
 	// daily/weekly P&L, and concurrent trade count. Used by the dashboard
 	// and by the gateway for pre-flight awareness.
 	GetExecutionState(ctx context.Context, in *GetStateRequest, opts ...grpc.CallOption) (*GetStateResponse, error)
+	// GetHaltState reports the global and per-user execution kill-switch
+	// flags (CHECKLIST Section 8). The gateway calls this in its routing
+	// primary gate and to back the dashboard read. target_user_id selects
+	// whose per-user flag to read; empty means "caller" (resolved by the
+	// gateway from the JWT before the call).
+	GetHaltState(ctx context.Context, in *GetHaltStateRequest, opts ...grpc.CallOption) (*GetHaltStateResponse, error)
+	// SetHaltState engages or releases a kill switch (CHECKLIST Section 8).
+	// Authorization is enforced server-side: SCOPE_GLOBAL requires the
+	// caller to be an admin; SCOPE_USER requires the caller to be the
+	// target user or an admin.
+	SetHaltState(ctx context.Context, in *SetHaltStateRequest, opts ...grpc.CallOption) (*SetHaltStateResponse, error)
 }
 
 type executionServiceClient struct {
@@ -82,6 +95,26 @@ func (c *executionServiceClient) GetExecutionState(ctx context.Context, in *GetS
 	return out, nil
 }
 
+func (c *executionServiceClient) GetHaltState(ctx context.Context, in *GetHaltStateRequest, opts ...grpc.CallOption) (*GetHaltStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetHaltStateResponse)
+	err := c.cc.Invoke(ctx, ExecutionService_GetHaltState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *executionServiceClient) SetHaltState(ctx context.Context, in *SetHaltStateRequest, opts ...grpc.CallOption) (*SetHaltStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetHaltStateResponse)
+	err := c.cc.Invoke(ctx, ExecutionService_SetHaltState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ExecutionServiceServer is the server API for ExecutionService service.
 // All implementations must embed UnimplementedExecutionServiceServer
 // for forward compatibility.
@@ -100,6 +133,17 @@ type ExecutionServiceServer interface {
 	// daily/weekly P&L, and concurrent trade count. Used by the dashboard
 	// and by the gateway for pre-flight awareness.
 	GetExecutionState(context.Context, *GetStateRequest) (*GetStateResponse, error)
+	// GetHaltState reports the global and per-user execution kill-switch
+	// flags (CHECKLIST Section 8). The gateway calls this in its routing
+	// primary gate and to back the dashboard read. target_user_id selects
+	// whose per-user flag to read; empty means "caller" (resolved by the
+	// gateway from the JWT before the call).
+	GetHaltState(context.Context, *GetHaltStateRequest) (*GetHaltStateResponse, error)
+	// SetHaltState engages or releases a kill switch (CHECKLIST Section 8).
+	// Authorization is enforced server-side: SCOPE_GLOBAL requires the
+	// caller to be an admin; SCOPE_USER requires the caller to be the
+	// target user or an admin.
+	SetHaltState(context.Context, *SetHaltStateRequest) (*SetHaltStateResponse, error)
 	mustEmbedUnimplementedExecutionServiceServer()
 }
 
@@ -118,6 +162,12 @@ func (UnimplementedExecutionServiceServer) CancelPendingOrder(context.Context, *
 }
 func (UnimplementedExecutionServiceServer) GetExecutionState(context.Context, *GetStateRequest) (*GetStateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetExecutionState not implemented")
+}
+func (UnimplementedExecutionServiceServer) GetHaltState(context.Context, *GetHaltStateRequest) (*GetHaltStateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetHaltState not implemented")
+}
+func (UnimplementedExecutionServiceServer) SetHaltState(context.Context, *SetHaltStateRequest) (*SetHaltStateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetHaltState not implemented")
 }
 func (UnimplementedExecutionServiceServer) mustEmbedUnimplementedExecutionServiceServer() {}
 func (UnimplementedExecutionServiceServer) testEmbeddedByValue()                          {}
@@ -194,6 +244,42 @@ func _ExecutionService_GetExecutionState_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ExecutionService_GetHaltState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetHaltStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExecutionServiceServer).GetHaltState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExecutionService_GetHaltState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExecutionServiceServer).GetHaltState(ctx, req.(*GetHaltStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ExecutionService_SetHaltState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetHaltStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExecutionServiceServer).SetHaltState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExecutionService_SetHaltState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExecutionServiceServer).SetHaltState(ctx, req.(*SetHaltStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ExecutionService_ServiceDesc is the grpc.ServiceDesc for ExecutionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -212,6 +298,14 @@ var ExecutionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetExecutionState",
 			Handler:    _ExecutionService_GetExecutionState_Handler,
+		},
+		{
+			MethodName: "GetHaltState",
+			Handler:    _ExecutionService_GetHaltState_Handler,
+		},
+		{
+			MethodName: "SetHaltState",
+			Handler:    _ExecutionService_SetHaltState_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

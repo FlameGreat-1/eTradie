@@ -21,6 +21,296 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// KillSwitchScope selects which switch SetHaltState toggles.
+type KillSwitchScope int32
+
+const (
+	KillSwitchScope_KILL_SWITCH_SCOPE_UNSPECIFIED KillSwitchScope = 0 // invalid; server rejects.
+	KillSwitchScope_KILL_SWITCH_SCOPE_GLOBAL      KillSwitchScope = 1 // platform-wide (admin only).
+	KillSwitchScope_KILL_SWITCH_SCOPE_USER        KillSwitchScope = 2 // per-user (self or admin).
+)
+
+// Enum value maps for KillSwitchScope.
+var (
+	KillSwitchScope_name = map[int32]string{
+		0: "KILL_SWITCH_SCOPE_UNSPECIFIED",
+		1: "KILL_SWITCH_SCOPE_GLOBAL",
+		2: "KILL_SWITCH_SCOPE_USER",
+	}
+	KillSwitchScope_value = map[string]int32{
+		"KILL_SWITCH_SCOPE_UNSPECIFIED": 0,
+		"KILL_SWITCH_SCOPE_GLOBAL":      1,
+		"KILL_SWITCH_SCOPE_USER":        2,
+	}
+)
+
+func (x KillSwitchScope) Enum() *KillSwitchScope {
+	p := new(KillSwitchScope)
+	*p = x
+	return p
+}
+
+func (x KillSwitchScope) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (KillSwitchScope) Descriptor() protoreflect.EnumDescriptor {
+	return file_execution_v1_execution_proto_enumTypes[0].Descriptor()
+}
+
+func (KillSwitchScope) Type() protoreflect.EnumType {
+	return &file_execution_v1_execution_proto_enumTypes[0]
+}
+
+func (x KillSwitchScope) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use KillSwitchScope.Descriptor instead.
+func (KillSwitchScope) EnumDescriptor() ([]byte, []int) {
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{0}
+}
+
+type GetHaltStateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TargetUserId  string                 `protobuf:"bytes,1,opt,name=target_user_id,json=targetUserId,proto3" json:"target_user_id,omitempty"` // whose user flag to read; empty = caller.
+	TraceId       string                 `protobuf:"bytes,2,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHaltStateRequest) Reset() {
+	*x = GetHaltStateRequest{}
+	mi := &file_execution_v1_execution_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHaltStateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHaltStateRequest) ProtoMessage() {}
+
+func (x *GetHaltStateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_execution_v1_execution_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHaltStateRequest.ProtoReflect.Descriptor instead.
+func (*GetHaltStateRequest) Descriptor() ([]byte, []int) {
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *GetHaltStateRequest) GetTargetUserId() string {
+	if x != nil {
+		return x.TargetUserId
+	}
+	return ""
+}
+
+func (x *GetHaltStateRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+type GetHaltStateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GlobalHalted  bool                   `protobuf:"varint,1,opt,name=global_halted,json=globalHalted,proto3" json:"global_halted,omitempty"`
+	UserHalted    bool                   `protobuf:"varint,2,opt,name=user_halted,json=userHalted,proto3" json:"user_halted,omitempty"`
+	TraceId       string                 `protobuf:"bytes,3,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHaltStateResponse) Reset() {
+	*x = GetHaltStateResponse{}
+	mi := &file_execution_v1_execution_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHaltStateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHaltStateResponse) ProtoMessage() {}
+
+func (x *GetHaltStateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_execution_v1_execution_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHaltStateResponse.ProtoReflect.Descriptor instead.
+func (*GetHaltStateResponse) Descriptor() ([]byte, []int) {
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GetHaltStateResponse) GetGlobalHalted() bool {
+	if x != nil {
+		return x.GlobalHalted
+	}
+	return false
+}
+
+func (x *GetHaltStateResponse) GetUserHalted() bool {
+	if x != nil {
+		return x.UserHalted
+	}
+	return false
+}
+
+func (x *GetHaltStateResponse) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+type SetHaltStateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Scope         KillSwitchScope        `protobuf:"varint,1,opt,name=scope,proto3,enum=execution.v1.KillSwitchScope" json:"scope,omitempty"`
+	TargetUserId  string                 `protobuf:"bytes,2,opt,name=target_user_id,json=targetUserId,proto3" json:"target_user_id,omitempty"` // required for SCOPE_USER; ignored for GLOBAL.
+	Halted        bool                   `protobuf:"varint,3,opt,name=halted,proto3" json:"halted,omitempty"`
+	TraceId       string                 `protobuf:"bytes,4,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetHaltStateRequest) Reset() {
+	*x = SetHaltStateRequest{}
+	mi := &file_execution_v1_execution_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetHaltStateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetHaltStateRequest) ProtoMessage() {}
+
+func (x *SetHaltStateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_execution_v1_execution_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetHaltStateRequest.ProtoReflect.Descriptor instead.
+func (*SetHaltStateRequest) Descriptor() ([]byte, []int) {
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SetHaltStateRequest) GetScope() KillSwitchScope {
+	if x != nil {
+		return x.Scope
+	}
+	return KillSwitchScope_KILL_SWITCH_SCOPE_UNSPECIFIED
+}
+
+func (x *SetHaltStateRequest) GetTargetUserId() string {
+	if x != nil {
+		return x.TargetUserId
+	}
+	return ""
+}
+
+func (x *SetHaltStateRequest) GetHalted() bool {
+	if x != nil {
+		return x.Halted
+	}
+	return false
+}
+
+func (x *SetHaltStateRequest) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+type SetHaltStateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GlobalHalted  bool                   `protobuf:"varint,1,opt,name=global_halted,json=globalHalted,proto3" json:"global_halted,omitempty"` // resulting state after the write.
+	UserHalted    bool                   `protobuf:"varint,2,opt,name=user_halted,json=userHalted,proto3" json:"user_halted,omitempty"`
+	TraceId       string                 `protobuf:"bytes,3,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetHaltStateResponse) Reset() {
+	*x = SetHaltStateResponse{}
+	mi := &file_execution_v1_execution_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetHaltStateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetHaltStateResponse) ProtoMessage() {}
+
+func (x *SetHaltStateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_execution_v1_execution_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetHaltStateResponse.ProtoReflect.Descriptor instead.
+func (*SetHaltStateResponse) Descriptor() ([]byte, []int) {
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SetHaltStateResponse) GetGlobalHalted() bool {
+	if x != nil {
+		return x.GlobalHalted
+	}
+	return false
+}
+
+func (x *SetHaltStateResponse) GetUserHalted() bool {
+	if x != nil {
+		return x.UserHalted
+	}
+	return false
+}
+
+func (x *SetHaltStateResponse) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
 // ExecuteTradeRequest carries everything Module B needs from the gateway.
 // Maps 1:1 from ProcessorOutput fields. No macro reasoning, no RAG
 // citations, no evidence chains. Pure execution data.
@@ -68,7 +358,7 @@ type ExecuteTradeRequest struct {
 
 func (x *ExecuteTradeRequest) Reset() {
 	*x = ExecuteTradeRequest{}
-	mi := &file_execution_v1_execution_proto_msgTypes[0]
+	mi := &file_execution_v1_execution_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -80,7 +370,7 @@ func (x *ExecuteTradeRequest) String() string {
 func (*ExecuteTradeRequest) ProtoMessage() {}
 
 func (x *ExecuteTradeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_execution_v1_execution_proto_msgTypes[0]
+	mi := &file_execution_v1_execution_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -93,7 +383,7 @@ func (x *ExecuteTradeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteTradeRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteTradeRequest) Descriptor() ([]byte, []int) {
-	return file_execution_v1_execution_proto_rawDescGZIP(), []int{0}
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ExecuteTradeRequest) GetSymbol() string {
@@ -309,7 +599,7 @@ type ExecuteTradeResponse struct {
 
 func (x *ExecuteTradeResponse) Reset() {
 	*x = ExecuteTradeResponse{}
-	mi := &file_execution_v1_execution_proto_msgTypes[1]
+	mi := &file_execution_v1_execution_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -321,7 +611,7 @@ func (x *ExecuteTradeResponse) String() string {
 func (*ExecuteTradeResponse) ProtoMessage() {}
 
 func (x *ExecuteTradeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_execution_v1_execution_proto_msgTypes[1]
+	mi := &file_execution_v1_execution_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -334,7 +624,7 @@ func (x *ExecuteTradeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteTradeResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteTradeResponse) Descriptor() ([]byte, []int) {
-	return file_execution_v1_execution_proto_rawDescGZIP(), []int{1}
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ExecuteTradeResponse) GetAccepted() bool {
@@ -447,7 +737,7 @@ type CancelOrderRequest struct {
 
 func (x *CancelOrderRequest) Reset() {
 	*x = CancelOrderRequest{}
-	mi := &file_execution_v1_execution_proto_msgTypes[2]
+	mi := &file_execution_v1_execution_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -459,7 +749,7 @@ func (x *CancelOrderRequest) String() string {
 func (*CancelOrderRequest) ProtoMessage() {}
 
 func (x *CancelOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_execution_v1_execution_proto_msgTypes[2]
+	mi := &file_execution_v1_execution_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -472,7 +762,7 @@ func (x *CancelOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelOrderRequest.ProtoReflect.Descriptor instead.
 func (*CancelOrderRequest) Descriptor() ([]byte, []int) {
-	return file_execution_v1_execution_proto_rawDescGZIP(), []int{2}
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CancelOrderRequest) GetOrderId() string {
@@ -514,7 +804,7 @@ type CancelOrderResponse struct {
 
 func (x *CancelOrderResponse) Reset() {
 	*x = CancelOrderResponse{}
-	mi := &file_execution_v1_execution_proto_msgTypes[3]
+	mi := &file_execution_v1_execution_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -526,7 +816,7 @@ func (x *CancelOrderResponse) String() string {
 func (*CancelOrderResponse) ProtoMessage() {}
 
 func (x *CancelOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_execution_v1_execution_proto_msgTypes[3]
+	mi := &file_execution_v1_execution_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -539,7 +829,7 @@ func (x *CancelOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelOrderResponse.ProtoReflect.Descriptor instead.
 func (*CancelOrderResponse) Descriptor() ([]byte, []int) {
-	return file_execution_v1_execution_proto_rawDescGZIP(), []int{3}
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CancelOrderResponse) GetSuccess() bool {
@@ -572,7 +862,7 @@ type GetStateRequest struct {
 
 func (x *GetStateRequest) Reset() {
 	*x = GetStateRequest{}
-	mi := &file_execution_v1_execution_proto_msgTypes[4]
+	mi := &file_execution_v1_execution_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -584,7 +874,7 @@ func (x *GetStateRequest) String() string {
 func (*GetStateRequest) ProtoMessage() {}
 
 func (x *GetStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_execution_v1_execution_proto_msgTypes[4]
+	mi := &file_execution_v1_execution_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -597,7 +887,7 @@ func (x *GetStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStateRequest.ProtoReflect.Descriptor instead.
 func (*GetStateRequest) Descriptor() ([]byte, []int) {
-	return file_execution_v1_execution_proto_rawDescGZIP(), []int{4}
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetStateRequest) GetTraceId() string {
@@ -624,7 +914,7 @@ type GetStateResponse struct {
 
 func (x *GetStateResponse) Reset() {
 	*x = GetStateResponse{}
-	mi := &file_execution_v1_execution_proto_msgTypes[5]
+	mi := &file_execution_v1_execution_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -636,7 +926,7 @@ func (x *GetStateResponse) String() string {
 func (*GetStateResponse) ProtoMessage() {}
 
 func (x *GetStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_execution_v1_execution_proto_msgTypes[5]
+	mi := &file_execution_v1_execution_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -649,7 +939,7 @@ func (x *GetStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStateResponse.ProtoReflect.Descriptor instead.
 func (*GetStateResponse) Descriptor() ([]byte, []int) {
-	return file_execution_v1_execution_proto_rawDescGZIP(), []int{5}
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetStateResponse) GetOpenPositionCount() int32 {
@@ -733,7 +1023,7 @@ type OpenPosition struct {
 
 func (x *OpenPosition) Reset() {
 	*x = OpenPosition{}
-	mi := &file_execution_v1_execution_proto_msgTypes[6]
+	mi := &file_execution_v1_execution_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -745,7 +1035,7 @@ func (x *OpenPosition) String() string {
 func (*OpenPosition) ProtoMessage() {}
 
 func (x *OpenPosition) ProtoReflect() protoreflect.Message {
-	mi := &file_execution_v1_execution_proto_msgTypes[6]
+	mi := &file_execution_v1_execution_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -758,7 +1048,7 @@ func (x *OpenPosition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenPosition.ProtoReflect.Descriptor instead.
 func (*OpenPosition) Descriptor() ([]byte, []int) {
-	return file_execution_v1_execution_proto_rawDescGZIP(), []int{6}
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *OpenPosition) GetSymbol() string {
@@ -848,7 +1138,7 @@ type PendingOrder struct {
 
 func (x *PendingOrder) Reset() {
 	*x = PendingOrder{}
-	mi := &file_execution_v1_execution_proto_msgTypes[7]
+	mi := &file_execution_v1_execution_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -860,7 +1150,7 @@ func (x *PendingOrder) String() string {
 func (*PendingOrder) ProtoMessage() {}
 
 func (x *PendingOrder) ProtoReflect() protoreflect.Message {
-	mi := &file_execution_v1_execution_proto_msgTypes[7]
+	mi := &file_execution_v1_execution_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -873,7 +1163,7 @@ func (x *PendingOrder) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PendingOrder.ProtoReflect.Descriptor instead.
 func (*PendingOrder) Descriptor() ([]byte, []int) {
-	return file_execution_v1_execution_proto_rawDescGZIP(), []int{7}
+	return file_execution_v1_execution_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *PendingOrder) GetSymbol() string {
@@ -943,7 +1233,25 @@ var File_execution_v1_execution_proto protoreflect.FileDescriptor
 
 const file_execution_v1_execution_proto_rawDesc = "" +
 	"\n" +
-	"\x1cexecution/v1/execution.proto\x12\fexecution.v1\"\xe3\x06\n" +
+	"\x1cexecution/v1/execution.proto\x12\fexecution.v1\"V\n" +
+	"\x13GetHaltStateRequest\x12$\n" +
+	"\x0etarget_user_id\x18\x01 \x01(\tR\ftargetUserId\x12\x19\n" +
+	"\btrace_id\x18\x02 \x01(\tR\atraceId\"w\n" +
+	"\x14GetHaltStateResponse\x12#\n" +
+	"\rglobal_halted\x18\x01 \x01(\bR\fglobalHalted\x12\x1f\n" +
+	"\vuser_halted\x18\x02 \x01(\bR\n" +
+	"userHalted\x12\x19\n" +
+	"\btrace_id\x18\x03 \x01(\tR\atraceId\"\xa3\x01\n" +
+	"\x13SetHaltStateRequest\x123\n" +
+	"\x05scope\x18\x01 \x01(\x0e2\x1d.execution.v1.KillSwitchScopeR\x05scope\x12$\n" +
+	"\x0etarget_user_id\x18\x02 \x01(\tR\ftargetUserId\x12\x16\n" +
+	"\x06halted\x18\x03 \x01(\bR\x06halted\x12\x19\n" +
+	"\btrace_id\x18\x04 \x01(\tR\atraceId\"w\n" +
+	"\x14SetHaltStateResponse\x12#\n" +
+	"\rglobal_halted\x18\x01 \x01(\bR\fglobalHalted\x12\x1f\n" +
+	"\vuser_halted\x18\x02 \x01(\bR\n" +
+	"userHalted\x12\x19\n" +
+	"\btrace_id\x18\x03 \x01(\tR\atraceId\"\xe3\x06\n" +
 	"\x13ExecuteTradeRequest\x12\x16\n" +
 	"\x06symbol\x18\x01 \x01(\tR\x06symbol\x12\x1c\n" +
 	"\tdirection\x18\x02 \x01(\tR\tdirection\x12$\n" +
@@ -1042,11 +1350,17 @@ const file_execution_v1_execution_proto_rawDesc = "" +
 	"\vanalysis_id\x18\a \x01(\tR\n" +
 	"analysisId\x12%\n" +
 	"\x0eexecution_mode\x18\b \x01(\tR\rexecutionMode\x12\x16\n" +
-	"\x06status\x18\t \x01(\tR\x06status2\x98\x02\n" +
+	"\x06status\x18\t \x01(\tR\x06status*n\n" +
+	"\x0fKillSwitchScope\x12!\n" +
+	"\x1dKILL_SWITCH_SCOPE_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18KILL_SWITCH_SCOPE_GLOBAL\x10\x01\x12\x1a\n" +
+	"\x16KILL_SWITCH_SCOPE_USER\x10\x022\xc6\x03\n" +
 	"\x10ExecutionService\x12U\n" +
 	"\fExecuteTrade\x12!.execution.v1.ExecuteTradeRequest\x1a\".execution.v1.ExecuteTradeResponse\x12Y\n" +
 	"\x12CancelPendingOrder\x12 .execution.v1.CancelOrderRequest\x1a!.execution.v1.CancelOrderResponse\x12R\n" +
-	"\x11GetExecutionState\x12\x1d.execution.v1.GetStateRequest\x1a\x1e.execution.v1.GetStateResponseB@Z>github.com/flamegreat-1/etradie/proto/execution/v1;executionv1b\x06proto3"
+	"\x11GetExecutionState\x12\x1d.execution.v1.GetStateRequest\x1a\x1e.execution.v1.GetStateResponse\x12U\n" +
+	"\fGetHaltState\x12!.execution.v1.GetHaltStateRequest\x1a\".execution.v1.GetHaltStateResponse\x12U\n" +
+	"\fSetHaltState\x12!.execution.v1.SetHaltStateRequest\x1a\".execution.v1.SetHaltStateResponseB@Z>github.com/flamegreat-1/etradie/proto/execution/v1;executionv1b\x06proto3"
 
 var (
 	file_execution_v1_execution_proto_rawDescOnce sync.Once
@@ -1060,31 +1374,42 @@ func file_execution_v1_execution_proto_rawDescGZIP() []byte {
 	return file_execution_v1_execution_proto_rawDescData
 }
 
-var file_execution_v1_execution_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_execution_v1_execution_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_execution_v1_execution_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_execution_v1_execution_proto_goTypes = []any{
-	(*ExecuteTradeRequest)(nil),  // 0: execution.v1.ExecuteTradeRequest
-	(*ExecuteTradeResponse)(nil), // 1: execution.v1.ExecuteTradeResponse
-	(*CancelOrderRequest)(nil),   // 2: execution.v1.CancelOrderRequest
-	(*CancelOrderResponse)(nil),  // 3: execution.v1.CancelOrderResponse
-	(*GetStateRequest)(nil),      // 4: execution.v1.GetStateRequest
-	(*GetStateResponse)(nil),     // 5: execution.v1.GetStateResponse
-	(*OpenPosition)(nil),         // 6: execution.v1.OpenPosition
-	(*PendingOrder)(nil),         // 7: execution.v1.PendingOrder
+	(KillSwitchScope)(0),         // 0: execution.v1.KillSwitchScope
+	(*GetHaltStateRequest)(nil),  // 1: execution.v1.GetHaltStateRequest
+	(*GetHaltStateResponse)(nil), // 2: execution.v1.GetHaltStateResponse
+	(*SetHaltStateRequest)(nil),  // 3: execution.v1.SetHaltStateRequest
+	(*SetHaltStateResponse)(nil), // 4: execution.v1.SetHaltStateResponse
+	(*ExecuteTradeRequest)(nil),  // 5: execution.v1.ExecuteTradeRequest
+	(*ExecuteTradeResponse)(nil), // 6: execution.v1.ExecuteTradeResponse
+	(*CancelOrderRequest)(nil),   // 7: execution.v1.CancelOrderRequest
+	(*CancelOrderResponse)(nil),  // 8: execution.v1.CancelOrderResponse
+	(*GetStateRequest)(nil),      // 9: execution.v1.GetStateRequest
+	(*GetStateResponse)(nil),     // 10: execution.v1.GetStateResponse
+	(*OpenPosition)(nil),         // 11: execution.v1.OpenPosition
+	(*PendingOrder)(nil),         // 12: execution.v1.PendingOrder
 }
 var file_execution_v1_execution_proto_depIdxs = []int32{
-	6, // 0: execution.v1.GetStateResponse.open_positions:type_name -> execution.v1.OpenPosition
-	7, // 1: execution.v1.GetStateResponse.pending_orders:type_name -> execution.v1.PendingOrder
-	0, // 2: execution.v1.ExecutionService.ExecuteTrade:input_type -> execution.v1.ExecuteTradeRequest
-	2, // 3: execution.v1.ExecutionService.CancelPendingOrder:input_type -> execution.v1.CancelOrderRequest
-	4, // 4: execution.v1.ExecutionService.GetExecutionState:input_type -> execution.v1.GetStateRequest
-	1, // 5: execution.v1.ExecutionService.ExecuteTrade:output_type -> execution.v1.ExecuteTradeResponse
-	3, // 6: execution.v1.ExecutionService.CancelPendingOrder:output_type -> execution.v1.CancelOrderResponse
-	5, // 7: execution.v1.ExecutionService.GetExecutionState:output_type -> execution.v1.GetStateResponse
-	5, // [5:8] is the sub-list for method output_type
-	2, // [2:5] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0,  // 0: execution.v1.SetHaltStateRequest.scope:type_name -> execution.v1.KillSwitchScope
+	11, // 1: execution.v1.GetStateResponse.open_positions:type_name -> execution.v1.OpenPosition
+	12, // 2: execution.v1.GetStateResponse.pending_orders:type_name -> execution.v1.PendingOrder
+	5,  // 3: execution.v1.ExecutionService.ExecuteTrade:input_type -> execution.v1.ExecuteTradeRequest
+	7,  // 4: execution.v1.ExecutionService.CancelPendingOrder:input_type -> execution.v1.CancelOrderRequest
+	9,  // 5: execution.v1.ExecutionService.GetExecutionState:input_type -> execution.v1.GetStateRequest
+	1,  // 6: execution.v1.ExecutionService.GetHaltState:input_type -> execution.v1.GetHaltStateRequest
+	3,  // 7: execution.v1.ExecutionService.SetHaltState:input_type -> execution.v1.SetHaltStateRequest
+	6,  // 8: execution.v1.ExecutionService.ExecuteTrade:output_type -> execution.v1.ExecuteTradeResponse
+	8,  // 9: execution.v1.ExecutionService.CancelPendingOrder:output_type -> execution.v1.CancelOrderResponse
+	10, // 10: execution.v1.ExecutionService.GetExecutionState:output_type -> execution.v1.GetStateResponse
+	2,  // 11: execution.v1.ExecutionService.GetHaltState:output_type -> execution.v1.GetHaltStateResponse
+	4,  // 12: execution.v1.ExecutionService.SetHaltState:output_type -> execution.v1.SetHaltStateResponse
+	8,  // [8:13] is the sub-list for method output_type
+	3,  // [3:8] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_execution_v1_execution_proto_init() }
@@ -1097,13 +1422,14 @@ func file_execution_v1_execution_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_execution_v1_execution_proto_rawDesc), len(file_execution_v1_execution_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   8,
+			NumEnums:      1,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_execution_v1_execution_proto_goTypes,
 		DependencyIndexes: file_execution_v1_execution_proto_depIdxs,
+		EnumInfos:         file_execution_v1_execution_proto_enumTypes,
 		MessageInfos:      file_execution_v1_execution_proto_msgTypes,
 	}.Build()
 	File_execution_v1_execution_proto = out.File
