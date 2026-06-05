@@ -1167,8 +1167,6 @@ func (w *Watcher) tryConfirmAndFire(ctx context.Context) bool {
 	return w.fireMarketOrder(ctx)
 }
 
-// fireMarketOrder places the market order at the broker. This is the
-// final, irreversible step. Any error here is critical.
 // haltTradeRequest builds the minimal TradeRequest the halt audit
 // entry needs from this watcher's order.
 func (w *Watcher) haltTradeRequest() *models.TradeRequest {
@@ -1184,6 +1182,8 @@ func (w *Watcher) haltTradeRequest() *models.TradeRequest {
 	}
 }
 
+// fireMarketOrder places the market order at the broker. This is the
+// final, irreversible step. Any error here is critical.
 func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	// Kill-switch fire gate: an engaged global/per-user halt blocks
 	// placement of this already-armed watcher. Analysis is unaffected;
