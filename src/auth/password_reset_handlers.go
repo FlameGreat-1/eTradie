@@ -391,6 +391,10 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		h.log.Warn().Err(err).Str("user_id", user.ID).Msg("token_epoch_bump_failed_on_password_reset")
 	}
 
+	// Anti-ATO: confirm the reset out-of-band. Symmetric with
+	// PUT /auth/me/password.
+	h.notifyPasswordChanged(r, user)
+
 	h.clearSessionCookies(w)
 
 	h.log.Info().

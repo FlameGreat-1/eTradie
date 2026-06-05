@@ -151,6 +151,12 @@ func main() {
 		Bool("frontend_base_url_set", authCfg.FrontendBaseURL != "").
 		Msg("auth_password_reset_initialized")
 
+	// Anti-ATO security notifications (new-device login, password
+	// change/reset). Reuses the same *mails.Sender; when SMTP is not
+	// configured the sender logs and returns, so this is safe in dev.
+	authHandler.WithSecurityNotifications(emailSender)
+	log.Info().Msg("auth_security_notifications_enabled")
+
 	// Password breach detection (HIBP k-anonymity). Enabled by default
 	// in production/staging; disabled in dev/test (no external call)
 	// unless explicitly turned on. AUTH_BREACH_CHECK_ENABLED=false is an
