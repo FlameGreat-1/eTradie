@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+
+	"github.com/flamegreat-1/etradie/src/mails"
 )
 
 // writeSessionCookies issues a fresh CSRF token bound to the user and
@@ -107,6 +109,13 @@ type Handler struct {
 	// change/reset. Injected via WithPasswordHistory. nil disables the
 	// control.
 	passwordHistory *PasswordHistoryStore
+
+	// securityMailer sends anti-ATO notifications (new-device login,
+	// password changed/reset). Injected via WithSecurityNotifications.
+	// nil disables all such emails (the default for the
+	// execution/management binaries that build a Handler without a
+	// mailer, and for unit tests).
+	securityMailer Mailer
 }
 
 // NewHandler creates the auth HTTP handler.
@@ -147,6 +156,50 @@ func (h *Handler) WithBreachChecker(b BreachChecker) {
 // reuse of recent passwords on change/reset. Symmetric With* injector.
 func (h *Handler) WithPasswordHistory(s *PasswordHistoryStore) {
 	h.passwordHistory = s
+}
+
+// WithSecurityNotifications injects the mailer used for anti-ATO alerts
+// (new-device login, password change/reset). Symmetric With* injector;
+// call once at startup. nil leaves notifications disabled.
+func (h *Handler) WithSecurityNotifications(m Mailer) {
+	h.securityMailer = m
+}
+
+// notifyPasswordChanged fires (fire-and-forget) the "your password was
+// changed" email. Shared by change-password and reset redemption.
+// nil-safe; a missing mailer or email is a no-op. Values are
+// snapshotted into the goroutine so a later mutation of *User cannot
+// race the send.
+func (h *Handler) notifyPasswordChanged(r *http.Request, user *User) {
+	if h.securityMailer == nil || user == nil || strings.TrimSpace(user.Email) == "" {
+		return
+	}
+	to := user.Email
+	name := user.Username
+	when := time.Now().UTC().Format(time.RFC1123)
+	ip := h.cfg.IPResolver().Resolve(r)
+	ua := r.UserAgent()
+	go func() {
+		body := mails.PasswordChangedHTML(name, when, ip, ua)
+		h.securityMailer.SendWithRetry(to, mails.PasswordChangedSubject, body)
+	}()
+}
+
+// notifyNewLogin fires (fire-and-forget) the new-sign-in email.
+// nil-safe. Snapshots values into the goroutine.
+func (h *Handler) notifyNewLogin(r *http.Request, user *User) {
+	if h.securityMailer == nil || user == nil || strings.TrimSpace(user.Email) == "" {
+		return
+	}
+	to := user.Email
+	name := user.Username
+	when := time.Now().UTC().Format(time.RFC1123)
+	ip := h.cfg.IPResolver().Resolve(r)
+	ua := r.UserAgent()
+	go func() {
+		body := mails.NewLoginHTML(name, when, ip, ua)
+		h.securityMailer.SendWithRetry(to, mails.NewLoginSubject, body)
+	}()
 }
 
 // rejectReusedPassword enforces the no-reuse policy for a NEW password.
@@ -379,6 +432,20 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		h.attempts.ResetFailures(r.Context(), accountKey)
 	}
 
+	// New-device / new-location detection. Check whether this user has
+	// EVER signed in from this client IP BEFORE we create the session
+	// row below (which would otherwise make the check always match).
+	// A first-time IP triggers an anti-ATO notification. Fail-open: a
+	// store error is logged and treated as "known device" so a DB blip
+	// neither blocks the login nor sends a false alert.
+	clientIP := h.cfg.IPResolver().Resolve(r)
+	knownDevice := true
+	if seen, derr := h.sessions.HasPriorSessionFromIP(r.Context(), user.ID, clientIP); derr != nil {
+		h.log.Warn().Err(derr).Str("user_id", user.ID).Msg("new_device_check_failed_failing_open")
+	} else {
+		knownDevice = seen
+	}
+
 	// Transparent hash upgrade: if the stored hash is legacy bcrypt (or
 	// weaker-parameter Argon2id), re-hash the just-verified plaintext
 	// with current Argon2id parameters and persist it. Non-fatal: a
@@ -425,6 +492,14 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = h.users.UpdateLastLogin(r.Context(), user.ID)
+
+	// Anti-ATO: a successful sign-in from an IP we've never seen for
+	// this user gets a notification so the owner can react to a
+	// credential-stuffing hit even when the attacker has the password.
+	if !knownDevice {
+		h.log.Info().Str("user_id", user.ID).Str("client_ip", clientIP).Msg("new_device_login_detected")
+		h.notifyNewLogin(r, user)
+	}
 
 	h.writeSessionCookies(w, user.ID, pair.AccessToken, rawRefresh)
 	writeJSON(w, http.StatusOK, h.loginResponseBody(user, pair))
@@ -805,6 +880,10 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.users.BumpTokenEpoch(r.Context(), userID); err != nil {
 		h.log.Warn().Err(err).Str("user_id", userID).Msg("token_epoch_bump_failed_on_password_change")
 	}
+
+	// Anti-ATO: confirm the change out-of-band so a victim whose
+	// account was taken over still learns their password was rotated.
+	h.notifyPasswordChanged(r, user)
 
 	h.clearSessionCookies(w)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password updated, all sessions revoked"})
