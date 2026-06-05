@@ -80,6 +80,12 @@ headlessService:
 # deployments/gateway/kubernetes/base/configmap.yaml exactly so the
 # helm-rendered ConfigMap is byte-identical to the kustomize one.
 config:
+  # Application environment. SAFE default of "development" so the
+  # prod fail-closed guards stay disarmed for a bare `helm template`
+  # / local render; the production and staging overlays override this
+  # to "production" / "staging" to ARM them. Audit ref: A2.
+  app:
+    env: "development"
   gateway:
     enabled: true
     httpPort: "8080"

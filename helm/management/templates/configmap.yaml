@@ -7,6 +7,13 @@ metadata:
     {{- include "management.labels" . | nindent 4 }}
     app.kubernetes.io/component: config
 data:
+  # Application environment. Read by the Go service via
+  # appEnv()/isProdLikeEnv() (src/auth/config.go) to ARM the prod
+  # fail-closed guards (JWT-secret-required, etc). Sourced from
+  # .Values.config.app.env (development in base values, production /
+  # staging in the overlays). Audit ref: A2.
+  APP_ENV: {{ .Values.config.app.env | quote }}
+
   # Management core (envconfig prefix MANAGEMENT_).
   # Source of truth: src/management/internal/config/config.go.
   MANAGEMENT_GRPC_PORT: {{ .Values.config.management.grpcPort | quote }}
