@@ -70,7 +70,27 @@ Branch: `tier1-identity-hardening`.
         (per-pod in-memory burst guard + cluster-wide Redis
         AttemptLimiter) in RegisterRoutes so the dev fallback is not
         mistaken for redundancy.
-- [ ] 12. Tests for all of the above + final wiring verification.
+- [x] 12. Tests + verification pass.
+        - password_test.go: Argon2id hash/verify/rehash, legacy bcrypt
+          back-compat, complexity matrix, GenerateStrongPassword.
+        - attempt_limiter_test.go: lockout backoff curve + dev limiter
+          rate budget and lockout lifecycle.
+        - token_epoch_test.go: service-token epoch enforcement (allow
+          current / reject stale), fail-closed on resolver error and
+          unknown user, access tokens not epoch-checked, no-resolver
+          posture, issuer rejection.
+        - mails/security_alert_template_test.go: HTML escaping + meta
+          rendering for both security templates.
+        Wiring verified by source review (build to be confirmed by CI):
+          * IssueServiceToken signature change propagated to ALL 8
+            call sites + both local interfaces; no caller left stale.
+          * auth -> mails import direction preserved (no cycle); mails
+            templates take no auth import.
+          * new Claims fields (TokenEpoch, TokenType) are keyed/optional
+            so every existing auth.Claims{...} literal still compiles.
+          * token.go gained the context import (used by the epoch
+            check); handlers.go gained the mails import (used by the
+            notifiers).
 
 ## Design decisions / back-compat
 
@@ -88,4 +108,5 @@ Branch: `tier1-identity-hardening`.
 - Reuse detection: a revoked-but-unexpired refresh token presented again
   triggers full session-family revocation + a security log event.
 
-## STATUS: IN PROGRESS (items 1-11 landed; 12 pending)
+## STATUS: COMPLETE (items 1-12 landed; MFA out of scope by decision).
+## Pending: CI green + MR review.
