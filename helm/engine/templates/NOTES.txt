@@ -24,3 +24,23 @@ Metrics:
 
 Secrets are resolved from Vault path: {{ .Values.externalSecrets.engine.vaultPath }}
 The ExternalSecret refresh interval is {{ .Values.externalSecrets.engine.refreshInterval }}.
+
+Credential KEK rotation (Tier 3):
+  Re-wrap Job currently: {{ if .Values.rotationJob.enabled }}ENABLED (renders this release){{ else }}disabled (inert){{ end }}
+
+  To rotate the credential encryption key:
+    1. Add the new key to Vault and to
+       externalSecrets.engine.rotationKeyVersions, then let the engine
+       roll so the new version becomes the active write key.
+    2. (optional) Size the work without writing:
+         helm upgrade {{ .Release.Name }} <chart> -n {{ include "engine.namespace" . }} \
+           --set rotationJob.enabled=true --set rotationJob.dryRun=true \
+           --set rotationJob.nameSuffix=$(date +%s)
+    3. Execute the re-wrap:
+         helm upgrade {{ .Release.Name }} <chart> -n {{ include "engine.namespace" . }} \
+           --set rotationJob.enabled=true --set rotationJob.nameSuffix=$(date +%s)
+    4. Watch it:
+         kubectl -n {{ include "engine.namespace" . }} get jobs -l app.kubernetes.io/component=credential-rewrap
+         kubectl -n {{ include "engine.namespace" . }} logs -l app.kubernetes.io/component=credential-rewrap --tail=-1
+    5. When 0 rows remain on the old version, REMOVE the old version
+       from Vault + rotationKeyVersions to REVOKE it.
