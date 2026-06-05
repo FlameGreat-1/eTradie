@@ -583,11 +583,18 @@ func SeedAdminUser(ctx context.Context, store *UserStore, cfg *Config) error {
 		UpdatedAt: now,
 	}
 
-	// Use configured password or a generated one.
+	// Use configured password or a generated one. The generated
+	// fallback is produced by GenerateStrongPassword so it satisfies
+	// the complexity policy SetPassword enforces (a hex-only token
+	// would be rejected for having too few character classes).
 	password := cfg.AdminPassword
 	generated := false
 	if !cfg.HasAdminSeedPassword() {
-		password = GenerateRefreshToken()[:16] // 16-char random password
+		gen, genErr := GenerateStrongPassword(20)
+		if genErr != nil {
+			return fmt.Errorf("seed admin: generate password: %w", genErr)
+		}
+		password = gen
 		generated = true
 	}
 
