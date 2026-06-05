@@ -154,3 +154,42 @@ Shared module `src/engine/shared/crypto/` (`credential_cipher.py`):
 - Vault Transit migration intentionally deferred: the envelope design
   makes it a single swap of the KEK-wrap call with no stored-ciphertext
   change. Tracked as a future step, not part of this Tier-3 closure.
+
+## Audit remediation (post-merge follow-up)
+
+A full end-to-end audit of the shipped Tier 3 work raised 7 findings.
+All are now resolved on branch `tier3-credential-cipher-hardening`.
+
+Authoritative on-disk format (supersedes the historical `v1:` note
+earlier in this file): the engine writes **only** the active **v2**
+scheme and decrypts exactly two formats:
+
+  - **v2** (active): `v2:<kek_version>:<b64(wrapped_dek)>:<b64(nonce)>:`
+    `<b64(gcm_ct||tag)>` -- AES-256-GCM data layer.
+  - **legacy** (no prefix): a bare Fernet token from the pre-envelope
+    implementation, still decrypted for zero-migration back-compat.
+
+There is intentionally **no `v1` scheme**: it was never written by any
+shipped code and its decrypt branch was provably incorrect, so it was
+removed rather than left as dead/trap code.
+
+| # | Finding | Resolution |
+| --- | --- | --- |
+| 1 | rewrap `--dry-run` always reported `rewrapped_rows = 0` | `_process_row` now determines stale columns first and accounts identically for dry-run and live runs via `_account_row`; dry-run == live counts, verified by tests. |
+| 2 | `_run_target` docstring implied batched writes | Docstring corrected: keyset-paginated **reads**, **per-row** write transactions (the resumability guarantee). |
+| 3 | dead + incorrect `v1` decrypt path | `_SCHEME_V1` / `_decrypt_v1` removed; `decrypt()` handles v2 + legacy only. No real row can start with `v1:`, so removal is non-breaking. |
+| 4 | unused `_AES256_KEY_BYTES` constant | `encrypt()` now derives the DEK size from it (`bit_length=_AES256_KEY_BYTES * 8`); single source of truth, no dead constant. |
+| 5 | broker `key_version` could misreport on a partial update (two encrypted columns, one `key_version`) | New `CredentialCipher.key_version_of` + repo `_effective_key_version`: `key_version` now means "row fully on the active KEK" -- `None` if any column is legacy, else `min(version)` across non-null columns. Computed from the post-update ciphertext of BOTH columns. LLM repo unchanged (single column). |
+| 6 | stale docstrings referencing a v1 envelope | Module, `decrypt()`, and `decrypt_credential()` docstrings corrected to v2 + legacy. |
+| 7 | `dict(m)` over `mappings()` noted as redundant-but-safe | Confirmed correct; left as-is (RowMapping copy is intentional and safe). |
+
+### Tests added
+- `tests/shared/crypto/test_credential_cipher.py`: v2 round-trip,
+  legacy back-compat, `key_version_of`, `needs_rewrap`, rotation,
+  multi-version decrypt + revocation, and the no-v1-trap guarantee.
+- `tests/shared/crypto/test_rewrap_service.py`: dry-run reports
+  rows+columns and writes nothing; dry-run == live accounting;
+  live run persists + stamps active version; second run is a no-op;
+  multi-batch keyset pagination; per-table totals == aggregate.
+- `tests/processor/storage/repositories/test_broker_connection_key_version.py`:
+  `_effective_key_version` (none / all-active / any-legacy / min).
