@@ -176,7 +176,6 @@ def _new_store_with_legacy_rows() -> dict[str, list[dict]]:
 
 
 class TestDryRunAccounting:
-    @pytest.mark.asyncio
     async def test_dry_run_reports_rows_and_columns_and_writes_nothing(self, single_kek):
         db = _FakeDB(_new_store_with_legacy_rows())
         service = CredentialRewrapService(db, batch_size=200)
@@ -191,7 +190,6 @@ class TestDryRunAccounting:
         assert stats.failed_columns == 0
         assert db.write_count == 0  # dry run writes nothing
 
-    @pytest.mark.asyncio
     async def test_dry_run_matches_live_run(self, single_kek):
         dry = await CredentialRewrapService(_FakeDB(_new_store_with_legacy_rows())).run(
             dry_run=True
@@ -206,7 +204,6 @@ class TestDryRunAccounting:
 
 
 class TestLiveRun:
-    @pytest.mark.asyncio
     async def test_live_run_persists_and_stamps_active_version(self, single_kek):
         store = _new_store_with_legacy_rows()
         db = _FakeDB(store)
@@ -223,7 +220,6 @@ class TestLiveRun:
                     assert not needs_rewrap(ct)
                     assert key_version_of(ct) == active
 
-    @pytest.mark.asyncio
     async def test_second_live_run_is_a_noop(self, single_kek):
         store = _new_store_with_legacy_rows()
         await CredentialRewrapService(_FakeDB(store)).run(dry_run=False)
@@ -234,7 +230,6 @@ class TestLiveRun:
         assert stats2.rewrapped_columns == 0
         assert db2.write_count == 0
 
-    @pytest.mark.asyncio
     async def test_per_table_totals_equal_aggregate(self, single_kek):
         stats = await CredentialRewrapService(_FakeDB(_new_store_with_legacy_rows())).run(
             dry_run=False
@@ -246,7 +241,6 @@ class TestLiveRun:
 
 
 class TestPagination:
-    @pytest.mark.asyncio
     async def test_scans_every_row_across_batches(self, single_kek):
         store = _new_store_with_legacy_rows()
         # batch_size 1 forces multiple keyset pages per table.
