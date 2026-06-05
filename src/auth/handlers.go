@@ -210,6 +210,24 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Transparent hash upgrade: if the stored hash is legacy bcrypt (or
+	// weaker-parameter Argon2id), re-hash the just-verified plaintext
+	// with current Argon2id parameters and persist it. Non-fatal: a
+	// failure here must never block an otherwise-valid login, so the
+	// error is logged and the login proceeds (the upgrade retries on
+	// the next sign-in).
+	if user.NeedsPasswordRehash() {
+		if err := user.SetPassword(req.Password); err == nil {
+			if err := h.users.UpdatePassword(r.Context(), user.ID, user.PasswordHash); err != nil {
+				h.log.Warn().Err(err).Str("user_id", user.ID).Msg("password_rehash_persist_failed")
+			} else {
+				h.log.Info().Str("user_id", user.ID).Msg("password_hash_upgraded_to_argon2id")
+			}
+		} else {
+			h.log.Warn().Err(err).Str("user_id", user.ID).Msg("password_rehash_compute_failed")
+		}
+	}
+
 	pair, rawRefresh, err := h.tokens.IssueTokenPair(user)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "failed to issue tokens")
@@ -381,6 +399,26 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 	if sess == nil {
 		writeAuthError(w, http.StatusUnauthorized, "invalid refresh token")
+		return
+	}
+
+	// Refresh-token reuse detection. A token that maps to a session
+	// which is REVOKED but NOT yet expired has already been rotated
+	// once: presenting it again means either the legitimate client
+	// replayed an old token OR the token was stolen and the thief (or
+	// victim) is racing the rotation. Either way it is a theft signal.
+	// Contain it by revoking the user's ENTIRE session family so the
+	// token held by BOTH parties is dead and a fresh login is required.
+	if sess.Revoked && !sess.IsExpired() {
+		_ = h.sessions.RevokeAllUserSessions(r.Context(), sess.UserID)
+		h.clearSessionCookies(w)
+		h.log.Warn().
+			Str("event", "refresh_token_reuse_detected").
+			Str("user_id", sess.UserID).
+			Str("session_id", sess.ID).
+			Str("client_ip", h.cfg.IPResolver().Resolve(r)).
+			Msg("refresh_token_reuse_detected_all_sessions_revoked")
+		writeAuthError(w, http.StatusUnauthorized, "refresh token reuse detected; all sessions revoked, please sign in again")
 		return
 	}
 	if !sess.IsUsable() {
