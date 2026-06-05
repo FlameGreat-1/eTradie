@@ -122,6 +122,23 @@ func (s *ExecutionServer) resolveRuntimeParams(ctx context.Context, userID strin
 		}
 	}
 
+	// Kill-switch flags (CHECKLIST Section 8). Fail-safe: a read error
+	// defaults to false (NOT halted) and logs at WARN. An engaged kill
+	// switch is a durable Postgres row set deliberately by an operator;
+	// a transient DB blip must not self-inflict a trading halt. The
+	// gateway router is the primary gate, and the durable flag is
+	// re-read on the next healthy query.
+	if g, err := s.settings.IsGlobalHalted(ctx); err == nil {
+		params.GlobalTradingHalted = g
+	} else {
+		s.log.Warn().Err(err).Msg("resolve_global_halt_failed_defaulting_not_halted")
+	}
+	if u, err := s.settings.IsUserHalted(ctx, userID); err == nil {
+		params.UserTradingHalted = u
+	} else {
+		s.log.Warn().Err(err).Str("user_id", userID).Msg("resolve_user_halt_failed_defaulting_not_halted")
+	}
+
 	return params
 }
 
@@ -233,6 +250,15 @@ func (s *ExecutionServer) ExecuteTrade(ctx context.Context, req *executionv1.Exe
 			s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeWeeklyPaused, alert.SeverityCritical,
 				"Execution paused: weekly drawdown limit reached").
 				WithUserID(userID).WithDetail("weekly_drawdown_pct", s.state.WeeklyDrawdownPercent(userID)))
+		}
+		if valResult.Outcome == constants.OutcomeHalted {
+			// Kill-switch block (CHECKLIST Section 8). Record the dedicated
+			// audit action and raise a critical alert so the dashboard
+			// shows the halt explicitly rather than as a generic rejection.
+			s.audit.LogExecutionHalted(ctx, tradeReq, valResult.Reason)
+			s.transport.Publish(ctx, alert.NewEvent(alert.SourceExecution, alert.TypeExecutionHalted, alert.SeverityCritical,
+				"Execution halted by kill switch: "+valResult.Reason).
+				WithUserID(userID).WithSymbol(req.GetSymbol()).WithDirection(req.GetDirection()).WithTraceID(traceID))
 		}
 
 		elapsed := time.Since(start).Seconds()
@@ -593,6 +619,8 @@ func outcomeToStatus(outcome constants.ValidationOutcome) constants.OrderStatus 
 		return constants.StatusLocked
 	case constants.OutcomePause:
 		return constants.StatusPaused
+	case constants.OutcomeHalted:
+		return constants.StatusHalted
 	default:
 		return constants.StatusRejected
 	}
