@@ -102,6 +102,19 @@ func lockoutDurationFor(failures int) time.Duration {
 	return d
 }
 
+// LockoutDurationForFailures is the exported form of lockoutDurationFor.
+// The Redis-backed limiter calls this so the exponential backoff curve
+// is identical in dev and prod (one source of truth for the policy).
+func LockoutDurationForFailures(failures int) time.Duration {
+	return lockoutDurationFor(failures)
+}
+
+// LockoutCounterWindowMillis returns the failed-attempt counter window
+// in milliseconds, for use as a Redis PEXPIRE argument.
+func LockoutCounterWindowMillis() int64 {
+	return LockoutCounterWindow.Milliseconds()
+}
+
 // ---------------------------------------------------------------------------
 // Dev/test-only in-memory implementation
 // ---------------------------------------------------------------------------
