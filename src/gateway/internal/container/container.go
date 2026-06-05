@@ -287,6 +287,24 @@ func New(
 	userQueries := store.NewUserQueries(subStore.Pool())
 	userBillingHandler := server.NewUserBillingHandler(userQueries)
 
+	// Service-token revocation on the gateway gRPC surface. Module B
+	// (execution) calls the gateway gRPC (ConfirmSetup /
+	// NotifyExecutionCompleted / ...) carrying the user's SERVICE token
+	// (the watcher token-refresh loop mints these via
+	// IssueServiceToken). Without an epoch resolver, VerifyAccessToken
+	// skips the revocation check for those service tokens, leaving the
+	// gateway as the only service-token-consuming surface that does NOT
+	// honour a token_epoch bump (admin deactivate / password change /
+	// reset) -- an asymmetry with execution + management, which both
+	// wire the resolver. Attach it here for defence-in-depth.
+	//
+	// Zero cost on the user-auth HTTP path: VerifyAccessToken performs
+	// the per-user epoch DB lookup ONLY for token_type=="svc"; user
+	// ACCESS tokens skip the resolver and stay stateless. The gateway
+	// shares one *auth.TokenService across HTTP + gRPC, so this single
+	// call arms the check everywhere it matters. Audit ref: B3.
+	tokenService = tokenService.WithEpochResolver(userStore)
+
 	// Build the gRPC server FIRST so the HTTP server's readiness handler
 	// can ask it whether the gRPC surface is bound and serving. Without
 	// this ordering the kubelet would mark the pod Ready before the
