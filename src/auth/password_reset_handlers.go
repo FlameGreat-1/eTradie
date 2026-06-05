@@ -220,6 +220,9 @@ func (h *Handler) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		h.mailer.SendWithRetry(to, mails.PasswordResetSubject, htmlBody)
 	}(user.Email, display, resetURL, expiresMinutes, ip, ua)
 
+	// Recovery-attempt monitoring: the success path. Audit ref: B4.
+	PasswordResetRequestsTotal.WithLabelValues(recoveryRequestDispatched).Inc()
+
 	h.log.Info().
 		Str("event", "password_reset_email_dispatched").
 		Str("user_id", user.ID).
@@ -321,16 +324,19 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	row, err := h.passwordResets.ConsumeByToken(r.Context(), req.Token)
 	if err != nil {
+		PasswordResetRedemptionsTotal.WithLabelValues(recoveryRedeemInternalError).Inc()
 		writeAuthError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	if row == nil {
+		PasswordResetRedemptionsTotal.WithLabelValues(recoveryRedeemInvalidExpired).Inc()
 		writeAuthError(w, http.StatusBadRequest, passwordResetGenericRedemptionFailure)
 		return
 	}
 
 	user, err := h.users.GetUserByID(r.Context(), row.UserID)
 	if err != nil || user == nil {
+		PasswordResetRedemptionsTotal.WithLabelValues(recoveryRedeemInvalidExpired).Inc()
 		writeAuthError(w, http.StatusBadRequest, passwordResetGenericRedemptionFailure)
 		return
 	}
@@ -340,6 +346,7 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		// not-found / expired / consumed. A separate 403 here would
 		// leak the existence of a deactivated account that an
 		// attacker holds a stale token for.
+		PasswordResetRedemptionsTotal.WithLabelValues(recoveryRedeemInvalidExpired).Inc()
 		writeAuthError(w, http.StatusBadRequest, passwordResetGenericRedemptionFailure)
 		return
 	}
@@ -348,6 +355,7 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		// so a presented token does not leak the provider name. The
 		// scenario is essentially unreachable (/forgot never mails
 		// federated accounts) but defence in depth.
+		PasswordResetRedemptionsTotal.WithLabelValues(recoveryRedeemInvalidExpired).Inc()
 		writeAuthError(w, http.StatusBadRequest, passwordResetGenericRedemptionFailure)
 		return
 	}
@@ -357,22 +365,27 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	// (network, fail-open). SetPassword re-validates complexity as a
 	// backstop.
 	if err := ValidatePasswordComplexity(req.NewPassword, user.Username, user.Email); err != nil {
+		PasswordResetRedemptionsTotal.WithLabelValues(recoveryRedeemComplexity).Inc()
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if !h.rejectReusedPassword(w, r, user.ID, req.NewPassword) {
+		PasswordResetRedemptionsTotal.WithLabelValues(recoveryRedeemReused).Inc()
 		return
 	}
 	if !h.checkBreachAllowed(w, r, req.NewPassword) {
+		PasswordResetRedemptionsTotal.WithLabelValues(recoveryRedeemBreached).Inc()
 		return
 	}
 
 	if err := user.SetPassword(req.NewPassword); err != nil {
+		PasswordResetRedemptionsTotal.WithLabelValues(recoveryRedeemComplexity).Inc()
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if err := h.users.UpdatePassword(r.Context(), user.ID, user.PasswordHash); err != nil {
+		PasswordResetRedemptionsTotal.WithLabelValues(recoveryRedeemPersistFailed).Inc()
 		writeAuthError(w, http.StatusInternalServerError, "failed to update password")
 		return
 	}
@@ -396,6 +409,9 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	h.notifyPasswordChanged(r, user)
 
 	h.clearSessionCookies(w)
+
+	// Recovery-attempt monitoring: the success path. Audit ref: B4.
+	PasswordResetRedemptionsTotal.WithLabelValues(recoveryRedeemed).Inc()
 
 	h.log.Info().
 		Str("event", "password_reset_completed").
@@ -535,6 +551,13 @@ func decodeResetJSONSilent(r *http.Request, out interface{}) error {
 // stays stable across requests for safe correlation without exposing
 // PII to the log stream.
 func (h *Handler) logForgotSkip(reason, emailFP, clientIP, userID string) {
+	// Recovery-attempt monitoring (CHECKLIST Tier 1): mirror every
+	// silent-skip branch onto the metrics rail with the SAME reason
+	// string the log carries, so an operator can alert on
+	// enumeration / mailbomb / ATO-probe spikes without log-scraping.
+	// The wire response is unchanged (generic 202). Audit ref: B4.
+	PasswordResetRequestsTotal.WithLabelValues(reason).Inc()
+
 	ev := h.log.Debug().
 		Str("event", "password_reset_forgot_skipped").
 		Str("reason", reason).
