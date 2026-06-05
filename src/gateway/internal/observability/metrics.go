@@ -95,6 +95,11 @@ var (
 		Name: "etradie_gateway_no_setup_total",
 		Help: "Cycles that ended with NO SETUP",
 	}, []string{"reason"})
+
+	GatewayExecutionHaltedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "etradie_gateway_execution_halted_total",
+		Help: "Trades blocked at the routing gate by the execution kill switch",
+	}, []string{"scope"})
 )
 
 // Error metrics.

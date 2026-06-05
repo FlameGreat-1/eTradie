@@ -393,6 +393,8 @@ func (r *Router) executeTrade(
 			reason = "Execution is halted platform-wide by an administrator (kill switch engaged)."
 		}
 
+		observability.GatewayExecutionHaltedTotal.WithLabelValues(scope).Inc()
+
 		r.log.Warn().
 			Str("symbol", decision.Symbol).
 			Str("direction", decision.Direction).
