@@ -96,6 +96,12 @@ type Handler struct {
 	// applied in RegisterRoutes is the only control — a posture the
 	// gateway wiring permits ONLY in dev/test.
 	attempts AttemptLimiter
+
+	// breach is the advisory password-breach checker (HIBP). Injected
+	// via WithBreachChecker. Applied when a NEW password is stored
+	// (register / change / reset). Fail-open: an error never blocks the
+	// user. nil disables the check.
+	breach BreachChecker
 }
 
 // NewHandler creates the auth HTTP handler.
@@ -124,6 +130,35 @@ func (h *Handler) WithLogger(log zerolog.Logger) {
 // limiter wired in RegisterRoutes — a dev/test-only posture.
 func (h *Handler) WithAttemptLimiter(a AttemptLimiter) {
 	h.attempts = a
+}
+
+// WithBreachChecker injects the advisory password-breach checker (HIBP).
+// Symmetric with the other With* injectors; call once at startup.
+func (h *Handler) WithBreachChecker(b BreachChecker) {
+	h.breach = b
+}
+
+// checkBreachAllowed enforces the breach policy for a NEW password.
+// Returns true when the password may be stored. On a confirmed breach
+// it writes a 400 and returns false. On a checker error it fails OPEN
+// (logs, returns true) so an HIBP outage never blocks a password set.
+// When no checker is injected the feature is disabled and it returns
+// true.
+func (h *Handler) checkBreachAllowed(w http.ResponseWriter, r *http.Request, plaintext string) bool {
+	if h.breach == nil {
+		return true
+	}
+	breached, err := h.breach.IsBreached(r.Context(), plaintext)
+	if err != nil {
+		h.log.Warn().Err(err).Msg("password_breach_check_failed_failing_open")
+		return true
+	}
+	if breached {
+		writeAuthError(w, http.StatusBadRequest,
+			"this password has appeared in a known data breach; please choose a different password")
+		return false
+	}
+	return true
 }
 
 // rateGate applies the cluster-wide rate limit for the given scope when
@@ -420,6 +455,16 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: now,
 	}
 
+	// Complexity first (cheap, offline), then the advisory breach check
+	// (network, fail-open) only once the password is otherwise valid.
+	if err := ValidatePasswordComplexity(req.Password, req.Username, req.Email); err != nil {
+		writeAuthError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !h.checkBreachAllowed(w, r, req.Password) {
+		return
+	}
+
 	if err := user.SetPassword(req.Password); err != nil {
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
@@ -676,6 +721,14 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	if err := user.CheckPassword(req.CurrentPassword); err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "current password is incorrect")
+		return
+	}
+
+	if err := ValidatePasswordComplexity(req.NewPassword, user.Username, user.Email); err != nil {
+		writeAuthError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !h.checkBreachAllowed(w, r, req.NewPassword) {
 		return
 	}
 
