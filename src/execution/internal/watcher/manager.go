@@ -627,6 +627,12 @@ func (w *Watcher) runLimitTTL(ctx context.Context) {
 			if w.checkNewsAndCancel(ctx) {
 				return
 			}
+
+			// Kill-switch: an engaged halt must stop a resting limit
+			// order from filling at the broker. Cancel and stop.
+			if w.checkHaltAndCancel(ctx) {
+				return
+			}
 		}
 	}
 }
@@ -887,6 +893,70 @@ func (w *Watcher) checkNewsAndCancel(ctx context.Context) bool {
 					"event_name":      news.EventName,
 					"currency":        news.Currency,
 					"minutes_until":   news.MinutesUntil,
+				}),
+		)
+	}
+
+	return true
+}
+
+// checkHaltAndCancel cancels a resting LIMIT order when the global or
+// per-user kill switch is engaged and reports true (watcher should
+// stop). Returns false when not halted so the order keeps resting. A
+// halt read error resolves to not-halted (fail-safe), so a DB blip
+// never cancels a valid order.
+func (w *Watcher) checkHaltAndCancel(ctx context.Context) bool {
+	w.order.RLock()
+	authCtx := w.order.IdentityCtx(ctx)
+	symbol := w.order.Symbol
+	userID := w.order.UserID
+	brokerOrderID := w.order.BrokerOrderID
+	w.order.RUnlock()
+
+	halted, scope := w.halt.halted(authCtx, userID)
+	if !halted {
+		return false
+	}
+
+	w.log.Warn().
+		Str("symbol", symbol).
+		Str("scope", scope).
+		Str("broker_order_id", brokerOrderID).
+		Msg("limit_order_cancelled_by_kill_switch")
+
+	if brokerOrderID != "" {
+		if err := w.broker.CancelOrder(authCtx, brokerOrderID); err != nil {
+			w.log.Error().Err(err).
+				Str("broker_order_id", brokerOrderID).
+				Msg("limit_order_halt_cancel_failed")
+			if w.transport != nil {
+				w.transport.Publish(authCtx,
+					alert.NewEvent(alert.SourceExecution, alert.TypeExecutionError, alert.SeverityCritical,
+						fmt.Sprintf("CRITICAL: failed to cancel %s limit order after kill switch: %s", symbol, err.Error())).
+						WithUserID(userID).
+						WithSymbol(symbol).
+						WithDetail("broker_order_id", brokerOrderID).
+						WithDetail("scope", scope),
+				)
+			}
+			return true
+		}
+	}
+
+	w.audit.LogExecutionHalted(authCtx, w.haltTradeRequest(),
+		"execution kill switch engaged ("+scope+" scope): resting limit order cancelled")
+
+	if w.transport != nil {
+		w.transport.Publish(authCtx,
+			alert.NewEvent(alert.SourceExecution, alert.TypeExecutionHalted, alert.SeverityCritical,
+				fmt.Sprintf("Limit order for %s cancelled: execution halted (%s)", symbol, scope)).
+				WithUserID(userID).
+				WithSymbol(symbol).
+				WithDirection(string(w.order.Direction)).
+				WithDetails(map[string]interface{}{
+					"watcher_id":      w.order.WatcherID,
+					"broker_order_id": brokerOrderID,
+					"scope":           scope,
 				}),
 		)
 	}
