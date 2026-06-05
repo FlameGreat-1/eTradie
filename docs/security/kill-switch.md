@@ -167,7 +167,54 @@ Rules:
 
 ---
 
-## 5b. AS-BUILT (what actually shipped on this branch)
+## 5a. AS-BUILT v2 (FINAL — gRPC + gateway control plane)
+
+This supersedes section 5b below (kept for history). The final design:
+
+**Topology (correct enterprise pattern):**
+- **Gateway = sole control plane.** Client + admin HTTP endpoints on the
+  gateway, consistent with `admin_quota_handler` / `admin_billing_handler`.
+- **Execution = durable owner + final authz.** Exposes two gRPC RPCs
+  (`GetHaltState`, `SetHaltState`); owns the settings store; enforces
+  authz server-side (global=>admin, user=>self|admin) so the gateway is
+  not the only guard (defense-in-depth).
+- **Enforcement = `validator.check0KillSwitch`** (authoritative, runs
+  first on every trade).
+- **Optimization = gateway `Router.executeTrade` primary gate** (blocks
+  routing before the gRPC call; fails OPEN to the validator on read
+  error so an execution blip is not a routing outage).
+
+**REQUIRES PROTO REGEN:** after merge, run the repo's proto generation
+(buf generate / make proto) so `proto/execution/v1/*.pb.go` +
+`*_grpc.pb.go` carry the new `GetHaltState`/`SetHaltState` methods and
+`GetHaltStateRequest`/`GetHaltStateResponse`/`SetHaltStateRequest`/
+`SetHaltStateResponse`/`KillSwitchScope`. The hand-written execution
+server impl + gateway adapter compile against those generated symbols.
+
+**Shipped endpoints (gateway):**
+- `GET  /api/v1/execution/kill-switch` (auth+CSRF) -> `{ global_halted, user_halted, effective }`
+- `PUT  /api/v1/execution/kill-switch` (auth+CSRF) `{ "halted": bool }` -> caller's own switch
+- `PUT  /api/v1/admin/execution/kill-switch` (auth -> RequireAdmin -> CSRF)
+  `{ "scope":"global"|"user", "halted":bool, "target_user_id":"..." }`
+
+**Files (final):**
+- proto: `proto/execution/v1/execution.proto` (RPCs + messages + enum)
+- execution gRPC: `server/grpc_server.go` `GetHaltState`/`SetHaltState` + `publishHaltEvent`
+- execution validator/settings/constants/audit/alert/metrics: as section 5 [done]
+- execution HTTP kill-switch endpoints: **REMOVED** (gateway is sole control plane)
+- gateway port: `ports/execution.go` `HaltState`/`SetHaltState`
+- gateway adapter: `infra/execution_grpc.go` impl (+`strings` import)
+- gateway gate: `routing/router.go` primary gate in `executeTrade`
+- gateway control surface: `server/kill_switch_handler.go` (client+admin)
+- gateway wiring: `server/http_server.go` (new param) + `container/container.go`
+
+**Frontend (`cotradee/` repo) follow-up:** add `EXECUTION_HALTED` to
+eventMap.ts/types.ts; admin toggle -> `PUT /api/v1/admin/execution/kill-switch`;
+client toggle+banner -> `GET|PUT /api/v1/execution/kill-switch`.
+
+---
+
+## 5b. AS-BUILT v1 (SUPERSEDED — kept for history)
 
 **Control surface = the EXISTING execution HTTP API server**
 (`src/execution/internal/server/http_server.go`, port 8080), NOT new gRPC
