@@ -294,7 +294,7 @@ func New(
 	// build does not mount a surface that would 502 on every call.
 	var killSwitchHandler *server.KillSwitchHandler
 	if execution != nil {
-		killSwitchHandler = server.NewKillSwitchHandler(execution)
+		killSwitchHandler = server.NewKillSwitchHandler(execution, userStore, emailSender, authCfg.FrontendBaseURL)
 	}
 
 	// Service-token revocation on the gateway gRPC surface. Module B
