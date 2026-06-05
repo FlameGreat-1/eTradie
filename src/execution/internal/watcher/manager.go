@@ -1105,6 +1105,21 @@ func (w *Watcher) tryConfirmAndFire(ctx context.Context) bool {
 
 // fireMarketOrder places the market order at the broker. This is the
 // final, irreversible step. Any error here is critical.
+// haltTradeRequest builds the minimal TradeRequest the halt audit
+// entry needs from this watcher's order.
+func (w *Watcher) haltTradeRequest() *models.TradeRequest {
+	w.order.RLock()
+	defer w.order.RUnlock()
+	return &models.TradeRequest{
+		Symbol:       w.order.Symbol,
+		Direction:    w.order.Direction,
+		AnalysisID:   w.order.AnalysisID,
+		Grade:        w.order.Grade,
+		TradingStyle: w.order.TradingStyle,
+		Session:      w.order.Session,
+	}
+}
+
 func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	// Kill-switch fire gate: an engaged global/per-user halt blocks
 	// placement of this already-armed watcher. Analysis is unaffected;
@@ -1112,7 +1127,7 @@ func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	// watcher does not spin retrying a blocked fire.
 	if halted, scope := w.halt.halted(ctx, w.order.UserID); halted {
 		w.log.Warn().Str("scope", scope).Msg("watcher_fire_blocked_by_kill_switch")
-		w.audit.LogExecutionHalted(ctx, w.order.ToTradeRequest(),
+		w.audit.LogExecutionHalted(ctx, w.haltTradeRequest(),
 			"execution kill switch engaged ("+scope+" scope): instant order placement blocked")
 		if w.transport != nil {
 			w.transport.Publish(ctx,
