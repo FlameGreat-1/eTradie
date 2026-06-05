@@ -16,20 +16,20 @@ dashboard and follow the same CRUD + encryption pattern.
 
 from __future__ import annotations
 
-import base64
-import hashlib
-import os
 import re
 from datetime import UTC, datetime
 from typing import Optional
 from uuid import uuid4
 
-from cryptography.fernet import Fernet
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.processor.storage.schemas.broker_connection_schema import (
     BrokerConnectionRow,
+)
+from engine.shared.crypto import (
+    decrypt_credential as _decrypt,
+    encrypt_credential as _encrypt,
 )
 from engine.shared.logging import get_logger
 
@@ -49,67 +49,27 @@ STATUS_ERROR = "error"
 
 
 # ---------------------------------------------------------------------------
-# Encryption helpers (same derivation as LLM connection repository)
+# Encryption helpers
 # ---------------------------------------------------------------------------
-
-
-def _derive_encryption_key() -> bytes:
-    """Derive a Fernet encryption key for credential encryption.
-
-    Reads BROKER_ENCRYPTION_KEY exclusively. No fallback chain to
-    DATABASE_URL or hardcoded defaults — those patterns silently
-    produce different keys across environments and make every
-    existing ciphertext undecryptable after a legitimate key rotation.
-
-    In production/staging, fails fast if the key is not set.
-    In development, falls back to a well-known dev-only literal so
-    docker-compose and pytest work without secrets management, but
-    logs a loud warning so the gap is visible.
-
-    The key is SHA-256 hashed to produce a URL-safe base64 Fernet key
-    regardless of the raw value's length.
-    """
-    raw = os.environ.get("BROKER_ENCRYPTION_KEY", "").strip()
-    if not raw:
-        app_env = os.environ.get("APP_ENV", "development").lower()
-        if app_env in ("production", "staging"):
-            raise ValueError(
-                "BROKER_ENCRYPTION_KEY is required in production/staging. "
-                "Set it via the engine ExternalSecret "
-                "(Vault path etradie/services/engine/<env>:broker_encryption_key)."
-            )
-        # Dev-only fallback. Loud warning so it is never missed.
-        logger.warning(
-            "broker_encryption_key_missing_using_dev_fallback",
-            extra={
-                "warning": (
-                    "BROKER_ENCRYPTION_KEY is not set. Using the dev-only fallback. "
-                    "DO NOT use this in production or staging."
-                )
-            },
-        )
-        raw = "etradie-dev-only-broker-key-do-not-use-in-production"
-    digest = hashlib.sha256(raw.encode()).digest()
-    return base64.urlsafe_b64encode(digest)
-
-
-def _encrypt(plaintext: str) -> str:
-    """Encrypt a string using Fernet."""
-    f = Fernet(_derive_encryption_key())
-    return f.encrypt(plaintext.encode()).decode()
-
-
-def _decrypt(ciphertext: str) -> str:
-    """Decrypt a Fernet-encrypted string."""
-    f = Fernet(_derive_encryption_key())
-    return f.decrypt(ciphertext.encode()).decode()
+#
+# Credential encryption lives in engine.shared.crypto (the single source
+# of truth shared with the LLM connection repository). This module binds
+# the shared functions to the local names the repository body already
+# uses (_encrypt / _decrypt) and re-exports the public decrypt_credential
+# helper so existing importers (routers/broker_connections.py, the mt5
+# broker factory) keep working unchanged.
+#
+# New writes use versioned envelope encryption; legacy bare-Fernet
+# ciphertext written by the previous implementation decrypts
+# transparently (see engine.shared.crypto.credential_cipher).
 
 
 def decrypt_credential(encrypted: str) -> str:
     """Public helper to decrypt a credential from a connection row.
 
-    Used by the broker factory to get the plaintext token
-    when building a broker client from a saved connection.
+    Used by the broker factory and the broker-connections router to get
+    the plaintext token when building a broker client from a saved
+    connection. Delegates to the shared envelope cipher.
     """
     return _decrypt(encrypted)
 
