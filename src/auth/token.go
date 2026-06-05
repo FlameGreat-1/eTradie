@@ -1,22 +1,49 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// EpochResolver resolves a user's current token epoch. Implemented by
+// auth.UserStore (GetTokenEpoch). Injected into TokenService so the
+// service-token verification path can reject a token whose 'tv' claim
+// is below the user's current epoch, WITHOUT the auth package taking a
+// direct database dependency.
+type EpochResolver interface {
+	GetTokenEpoch(ctx context.Context, userID string) (int, error)
+}
+
 // TokenService handles JWT access token creation and verification,
 // and refresh token generation. Stateless for access tokens;
 // refresh tokens are persisted in the session store.
+//
+// epochResolver is optional. When set, VerifyAccessToken enforces the
+// per-user token epoch on SERVICE tokens only (see WithEpochResolver).
 type TokenService struct {
-	cfg *Config
+	cfg           *Config
+	epochResolver EpochResolver
 }
 
 // NewTokenService creates a token service with the given auth config.
 func NewTokenService(cfg *Config) *TokenService {
 	return &TokenService{cfg: cfg}
+}
+
+// WithEpochResolver attaches an epoch resolver so service-token
+// verification rejects tokens minted before the user's current epoch
+// (i.e. revoked via UserStore.BumpTokenEpoch). Nil is a no-op, leaving
+// service tokens un-epoch-checked -- which is the correct default for
+// callers that do NOT consume service tokens (e.g. the gateway's
+// user-facing HTTP verification) so they pay no per-verify DB lookup.
+//
+// Returns the receiver for chaining at construction.
+func (ts *TokenService) WithEpochResolver(r EpochResolver) *TokenService {
+	ts.epochResolver = r
+	return ts
 }
 
 // IssueTokenPair creates a new access + refresh token pair for the
@@ -140,16 +167,44 @@ func (ts *TokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
 	}
 
 	// 'tv' (token epoch / version). Best-effort parse: a token minted
-	// before this claim existed parses as 0. The service-token
-	// consumption path enforces it against the user's current epoch;
-	// the stateless verifier only surfaces the value.
+	// before this claim existed parses as 0. Enforced for service
+	// tokens below.
 	if tv, ok := mapClaims["tv"].(float64); ok {
 		claims.TokenEpoch = int(tv)
+	}
+
+	// 'token_type'. "svc" marks a long-lived service token.
+	if tt, ok := mapClaims["token_type"].(string); ok {
+		claims.TokenType = tt
 	}
 
 	// Double-check expiry (jwt.Parse already checks, but be explicit).
 	if claims.IsExpired() {
 		return nil, fmt.Errorf("token expired")
+	}
+
+	// Service-token revocation check. Only service tokens are
+	// epoch-enforced, and only when a resolver is configured (the
+	// services that consume service tokens -- execution + management --
+	// wire UserStore as the resolver in their gRPC interceptor; the
+	// gateway's user-facing path leaves it nil so access tokens never
+	// pay a DB lookup).
+	//
+	// Fail CLOSED: a money-moving service credential must not pass when
+	// its revocation state cannot be confirmed. A resolver error, or a
+	// resolved epoch ahead of the token's 'tv' (bumped via
+	// BumpTokenEpoch), or epoch 0 (user deleted), all reject.
+	if claims.IsServiceToken() && ts.epochResolver != nil {
+		current, err := ts.epochResolver.GetTokenEpoch(context.Background(), claims.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("service token epoch check failed: %w", err)
+		}
+		if current == 0 {
+			return nil, fmt.Errorf("service token rejected: unknown user")
+		}
+		if claims.TokenEpoch < current {
+			return nil, fmt.Errorf("service token revoked (epoch %d < %d)", claims.TokenEpoch, current)
+		}
 	}
 
 	return claims, nil

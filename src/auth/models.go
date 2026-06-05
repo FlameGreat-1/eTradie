@@ -197,6 +197,20 @@ type Claims struct {
 	// time. The service-token verification path rejects a token whose
 	// TokenEpoch is below the user's current epoch (revocation).
 	TokenEpoch int `json:"tv"`
+	// TokenType is the 'token_type' claim. "svc" marks a long-lived
+	// service token; empty marks a user session/access token. Only
+	// service tokens are epoch-enforced at verify time.
+	TokenType string `json:"token_type,omitempty"`
+}
+
+// ServiceTokenType is the token_type claim value stamped onto service
+// tokens by IssueServiceToken.
+const ServiceTokenType = "svc"
+
+// IsServiceToken reports whether these claims came from a service
+// token (token_type == "svc").
+func (c *Claims) IsServiceToken() bool {
+	return c.TokenType == ServiceTokenType
 }
 
 // IsExpired checks whether the token has passed its expiry time.
