@@ -21,9 +21,16 @@ Branch: `tier1-identity-hardening`.
         status claim; validate issuer.
 - [x] 5. Refresh-token reuse detection (family revocation) +
         transparent Argon2id rehash on login (`handlers.go`).
-- [ ] 6. Account lockout + shared (Redis-backed) login rate limiting:
-        replace the per-pod in-memory limiter for the brute-force
-        surface and add per-account failed-attempt lockout/backoff.
+- [x] 6. Account lockout + shared (Redis-backed) login rate limiting.
+        auth.AttemptLimiter interface + policy (5 failures -> exp
+        backoff base 1m cap 15m, counter window 15m) + dev in-memory
+        impl; handler wiring on login/register/refresh with pre-check
+        lockout + RegisterFailure/ResetFailures; gateway
+        RedisAttemptLimiter (atomic Lua sliding window + lock key);
+        container wiring is FAIL-CLOSED in prod/staging (Redis limiter
+        mandatory, NO silent in-memory fallback), dev-only explicit
+        in-memory mode with a loud warning. Fail-open on Redis ERROR
+        (availability over a login-wide outage), logged at WARN.
 - [ ] 7. Password breach detection (HaveIBeenPwned k-anonymity range
         API) wired into SetPassword's validation path, fail-open on
         API outage (never block a user because HIBP is down).
