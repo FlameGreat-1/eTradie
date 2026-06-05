@@ -102,6 +102,11 @@ type Handler struct {
 	// (register / change / reset). Fail-open: an error never blocks the
 	// user. nil disables the check.
 	breach BreachChecker
+
+	// passwordHistory enforces no-reuse of the last N passwords on
+	// change/reset. Injected via WithPasswordHistory. nil disables the
+	// control.
+	passwordHistory *PasswordHistoryStore
 }
 
 // NewHandler creates the auth HTTP handler.
@@ -136,6 +141,46 @@ func (h *Handler) WithAttemptLimiter(a AttemptLimiter) {
 // Symmetric with the other With* injectors; call once at startup.
 func (h *Handler) WithBreachChecker(b BreachChecker) {
 	h.breach = b
+}
+
+// WithPasswordHistory injects the password-history store used to reject
+// reuse of recent passwords on change/reset. Symmetric With* injector.
+func (h *Handler) WithPasswordHistory(s *PasswordHistoryStore) {
+	h.passwordHistory = s
+}
+
+// rejectReusedPassword enforces the no-reuse policy for a NEW password.
+// Returns true when the password may be used. On a detected reuse it
+// writes a 400 and returns false. A history-store ERROR is fail-OPEN
+// (logged, returns true) so a transient DB issue never blocks a
+// legitimate change. When history is not wired the check is skipped.
+func (h *Handler) rejectReusedPassword(w http.ResponseWriter, r *http.Request, userID, plaintext string) bool {
+	if h.passwordHistory == nil {
+		return true
+	}
+	reused, err := h.passwordHistory.IsReused(r.Context(), userID, plaintext)
+	if err != nil {
+		h.log.Warn().Err(err).Str("user_id", userID).Msg("password_history_check_failed_failing_open")
+		return true
+	}
+	if reused {
+		writeAuthError(w, http.StatusBadRequest,
+			fmt.Sprintf("password must not match any of your last %d passwords", PasswordHistorySize))
+		return false
+	}
+	return true
+}
+
+// recordPasswordHistory appends a newly-stored hash to the user's
+// history. Best-effort: a failure is logged but never fails the
+// password operation that already succeeded.
+func (h *Handler) recordPasswordHistory(r *http.Request, userID, passwordHash string) {
+	if h.passwordHistory == nil {
+		return
+	}
+	if err := h.passwordHistory.RecordHash(r.Context(), userID, passwordHash); err != nil {
+		h.log.Warn().Err(err).Str("user_id", userID).Msg("password_history_record_failed")
+	}
 }
 
 // checkBreachAllowed enforces the breach policy for a NEW password.
@@ -479,6 +524,10 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Seed password history with the first hash so the initial password
+	// counts toward the no-reuse window on a later change/reset.
+	h.recordPasswordHistory(r, user.ID, user.PasswordHash)
+
 	pair, rawRefresh, err := h.tokens.IssueTokenPair(user)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "user created but failed to issue tokens")
@@ -728,6 +777,9 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if !h.rejectReusedPassword(w, r, userID, req.NewPassword) {
+		return
+	}
 	if !h.checkBreachAllowed(w, r, req.NewPassword) {
 		return
 	}
@@ -741,6 +793,8 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusInternalServerError, "failed to update password")
 		return
 	}
+
+	h.recordPasswordHistory(r, userID, user.PasswordHash)
 
 	_ = h.sessions.RevokeAllUserSessions(r.Context(), userID)
 
