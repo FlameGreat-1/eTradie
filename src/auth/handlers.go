@@ -798,6 +798,14 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	_ = h.sessions.RevokeAllUserSessions(r.Context(), userID)
 
+	// Kill long-lived service tokens too: a password change is the
+	// canonical compromise response, and service tokens are NOT in the
+	// session store. Bumping the epoch makes any service token minted
+	// under the old credential fail its next verify. Best-effort.
+	if _, err := h.users.BumpTokenEpoch(r.Context(), userID); err != nil {
+		h.log.Warn().Err(err).Str("user_id", userID).Msg("token_epoch_bump_failed_on_password_change")
+	}
+
 	h.clearSessionCookies(w)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password updated, all sessions revoked"})
 }
@@ -931,6 +939,14 @@ func (h *Handler) handleAdminUserAction(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		_ = h.sessions.RevokeAllUserSessions(r.Context(), userID)
+		// Revoke the user's long-lived service tokens immediately. The
+		// session revoke above only kills access/refresh tokens;
+		// service tokens (30-day, background workers) live outside the
+		// session store and would otherwise keep a deactivated user's
+		// autonomous trading alive until expiry. Best-effort.
+		if _, err := h.users.BumpTokenEpoch(r.Context(), userID); err != nil {
+			h.log.Warn().Err(err).Str("user_id", userID).Msg("token_epoch_bump_failed_on_deactivate")
+		}
 		writeJSON(w, http.StatusOK, map[string]string{"message": "user deactivated", "id": userID})
 
 	case "activate":
