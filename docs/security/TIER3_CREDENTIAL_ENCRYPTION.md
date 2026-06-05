@@ -57,11 +57,21 @@ Shared module `src/engine/shared/crypto/` (`credential_cipher.py`):
 - [x] 1. Shared `engine/shared/crypto` module (cipher + versioned KEK + pure funcs). Commit: shared envelope cipher.
 - [x] 2. Broker repo -> shared module (local _derive/_encrypt/_decrypt removed; public `decrypt_credential` kept). Reads back-compatible.
 - [x] 3. LLM repo -> shared module (DATABASE_URL/hardcoded foot-gun removed; public `decrypt_api_key` kept). Reads back-compatible.
-- [ ] 4. DB migration 0033: add `key_version` (smallint, nullable) to broker_connections + llm_connections (operability/observability).
-- [ ] 5. Wire `key_version` write-through in both repos on create/update (stamp active_key_version() alongside each new ciphertext).
+- [x] 4. DB migration 0033: nullable SMALLINT `key_version` on broker_connections + llm_connections (idempotent, 0032 guard pattern).
+- [x] 5. key_version wired end to end:
+      - 5a ORM column declared on BrokerConnectionRow + LLMConnectionRow (SmallInteger import added to both schemas).
+      - 5b write-through: broker create()/update_connection() stamp active_key_version() when encrypting mt5_password/ea_auth_token; LLM create()/create_platform()/update_connection() stamp it on every api_key encrypt.
 - [ ] 6. ExternalSecret + Helm values: optional `BROKER_ENCRYPTION_KEY_V<n>` plumbing for rotation.
 - [ ] 7. Re-wrap maintenance routine + admin/ops entrypoint (rotation/revocation execution).
 - [ ] 8. Final verification pass: grep all consumers, confirm no dead code / mismatch, update this tracker to DONE.
+
+### Verification notes (steps 4-5)
+- Migration nullable + no server_default: NULL == legacy ciphertext;
+  never load-bearing for decryption. Idempotent guards on both tables.
+- ORM column added so create_all() (test/dev bootstrap) installs it too,
+  keeping migration path and create_all path identical.
+- Write-through only stamps when ciphertext is actually written, so the
+  version can never drift from the ciphertext it describes.
 
 ### Verification notes (steps 1-3)
 - Back-compat proof: shared cipher normalises BROKER_ENCRYPTION_KEY via
