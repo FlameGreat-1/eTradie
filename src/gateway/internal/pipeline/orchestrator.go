@@ -1041,23 +1041,6 @@ func buildCandidateFingerprint(cand map[string]interface{}) string {
 	return fmt.Sprintf("%s_%s_%s_%.4f", symbol, pattern, direction, entryPrice)
 }
 
-// matchedBy returns which field was used for matching (for logging).
-func matchedBy(cand map[string]interface{}, analysisID string) string {
-	if candID, _ := cand["candidate_id"].(string); candID == analysisID {
-		return "candidate_id"
-	}
-	if candID, _ := cand["analysis_id"].(string); candID == analysisID {
-		return "analysis_id"
-	}
-	if candID, _ := cand["id"].(string); candID == analysisID {
-		return "id"
-	}
-	if fp := buildCandidateFingerprint(cand); fp == analysisID {
-		return "structural_fingerprint"
-	}
-	return "unknown"
-}
-
 func condReason(cond bool, ifTrue, ifFalse string) string {
 	if cond {
 		return ifTrue
