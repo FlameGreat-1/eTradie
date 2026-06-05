@@ -301,6 +301,23 @@ func writeRetryAfter(w http.ResponseWriter, d time.Duration) {
 // refresh-token body field (or refresh cookie) to revoke the session
 // when possible; cookie clearing happens regardless.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
+	// Rate limiting is LAYERED and the two layers are deliberate, not
+	// redundant:
+	//
+	//   Layer 1 (here): per-route, per-pod, in-memory RateLimiter
+	//     wrappers. Cheap local burst cap. In dev/test (no injected
+	//     AttemptLimiter) this is the ONLY rate control, so it must
+	//     stay. In prod it is a harmless first-line burst guard.
+	//
+	//   Layer 2 (in the handlers): the cluster-wide AttemptLimiter
+	//     (rateGate + IsLocked/RegisterFailure), backed by Redis and
+	//     injected via WithAttemptLimiter. This is the AUTHORITATIVE
+	//     control in prod/staging (shared across replicas + per-account
+	//     lockout) and the container wiring fails closed if it is
+	//     absent there.
+	//
+	// Do not remove Layer 1 to "de-duplicate": that would leave dev
+	// with no rate limiting at all.
 	loginLimiter := NewRateLimiter(10, 1*time.Minute)
 	registerLimiter := NewRateLimiter(5, 1*time.Minute)
 	refreshLimiter := NewRateLimiter(20, 1*time.Minute)
