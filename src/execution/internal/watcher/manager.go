@@ -97,6 +97,8 @@ type Manager struct {
 	cfg         Config
 	log         zerolog.Logger
 
+	halt *cachedHaltReader
+
 	mu           sync.RWMutex
 	watchers     map[string]*Watcher // key: order.WatcherID
 	shuttingDown bool
@@ -150,6 +152,23 @@ func (m *Manager) WithIdempotency(idc IdempotencyClearer) *Manager {
 	m.idempotency = idc
 	m.mu.Unlock()
 	return m
+}
+
+// WithHaltReader attaches the kill-switch reader consulted at the
+// broker-firing moment. Optional; nil keeps the fire gate disabled.
+func (m *Manager) WithHaltReader(hr HaltReader) *Manager {
+	m.mu.Lock()
+	if hr != nil {
+		m.halt = newCachedHaltReader(hr)
+	}
+	m.mu.Unlock()
+	return m
+}
+
+func (m *Manager) haltReader() *cachedHaltReader {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.halt
 }
 
 // trackArm fires a non-blocking watcher_count increment. Detached from the
@@ -216,6 +235,7 @@ func (m *Manager) Arm(order *models.Order) {
 		tickCache:   m.tickCache,
 		cfg:         m.cfg,
 		idempotency: m.idempotency,
+		halt:        m.haltReader(),
 		log: m.log.With().
 			Str("watcher_id", order.WatcherID).
 			Str("symbol", order.Symbol).
@@ -501,6 +521,7 @@ type Watcher struct {
 	tickCache      *TickCache
 	cfg            Config
 	idempotency    IdempotencyClearer
+	halt           *cachedHaltReader
 	timeoutMinutes int // Resolved style-specific timeout (set in run())
 	log            zerolog.Logger
 	done           chan struct{}
@@ -1085,6 +1106,31 @@ func (w *Watcher) tryConfirmAndFire(ctx context.Context) bool {
 // fireMarketOrder places the market order at the broker. This is the
 // final, irreversible step. Any error here is critical.
 func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
+	// Kill-switch fire gate: an engaged global/per-user halt blocks
+	// placement of this already-armed watcher. Analysis is unaffected;
+	// only the irreversible broker call is stopped. Disarm so the
+	// watcher does not spin retrying a blocked fire.
+	if halted, scope := w.halt.halted(ctx, w.order.UserID); halted {
+		w.log.Warn().Str("scope", scope).Msg("watcher_fire_blocked_by_kill_switch")
+		w.audit.LogExecutionHalted(ctx, w.order.ToTradeRequest(),
+			"execution kill switch engaged ("+scope+" scope): instant order placement blocked")
+		if w.transport != nil {
+			w.transport.Publish(ctx,
+				alert.NewEvent(alert.SourceExecution, alert.TypeExecutionHalted, alert.SeverityCritical,
+					fmt.Sprintf("Instant order blocked for %s: execution halted (%s)", w.order.Symbol, scope)).
+					WithUserID(w.order.UserID).
+					WithSymbol(w.order.Symbol).
+					WithDirection(string(w.order.Direction)).
+					WithDetails(map[string]interface{}{
+						"watcher_id":  w.order.WatcherID,
+						"analysis_id": w.order.AnalysisID,
+						"scope":       scope,
+					}),
+			)
+		}
+		return true
+	}
+
 	placement := &models.OrderPlacement{
 		Symbol:    w.order.Symbol,
 		Direction: constants.BrokerDirection(w.order.Direction),
