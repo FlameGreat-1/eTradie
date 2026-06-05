@@ -1,17 +1,21 @@
 """Repository for broker connection CRUD operations.
 
 All database operations for the broker_connections table.
-Credentials (EA auth tokens, MetaAPI tokens) are stored encrypted
-using the same Fernet symmetric encryption as LLM connections.
 
-The encryption key is derived identically to the LLM connection
-repository so both use the same key derivation path.
+Credentials (MT5 password, EA auth token) are encrypted at rest by the
+shared credential cipher (engine.shared.crypto): versioned envelope
+encryption (per-record DEK wrapped by a versioned KEK), the same cipher
+and the same KEK path the LLM connection repository uses, so there is
+exactly one encryption implementation across the engine's credential
+stores. The wrapping KEK version is recorded in the row's key_version
+column for rotation observability (see migration 0033 and
+docs/security/TIER3_CREDENTIAL_ENCRYPTION.md).
 
 NOTE: This module lives under processor/storage/ (not ta/broker/)
-because it shares the same SQLAlchemy Base, session management,
-and encryption infrastructure as the LLM connection repository.
-Both broker and LLM connections are user-configured via the
-dashboard and follow the same CRUD + encryption pattern.
+because it shares the same SQLAlchemy Base and session management as
+the LLM connection repository. Both broker and LLM connections are
+user-configured via the dashboard and follow the same CRUD + encryption
+pattern.
 """
 
 from __future__ import annotations
