@@ -39,6 +39,9 @@ const (
 	TypeWatcherTriggered = "WATCHER_TRIGGERED"
 	TypeDailyLimitLocked = "DAILY_LIMIT_LOCKED"
 	TypeWeeklyPaused     = "WEEKLY_PAUSED"
+	// TypeExecutionHalted fires when the global or per-user execution
+	// kill switch blocks an order (CHECKLIST Section 8). SeverityCritical.
+	TypeExecutionHalted  = "EXECUTION_HALTED"
 	TypeSizingCalculated = "SIZING_CALCULATED"
 	TypeExecutionError   = "EXECUTION_ERROR"
 	TypeModeChanged      = "EXECUTION_MODE_CHANGED"
