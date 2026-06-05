@@ -360,6 +360,9 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if !h.rejectReusedPassword(w, r, user.ID, req.NewPassword) {
+		return
+	}
 	if !h.checkBreachAllowed(w, r, req.NewPassword) {
 		return
 	}
@@ -373,6 +376,8 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusInternalServerError, "failed to update password")
 		return
 	}
+
+	h.recordPasswordHistory(r, user.ID, user.PasswordHash)
 
 	// Symmetric with PUT /auth/me/password: a password change kills
 	// every session so an attacker who had access to a logged-in tab
