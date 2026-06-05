@@ -42,8 +42,10 @@ Rules:
   execution. The kill-switch gateway gate is modeled on this exact pattern.
 - **Execution validator** (`src/execution/internal/validator/validator.go`) runs an
   ordered check slice via `Validate(ctx, req, params *RuntimeParams)`, fail-fast.
-  This is the **authoritative backstop** — it also covers resting LIMIT orders and
-  armed INSTANT watchers because their fire paths re-validate.
+  This is the **authoritative backstop for new intake**.
+  NOTE: resting LIMIT orders and armed INSTANT watchers do NOT pass back through
+  the validator when they fire — they call the broker directly from the watcher.
+  They are therefore halted by a dedicated watcher fire gate (see section 5c).
 - **Single source of truth = execution `SettingsStore`** (Postgres,
   `src/execution/internal/store/settings.go`). The validator already reads it per-trade
   via `ExecutionServer.resolveRuntimeParams`. The global flag is stored under the
@@ -265,6 +267,25 @@ for per-trade blocks.
 to eventMap.ts/types.ts; admin toggle UI -> `PUT /api/v1/admin/kill-switch`;
 client toggle + banner -> `PUT/GET /api/v1/kill-switch`.
 
+## 5c. Watcher / fire-path enforcement (AS-BUILT, follow-up branch)
+
+The intake gates (validator check0 + gateway router gate) do not cover an
+order that is ALREADY armed/resting, because those fire at the broker
+directly without re-entering ExecuteTrade. Closed by:
+
+- `watcher` cached HaltReader over the execution SettingsStore (single
+  source of truth; read errors fail-safe to not-halted).
+- INSTANT: `fireMarketOrder` halt gate — blocks the market order, disarms,
+  audits EXECUTION_HALTED, alerts CRITICAL.
+- LIMIT: `checkHaltAndCancel` on the TTL liveness tick — cancels the resting
+  broker order when halted.
+- RESTART: `cmd/execution` restore loop skips re-arming while global halt is
+  engaged (PENDING rows restored on the next healthy start).
+- GATEWAY: `RunConfirmationPulseWithParams` re-checks HaltState before an
+  instant confirmation returns Confirmed=true (fail-open to the watcher gate).
+- METRIC: `etradie_gateway_execution_halted_total{scope}` at the router gate;
+  PrometheusRule alerts on a global halt engaged / held engaged.
+
 ## 6. Progress Tracker (update as you go)
 
 - [x] Step 1 — Execution constants + result helper + settings keys/helpers (+ import fix)
@@ -283,7 +304,9 @@ client toggle + banner -> `PUT/GET /api/v1/kill-switch`.
 - [x] Gateway control surface `kill_switch_handler.go` (client + admin) + wiring
 - [x] Removed execution HTTP kill-switch endpoints (gateway = sole control plane)
 - [x] settings validate/apply unit tests
-- [ ] POST-MERGE: regenerate proto stubs (buf generate / make proto)
+- [x] POST-MERGE: regenerate proto stubs (buf generate / make proto) — stubs
+      with GetHaltState/SetHaltState/KillSwitchScope are committed in
+      proto/execution/v1 (execution_grpc.pb.go).
 - [ ] FOLLOW-UP (separate `cotradee/` repo) — frontend toggles + EXECUTION_HALTED
 - [x] Open MR (v1: !98 superseded) ; v2 MR opened on this branch
 
