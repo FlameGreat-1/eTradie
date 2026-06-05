@@ -384,6 +384,13 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	// is logged out the moment the legitimate user resets the password.
 	_ = h.sessions.RevokeAllUserSessions(r.Context(), user.ID)
 
+	// And the long-lived service tokens, which are outside the session
+	// store. A reset is an account-recovery action, so any service
+	// token minted under the old credential must die too. Best-effort.
+	if _, err := h.users.BumpTokenEpoch(r.Context(), user.ID); err != nil {
+		h.log.Warn().Err(err).Str("user_id", user.ID).Msg("token_epoch_bump_failed_on_password_reset")
+	}
+
 	h.clearSessionCookies(w)
 
 	h.log.Info().
