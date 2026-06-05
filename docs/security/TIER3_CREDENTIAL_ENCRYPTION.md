@@ -66,8 +66,46 @@ Shared module `src/engine/shared/crypto/` (`credential_cipher.py`):
       - templates/externalsecret.yaml: renders one `BROKER_ENCRYPTION_KEY_V<n>` mapping per declared version (validated: version>=2, property required).
       - deployment already envFroms the engine Secret, so the key reaches the pod as an env var that engine.shared.crypto's BROKER_ENCRYPTION_KEY_V<n> scan picks up -> highest version active.
       - vault-paths/main.tf engine bootstrap string documents broker_encryption_key_v<n> as the rotation property (operator-populated).
-- [ ] 7. Re-wrap maintenance routine + admin/ops entrypoint (rotation/revocation execution).
-- [ ] 8. Final verification pass: grep all consumers, confirm no dead code / mismatch, update this tracker to DONE.
+- [x] 7. Re-wrap maintenance service + CLI:
+      - engine/shared/crypto/rewrap_service.py: CredentialRewrapService walks broker_connections + llm_connections in keyset-paginated batches, re-wraps any legacy / non-active-version column to the active KEK (plaintext never touched), stamps key_version, per-row transaction (resumable), per-column failure isolation, dry_run sizing.
+      - engine/shared/crypto/__main__.py: `python -m engine.shared.crypto [--dry-run] [--batch-size N]`; builds DatabaseManager from settings; exit 0 ok / 2 had-failures / 1 fatal.
+- [x] 8. Final verification pass complete (see notes below). Tracker DONE.
+
+## STATUS: DONE
+
+### Verification notes (steps 7-8)
+- CLI settings attrs verified against config.py: async_database_url
+  (property -> str(database_url)), db_pool_size/db_max_overflow/
+  db_pool_timeout/db_pool_recycle/db_echo all exist with those names.
+- `python -m engine.shared.crypto` correctly executes __main__.py
+  (package module path), fixed from the earlier rewrap_service path.
+- Broker repo module docstring corrected to describe the shared
+  envelope cipher (no longer claims direct-Fernet / identical local
+  derivation).
+- No remaining importers of the removed _derive_encryption_key in
+  either repo; public helpers decrypt_credential / decrypt_api_key kept,
+  so routers/broker_connections.py, the mt5 factory, and the processor
+  config loader are unchanged.
+
+### Checklist Tier 3 outcome
+| Item | Result |
+| --- | --- |
+| AES-256 at rest | Retained Fernet (AES-128, authenticated) by deliberate decision; envelope is the real hardening. Documented. |
+| Key encryption keys (KEK) | DONE - per-record DEK wrapped by a versioned KEK. |
+| Separate encryption service | In-house envelope now; Vault Transit is a documented drop-in future step (swap the KEK-wrap call, no stored-ciphertext change). |
+| Envelope encryption | DONE - v1:<kv>:<wrapped_dek>:<ct>. |
+| Master key outside DB | DONE (already; Vault). |
+| Key rotation process | DONE - versioned KEK map + rewrap service, no plaintext re-encrypt. |
+| Emergency key revocation | DONE - drop a KEK version after re-wrap. |
+| Divergent key derivation | DONE - single shared module; LLM DATABASE_URL/hardcoded foot-gun removed. |
+| Never logged / exposed to FE / admin | DONE (already; unchanged). |
+
+### Future (explicitly out of scope, documented for the next tier)
+- Vault Transit migration: the VaultClient is KV-v2 only today; moving
+  the KEK-wrap step to Transit gives a true separate encryption service
+  + AES-256-GCM wrap without touching stored ciphertext. The envelope
+  format already isolates the wrap step, so this is a localized change
+  in engine.shared.crypto.credential_cipher when prioritised.
 
 ### Verification notes (step 6)
 - Inert by default: rotationKeyVersions empty -> no extra data keys ->
