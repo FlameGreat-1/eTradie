@@ -28,6 +28,7 @@ from engine.processor.storage.schemas.broker_connection_schema import (
     BrokerConnectionRow,
 )
 from engine.shared.crypto import (
+    active_key_version,
     decrypt_credential as _decrypt,
     encrypt_credential as _encrypt,
 )
@@ -226,7 +227,9 @@ class BrokerConnectionRepository:
             await self._deactivate_all(user_id)
             await self._unprimary_all(user_id)
 
-        # Encrypt sensitive credentials.
+        # Encrypt sensitive credentials. key_version records which KEK
+        # version wrapped the ciphertext written below; it stays None
+        # when the row carries no secret at all.
         encrypted_ea_token: Optional[str] = None
         if ea_auth_token and ea_auth_token.strip():
             encrypted_ea_token = _encrypt(ea_auth_token)
@@ -234,6 +237,10 @@ class BrokerConnectionRepository:
         encrypted_mt5_password: Optional[str] = None
         if mt5_password and mt5_password.strip():
             encrypted_mt5_password = _encrypt(mt5_password)
+
+        row_key_version: Optional[int] = None
+        if encrypted_ea_token is not None or encrypted_mt5_password is not None:
+            row_key_version = active_key_version()
 
         # Validate any caller-supplied id up front so an invalid value
         # fails the request cleanly rather than at INSERT time.
@@ -265,6 +272,7 @@ class BrokerConnectionRepository:
             mt5_server=mt5_server,
             mt5_login=mt5_login,
             mt5_password_encrypted=encrypted_mt5_password,
+            key_version=row_key_version,
             mt5_symbol=mt5_symbol,
             platform=platform,
             is_active=activate,
@@ -379,6 +387,7 @@ class BrokerConnectionRepository:
             values["ea_port"] = ea_port
         if ea_auth_token is not None:
             values["ea_auth_token_encrypted"] = _encrypt(ea_auth_token)
+            values["key_version"] = active_key_version()
         if metaapi_account_id is not None:
             values["metaapi_account_id"] = metaapi_account_id
         if metaapi_region is not None:
@@ -391,6 +400,7 @@ class BrokerConnectionRepository:
             values["mt5_login"] = mt5_login
         if mt5_password is not None:
             values["mt5_password_encrypted"] = _encrypt(mt5_password)
+            values["key_version"] = active_key_version()
         if mt5_symbol is not None:
             # Empty string is rejected upstream by the resolver; we only
             # arrive here with a non-empty stripped string when a
