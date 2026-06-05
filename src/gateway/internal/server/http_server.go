@@ -73,6 +73,7 @@ func NewHTTPServer(
 	adminBillingHandler *AdminBillingHandler,
 	adminQuotaHandler *AdminQuotaHandler,
 	userBillingHandler *UserBillingHandler,
+	killSwitchHandler *KillSwitchHandler,
 	grpcServer *GRPCServer,
 ) (*HTTPServer, error) {
 	s := &HTTPServer{
@@ -205,6 +206,16 @@ func NewHTTPServer(
 	// this surface still start up cleanly.
 	if userBillingHandler != nil {
 		userBillingHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+	}
+
+	// Kill switch (CHECKLIST Section 8). Sole control plane for the
+	// execution kill switch: client self-toggle (auth+CSRF) + admin
+	// global/per-user override (auth -> RequireAdmin -> CSRF, composed
+	// inside the handler). Delegates state + final authz to the
+	// execution service via ports.ExecutionPort. Nil-tolerant so a
+	// build without an execution engine still starts.
+	if killSwitchHandler != nil {
+		killSwitchHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 	}
 
 	// CORS allowlist is validated at startup so a misconfig fails

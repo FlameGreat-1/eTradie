@@ -287,6 +287,16 @@ func New(
 	userQueries := store.NewUserQueries(subStore.Pool())
 	userBillingHandler := server.NewUserBillingHandler(userQueries)
 
+	// Kill-switch handler (CHECKLIST Section 8). Sole control plane for
+	// the execution kill switch; delegates to the execution service via
+	// the ExecutionPort. Constructed only when an execution engine is
+	// wired (mirrors the execution_available guard) so a no-execution
+	// build does not mount a surface that would 502 on every call.
+	var killSwitchHandler *server.KillSwitchHandler
+	if execution != nil {
+		killSwitchHandler = server.NewKillSwitchHandler(execution)
+	}
+
 	// Service-token revocation on the gateway gRPC surface. Module B
 	// (execution) calls the gateway gRPC (ConfirmSetup /
 	// NotifyExecutionCompleted / ...) carrying the user's SERVICE token
@@ -323,7 +333,7 @@ func New(
 	// instance handed to meteringHandler and adminQuotaHandler. There
 	// is only one of each in the gateway process. Audit ref:
 	// ADMIN-QUOTA-7.
-	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, quotaPolicyStore, usageStore, tradingSystemHandler, tradingPlanHandler, perfReviewHandler, adminBillingHandler, adminQuotaHandler, userBillingHandler, grpcServer)
+	httpServer, err := server.NewHTTPServer(cfg, redisClient, engineHTTP, hub, transport, orchestrator, symStore, settStore, scheduler, tokenService, authHandler, waitlistHandler, consentHandler, supportHandler, subStore, portalAudStore, billingClient, userStore, meteringHandler, quotaPolicyStore, usageStore, tradingSystemHandler, tradingPlanHandler, perfReviewHandler, adminBillingHandler, adminQuotaHandler, userBillingHandler, killSwitchHandler, grpcServer)
 	if err != nil {
 		return nil, fmt.Errorf("container: http server: %w", err)
 	}

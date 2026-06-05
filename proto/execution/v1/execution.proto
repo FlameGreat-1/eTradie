@@ -20,6 +20,50 @@ service ExecutionService {
   // daily/weekly P&L, and concurrent trade count. Used by the dashboard
   // and by the gateway for pre-flight awareness.
   rpc GetExecutionState(GetStateRequest) returns (GetStateResponse);
+
+  // GetHaltState reports the global and per-user execution kill-switch
+  // flags (CHECKLIST Section 8). The gateway calls this in its routing
+  // primary gate and to back the dashboard read. target_user_id selects
+  // whose per-user flag to read; empty means "caller" (resolved by the
+  // gateway from the JWT before the call).
+  rpc GetHaltState(GetHaltStateRequest) returns (GetHaltStateResponse);
+
+  // SetHaltState engages or releases a kill switch (CHECKLIST Section 8).
+  // Authorization is enforced server-side: SCOPE_GLOBAL requires the
+  // caller to be an admin; SCOPE_USER requires the caller to be the
+  // target user or an admin.
+  rpc SetHaltState(SetHaltStateRequest) returns (SetHaltStateResponse);
+}
+
+// KillSwitchScope selects which switch SetHaltState toggles.
+enum KillSwitchScope {
+  KILL_SWITCH_SCOPE_UNSPECIFIED = 0; // invalid; server rejects.
+  KILL_SWITCH_SCOPE_GLOBAL = 1;      // platform-wide (admin only).
+  KILL_SWITCH_SCOPE_USER = 2;        // per-user (self or admin).
+}
+
+message GetHaltStateRequest {
+  string target_user_id = 1; // whose user flag to read; empty = caller.
+  string trace_id = 2;
+}
+
+message GetHaltStateResponse {
+  bool global_halted = 1;
+  bool user_halted = 2;
+  string trace_id = 3;
+}
+
+message SetHaltStateRequest {
+  KillSwitchScope scope = 1;
+  string target_user_id = 2; // required for SCOPE_USER; ignored for GLOBAL.
+  bool halted = 3;
+  string trace_id = 4;
+}
+
+message SetHaltStateResponse {
+  bool global_halted = 1; // resulting state after the write.
+  bool user_halted = 2;
+  string trace_id = 3;
 }
 
 // ExecuteTradeRequest carries everything Module B needs from the gateway.

@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -217,6 +218,84 @@ func (a *ExecutionGRPCAdapter) CancelOrder(ctx context.Context, orderID, symbol,
 	}
 
 	return nil
+}
+
+// HaltState reads the kill-switch flags from the execution service
+// (CHECKLIST Section 8). Forwards the JWT so the server can enforce
+// authz on cross-user reads.
+func (a *ExecutionGRPCAdapter) HaltState(ctx context.Context, targetUserID string) (bool, bool, error) {
+	req := &executionv1.GetHaltStateRequest{TargetUserId: targetUserID}
+
+	var metadataKVs []string
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		metadataKVs = append(metadataKVs, "authorization", "Bearer "+rawToken)
+	}
+	callCtx := metadata.AppendToOutgoingContext(ctx, metadataKVs...)
+
+	var resp *executionv1.GetHaltStateResponse
+	operation := func() error {
+		var err error
+		resp, err = a.client.GetHaltState(callCtx, req)
+		return err
+	}
+	isRetryable := func(err error) bool {
+		st, ok := status.FromError(err)
+		if !ok {
+			return false
+		}
+		return st.Code() == codes.Unavailable || st.Code() == codes.DeadlineExceeded || st.Code() == codes.Internal
+	}
+	if err := resilience.Retry(ctx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
+		return false, false, fmt.Errorf("execution get halt state: %w", err)
+	}
+	return resp.GetGlobalHalted(), resp.GetUserHalted(), nil
+}
+
+// SetHaltState writes a kill-switch flag via the execution service
+// (CHECKLIST Section 8). scope is "global" or "user"; the JWT is
+// forwarded so the server enforces admin/self authz.
+func (a *ExecutionGRPCAdapter) SetHaltState(ctx context.Context, scope, targetUserID string, halted bool) (bool, bool, error) {
+	var protoScope executionv1.KillSwitchScope
+	switch strings.ToLower(strings.TrimSpace(scope)) {
+	case "global":
+		protoScope = executionv1.KillSwitchScope_KILL_SWITCH_SCOPE_GLOBAL
+	case "user":
+		protoScope = executionv1.KillSwitchScope_KILL_SWITCH_SCOPE_USER
+	default:
+		return false, false, fmt.Errorf("execution set halt state: invalid scope %q", scope)
+	}
+
+	req := &executionv1.SetHaltStateRequest{
+		Scope:        protoScope,
+		TargetUserId: targetUserID,
+		Halted:       halted,
+	}
+
+	var metadataKVs []string
+	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
+		metadataKVs = append(metadataKVs, "authorization", "Bearer "+rawToken)
+	}
+	callCtx := metadata.AppendToOutgoingContext(ctx, metadataKVs...)
+
+	var resp *executionv1.SetHaltStateResponse
+	operation := func() error {
+		var err error
+		resp, err = a.client.SetHaltState(callCtx, req)
+		return err
+	}
+	// Authorization / argument failures must NOT be retried; only
+	// transient transport errors are.
+	isRetryable := func(err error) bool {
+		st, ok := status.FromError(err)
+		if !ok {
+			return false
+		}
+		return st.Code() == codes.Unavailable || st.Code() == codes.DeadlineExceeded
+	}
+	if err := resilience.Retry(ctx, resilience.DefaultRetryConfig, isRetryable, operation); err != nil {
+		return false, false, fmt.Errorf("execution set halt state: %w", err)
+	}
+	return resp.GetGlobalHalted(), resp.GetUserHalted(), nil
 }
 
 // Close shuts down the gRPC connection.

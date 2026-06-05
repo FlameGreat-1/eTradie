@@ -4,6 +4,11 @@ package constants
 type ValidationCheck int32
 
 const (
+	// CheckKillSwitch is the pre-everything backstop. It runs FIRST in
+	// the validator chain (before the gateway-owned 1-3 and Module B's
+	// 4-14) so an engaged global or per-user kill switch blocks order
+	// placement at the cheapest possible point. CHECKLIST Section 8.
+	CheckKillSwitch          ValidationCheck = 0
 	CheckNewsLockout         ValidationCheck = 4
 	CheckSessionFilter       ValidationCheck = 5
 	CheckSamePairPosition    ValidationCheck = 6
@@ -75,6 +80,10 @@ const (
 	OutcomeQueue  ValidationOutcome = "QUEUE"
 	OutcomeLock   ValidationOutcome = "LOCK"
 	OutcomePause  ValidationOutcome = "PAUSE"
+	// OutcomeHalted is returned when the global or per-user execution
+	// kill switch is engaged. Analysis still runs upstream; only order
+	// placement is blocked. CHECKLIST Section 8 (Kill Switches).
+	OutcomeHalted ValidationOutcome = "HALTED"
 )
 
 // ExecutionMode is the order placement strategy.
@@ -99,6 +108,9 @@ const (
 	StatusQueued          OrderStatus = "QUEUED"
 	StatusLocked          OrderStatus = "LOCKED"
 	StatusPaused          OrderStatus = "PAUSED"
+	// StatusHalted is the order status when the global or per-user
+	// execution kill switch blocked placement. CHECKLIST Section 8.
+	StatusHalted OrderStatus = "HALTED"
 	StatusPartiallyFilled OrderStatus = "PARTIALLY_FILLED"
 	// StatusDuplicate is returned when an idempotency claim detects a
 	// prior placement for the same (user_id, idempotency_key). The
@@ -130,6 +142,9 @@ const (
 	ActionOrderExpired       AuditAction = "ORDER_EXPIRED"
 	ActionDailyLimitLocked   AuditAction = "DAILY_LIMIT_LOCKED"
 	ActionWeeklyPaused       AuditAction = "WEEKLY_PAUSED"
+	// ActionExecutionHalted records a placement blocked by the kill
+	// switch (global or per-user). CHECKLIST Section 8.
+	ActionExecutionHalted    AuditAction = "EXECUTION_HALTED"
 )
 
 // CancelReason explains why a pending order was cancelled.

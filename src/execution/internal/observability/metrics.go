@@ -136,3 +136,15 @@ var (
 		Help: "Partial-fill events observed at the broker",
 	}, []string{"symbol", "direction"})
 )
+
+// Kill-switch metrics (CHECKLIST Section 8).
+var (
+	// KillSwitchChangedTotal counts operator toggles of the execution
+	// kill switch. scope: global|user. state: engaged|released. The
+	// per-trade BLOCK is metered separately via ValidationTotal{HALTED}
+	// and ExecutionTotal{outcome=HALTED}.
+	KillSwitchChangedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "etradie_execution_kill_switch_changed_total",
+		Help: "Kill-switch toggle actions by scope and resulting state",
+	}, []string{"scope", "state"})
+)
