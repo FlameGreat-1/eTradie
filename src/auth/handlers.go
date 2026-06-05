@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+
+	"github.com/flamegreat-1/etradie/src/mails"
 )
 
 // writeSessionCookies issues a fresh CSRF token bound to the user and
@@ -87,6 +89,33 @@ type Handler struct {
 	// do not need to inject one and a half-wired Handler still serves
 	// traffic safely.
 	log zerolog.Logger
+
+	// attempts is the cluster-wide abuse-control limiter (rate limit +
+	// per-account lockout) for the credential-attack surface
+	// (login/register/refresh). Injected by the gateway with a
+	// Redis-backed implementation (mandatory in prod/staging) via
+	// WithAttemptLimiter. When nil, the per-route in-memory limiter
+	// applied in RegisterRoutes is the only control — a posture the
+	// gateway wiring permits ONLY in dev/test.
+	attempts AttemptLimiter
+
+	// breach is the advisory password-breach checker (HIBP). Injected
+	// via WithBreachChecker. Applied when a NEW password is stored
+	// (register / change / reset). Fail-open: an error never blocks the
+	// user. nil disables the check.
+	breach BreachChecker
+
+	// passwordHistory enforces no-reuse of the last N passwords on
+	// change/reset. Injected via WithPasswordHistory. nil disables the
+	// control.
+	passwordHistory *PasswordHistoryStore
+
+	// securityMailer sends anti-ATO notifications (new-device login,
+	// password changed/reset). Injected via WithSecurityNotifications.
+	// nil disables all such emails (the default for the
+	// execution/management binaries that build a Handler without a
+	// mailer, and for unit tests).
+	securityMailer Mailer
 }
 
 // NewHandler creates the auth HTTP handler.
@@ -107,6 +136,163 @@ func (h *Handler) WithLogger(log zerolog.Logger) {
 	h.log = log
 }
 
+// WithAttemptLimiter injects the cluster-wide abuse-control limiter.
+// Symmetric with WithOAuth / WithPasswordReset; called once at startup
+// before any route serves traffic. The gateway passes a Redis-backed
+// implementation (mandatory in prod/staging). When never called, the
+// login/register/refresh routes fall back to the per-route in-memory
+// limiter wired in RegisterRoutes — a dev/test-only posture.
+func (h *Handler) WithAttemptLimiter(a AttemptLimiter) {
+	h.attempts = a
+}
+
+// WithBreachChecker injects the advisory password-breach checker (HIBP).
+// Symmetric with the other With* injectors; call once at startup.
+func (h *Handler) WithBreachChecker(b BreachChecker) {
+	h.breach = b
+}
+
+// WithPasswordHistory injects the password-history store used to reject
+// reuse of recent passwords on change/reset. Symmetric With* injector.
+func (h *Handler) WithPasswordHistory(s *PasswordHistoryStore) {
+	h.passwordHistory = s
+}
+
+// WithSecurityNotifications injects the mailer used for anti-ATO alerts
+// (new-device login, password change/reset). Symmetric With* injector;
+// call once at startup. nil leaves notifications disabled.
+func (h *Handler) WithSecurityNotifications(m Mailer) {
+	h.securityMailer = m
+}
+
+// notifyPasswordChanged fires (fire-and-forget) the "your password was
+// changed" email. Shared by change-password and reset redemption.
+// nil-safe; a missing mailer or email is a no-op. Values are
+// snapshotted into the goroutine so a later mutation of *User cannot
+// race the send.
+func (h *Handler) notifyPasswordChanged(r *http.Request, user *User) {
+	if h.securityMailer == nil || user == nil || strings.TrimSpace(user.Email) == "" {
+		return
+	}
+	to := user.Email
+	name := user.Username
+	when := time.Now().UTC().Format(time.RFC1123)
+	ip := h.cfg.IPResolver().Resolve(r)
+	ua := r.UserAgent()
+	go func() {
+		body := mails.PasswordChangedHTML(name, when, ip, ua)
+		h.securityMailer.SendWithRetry(to, mails.PasswordChangedSubject, body)
+	}()
+}
+
+// notifyNewLogin fires (fire-and-forget) the new-sign-in email.
+// nil-safe. Snapshots values into the goroutine.
+func (h *Handler) notifyNewLogin(r *http.Request, user *User) {
+	if h.securityMailer == nil || user == nil || strings.TrimSpace(user.Email) == "" {
+		return
+	}
+	to := user.Email
+	name := user.Username
+	when := time.Now().UTC().Format(time.RFC1123)
+	ip := h.cfg.IPResolver().Resolve(r)
+	ua := r.UserAgent()
+	go func() {
+		body := mails.NewLoginHTML(name, when, ip, ua)
+		h.securityMailer.SendWithRetry(to, mails.NewLoginSubject, body)
+	}()
+}
+
+// rejectReusedPassword enforces the no-reuse policy for a NEW password.
+// Returns true when the password may be used. On a detected reuse it
+// writes a 400 and returns false. A history-store ERROR is fail-OPEN
+// (logged, returns true) so a transient DB issue never blocks a
+// legitimate change. When history is not wired the check is skipped.
+func (h *Handler) rejectReusedPassword(w http.ResponseWriter, r *http.Request, userID, plaintext string) bool {
+	if h.passwordHistory == nil {
+		return true
+	}
+	reused, err := h.passwordHistory.IsReused(r.Context(), userID, plaintext)
+	if err != nil {
+		h.log.Warn().Err(err).Str("user_id", userID).Msg("password_history_check_failed_failing_open")
+		return true
+	}
+	if reused {
+		writeAuthError(w, http.StatusBadRequest,
+			fmt.Sprintf("password must not match any of your last %d passwords", PasswordHistorySize))
+		return false
+	}
+	return true
+}
+
+// recordPasswordHistory appends a newly-stored hash to the user's
+// history. Best-effort: a failure is logged but never fails the
+// password operation that already succeeded.
+func (h *Handler) recordPasswordHistory(r *http.Request, userID, passwordHash string) {
+	if h.passwordHistory == nil {
+		return
+	}
+	if err := h.passwordHistory.RecordHash(r.Context(), userID, passwordHash); err != nil {
+		h.log.Warn().Err(err).Str("user_id", userID).Msg("password_history_record_failed")
+	}
+}
+
+// checkBreachAllowed enforces the breach policy for a NEW password.
+// Returns true when the password may be stored. On a confirmed breach
+// it writes a 400 and returns false. On a checker error it fails OPEN
+// (logs, returns true) so an HIBP outage never blocks a password set.
+// When no checker is injected the feature is disabled and it returns
+// true.
+func (h *Handler) checkBreachAllowed(w http.ResponseWriter, r *http.Request, plaintext string) bool {
+	if h.breach == nil {
+		return true
+	}
+	breached, err := h.breach.IsBreached(r.Context(), plaintext)
+	if err != nil {
+		h.log.Warn().Err(err).Msg("password_breach_check_failed_failing_open")
+		return true
+	}
+	if breached {
+		writeAuthError(w, http.StatusBadRequest,
+			"this password has appeared in a known data breach; please choose a different password")
+		return false
+	}
+	return true
+}
+
+// rateGate applies the cluster-wide rate limit for the given scope when
+// an AttemptLimiter is injected. Returns true when the request may
+// proceed. On denial it writes a 429 with Retry-After and returns false
+// so the caller early-returns. When no limiter is injected it returns
+// true (the per-route in-memory limiter from RegisterRoutes is then the
+// active control), so this is safe to call unconditionally.
+func (h *Handler) rateGate(w http.ResponseWriter, r *http.Request, scope string) bool {
+	if h.attempts == nil {
+		return true
+	}
+	ip := h.cfg.IPResolver().Resolve(r)
+	allowed, retryAfter := h.attempts.AllowRequest(r.Context(), scope, ip)
+	if allowed {
+		return true
+	}
+	writeRetryAfter(w, retryAfter)
+	writeAuthError(w, http.StatusTooManyRequests, "rate limit exceeded, try again later")
+	return false
+}
+
+// writeRetryAfter sets the Retry-After header (seconds, rounded up, min 1).
+func writeRetryAfter(w http.ResponseWriter, d time.Duration) {
+	secs := int(d.Seconds())
+	if d > 0 && secs < 1 {
+		secs = 1
+	}
+	if secs < 0 {
+		secs = 0
+	}
+	if secs > 0 {
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", secs))
+	}
+}
+
 // RegisterRoutes mounts all auth routes on the given mux.
 //
 // /auth/logout is mounted with OptionalAuth so a user whose access
@@ -115,6 +301,23 @@ func (h *Handler) WithLogger(log zerolog.Logger) {
 // refresh-token body field (or refresh cookie) to revoke the session
 // when possible; cookie clearing happens regardless.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, ts *TokenService) {
+	// Rate limiting is LAYERED and the two layers are deliberate, not
+	// redundant:
+	//
+	//   Layer 1 (here): per-route, per-pod, in-memory RateLimiter
+	//     wrappers. Cheap local burst cap. In dev/test (no injected
+	//     AttemptLimiter) this is the ONLY rate control, so it must
+	//     stay. In prod it is a harmless first-line burst guard.
+	//
+	//   Layer 2 (in the handlers): the cluster-wide AttemptLimiter
+	//     (rateGate + IsLocked/RegisterFailure), backed by Redis and
+	//     injected via WithAttemptLimiter. This is the AUTHORITATIVE
+	//     control in prod/staging (shared across replicas + per-account
+	//     lockout) and the container wiring fails closed if it is
+	//     absent there.
+	//
+	// Do not remove Layer 1 to "de-duplicate": that would leave dev
+	// with no rate limiting at all.
 	loginLimiter := NewRateLimiter(10, 1*time.Minute)
 	registerLimiter := NewRateLimiter(5, 1*time.Minute)
 	refreshLimiter := NewRateLimiter(20, 1*time.Minute)
@@ -192,6 +395,25 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cluster-wide IP rate gate (defeats per-pod-limit bypass at scale).
+	if !h.rateGate(w, r, ScopeLogin) {
+		return
+	}
+
+	// Per-account lockout key. Normalised so the counter is stable
+	// across case/whitespace variants of the same username.
+	accountKey := strings.ToLower(req.Username)
+
+	// Pre-check the lock BEFORE any DB read or password compute so a
+	// locked account costs no work and a generic 429 is returned.
+	if h.attempts != nil {
+		if locked, retryAfter := h.attempts.IsLocked(r.Context(), accountKey); locked {
+			writeRetryAfter(w, retryAfter)
+			writeAuthError(w, http.StatusTooManyRequests, "too many failed attempts; account temporarily locked, try again later")
+			return
+		}
+	}
+
 	user, err := h.users.GetUserByUsername(r.Context(), req.Username)
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "internal error")
@@ -206,8 +428,57 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := user.CheckPassword(req.Password); err != nil {
+		// Record the failure against the account and, if it crosses the
+		// lockout threshold, surface a 429 + Retry-After so the client
+		// learns to back off. The wording is intentionally close to the
+		// rate-limit message and never confirms whether the username
+		// exists.
+		if h.attempts != nil {
+			if locked, retryAfter := h.attempts.RegisterFailure(r.Context(), accountKey); locked {
+				writeRetryAfter(w, retryAfter)
+				writeAuthError(w, http.StatusTooManyRequests, "too many failed attempts; account temporarily locked, try again later")
+				return
+			}
+		}
 		writeAuthError(w, http.StatusUnauthorized, "invalid username or password")
 		return
+	}
+
+	// Successful credential check: clear the failed-attempt counter.
+	if h.attempts != nil {
+		h.attempts.ResetFailures(r.Context(), accountKey)
+	}
+
+	// New-device / new-location detection. Check whether this user has
+	// EVER signed in from this client IP BEFORE we create the session
+	// row below (which would otherwise make the check always match).
+	// A first-time IP triggers an anti-ATO notification. Fail-open: a
+	// store error is logged and treated as "known device" so a DB blip
+	// neither blocks the login nor sends a false alert.
+	clientIP := h.cfg.IPResolver().Resolve(r)
+	knownDevice := true
+	if seen, derr := h.sessions.HasPriorSessionFromIP(r.Context(), user.ID, clientIP); derr != nil {
+		h.log.Warn().Err(derr).Str("user_id", user.ID).Msg("new_device_check_failed_failing_open")
+	} else {
+		knownDevice = seen
+	}
+
+	// Transparent hash upgrade: if the stored hash is legacy bcrypt (or
+	// weaker-parameter Argon2id), re-hash the just-verified plaintext
+	// with current Argon2id parameters and persist it. Non-fatal: a
+	// failure here must never block an otherwise-valid login, so the
+	// error is logged and the login proceeds (the upgrade retries on
+	// the next sign-in).
+	if user.NeedsPasswordRehash() {
+		if err := user.SetPassword(req.Password); err == nil {
+			if err := h.users.UpdatePassword(r.Context(), user.ID, user.PasswordHash); err != nil {
+				h.log.Warn().Err(err).Str("user_id", user.ID).Msg("password_rehash_persist_failed")
+			} else {
+				h.log.Info().Str("user_id", user.ID).Msg("password_hash_upgraded_to_argon2id")
+			}
+		} else {
+			h.log.Warn().Err(err).Str("user_id", user.ID).Msg("password_rehash_compute_failed")
+		}
 	}
 
 	pair, rawRefresh, err := h.tokens.IssueTokenPair(user)
@@ -238,6 +509,14 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = h.users.UpdateLastLogin(r.Context(), user.ID)
+
+	// Anti-ATO: a successful sign-in from an IP we've never seen for
+	// this user gets a notification so the owner can react to a
+	// credential-stuffing hit even when the attacker has the password.
+	if !knownDevice {
+		h.log.Info().Str("user_id", user.ID).Str("client_ip", clientIP).Msg("new_device_login_detected")
+		h.notifyNewLogin(r, user)
+	}
 
 	h.writeSessionCookies(w, user.ID, pair.AccessToken, rawRefresh)
 	writeJSON(w, http.StatusOK, h.loginResponseBody(user, pair))
@@ -276,6 +555,10 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.rateGate(w, r, ScopeRegister) {
+		return
+	}
+
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
@@ -309,6 +592,16 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: now,
 	}
 
+	// Complexity first (cheap, offline), then the advisory breach check
+	// (network, fail-open) only once the password is otherwise valid.
+	if err := ValidatePasswordComplexity(req.Password, req.Username, req.Email); err != nil {
+		writeAuthError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !h.checkBreachAllowed(w, r, req.Password) {
+		return
+	}
+
 	if err := user.SetPassword(req.Password); err != nil {
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
@@ -322,6 +615,10 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusInternalServerError, "failed to create user")
 		return
 	}
+
+	// Seed password history with the first hash so the initial password
+	// counts toward the no-reuse window on a later change/reset.
+	h.recordPasswordHistory(r, user.ID, user.PasswordHash)
 
 	pair, rawRefresh, err := h.tokens.IssueTokenPair(user)
 	if err != nil {
@@ -359,6 +656,10 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.rateGate(w, r, ScopeRefresh) {
+		return
+	}
+
 	var req refreshRequest
 	if r.Body != nil && r.ContentLength != 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -381,6 +682,26 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 	if sess == nil {
 		writeAuthError(w, http.StatusUnauthorized, "invalid refresh token")
+		return
+	}
+
+	// Refresh-token reuse detection. A token that maps to a session
+	// which is REVOKED but NOT yet expired has already been rotated
+	// once: presenting it again means either the legitimate client
+	// replayed an old token OR the token was stolen and the thief (or
+	// victim) is racing the rotation. Either way it is a theft signal.
+	// Contain it by revoking the user's ENTIRE session family so the
+	// token held by BOTH parties is dead and a fresh login is required.
+	if sess.Revoked && !sess.IsExpired() {
+		_ = h.sessions.RevokeAllUserSessions(r.Context(), sess.UserID)
+		h.clearSessionCookies(w)
+		h.log.Warn().
+			Str("event", "refresh_token_reuse_detected").
+			Str("user_id", sess.UserID).
+			Str("session_id", sess.ID).
+			Str("client_ip", h.cfg.IPResolver().Resolve(r)).
+			Msg("refresh_token_reuse_detected_all_sessions_revoked")
+		writeAuthError(w, http.StatusUnauthorized, "refresh token reuse detected; all sessions revoked, please sign in again")
 		return
 	}
 	if !sess.IsUsable() {
@@ -544,6 +865,17 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := ValidatePasswordComplexity(req.NewPassword, user.Username, user.Email); err != nil {
+		writeAuthError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !h.rejectReusedPassword(w, r, userID, req.NewPassword) {
+		return
+	}
+	if !h.checkBreachAllowed(w, r, req.NewPassword) {
+		return
+	}
+
 	if err := user.SetPassword(req.NewPassword); err != nil {
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
@@ -554,7 +886,21 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.recordPasswordHistory(r, userID, user.PasswordHash)
+
 	_ = h.sessions.RevokeAllUserSessions(r.Context(), userID)
+
+	// Kill long-lived service tokens too: a password change is the
+	// canonical compromise response, and service tokens are NOT in the
+	// session store. Bumping the epoch makes any service token minted
+	// under the old credential fail its next verify. Best-effort.
+	if _, err := h.users.BumpTokenEpoch(r.Context(), userID); err != nil {
+		h.log.Warn().Err(err).Str("user_id", userID).Msg("token_epoch_bump_failed_on_password_change")
+	}
+
+	// Anti-ATO: confirm the change out-of-band so a victim whose
+	// account was taken over still learns their password was rotated.
+	h.notifyPasswordChanged(r, user)
 
 	h.clearSessionCookies(w)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "password updated, all sessions revoked"})
@@ -689,6 +1035,14 @@ func (h *Handler) handleAdminUserAction(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		_ = h.sessions.RevokeAllUserSessions(r.Context(), userID)
+		// Revoke the user's long-lived service tokens immediately. The
+		// session revoke above only kills access/refresh tokens;
+		// service tokens (30-day, background workers) live outside the
+		// session store and would otherwise keep a deactivated user's
+		// autonomous trading alive until expiry. Best-effort.
+		if _, err := h.users.BumpTokenEpoch(r.Context(), userID); err != nil {
+			h.log.Warn().Err(err).Str("user_id", userID).Msg("token_epoch_bump_failed_on_deactivate")
+		}
 		writeJSON(w, http.StatusOK, map[string]string{"message": "user deactivated", "id": userID})
 
 	case "activate":

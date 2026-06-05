@@ -1,22 +1,49 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// EpochResolver resolves a user's current token epoch. Implemented by
+// auth.UserStore (GetTokenEpoch). Injected into TokenService so the
+// service-token verification path can reject a token whose 'tv' claim
+// is below the user's current epoch, WITHOUT the auth package taking a
+// direct database dependency.
+type EpochResolver interface {
+	GetTokenEpoch(ctx context.Context, userID string) (int, error)
+}
+
 // TokenService handles JWT access token creation and verification,
 // and refresh token generation. Stateless for access tokens;
 // refresh tokens are persisted in the session store.
+//
+// epochResolver is optional. When set, VerifyAccessToken enforces the
+// per-user token epoch on SERVICE tokens only (see WithEpochResolver).
 type TokenService struct {
-	cfg *Config
+	cfg           *Config
+	epochResolver EpochResolver
 }
 
 // NewTokenService creates a token service with the given auth config.
 func NewTokenService(cfg *Config) *TokenService {
 	return &TokenService{cfg: cfg}
+}
+
+// WithEpochResolver attaches an epoch resolver so service-token
+// verification rejects tokens minted before the user's current epoch
+// (i.e. revoked via UserStore.BumpTokenEpoch). Nil is a no-op, leaving
+// service tokens un-epoch-checked -- which is the correct default for
+// callers that do NOT consume service tokens (e.g. the gateway's
+// user-facing HTTP verification) so they pay no per-verify DB lookup.
+//
+// Returns the receiver for chaining at construction.
+func (ts *TokenService) WithEpochResolver(r EpochResolver) *TokenService {
+	ts.epochResolver = r
+	return ts
 }
 
 // IssueTokenPair creates a new access + refresh token pair for the
@@ -37,6 +64,7 @@ func (ts *TokenService) IssueTokenPair(user *User) (*TokenPair, string, error) {
 		"iss":      ts.cfg.Issuer,
 		"iat":      now.Unix(),
 		"exp":      accessExpiry.Unix(),
+		"tv":       user.TokenEpoch,
 	}
 
 	// Sign the access token with HMAC-SHA256.
@@ -104,16 +132,30 @@ func (ts *TokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
 		return nil, fmt.Errorf("missing or invalid 'role' claim")
 	}
 
+	// Validate the issuer. Tokens are minted with iss = cfg.Issuer;
+	// a token whose issuer does not match (e.g. one signed with the
+	// same HMAC secret for a different purpose) is rejected. Tier 4
+	// "Token issuer validation".
+	if iss, ok := mapClaims["iss"].(string); !ok || iss != ts.cfg.Issuer {
+		return nil, fmt.Errorf("invalid or missing 'iss' claim")
+	}
+
+	// tier is an entitlement floor, not a security gate. Defaulting a
+	// missing tier to "free" is fail-SAFE (least privilege), so it is
+	// permitted to default.
 	if tier, ok := mapClaims["tier"].(string); ok {
 		claims.Tier = tier
 	} else {
 		claims.Tier = "free"
 	}
 
-	if status, ok := mapClaims["status"].(string); ok {
+	// status IS a security gate (active / suspended / deactivated).
+	// A token missing or carrying a non-string status is rejected
+	// rather than coerced to "active" -- fail CLOSED, not open.
+	if status, ok := mapClaims["status"].(string); ok && status != "" {
 		claims.Status = status
 	} else {
-		claims.Status = "active"
+		return nil, fmt.Errorf("missing or invalid 'status' claim")
 	}
 
 	if iat, ok := mapClaims["iat"].(float64); ok {
@@ -124,9 +166,45 @@ func (ts *TokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
 		claims.Expiry = int64(exp)
 	}
 
+	// 'tv' (token epoch / version). Best-effort parse: a token minted
+	// before this claim existed parses as 0. Enforced for service
+	// tokens below.
+	if tv, ok := mapClaims["tv"].(float64); ok {
+		claims.TokenEpoch = int(tv)
+	}
+
+	// 'token_type'. "svc" marks a long-lived service token.
+	if tt, ok := mapClaims["token_type"].(string); ok {
+		claims.TokenType = tt
+	}
+
 	// Double-check expiry (jwt.Parse already checks, but be explicit).
 	if claims.IsExpired() {
 		return nil, fmt.Errorf("token expired")
+	}
+
+	// Service-token revocation check. Only service tokens are
+	// epoch-enforced, and only when a resolver is configured (the
+	// services that consume service tokens -- execution + management --
+	// wire UserStore as the resolver in their gRPC interceptor; the
+	// gateway's user-facing path leaves it nil so access tokens never
+	// pay a DB lookup).
+	//
+	// Fail CLOSED: a money-moving service credential must not pass when
+	// its revocation state cannot be confirmed. A resolver error, or a
+	// resolved epoch ahead of the token's 'tv' (bumped via
+	// BumpTokenEpoch), or epoch 0 (user deleted), all reject.
+	if claims.IsServiceToken() && ts.epochResolver != nil {
+		current, err := ts.epochResolver.GetTokenEpoch(context.Background(), claims.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("service token epoch check failed: %w", err)
+		}
+		if current == 0 {
+			return nil, fmt.Errorf("service token rejected: unknown user")
+		}
+		if claims.TokenEpoch < current {
+			return nil, fmt.Errorf("service token revoked (epoch %d < %d)", claims.TokenEpoch, current)
+		}
 	}
 
 	return claims, nil
@@ -147,7 +225,7 @@ func (ts *TokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
 // autonomous 24/7 operations. They are re-issued on service restart for
 // each user with active trades, and replaced by fresh user session tokens
 // when the user authenticates.
-func (ts *TokenService) IssueServiceToken(userID, username string, role Role, tier, statusClaim string) (string, error) {
+func (ts *TokenService) IssueServiceToken(userID, username string, role Role, tier, statusClaim string, tokenEpoch int) (string, error) {
 	if userID == "" {
 		return "", fmt.Errorf("issue service token: userID must not be empty")
 	}
@@ -177,6 +255,7 @@ func (ts *TokenService) IssueServiceToken(userID, username string, role Role, ti
 		"iat":        now.Unix(),
 		"exp":        expiry.Unix(),
 		"token_type": "svc",
+		"tv":         tokenEpoch,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

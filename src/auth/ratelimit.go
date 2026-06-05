@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -78,40 +77,6 @@ func (rl *RateLimiter) RateLimitMiddlewareWithResolver(resolver *ClientIPResolve
 		}
 		next(w, r)
 	}
-}
-
-// RateLimitMiddleware wraps an http.HandlerFunc with rate limiting
-// using a safe default identity: the immediate connection peer.
-// Forwarding headers are NOT honoured because no resolver was
-// supplied, which prevents header spoofing in any caller that has not
-// yet been wired through Config.IPResolver(). Returns 429 Too Many
-// Requests when the limit is exceeded.
-//
-// Prefer RateLimitMiddlewareWithResolver in new code.
-func (rl *RateLimiter) RateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ip := peerOnly(r.RemoteAddr)
-		if !rl.Allow(ip) {
-			w.Header().Set("Retry-After", "60")
-			writeAuthError(w, http.StatusTooManyRequests, "rate limit exceeded, try again later")
-			return
-		}
-		next(w, r)
-	}
-}
-
-// peerOnly returns the host portion of a RemoteAddr, falling back to
-// the raw value if it cannot be parsed. Mirrors the safe path of the
-// trust-aware resolver's untrusted-peer branch.
-func peerOnly(remoteAddr string) string {
-	if remoteAddr == "" {
-		return remoteAddr
-	}
-	host, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		return remoteAddr
-	}
-	return host
 }
 
 // Close stops the background cleanup goroutine.

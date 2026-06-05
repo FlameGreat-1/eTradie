@@ -93,6 +93,13 @@ func main() {
 	}
 	userStore := auth.NewUserStore(pool)
 
+	// Management consumes long-lived service tokens (the gRPC auth
+	// interceptor below verifies them). Attach the user store as the
+	// epoch resolver so a revoked service token (token_epoch bumped via
+	// UserStore.BumpTokenEpoch) is rejected at verify. User access
+	// tokens are unaffected (only token_type=="svc" is epoch-checked).
+	tokenService = tokenService.WithEpochResolver(userStore)
+
 	// -- Broker implementation ---------------------------------------------
 	var bp broker.Port
 	if cfg.IsMT5Mode() {
@@ -322,7 +329,7 @@ func main() {
 				log.Warn().Str("user_id", userID).Str("username", user.Username).Msg("skipping_service_token_for_deactivated_user")
 				continue
 			}
-			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status)
+			svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status, user.TokenEpoch)
 			if err != nil {
 				log.Error().Err(err).Str("user_id", userID).Msg("service_token_issue_failed")
 				continue
@@ -480,7 +487,7 @@ func main() {
 						continue
 					}
 
-					svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status)
+					svcToken, err := tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status, user.TokenEpoch)
 					if err != nil {
 						renewalLog.Error().Err(err).Str("user_id", uid).Msg("renewal_token_issue_failed")
 						continue

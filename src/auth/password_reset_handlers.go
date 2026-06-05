@@ -352,9 +352,21 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SetPassword applies the same length constraints and bcrypt cost
-	// as register / change-password. Any policy change to those rules
-	// (eg adding a complexity check) flows here for free.
+	// Enforce the same NEW-password policy as register / change-
+	// password: complexity (offline) then the advisory breach check
+	// (network, fail-open). SetPassword re-validates complexity as a
+	// backstop.
+	if err := ValidatePasswordComplexity(req.NewPassword, user.Username, user.Email); err != nil {
+		writeAuthError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !h.rejectReusedPassword(w, r, user.ID, req.NewPassword) {
+		return
+	}
+	if !h.checkBreachAllowed(w, r, req.NewPassword) {
+		return
+	}
+
 	if err := user.SetPassword(req.NewPassword); err != nil {
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
@@ -365,10 +377,23 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.recordPasswordHistory(r, user.ID, user.PasswordHash)
+
 	// Symmetric with PUT /auth/me/password: a password change kills
 	// every session so an attacker who had access to a logged-in tab
 	// is logged out the moment the legitimate user resets the password.
 	_ = h.sessions.RevokeAllUserSessions(r.Context(), user.ID)
+
+	// And the long-lived service tokens, which are outside the session
+	// store. A reset is an account-recovery action, so any service
+	// token minted under the old credential must die too. Best-effort.
+	if _, err := h.users.BumpTokenEpoch(r.Context(), user.ID); err != nil {
+		h.log.Warn().Err(err).Str("user_id", user.ID).Msg("token_epoch_bump_failed_on_password_reset")
+	}
+
+	// Anti-ATO: confirm the reset out-of-band. Symmetric with
+	// PUT /auth/me/password.
+	h.notifyPasswordChanged(r, user)
 
 	h.clearSessionCookies(w)
 

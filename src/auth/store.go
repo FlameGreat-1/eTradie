@@ -58,6 +58,12 @@ ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS auth_provider  TEXT NOT NULL DEF
 ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS avatar_url     TEXT NOT NULL DEFAULT '';
 ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Per-user token epoch. Stamped into issued JWTs as the 'tv' claim;
+-- bumping it invalidates every outstanding token (notably the
+-- long-lived service tokens) carrying an older value. Default 1 so
+-- existing rows have a valid epoch immediately.
+ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS token_epoch INTEGER NOT NULL DEFAULT 1;
+
 -- Allow federated accounts to have no local password.
 ALTER TABLE auth_users ALTER COLUMN password_hash DROP NOT NULL;
 ALTER TABLE auth_users ALTER COLUMN password_hash SET DEFAULT '';
@@ -153,7 +159,108 @@ CREATE INDEX IF NOT EXISTS idx_auth_password_resets_expires_at ON auth_password_
 CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_password_resets_user_active
     ON auth_password_resets (user_id)
     WHERE consumed = FALSE;
+
+-- Password history. Stores prior password hashes so a change/reset can
+-- reject reuse of the last N passwords (Tier 1 "Password history
+-- controls"). Only HASHES are stored (Argon2id, or legacy bcrypt for
+-- rows recorded before the migration); never plaintext. Bounded per
+-- user by the store's prune-on-insert.
+CREATE TABLE IF NOT EXISTS auth_password_history (
+    id            TEXT PRIMARY KEY,
+    user_id       TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    password_hash TEXT NOT NULL,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_password_history_user_created
+    ON auth_password_history (user_id, created_at DESC);
 `
+}
+
+// ---------------------------------------------------------------------------
+// Password History Store
+// ---------------------------------------------------------------------------
+
+// PasswordHistorySize is the number of prior passwords a user may not
+// reuse. A change/reset whose new password matches any of the most
+// recent PasswordHistorySize hashes is rejected.
+const PasswordHistorySize = 5
+
+// PasswordHistoryStore persists prior password hashes for reuse
+// prevention.
+type PasswordHistoryStore struct {
+	pool *pgxpool.Pool
+}
+
+// NewPasswordHistoryStore creates a history store on the given pool.
+func NewPasswordHistoryStore(pool *pgxpool.Pool) *PasswordHistoryStore {
+	return &PasswordHistoryStore{pool: pool}
+}
+
+// RecordHash appends a password hash to the user's history and prunes
+// rows beyond PasswordHistorySize so the table stays bounded. Called
+// AFTER a successful password change/reset with the newly-stored hash.
+func (s *PasswordHistoryStore) RecordHash(ctx context.Context, userID, passwordHash string) error {
+	if userID == "" || passwordHash == "" {
+		return fmt.Errorf("password history: user_id and hash are required")
+	}
+	if _, err := s.pool.Exec(ctx,
+		`INSERT INTO auth_password_history (id, user_id, password_hash, created_at)
+		 VALUES ($1, $2, $3, NOW())`,
+		GenerateID(), userID, passwordHash,
+	); err != nil {
+		return fmt.Errorf("password history: insert: %w", err)
+	}
+	// Prune everything older than the most recent PasswordHistorySize
+	// rows for this user.
+	if _, err := s.pool.Exec(ctx,
+		`DELETE FROM auth_password_history
+		  WHERE user_id = $1
+		    AND id NOT IN (
+		        SELECT id FROM auth_password_history
+		         WHERE user_id = $1
+		         ORDER BY created_at DESC
+		         LIMIT $2
+		    )`,
+		userID, PasswordHistorySize,
+	); err != nil {
+		return fmt.Errorf("password history: prune: %w", err)
+	}
+	return nil
+}
+
+// IsReused reports whether plaintext matches any of the user's most
+// recent PasswordHistorySize stored hashes. Uses VerifyPassword so both
+// Argon2id and legacy bcrypt history rows are compared correctly.
+func (s *PasswordHistoryStore) IsReused(ctx context.Context, userID, plaintext string) (bool, error) {
+	if userID == "" || plaintext == "" {
+		return false, nil
+	}
+	rows, err := s.pool.Query(ctx,
+		`SELECT password_hash FROM auth_password_history
+		  WHERE user_id = $1
+		  ORDER BY created_at DESC
+		  LIMIT $2`,
+		userID, PasswordHistorySize,
+	)
+	if err != nil {
+		return false, fmt.Errorf("password history: query: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var hash string
+		if err := rows.Scan(&hash); err != nil {
+			return false, fmt.Errorf("password history: scan: %w", err)
+		}
+		if VerifyPassword(hash, plaintext) == nil {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("password history: rows: %w", err)
+	}
+	return false, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -391,6 +498,7 @@ func (s *UserStore) CountAdmins(ctx context.Context) (int, error) {
 const userColumns = `a.id, a.username, a.email, a.password_hash, a.role, a.active,
         a.auth_provider, a.avatar_url, a.email_verified,
         a.created_at, a.updated_at, a.last_login_at,
+        a.token_epoch,
         COALESCE(b.tier, 'free'), COALESCE(b.status, 'active')`
 
 func (s *UserStore) scanUser(row pgx.Row) (*User, error) {
@@ -401,6 +509,7 @@ func (s *UserStore) scanUser(row pgx.Row) (*User, error) {
 		&u.Role, &u.Active,
 		&u.AuthProvider, &u.AvatarURL, &u.EmailVerified,
 		&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt,
+		&u.TokenEpoch,
 		&u.Tier, &u.Status,
 	)
 	if err != nil {
@@ -423,6 +532,7 @@ func (s *UserStore) scanUserFromRows(rows pgx.Rows) (*User, error) {
 		&u.Role, &u.Active,
 		&u.AuthProvider, &u.AvatarURL, &u.EmailVerified,
 		&u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt,
+		&u.TokenEpoch,
 		&u.Tier, &u.Status,
 	)
 	if err != nil {
@@ -432,6 +542,41 @@ func (s *UserStore) scanUserFromRows(rows pgx.Rows) (*User, error) {
 		u.PasswordHash = *passwordHash
 	}
 	return u, nil
+}
+
+// GetTokenEpoch returns the user's current token epoch. Used by the
+// service-token verification path to reject tokens minted before a
+// revocation (epoch bump). Returns (0, nil) when the user does not
+// exist so the caller treats it as an invalid token.
+func (s *UserStore) GetTokenEpoch(ctx context.Context, userID string) (int, error) {
+	var epoch int
+	err := s.pool.QueryRow(ctx,
+		`SELECT token_epoch FROM auth_users WHERE id = $1`, userID,
+	).Scan(&epoch)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("get token epoch: %w", err)
+	}
+	return epoch, nil
+}
+
+// BumpTokenEpoch increments the user's token epoch and returns the new
+// value. This is the revocation operation: every token carrying an
+// older 'tv' claim is rejected on its next verify. Used on admin
+// deactivation and as the operator lever to kill a leaked service
+// token.
+func (s *UserStore) BumpTokenEpoch(ctx context.Context, userID string) (int, error) {
+	var epoch int
+	err := s.pool.QueryRow(ctx,
+		`UPDATE auth_users SET token_epoch = token_epoch + 1, updated_at = NOW()
+		  WHERE id = $1 RETURNING token_epoch`, userID,
+	).Scan(&epoch)
+	if err != nil {
+		return 0, fmt.Errorf("bump token epoch: %w", err)
+	}
+	return epoch, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -536,6 +681,32 @@ func (s *SessionStore) RevokeOldestSession(ctx context.Context, userID string) e
 	return nil
 }
 
+// HasPriorSessionFromIP reports whether the user already has at least
+// one session originating from the given client IP. Used by the login
+// path to detect a sign-in from a new device/location: call it BEFORE
+// inserting the new session, so an IP never seen for this user returns
+// false and the handler emits a new-sign-in security notification.
+//
+// A blank clientIP returns (false, nil) WITHOUT a query: an unknown
+// origin is treated as "not a known device" but we do not want every
+// IP-less request (e.g. a misconfigured proxy) to silently match. The
+// caller decides whether to notify on a blank IP.
+func (s *SessionStore) HasPriorSessionFromIP(ctx context.Context, userID, clientIP string) (bool, error) {
+	if userID == "" || clientIP == "" {
+		return false, nil
+	}
+	var exists bool
+	err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS (
+		   SELECT 1 FROM auth_sessions
+		    WHERE user_id = $1 AND client_ip = $2
+		 )`, userID, clientIP).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("has prior session from ip: %w", err)
+	}
+	return exists, nil
+}
+
 // CleanupExpiredSessions deletes sessions that expired more than
 // 24 hours ago. Called periodically to keep the table small.
 func (s *SessionStore) CleanupExpiredSessions(ctx context.Context) (int64, error) {
@@ -583,11 +754,18 @@ func SeedAdminUser(ctx context.Context, store *UserStore, cfg *Config) error {
 		UpdatedAt: now,
 	}
 
-	// Use configured password or a generated one.
+	// Use configured password or a generated one. The generated
+	// fallback is produced by GenerateStrongPassword so it satisfies
+	// the complexity policy SetPassword enforces (a hex-only token
+	// would be rejected for having too few character classes).
 	password := cfg.AdminPassword
 	generated := false
 	if !cfg.HasAdminSeedPassword() {
-		password = GenerateRefreshToken()[:16] // 16-char random password
+		gen, genErr := GenerateStrongPassword(20)
+		if genErr != nil {
+			return fmt.Errorf("seed admin: generate password: %w", genErr)
+		}
+		password = gen
 		generated = true
 	}
 
