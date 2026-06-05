@@ -146,19 +146,19 @@ function KillSwitchCard({ admin }: { admin: boolean }) {
         </div>
       )}
 
-      <Toggle
-        label="Halt my execution"
+      <HaltToggle
+        label="My Execution"
         hint="Blocks new trades on your account. Analysis continues."
-        checked={userHalted}
+        halted={userHalted}
         disabled={setUser.isPending}
         onChange={(v) => setUser.mutate(v)}
       />
 
       {admin && (
-        <Toggle
-          label="Global halt (all users)"
+        <HaltToggle
+          label="Global (All Users)"
           hint="Admin only. Blocks new trades for every user platform-wide."
-          checked={globalHalted}
+          halted={globalHalted}
           disabled={setGlobal.isPending}
           onChange={(v) => setGlobal.mutate(v)}
         />
@@ -167,41 +167,48 @@ function KillSwitchCard({ admin }: { admin: boolean }) {
   );
 }
 
-function Toggle({
+// HaltToggle renders the same segmented button group the Execution
+// Mode control uses: ACTIVE / HALTED instead of AUTO / LIMIT / INSTANT.
+function HaltToggle({
   label,
   hint,
-  checked,
+  halted,
   disabled,
   onChange,
 }: {
   label: string;
   hint: string;
-  checked: boolean;
+  halted: boolean;
   disabled?: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const options: Array<{ key: string; value: boolean }> = [
+    { key: 'ACTIVE', value: false },
+    { key: 'HALTED', value: true },
+  ];
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="flex flex-col gap-0.5">
-        <span className="text-sm font-bold text-black dark:text-white">{label}</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-black/40 dark:text-white/40">{label}</span>
         <span className="text-[11px] font-medium text-black/40 dark:text-white/40">{hint}</span>
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors duration-300 disabled:opacity-40 ${
-          checked ? 'bg-red-500' : 'bg-black/15 dark:bg-white/15'
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-300 ${
-            checked ? 'translate-x-5' : 'translate-x-0'
-          }`}
-        />
-      </button>
+      <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-xl p-1 border border-black/10 dark:border-white/10">
+        {options.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(opt.value)}
+            className={`px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 disabled:opacity-40 ${
+              halted === opt.value
+                ? 'bg-black dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 dark:shadow-white/10'
+                : 'text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white'
+            }`}
+          >
+            {opt.key}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
