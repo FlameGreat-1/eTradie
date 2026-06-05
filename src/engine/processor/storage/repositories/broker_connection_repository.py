@@ -36,6 +36,7 @@ from engine.shared.crypto import (
     active_key_version,
     decrypt_credential as _decrypt,
     encrypt_credential as _encrypt,
+    key_version_of,
 )
 from engine.shared.logging import get_logger
 
