@@ -150,6 +150,19 @@ func main() {
 		Bool("frontend_base_url_set", authCfg.FrontendBaseURL != "").
 		Msg("auth_password_reset_initialized")
 
+	// Password breach detection (HIBP k-anonymity). Enabled by default
+	// in production/staging; disabled in dev/test (no external call)
+	// unless explicitly turned on. AUTH_BREACH_CHECK_ENABLED=false is an
+	// explicit opt-out for air-gapped deployments. The checker is
+	// fail-open so enabling it carries no availability risk.
+	if breachCheckEnabled() {
+		authHandler.WithBreachChecker(auth.NewHIBPBreachChecker())
+		log.Info().Msg("auth_password_breach_check_enabled_hibp")
+	} else {
+		authHandler.WithBreachChecker(auth.NoopBreachChecker{})
+		log.Info().Msg("auth_password_breach_check_disabled")
+	}
+
 	// ── Cookie consent (GDPR / ePrivacy audit trail) ─────────────
 	// Same pool, same idempotent-DDL pattern as every other store.
 	// The consent service is independent of execution / engine /
@@ -596,4 +609,21 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// breachCheckEnabled decides whether the HIBP password-breach checker
+// is active. Explicit AUTH_BREACH_CHECK_ENABLED wins; otherwise it
+// defaults ON in production/staging and OFF in dev/test so local runs
+// make no external call.
+func breachCheckEnabled() bool {
+	if v := strings.ToLower(strings.TrimSpace(os.Getenv("AUTH_BREACH_CHECK_ENABLED"))); v != "" {
+		return v == "true" || v == "1" || v == "yes" || v == "on"
+	}
+	for _, k := range []string{"APP_ENV", "ENV", "ENVIRONMENT"} {
+		switch strings.ToLower(strings.TrimSpace(os.Getenv(k))) {
+		case "production", "prod", "staging":
+			return true
+		}
+	}
+	return false
 }
