@@ -61,9 +61,23 @@ Shared module `src/engine/shared/crypto/` (`credential_cipher.py`):
 - [x] 5. key_version wired end to end:
       - 5a ORM column declared on BrokerConnectionRow + LLMConnectionRow (SmallInteger import added to both schemas).
       - 5b write-through: broker create()/update_connection() stamp active_key_version() when encrypting mt5_password/ea_auth_token; LLM create()/create_platform()/update_connection() stamp it on every api_key encrypt.
-- [ ] 6. ExternalSecret + Helm values: optional `BROKER_ENCRYPTION_KEY_V<n>` plumbing for rotation.
+- [x] 6. Rotation plumbing landed end to end:
+      - helm/engine values: `externalSecrets.engine.rotationKeyVersions: []` (default empty), each entry { version>=2, property }.
+      - templates/externalsecret.yaml: renders one `BROKER_ENCRYPTION_KEY_V<n>` mapping per declared version (validated: version>=2, property required).
+      - deployment already envFroms the engine Secret, so the key reaches the pod as an env var that engine.shared.crypto's BROKER_ENCRYPTION_KEY_V<n> scan picks up -> highest version active.
+      - vault-paths/main.tf engine bootstrap string documents broker_encryption_key_v<n> as the rotation property (operator-populated).
 - [ ] 7. Re-wrap maintenance routine + admin/ops entrypoint (rotation/revocation execution).
 - [ ] 8. Final verification pass: grep all consumers, confirm no dead code / mismatch, update this tracker to DONE.
+
+### Verification notes (step 6)
+- Inert by default: rotationKeyVersions empty -> no extra data keys ->
+  no behavioural change. Rotation is an explicit overlay edit.
+- ESO-missing-property hazard avoided: versioned keys render only when
+  declared, so the steady-state sync never references an absent Vault
+  property.
+- Wiring is complete with NO pod-spec change because envFrom secretRef
+  already exposes every synced Secret key as an env var, and the crypto
+  module already discovers BROKER_ENCRYPTION_KEY_V<n>.
 
 ### Verification notes (steps 4-5)
 - Migration nullable + no server_default: NULL == legacy ciphertext;
