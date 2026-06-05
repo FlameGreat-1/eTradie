@@ -110,7 +110,7 @@ resource "vault_kv_secret_v2" "execution" {
   name                = "etradie/services/execution/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate keys: execution_database_url, execution_redis_url, auth_jwt_secret. auth_jwt_secret MUST equal etradie/services/gateway/${var.environment}:auth_jwt_secret. NOTE: no broker/credential encryption key here -- execution does not encrypt credentials; it reaches the broker via the engine /internal/broker/* bridge."
+    bootstrap = "placeholder; populate keys: execution_database_url, execution_redis_url, auth_jwt_secret, engine_internal_shared_secret. auth_jwt_secret MUST equal etradie/services/gateway/${var.environment}:auth_jwt_secret. engine_internal_shared_secret MUST equal etradie/services/gateway/${var.environment}:engine_internal_shared_secret AND the engine's value -- execution sends it in X-Internal-Auth on every /internal/broker/* call and the pod fails fast at startup without it when BROKER_MODE=mt5 in production/staging. NOTE: no broker/credential encryption KEK here -- execution does not encrypt credentials; it reaches the broker via the engine /internal/broker/* bridge."
   })
   lifecycle {
     ignore_changes = [data_json]
@@ -123,7 +123,7 @@ resource "vault_kv_secret_v2" "management" {
   name                = "etradie/services/management/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate keys: management_database_url, management_redis_url, auth_jwt_secret. auth_jwt_secret MUST equal etradie/services/gateway/${var.environment}:auth_jwt_secret. NOTE: no broker/credential encryption key here -- management does not encrypt credentials; it reaches the broker via the engine /internal/broker/* bridge."
+    bootstrap = "placeholder; populate keys: management_database_url, management_redis_url, auth_jwt_secret, engine_internal_shared_secret. auth_jwt_secret MUST equal etradie/services/gateway/${var.environment}:auth_jwt_secret. engine_internal_shared_secret MUST equal etradie/services/gateway/${var.environment}:engine_internal_shared_secret AND the engine's value -- management sends it in X-Internal-Auth on every /internal/broker/* call and the pod fails fast at startup without it when BROKER_MODE=mt5 in production/staging. NOTE: no broker/credential encryption KEK here -- management does not encrypt credentials; it reaches the broker via the engine /internal/broker/* bridge."
   })
   lifecycle {
     ignore_changes = [data_json]
