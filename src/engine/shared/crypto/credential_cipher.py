@@ -40,16 +40,19 @@ Active (v2, AES-256-GCM data layer)::
 
     v2:<key_version>:<b64(wrapped_dek)>:<b64(nonce)>:<b64(gcm_ct||tag)>
 
-v1 (legacy envelope, Fernet data layer -- still decrypted)::
-
-    v1:<key_version>:<b64(wrapped_dek)>:<fernet(dek, plaintext)>
-
 Legacy (pre-envelope, no scheme prefix -- still decrypted): a bare
-Fernet token produced by ``Fernet(KEK).encrypt(plaintext)``.
+Fernet token produced by the previous implementation via
+``Fernet(KEK).encrypt(plaintext)``.
 
-``decrypt`` transparently handles all three, so existing broker + LLM
-rows keep working unchanged. ``encrypt`` always writes the active
-scheme (v2). The re-wrap maintenance job upgrades legacy + v1 -> v2.
+``decrypt`` transparently handles BOTH on-disk formats, so existing
+broker + LLM rows keep working unchanged. ``encrypt`` always writes the
+active scheme (v2). The re-wrap maintenance job upgrades legacy rows to
+v2 and re-wraps any v2 row whose KEK version is no longer active.
+
+There is intentionally no ``v1`` scheme: the only formats this engine
+has ever persisted are the active v2 envelope and the pre-envelope
+legacy bare-Fernet token. Adding an unreachable scheme branch would be
+dead code, so the format set is deliberately the two that exist.
 
 KEK versioning
 --------------
@@ -86,17 +89,20 @@ from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Self-describing ciphertext scheme tags.
+# Self-describing ciphertext scheme tag.
 #   v2 = AES-256-GCM data layer (active write scheme).
-#   v1 = Fernet data layer (still decrypted; upgraded to v2 on re-wrap).
-# Legacy (no prefix) = bare Fernet token (still decrypted).
-_SCHEME_V1 = "v1"
+# Legacy (no prefix) = bare Fernet token (still decrypted; upgraded to
+#   v2 on re-wrap). These are the only two formats this engine has ever
+#   written, so there is intentionally no v1 scheme.
 _SCHEME_V2 = "v2"
 _ACTIVE_SCHEME = _SCHEME_V2
 _FIELD_SEP = ":"
+_V2_FIELD_COUNT = 5  # v2:<ver>:<wrapped_dek>:<nonce>:<ct||tag>
 
 # AES-256-GCM parameters. 32-byte key = AES-256; 12-byte (96-bit) nonce
-# is the GCM standard and is generated fresh per encrypt call.
+# is the GCM standard and is generated fresh per encrypt call. The DEK
+# key size is sourced from _AES256_KEY_BYTES so there is one source of
+# truth for "this is AES-256".
 _AES256_KEY_BYTES = 32
 _GCM_NONCE_BYTES = 12
 
@@ -170,13 +176,14 @@ class CredentialCipher:
     def encrypt(self, plaintext: str) -> str:
         """Envelope-encrypt ``plaintext`` and return a ``v2`` token.
 
-        A fresh 256-bit DEK is generated per call and used to encrypt
-        the plaintext with AES-256-GCM (fresh 96-bit nonce, AEAD tag).
-        The DEK is then wrapped with the active KEK (Fernet wrap). The
-        GCM ciphertext returned by ``AESGCM.encrypt`` already has the
-        16-byte authentication tag appended.
+        A fresh DEK is generated per call (256-bit, sized from
+        ``_AES256_KEY_BYTES``) and used to encrypt the plaintext with
+        AES-256-GCM (fresh 96-bit nonce, AEAD tag). The DEK is then
+        wrapped with the active KEK (Fernet wrap). The GCM ciphertext
+        returned by ``AESGCM.encrypt`` already has the 16-byte
+        authentication tag appended.
         """
-        dek = AESGCM.generate_key(bit_length=256)
+        dek = AESGCM.generate_key(bit_length=_AES256_KEY_BYTES * 8)
         nonce = os.urandom(_GCM_NONCE_BYTES)
         ciphertext = AESGCM(dek).encrypt(nonce, plaintext.encode(), None)
         wrapped_dek = self._keks[self._active_version].encrypt(dek)
@@ -193,19 +200,17 @@ class CredentialCipher:
     # -- Decrypt -----------------------------------------------------------
 
     def decrypt(self, token: str) -> str:
-        """Decrypt a credential token (v2 AES-GCM, v1 Fernet, or legacy)."""
+        """Decrypt a credential token (v2 AES-256-GCM, or legacy Fernet)."""
         if token.startswith(_SCHEME_V2 + _FIELD_SEP):
             return self._decrypt_v2(token)
-        if token.startswith(_SCHEME_V1 + _FIELD_SEP):
-            return self._decrypt_v1(token)
         return self._decrypt_legacy(token)
 
     def _unwrap_dek(self, version: int, wrapped_dek_b64: str) -> bytes:
         """Resolve the KEK for ``version`` and unwrap the DEK.
 
-        Shared by the v1 and v2 decrypt paths (both wrap the DEK with a
-        Fernet KEK identically). Raises CredentialDecryptionError when
-        the version is not configured.
+        Raises CredentialDecryptionError when the version is not
+        configured (e.g. the key was revoked before the row was
+        re-wrapped).
         """
         kek = self._keks.get(version)
         if kek is None:
@@ -217,8 +222,8 @@ class CredentialCipher:
         return kek.decrypt(wrapped_dek)
 
     def _decrypt_v2(self, token: str) -> str:
-        parts = token.split(_FIELD_SEP, 4)
-        if len(parts) != 5:
+        parts = token.split(_FIELD_SEP, _V2_FIELD_COUNT - 1)
+        if len(parts) != _V2_FIELD_COUNT:
             raise CredentialDecryptionError(
                 "Malformed v2 credential token",
                 details={"reason": "expected 5 colon-separated fields"},
@@ -241,32 +246,6 @@ class CredentialCipher:
         except (InvalidToken, InvalidTag, ValueError, TypeError) as exc:
             raise CredentialDecryptionError(
                 "Failed to decrypt v2 credential token",
-                details={"key_version": version},
-            ) from exc
-
-    def _decrypt_v1(self, token: str) -> str:
-        parts = token.split(_FIELD_SEP, 3)
-        if len(parts) != 4:
-            raise CredentialDecryptionError(
-                "Malformed v1 credential token",
-                details={"reason": "expected 4 colon-separated fields"},
-            )
-        _, version_str, wrapped_dek_b64, ciphertext = parts
-        try:
-            version = int(version_str)
-        except ValueError as exc:
-            raise CredentialDecryptionError(
-                "Malformed v1 credential token",
-                details={"reason": "non-integer key version"},
-            ) from exc
-        try:
-            dek = self._unwrap_dek(version, wrapped_dek_b64)
-            return Fernet(dek).decrypt(ciphertext.encode()).decode()
-        except CredentialDecryptionError:
-            raise
-        except (InvalidToken, ValueError, TypeError) as exc:
-            raise CredentialDecryptionError(
-                "Failed to decrypt v1 credential token",
                 details={"key_version": version},
             ) from exc
 
@@ -293,34 +272,48 @@ class CredentialCipher:
     def needs_rewrap(self, token: str) -> bool:
         """True when ``token`` is not on the active scheme + active KEK.
 
-        Returns True for: legacy (no scheme), v1 (older Fernet data
-        layer -> upgrade to v2 AES-256-GCM), and any token wrapped under
-        a non-active KEK version. Used by the maintenance routine to
-        find rows worth re-wrapping after a key rotation or a scheme
-        upgrade.
+        Returns True for: legacy (no scheme -> upgrade to v2
+        AES-256-GCM) and any v2 token wrapped under a non-active KEK
+        version. Used by the maintenance routine to find rows worth
+        re-wrapping after a key rotation or a scheme upgrade.
         """
-        # Legacy (no scheme prefix) and v1 both need upgrading to the
-        # active scheme (v2).
+        # Legacy (no scheme prefix) needs upgrading to the active scheme.
         if not token.startswith(_ACTIVE_SCHEME + _FIELD_SEP):
             return True
         # Active scheme: re-wrap only when the KEK version is not active.
-        parts = token.split(_FIELD_SEP, 4)
-        if len(parts) != 5:
+        version = self.key_version_of(token)
+        if version is None:
             return False  # malformed; leave it for decrypt() to surface
+        return version != self._active_version
+
+    def key_version_of(self, token: str) -> Optional[int]:
+        """Return the KEK version a v2 token is wrapped under, else None.
+
+        None for legacy (no versioned wrap) or malformed tokens. Used by
+        the repositories to stamp an accurate ``key_version`` derived
+        from the ciphertext actually stored, rather than assuming the
+        active version, and by ``needs_rewrap`` to decide if a v2 row is
+        already on the active KEK.
+        """
+        if not token.startswith(_ACTIVE_SCHEME + _FIELD_SEP):
+            return None
+        parts = token.split(_FIELD_SEP, _V2_FIELD_COUNT - 1)
+        if len(parts) != _V2_FIELD_COUNT:
+            return None
         try:
-            return int(parts[1]) != self._active_version
+            return int(parts[1])
         except ValueError:
-            return False
+            return None
 
     def rewrap(self, token: str) -> str:
         """Return an equivalent active-scheme token (v2) under the active KEK.
 
-        Decrypts to plaintext using whichever scheme/key/version applies
-        (v2, v1, or legacy), then re-encrypts via ``encrypt`` -- which
-        always emits the active scheme (v2, AES-256-GCM) wrapped by the
-        active KEK. The stored credential value is unchanged; only its
-        protection is upgraded. This is what migrates legacy + v1 rows
-        to AES-256 and what completes a KEK rotation.
+        Decrypts to plaintext using whichever scheme/version applies
+        (v2 or legacy), then re-encrypts via ``encrypt`` -- which always
+        emits the active scheme (v2, AES-256-GCM) wrapped by the active
+        KEK. The stored credential value is unchanged; only its
+        protection is upgraded. This is what migrates legacy rows to
+        AES-256 and what completes a KEK rotation.
         """
         plaintext = self.decrypt(token)
         return self.encrypt(plaintext)
@@ -415,18 +408,23 @@ def reset_cipher_for_tests() -> None:
 
 
 def encrypt_credential(plaintext: str) -> str:
-    """Envelope-encrypt a credential with the active KEK version."""
+    """Envelope-encrypt a credential with the active KEK version (v2)."""
     return get_cipher().encrypt(plaintext)
 
 
 def decrypt_credential(token: str) -> str:
-    """Decrypt a credential token (v1 envelope or legacy Fernet)."""
+    """Decrypt a credential token (v2 AES-256-GCM envelope, or legacy Fernet)."""
     return get_cipher().decrypt(token)
 
 
 def active_key_version() -> int:
     """Current active KEK version (persisted alongside new ciphertext)."""
     return get_cipher().active_version
+
+
+def key_version_of(token: str) -> Optional[int]:
+    """KEK version a v2 token is wrapped under, or None (legacy/malformed)."""
+    return get_cipher().key_version_of(token)
 
 
 def needs_rewrap(token: str) -> bool:
