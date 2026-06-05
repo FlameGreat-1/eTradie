@@ -346,6 +346,28 @@ externalSecrets:
     # of truth - rotation invalidates every in-flight per-tenant
     # Secret (runbook in cluster/bootstrap/README.md step 10).
     mtNodeVaultPath: etradie/services/mt-node/production
+    # Credential-KEK rotation versions (Tier 3 envelope encryption).
+    #
+    # The base KEK is BROKER_ENCRYPTION_KEY (version 1), already mapped
+    # in templates/externalsecret.yaml. To ROTATE, add a new Vault
+    # property holding the new key and declare it here; the
+    # ExternalSecret then also delivers BROKER_ENCRYPTION_KEY_V<n> to
+    # the engine, engine.shared.crypto picks the HIGHEST version as the
+    # active write key, and the re-wrap routine (ops) migrates existing
+    # rows onto it. Once every row is re-wrapped, REMOVE the lower
+    # version's entry here to REVOKE it.
+    #
+    # Each entry:
+    #   - version:  integer >= 2 (version 1 is the base key).
+    #   - property: the Vault KV property under engine.vaultPath that
+    #               holds the raw key string.
+    # Empty by default: steady-state runs on version 1 only.
+    #
+    # Example (during a rotation to version 2):
+    #   rotationKeyVersions:
+    #     - version: 2
+    #       property: broker_encryption_key_v2
+    rotationKeyVersions: []
 
 resources:
   requests:

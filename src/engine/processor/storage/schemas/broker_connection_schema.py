@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Integer, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -117,6 +117,16 @@ class BrokerConnectionRow(ProcessorBase):
     )
     mt5_password_encrypted: Mapped[Optional[str]] = mapped_column(
         Text,
+        nullable=True,
+    )
+    # KEK version that wrapped the CURRENT ciphertext in this row's
+    # encrypted credential columns (envelope encryption,
+    # engine.shared.crypto). NULL means legacy pre-envelope ciphertext
+    # / unknown version; it is operational metadata only and is never
+    # load-bearing for decryption (the shared cipher decrypts legacy
+    # tokens regardless). See migration 0033.
+    key_version: Mapped[Optional[int]] = mapped_column(
+        SmallInteger,
         nullable=True,
     )
     # The chart-attach symbol the hosted MT terminal opens on boot.

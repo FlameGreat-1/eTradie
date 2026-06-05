@@ -1,71 +1,32 @@
 """Repository for LLM connection CRUD operations.
 
-All database operations for the llm_connections table.
-API keys are stored encrypted using Fernet symmetric encryption.
-The encryption key is derived from the DATABASE_URL to avoid
-requiring a separate secret management system.
+All database operations for the llm_connections table. API keys are
+stored encrypted at rest using the shared credential cipher
+(engine.shared.crypto) -- the same versioned envelope encryption and
+the same KEK (BROKER_ENCRYPTION_KEY) as the broker connection
+repository, so there is exactly one cipher and one key path across the
+engine's credential stores.
 """
 
 from __future__ import annotations
 
-import base64
-import hashlib
-import os
 from datetime import UTC, datetime
 from typing import Optional
 from uuid import uuid4
 
-from cryptography.fernet import Fernet
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.processor.config import get_processor_config
 from engine.processor.storage.schemas.llm_connection_schema import LLMConnectionRow
+from engine.shared.crypto import (
+    active_key_version,
+    decrypt_credential as _decrypt,
+    encrypt_credential as _encrypt,
+)
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-def _derive_encryption_key() -> bytes:
-    """Derive a Fernet encryption key for credential encryption.
-
-    Uses the same derivation chain as the broker connection repository
-    so both share the same key. Priority:
-      1. BROKER_ENCRYPTION_KEY env var (shared across all credential stores)
-      2. LLM_ENCRYPTION_KEY env var (legacy alias)
-      3. DATABASE_URL env var
-      4. Hardcoded fallback (dev only, never in production)
-
-    In production/staging, fails fast if no explicit key is configured
-    to prevent encrypting credentials with a publicly known default.
-    """
-    raw = os.environ.get("BROKER_ENCRYPTION_KEY", "")
-    if not raw:
-        raw = os.environ.get("LLM_ENCRYPTION_KEY", "")
-    if not raw:
-        raw = os.environ.get("DATABASE_URL", "")
-    if not raw:
-        app_env = os.environ.get("APP_ENV", "development").lower()
-        if app_env in ("production", "staging"):
-            raise ValueError(
-                "Credential encryption key is required in production/staging. "
-                "Set BROKER_ENCRYPTION_KEY or LLM_ENCRYPTION_KEY environment variable."
-            )
-        raw = "etradie-default-key"
-    digest = hashlib.sha256(raw.encode()).digest()
-    return base64.urlsafe_b64encode(digest)
-
-
-def _encrypt(plaintext: str) -> str:
-    """Encrypt a string using Fernet."""
-    f = Fernet(_derive_encryption_key())
-    return f.encrypt(plaintext.encode()).decode()
-
-
-def _decrypt(ciphertext: str) -> str:
-    """Decrypt a Fernet-encrypted string."""
-    f = Fernet(_derive_encryption_key())
-    return f.decrypt(ciphertext.encode()).decode()
 
 
 class LLMConnectionRepository:
@@ -119,6 +80,7 @@ class LLMConnectionRepository:
             provider=provider,
             model_name=model_name,
             api_key_encrypted=_encrypt(api_key),
+            key_version=active_key_version(),
             base_url=base_url,
             temperature=temperature,
             max_output_tokens=max_output_tokens,
@@ -170,6 +132,7 @@ class LLMConnectionRepository:
             provider=provider,
             model_name=model_name,
             api_key_encrypted=_encrypt(api_key),
+            key_version=active_key_version(),
             base_url=base_url,
             temperature=temperature,
             max_output_tokens=max_output_tokens,
@@ -350,6 +313,7 @@ class LLMConnectionRepository:
             values["model_name"] = model_name
         if api_key is not None:
             values["api_key_encrypted"] = _encrypt(api_key)
+            values["key_version"] = active_key_version()
         if base_url is not None:
             values["base_url"] = base_url
         if temperature is not None:
@@ -416,6 +380,7 @@ def decrypt_api_key(encrypted: str) -> str:
     """Public helper to decrypt an API key from a connection row.
 
     Used by the processor config loader to get the plaintext key
-    when building the LLM client from a saved connection.
+    when building the LLM client from a saved connection. Delegates to
+    the shared envelope cipher (engine.shared.crypto).
     """
     return _decrypt(encrypted)

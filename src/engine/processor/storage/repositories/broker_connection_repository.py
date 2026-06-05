@@ -1,35 +1,41 @@
 """Repository for broker connection CRUD operations.
 
 All database operations for the broker_connections table.
-Credentials (EA auth tokens, MetaAPI tokens) are stored encrypted
-using the same Fernet symmetric encryption as LLM connections.
 
-The encryption key is derived identically to the LLM connection
-repository so both use the same key derivation path.
+Credentials (MT5 password, EA auth token) are encrypted at rest by the
+shared credential cipher (engine.shared.crypto): versioned envelope
+encryption with an AES-256-GCM data layer (per-record 256-bit DEK
+wrapped by a versioned KEK), the same cipher and the same KEK path the
+LLM connection repository uses, so there is exactly one encryption
+implementation across the engine's credential stores. The wrapping KEK
+version is recorded in the row's key_version column for rotation
+observability (see migration 0033 and
+docs/security/TIER3_CREDENTIAL_ENCRYPTION.md).
 
 NOTE: This module lives under processor/storage/ (not ta/broker/)
-because it shares the same SQLAlchemy Base, session management,
-and encryption infrastructure as the LLM connection repository.
-Both broker and LLM connections are user-configured via the
-dashboard and follow the same CRUD + encryption pattern.
+because it shares the same SQLAlchemy Base and session management as
+the LLM connection repository. Both broker and LLM connections are
+user-configured via the dashboard and follow the same CRUD + encryption
+pattern.
 """
 
 from __future__ import annotations
 
-import base64
-import hashlib
-import os
 import re
 from datetime import UTC, datetime
 from typing import Optional
 from uuid import uuid4
 
-from cryptography.fernet import Fernet
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.processor.storage.schemas.broker_connection_schema import (
     BrokerConnectionRow,
+)
+from engine.shared.crypto import (
+    active_key_version,
+    decrypt_credential as _decrypt,
+    encrypt_credential as _encrypt,
 )
 from engine.shared.logging import get_logger
 
@@ -49,67 +55,27 @@ STATUS_ERROR = "error"
 
 
 # ---------------------------------------------------------------------------
-# Encryption helpers (same derivation as LLM connection repository)
+# Encryption helpers
 # ---------------------------------------------------------------------------
-
-
-def _derive_encryption_key() -> bytes:
-    """Derive a Fernet encryption key for credential encryption.
-
-    Reads BROKER_ENCRYPTION_KEY exclusively. No fallback chain to
-    DATABASE_URL or hardcoded defaults — those patterns silently
-    produce different keys across environments and make every
-    existing ciphertext undecryptable after a legitimate key rotation.
-
-    In production/staging, fails fast if the key is not set.
-    In development, falls back to a well-known dev-only literal so
-    docker-compose and pytest work without secrets management, but
-    logs a loud warning so the gap is visible.
-
-    The key is SHA-256 hashed to produce a URL-safe base64 Fernet key
-    regardless of the raw value's length.
-    """
-    raw = os.environ.get("BROKER_ENCRYPTION_KEY", "").strip()
-    if not raw:
-        app_env = os.environ.get("APP_ENV", "development").lower()
-        if app_env in ("production", "staging"):
-            raise ValueError(
-                "BROKER_ENCRYPTION_KEY is required in production/staging. "
-                "Set it via the engine ExternalSecret "
-                "(Vault path etradie/services/engine/<env>:broker_encryption_key)."
-            )
-        # Dev-only fallback. Loud warning so it is never missed.
-        logger.warning(
-            "broker_encryption_key_missing_using_dev_fallback",
-            extra={
-                "warning": (
-                    "BROKER_ENCRYPTION_KEY is not set. Using the dev-only fallback. "
-                    "DO NOT use this in production or staging."
-                )
-            },
-        )
-        raw = "etradie-dev-only-broker-key-do-not-use-in-production"
-    digest = hashlib.sha256(raw.encode()).digest()
-    return base64.urlsafe_b64encode(digest)
-
-
-def _encrypt(plaintext: str) -> str:
-    """Encrypt a string using Fernet."""
-    f = Fernet(_derive_encryption_key())
-    return f.encrypt(plaintext.encode()).decode()
-
-
-def _decrypt(ciphertext: str) -> str:
-    """Decrypt a Fernet-encrypted string."""
-    f = Fernet(_derive_encryption_key())
-    return f.decrypt(ciphertext.encode()).decode()
+#
+# Credential encryption lives in engine.shared.crypto (the single source
+# of truth shared with the LLM connection repository). This module binds
+# the shared functions to the local names the repository body already
+# uses (_encrypt / _decrypt) and re-exports the public decrypt_credential
+# helper so existing importers (routers/broker_connections.py, the mt5
+# broker factory) keep working unchanged.
+#
+# New writes use versioned envelope encryption; legacy bare-Fernet
+# ciphertext written by the previous implementation decrypts
+# transparently (see engine.shared.crypto.credential_cipher).
 
 
 def decrypt_credential(encrypted: str) -> str:
     """Public helper to decrypt a credential from a connection row.
 
-    Used by the broker factory to get the plaintext token
-    when building a broker client from a saved connection.
+    Used by the broker factory and the broker-connections router to get
+    the plaintext token when building a broker client from a saved
+    connection. Delegates to the shared envelope cipher.
     """
     return _decrypt(encrypted)
 
@@ -266,7 +232,9 @@ class BrokerConnectionRepository:
             await self._deactivate_all(user_id)
             await self._unprimary_all(user_id)
 
-        # Encrypt sensitive credentials.
+        # Encrypt sensitive credentials. key_version records which KEK
+        # version wrapped the ciphertext written below; it stays None
+        # when the row carries no secret at all.
         encrypted_ea_token: Optional[str] = None
         if ea_auth_token and ea_auth_token.strip():
             encrypted_ea_token = _encrypt(ea_auth_token)
@@ -274,6 +242,10 @@ class BrokerConnectionRepository:
         encrypted_mt5_password: Optional[str] = None
         if mt5_password and mt5_password.strip():
             encrypted_mt5_password = _encrypt(mt5_password)
+
+        row_key_version: Optional[int] = None
+        if encrypted_ea_token is not None or encrypted_mt5_password is not None:
+            row_key_version = active_key_version()
 
         # Validate any caller-supplied id up front so an invalid value
         # fails the request cleanly rather than at INSERT time.
@@ -305,6 +277,7 @@ class BrokerConnectionRepository:
             mt5_server=mt5_server,
             mt5_login=mt5_login,
             mt5_password_encrypted=encrypted_mt5_password,
+            key_version=row_key_version,
             mt5_symbol=mt5_symbol,
             platform=platform,
             is_active=activate,
@@ -419,6 +392,7 @@ class BrokerConnectionRepository:
             values["ea_port"] = ea_port
         if ea_auth_token is not None:
             values["ea_auth_token_encrypted"] = _encrypt(ea_auth_token)
+            values["key_version"] = active_key_version()
         if metaapi_account_id is not None:
             values["metaapi_account_id"] = metaapi_account_id
         if metaapi_region is not None:
@@ -431,6 +405,7 @@ class BrokerConnectionRepository:
             values["mt5_login"] = mt5_login
         if mt5_password is not None:
             values["mt5_password_encrypted"] = _encrypt(mt5_password)
+            values["key_version"] = active_key_version()
         if mt5_symbol is not None:
             # Empty string is rejected upstream by the resolver; we only
             # arrive here with a non-empty stripped string when a

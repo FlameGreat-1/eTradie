@@ -25,7 +25,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text, text
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, SmallInteger, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -92,6 +92,14 @@ class LLMConnectionRow(ProcessorBase):
     api_key_encrypted: Mapped[str] = mapped_column(
         Text,
         nullable=False,
+    )
+    # KEK version that wrapped the CURRENT api_key_encrypted ciphertext
+    # (envelope encryption, engine.shared.crypto). NULL means legacy
+    # pre-envelope ciphertext / unknown version; operational metadata
+    # only, never load-bearing for decryption. See migration 0033.
+    key_version: Mapped[int | None] = mapped_column(
+        SmallInteger,
+        nullable=True,
     )
     base_url: Mapped[str | None] = mapped_column(
         String(500),
