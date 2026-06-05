@@ -95,6 +95,13 @@ func main() {
 	}
 	userStore := auth.NewUserStore(pool)
 
+	// Execution consumes long-lived service tokens (the gRPC auth
+	// interceptor below verifies them). Attach the user store as the
+	// epoch resolver so a revoked service token (token_epoch bumped via
+	// UserStore.BumpTokenEpoch) is rejected at verify. User access
+	// tokens are unaffected (only token_type=="svc" is epoch-checked).
+	tokenService = tokenService.WithEpochResolver(userStore)
+
 	// ── Broker implementation ──────────────────────────────────────────────
 	var bp broker.Port
 	if cfg.IsMT5Mode() {
