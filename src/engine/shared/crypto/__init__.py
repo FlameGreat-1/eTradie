@@ -15,6 +15,7 @@ from engine.shared.crypto.credential_cipher import (
     active_key_version,
     decrypt_credential,
     encrypt_credential,
+    key_version_of,
     needs_rewrap,
     rewrap_credential,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "active_key_version",
     "decrypt_credential",
     "encrypt_credential",
+    "key_version_of",
     "needs_rewrap",
     "rewrap_credential",
 ]
