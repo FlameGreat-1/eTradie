@@ -26,6 +26,7 @@ const INVALIDATION_MAP: Record<string, ReadonlyArray<readonly unknown[]>> = {
   WATCHER_TRIGGERED:   [['execution']],
   DAILY_LIMIT_LOCKED:  [['execution']],
   WEEKLY_PAUSED:       [['execution']],
+  EXECUTION_HALTED:    [['execution', 'settings'], ['execution', 'state']],
   SIZING_CALCULATED:   [],
   EXECUTION_ERROR:     [['execution']],
   EXECUTION_MODE_CHANGED: [['execution']],

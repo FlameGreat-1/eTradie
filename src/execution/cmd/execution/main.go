@@ -187,7 +187,8 @@ func main() {
 		log.Fatal().Err(err).Msg("billing_schema_apply_failed")
 	}
 	wm = wm.WithUsage(&watcherUsageAdapter{store: billingstore.NewUsageStore(pool)}).
-		WithIdempotency(idempotencyStore)
+		WithIdempotency(idempotencyStore).
+		WithHaltReader(settingsStore)
 
 	e := executor.NewExecutor(
 		bp,
@@ -264,7 +265,23 @@ func main() {
 		now := time.Now()
 		restoredCount := 0
 
+		// Do not re-arm watchers while a platform-wide halt is engaged.
+		// The PENDING rows are left intact and restored on the next
+		// healthy start after the halt is released. Per-user halts are
+		// enforced at fire time, so user-scoped orders still restore.
+		globalHalted, ghErr := settingsStore.IsGlobalHalted(ctx)
+		if ghErr != nil {
+			log.Warn().Err(ghErr).Msg("watcher_restore_global_halt_read_failed_assuming_not_halted")
+			globalHalted = false
+		}
+		if globalHalted {
+			log.Warn().Int("pending", len(pendingWatchers)).Msg("global_kill_switch_engaged_skipping_watcher_restore")
+		}
+
 		for _, rec := range pendingWatchers {
+			if globalHalted {
+				break
+			}
 			// Calculate remaining timeout using the style-specific duration.
 			// Each trading style has a different timeout aligned with its
 			// analysis timeframe (e.g., swing = 16h, positional = 48h).

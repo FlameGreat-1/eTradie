@@ -64,6 +64,10 @@ const EVENT_COPY: Record<string, { title: string; description: string }> = {
     title: 'Weekly drawdown limit reached',
     description: 'Trading is paused for the rest of the week to protect your account.',
   },
+  EXECUTION_HALTED: {
+    title: 'Execution halted',
+    description: 'New trades are paused by the kill switch. Analysis keeps running; placement resumes when it is released.',
+  },
   BROKER_DISCONNECTED: {
     title: 'Broker disconnected',
     description: 'We lost the connection to your broker. Reconnecting automatically.',

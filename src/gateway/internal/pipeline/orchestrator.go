@@ -711,6 +711,33 @@ func (o *Orchestrator) RunConfirmationPulseWithParams(
 		}
 	}
 
+	// Kill switch (fire-time): an INSTANT watcher fires the moment this
+	// returns Confirmed=true, so a halt engaged after arming must block
+	// the confirmation here too. The empty target resolves the caller
+	// from the forwarded JWT. Fail-safe: on a read error we fall through
+	// (the execution validator and the watcher fire gate stay
+	// authoritative) rather than convert a read blip into a stuck order.
+	if o.execution != nil {
+		if globalHalted, userHalted, herr := o.execution.HaltState(ctx, ""); herr != nil {
+			pulseLog.Warn().Err(herr).Str("symbol", symbol).Msg("confirmation_pulse_halt_read_failed_failing_open")
+		} else if globalHalted || userHalted {
+			scope := "user"
+			if globalHalted {
+				scope = "global"
+			}
+			pulseLog.Warn().
+				Str("symbol", symbol).
+				Str("analysis_id", analysisID).
+				Str("scope", scope).
+				Msg("confirmation_pulse_blocked_by_kill_switch")
+			return &ConfirmationResult{
+				Confirmed:       false,
+				LTFConfirmation: false,
+				Reason:          "Execution halted (" + scope + " kill switch)",
+			}
+		}
+	}
+
 	// Fast path: call lightweight LTF confirmation endpoint
 	if params != nil {
 		result := o.runLightweightConfirmation(ctx, params, traceID, pulseLog)
@@ -1012,23 +1039,6 @@ func buildCandidateFingerprint(cand map[string]interface{}) string {
 	}
 
 	return fmt.Sprintf("%s_%s_%s_%.4f", symbol, pattern, direction, entryPrice)
-}
-
-// matchedBy returns which field was used for matching (for logging).
-func matchedBy(cand map[string]interface{}, analysisID string) string {
-	if candID, _ := cand["candidate_id"].(string); candID == analysisID {
-		return "candidate_id"
-	}
-	if candID, _ := cand["analysis_id"].(string); candID == analysisID {
-		return "analysis_id"
-	}
-	if candID, _ := cand["id"].(string); candID == analysisID {
-		return "id"
-	}
-	if fp := buildCandidateFingerprint(cand); fp == analysisID {
-		return "structural_fingerprint"
-	}
-	return "unknown"
 }
 
 func condReason(cond bool, ifTrue, ifFalse string) string {

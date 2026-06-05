@@ -186,4 +186,49 @@ spec:
               before the first ghost is detected. It is informational
               only; escalate if snapshot write errors appear in logs.
             runbook_url: "https://docs.etradie.com/runbooks/execution-snapshot-write-failures"
+
+    # Section 8 (CHECKLIST): execution kill switch. A platform-wide
+    # halt stops order placement for every user, so on-call must know
+    # the moment it is engaged even though it is a deliberate action.
+    - name: execution.killswitch
+      interval: 30s
+      rules:
+        - alert: ExecutionGlobalKillSwitchEngaged
+          expr: |
+            sum(increase(etradie_execution_kill_switch_changed_total{scope="global",state="engaged"}[5m])) > 0
+          for: 0m
+          labels:
+            severity: info
+            component: execution
+            team: trading
+          annotations:
+            summary: "Global execution kill switch engaged"
+            description: |
+              An administrator engaged the platform-wide execution kill
+              switch in the last 5 minutes. Order placement is halted
+              for ALL users; analysis continues to run. Confirm this is
+              an intended action and track when it is released.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-global-kill-switch-engaged"
+
+        - alert: ExecutionGlobalKillSwitchHeldEngaged
+          expr: |
+            (
+              sum(increase(etradie_execution_kill_switch_changed_total{scope="global",state="engaged"}[30m]))
+              -
+              sum(increase(etradie_execution_kill_switch_changed_total{scope="global",state="released"}[30m]))
+            ) > 0
+          for: 15m
+          labels:
+            severity: warning
+            component: execution
+            team: trading
+          annotations:
+            summary: "Global execution kill switch held engaged > 15m"
+            description: |
+              Platform-wide order placement has been halted for more
+              than 15 minutes (global engages outnumber releases over
+              the window). Verify this is intended; a forgotten global
+              halt blocks every user's trading while analysis keeps
+              running.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-global-kill-switch-held-engaged"
 {{- end }}
