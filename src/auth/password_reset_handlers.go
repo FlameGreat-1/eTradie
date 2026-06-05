@@ -352,9 +352,18 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SetPassword applies the same length constraints and bcrypt cost
-	// as register / change-password. Any policy change to those rules
-	// (eg adding a complexity check) flows here for free.
+	// Enforce the same NEW-password policy as register / change-
+	// password: complexity (offline) then the advisory breach check
+	// (network, fail-open). SetPassword re-validates complexity as a
+	// backstop.
+	if err := ValidatePasswordComplexity(req.NewPassword, user.Username, user.Email); err != nil {
+		writeAuthError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if !h.checkBreachAllowed(w, r, req.NewPassword) {
+		return
+	}
+
 	if err := user.SetPassword(req.NewPassword); err != nil {
 		writeAuthError(w, http.StatusBadRequest, err.Error())
 		return
