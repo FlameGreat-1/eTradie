@@ -4,11 +4,12 @@ All database operations for the broker_connections table.
 
 Credentials (MT5 password, EA auth token) are encrypted at rest by the
 shared credential cipher (engine.shared.crypto): versioned envelope
-encryption (per-record DEK wrapped by a versioned KEK), the same cipher
-and the same KEK path the LLM connection repository uses, so there is
-exactly one encryption implementation across the engine's credential
-stores. The wrapping KEK version is recorded in the row's key_version
-column for rotation observability (see migration 0033 and
+encryption with an AES-256-GCM data layer (per-record 256-bit DEK
+wrapped by a versioned KEK), the same cipher and the same KEK path the
+LLM connection repository uses, so there is exactly one encryption
+implementation across the engine's credential stores. The wrapping KEK
+version is recorded in the row's key_version column for rotation
+observability (see migration 0033 and
 docs/security/TIER3_CREDENTIAL_ENCRYPTION.md).
 
 NOTE: This module lives under processor/storage/ (not ta/broker/)

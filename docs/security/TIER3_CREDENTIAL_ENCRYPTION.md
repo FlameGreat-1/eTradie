@@ -90,10 +90,10 @@ Shared module `src/engine/shared/crypto/` (`credential_cipher.py`):
 ### Checklist Tier 3 outcome
 | Item | Result |
 | --- | --- |
-| AES-256 at rest | Retained Fernet (AES-128, authenticated) by deliberate decision; envelope is the real hardening. Documented. |
+| AES-256 at rest | DONE - data layer is AES-256-GCM (v2 envelope: 256-bit DEK, 96-bit random nonce, AEAD tag). encrypt() writes v2; decrypt() reads v2/v1/legacy; the re-wrap job upgrades legacy+v1 -> v2 with no migration. The DEK wrap stays Fernet (it only protects the 32-byte DEK, never credential bytes). |
 | Key encryption keys (KEK) | DONE - per-record DEK wrapped by a versioned KEK. |
 | Separate encryption service | In-house envelope now; Vault Transit is a documented drop-in future step (swap the KEK-wrap call, no stored-ciphertext change). |
-| Envelope encryption | DONE - v1:<kv>:<wrapped_dek>:<ct>. |
+| Envelope encryption | DONE - active v2: v2:<kv>:<wrapped_dek>:<nonce>:<gcm_ct||tag>; v1 (Fernet data layer) still decrypted + upgraded on re-wrap. |
 | Master key outside DB | DONE (already; Vault). |
 | Key rotation process | DONE - versioned KEK map + rewrap service, no plaintext re-encrypt. |
 | Emergency key revocation | DONE - drop a KEK version after re-wrap. |
@@ -101,11 +101,12 @@ Shared module `src/engine/shared/crypto/` (`credential_cipher.py`):
 | Never logged / exposed to FE / admin | DONE (already; unchanged). |
 
 ### Future (explicitly out of scope, documented for the next tier)
-- Vault Transit migration: the VaultClient is KV-v2 only today; moving
-  the KEK-wrap step to Transit gives a true separate encryption service
-  + AES-256-GCM wrap without touching stored ciphertext. The envelope
-  format already isolates the wrap step, so this is a localized change
-  in engine.shared.crypto.credential_cipher when prioritised.
+- Vault Transit migration: the VaultClient is KV-v2 only today. The DATA
+  layer is already AES-256-GCM (v2); moving the KEK-WRAP step to Transit
+  would give a true SEPARATE encryption service (the only remaining open
+  Tier 3 item) without touching stored ciphertext. The envelope format
+  already isolates the wrap step, so this is a localized change in
+  engine.shared.crypto.credential_cipher when prioritised.
 
 ### Verification notes (step 6)
 - Inert by default: rotationKeyVersions empty -> no extra data keys ->
@@ -141,9 +142,15 @@ Shared module `src/engine/shared/crypto/` (`credential_cipher.py`):
 
 ## Notes / decisions log
 
-- Fernet retained deliberately (see commit message of this file).
-- No re-encryption of existing plaintext required; only optional DEK
-  re-wrap on rotation.
+- AES-256-GCM is the active data-layer cipher (v2 scheme). The earlier
+  "retain Fernet for the data layer" decision applied to v1 and is
+  superseded: new writes are AES-256-GCM, and the re-wrap job upgrades
+  legacy + v1 rows to v2. The DEK wrap remains Fernet (it protects only
+  the 32-byte DEK), which preserved zero-migration back-compat for every
+  existing row.
+- No re-encryption of existing plaintext is REQUIRED for correctness
+  (legacy + v1 still decrypt); running the re-wrap job is how rows are
+  proactively upgraded to AES-256 (v2) and onto a rotated KEK.
 - Vault Transit migration intentionally deferred: the envelope design
   makes it a single swap of the KEK-wrap call with no stored-ciphertext
   change. Tracked as a future step, not part of this Tier-3 closure.
