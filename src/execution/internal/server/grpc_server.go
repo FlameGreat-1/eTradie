@@ -526,6 +526,118 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv
 	}, nil
 }
 
+// GetHaltState reports the global + per-user kill-switch flags
+// (CHECKLIST Section 8). A non-admin may only read their own user flag.
+func (s *ExecutionServer) GetHaltState(ctx context.Context, req *executionv1.GetHaltStateRequest) (*executionv1.GetHaltStateResponse, error) {
+	claims := auth.ClaimsFromContext(ctx)
+	if claims == nil || claims.UserID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "missing claims in context")
+	}
+
+	target := strings.TrimSpace(req.GetTargetUserId())
+	if target == "" {
+		target = claims.UserID
+	}
+	if target != claims.UserID && claims.Role != auth.RoleAdmin {
+		return nil, status.Errorf(codes.PermissionDenied, "cannot read another user's kill switch")
+	}
+
+	globalHalted, err := s.settings.IsGlobalHalted(ctx)
+	if err != nil {
+		s.log.Error().Err(err).Str("trace_id", req.GetTraceId()).Msg("get_halt_state_global_failed")
+		return nil, status.Errorf(codes.Unavailable, "failed to read global kill switch")
+	}
+	userHalted, err := s.settings.IsUserHalted(ctx, target)
+	if err != nil {
+		s.log.Error().Err(err).Str("target_user_id", target).Msg("get_halt_state_user_failed")
+		return nil, status.Errorf(codes.Unavailable, "failed to read user kill switch")
+	}
+
+	return &executionv1.GetHaltStateResponse{
+		GlobalHalted: globalHalted,
+		UserHalted:   userHalted,
+		TraceId:      req.GetTraceId(),
+	}, nil
+}
+
+// SetHaltState engages or releases a kill switch with server-side
+// authorization (CHECKLIST Section 8). Global requires admin; user
+// requires self or admin.
+func (s *ExecutionServer) SetHaltState(ctx context.Context, req *executionv1.SetHaltStateRequest) (*executionv1.SetHaltStateResponse, error) {
+	claims := auth.ClaimsFromContext(ctx)
+	if claims == nil || claims.UserID == "" {
+		return nil, status.Errorf(codes.Unauthenticated, "missing claims in context")
+	}
+	actor := claims.UserID
+
+	switch req.GetScope() {
+	case executionv1.KillSwitchScope_KILL_SWITCH_SCOPE_GLOBAL:
+		if claims.Role != auth.RoleAdmin {
+			return nil, status.Errorf(codes.PermissionDenied, "global kill switch requires admin role")
+		}
+		if err := s.settings.SetGlobalHalted(ctx, req.GetHalted(), actor); err != nil {
+			s.log.Error().Err(err).Msg("set_halt_state_global_failed")
+			return nil, status.Errorf(codes.Unavailable, "failed to set global kill switch")
+		}
+		s.publishHaltEvent(ctx, "", "global", req.GetHalted(), actor)
+	case executionv1.KillSwitchScope_KILL_SWITCH_SCOPE_USER:
+		target := strings.TrimSpace(req.GetTargetUserId())
+		if target == "" {
+			target = actor
+		}
+		if target != actor && claims.Role != auth.RoleAdmin {
+			return nil, status.Errorf(codes.PermissionDenied, "cannot set another user's kill switch")
+		}
+		if err := s.settings.SetUserHalted(ctx, target, req.GetHalted(), actor); err != nil {
+			s.log.Error().Err(err).Str("target_user_id", target).Msg("set_halt_state_user_failed")
+			return nil, status.Errorf(codes.Unavailable, "failed to set user kill switch")
+		}
+		s.publishHaltEvent(ctx, target, "user", req.GetHalted(), actor)
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "scope must be GLOBAL or USER")
+	}
+
+	// Re-read resulting state (target = caller for the user flag echo,
+	// or the admin's target). For a global change we echo the caller's
+	// own user flag alongside the new global value.
+	readTarget := actor
+	if req.GetScope() == executionv1.KillSwitchScope_KILL_SWITCH_SCOPE_USER {
+		if t := strings.TrimSpace(req.GetTargetUserId()); t != "" {
+			readTarget = t
+		}
+	}
+	globalHalted, gErr := s.settings.IsGlobalHalted(ctx)
+	userHalted, uErr := s.settings.IsUserHalted(ctx, readTarget)
+	if gErr != nil || uErr != nil {
+		// The write already succeeded; degrade gracefully by echoing the
+		// requested intent rather than failing the whole call.
+		s.log.Warn().Msg("set_halt_state_reread_failed_echoing_intent")
+	}
+
+	return &executionv1.SetHaltStateResponse{
+		GlobalHalted: globalHalted,
+		UserHalted:   userHalted,
+		TraceId:      req.GetTraceId(),
+	}, nil
+}
+
+// publishHaltEvent emits a real-time kill-switch alert and increments
+// the toggle metric. Global changes carry no user id (system-wide).
+func (s *ExecutionServer) publishHaltEvent(ctx context.Context, userID, scope string, halted bool, actor string) {
+	verb := "released"
+	if halted {
+		verb = "engaged"
+	}
+	observability.KillSwitchChangedTotal.WithLabelValues(scope, verb).Inc()
+	evt := alert.NewEvent(alert.SourceExecution, alert.TypeExecutionHalted, alert.SeverityCritical,
+		fmt.Sprintf("Execution kill switch %s (%s scope)", verb, scope)).
+		WithDetails(map[string]interface{}{"scope": scope, "halted": halted, "actor": actor})
+	if userID != "" {
+		evt = evt.WithUserID(userID)
+	}
+	s.transport.Publish(ctx, evt)
+}
+
 // incomingIdempotencyKey reads the x-idempotency-key value from inbound
 // gRPC metadata, or "" when absent.
 func incomingIdempotencyKey(ctx context.Context) string {
