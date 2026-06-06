@@ -63,10 +63,16 @@
   Application => GitOps sync starts identity with empty anchor =>
   crashloop. FIX = wire the anchor via the control-plane child app
   `helm.parameters` / values, fail-loud.
-- **C4 — no `:4143` inbound allowance** on any NetworkPolicy. Meshed
-  proxy-to-proxy data lands on 4143; ingress locked to app ports drops
-  it. FIX = allow inbound TCP 4143 from meshed peers + 4191 (proxy
-  admin: Prometheus/probes) on all 7 meshed pods.
+- **C4 — CORRECTED.** Original claim (allow :4143 ingress) was WRONG.
+  Linkerd's redirect to the inbound proxy (:4143) happens inside the
+  destination pod netns, AFTER the CNI NetworkPolicy check; the proxy
+  also dials the destination on its ORIGINAL app port. So NetworkPolicy
+  sees original app ports on both ends (5432/6379/8000/8080/50052..),
+  NOT 4143 -> the existing app-port rules already suffice for the data
+  plane. The ONLY real additions needed are: (a) C2 egress to the
+  `linkerd` namespace [done], and (b) :4191 proxy-admin ingress from
+  Prometheus so it can scrape the proxy's own metrics. The :4143
+  ingress rules added earlier are dead and are being removed.
 
 ### HIGH
 
