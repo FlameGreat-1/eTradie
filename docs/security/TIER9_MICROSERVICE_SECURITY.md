@@ -87,20 +87,42 @@
       control-plane-values.yaml; etradie AppProject policy.linkerd.io
       whitelist; Vault path etradie/platform/linkerd/<env> in terraform.
       Control plane only — NO workload injected yet (services unaffected).
-- [ ] **Step 3b (NEXT)** — Per-workload injection. DECISION: drive via
-      each chart's existing `.Values.podAnnotations` (every deployment.yaml
-      already renders `template.metadata.annotations` from podAnnotations
-      — confirmed in execution/deployment.yaml). Add `linkerd.io/inject:
-      enabled` to podAnnotations in values-production.yaml of: gateway,
-      execution, management, engine, data-layer, edge-ingress, envoy,
-      mt-node (chart). Per-chart Postgres/Redis opaque-port handling via
-      `config.linkerd.io/opaque-ports` ONLY where a service SPEAKS those
-      protocols. One chart per commit. STILL TO READ before editing:
-      each chart's deployment.yaml annotation block (engine/gateway/
-      management/data-layer/edge-ingress/envoy) to confirm podAnnotations
-      is rendered; data-layer statefulset annotation block.
-- [ ] **Step 3b-verify** — confirm gRPC ports need no opaque-ports
-      (h2 native) and init-container `nc` checks still pass under proxy.
+- [x] **Step 3b (core)** — DONE for the 4 services + data-layer:
+      * gateway/execution/management: linkerd.io/inject in
+        values-production.yaml podAnnotations (gRPC h2 native, no
+        opaque-ports).
+      * engine: inject + opaque-ports 5555 (ZMQ to mt-node) +
+        skip-outbound-ports 4317 (OTLP collector may be un-meshed).
+      * data-layer (base values, all envs): postgres inject + opaque
+        5432; redis inject + opaque 6379; chromadb inject (HTTP native).
+      * FIXED PROD-BREAKER: namespace LimitRange (min 50m/64Mi) would
+        reject Linkerd's default proxy-init (20Mi). Set proxyInit +
+        proxy resources in control-plane-values.yaml to clear min.
+        Verified ResourceQuota (32cpu/64Gi prod) has headroom.
+- [ ] **Step 3b (edge) NEXT** — mesh decision for the edge chain:
+      edge-ingress (Rust, :443 TLS + :9902), envoy (:8080 + :9901),
+      cloudflared. These are in envoy-system / edge-ingress-system
+      namespaces (NOT etradie-system). MUST read helm/edge-ingress +
+      helm/envoy values + deployment templates FIRST. Likely approach:
+      mesh envoy<->gateway hop; edge-ingress terminates external TLS so
+      its :443 inbound is skip-inbound (Cloudflare AOP mTLS already
+      covers edge). cloudflared is a 3rd-party image — inject only if it
+      composes cleanly. DO NOT break the Cloudflare tunnel chain.
+- [ ] **Step 3b (cronjobs)** — postgres-backup CronJob + mt-node
+      snapshot CronJob: a meshed Job/CronJob pod never terminates
+      because the proxy keeps running. MUST set
+      `config.linkerd.io/proxy-enable-native-sidecar: "true"` (k8s>=1.28
+      native sidecar) OR exclude these from the mesh
+      (linkerd.io/inject: disabled). DECISION PENDING on cluster k8s
+      version; default to inject:disabled for batch pods (they only
+      talk to in-namespace postgres + offsite S3, already covered by
+      NetworkPolicy) unless native sidecar is confirmed available.
+- [ ] **Step 3d** — HostedProvisioner: stamp linkerd.io/inject + the
+      same opaque-ports(5555) on the runtime mt-node StatefulSet pod
+      template (code change). Locate _build_statefulset in
+      provisioner.py first.
+- [ ] **Step 3c** — per-service Server + ServerAuthorization (G9-2)
+      AFTER all workloads confirmed meshed (linkerd viz edges = 100% TLS).
 - [ ] **Step 3c** — Per-service Server + ServerAuthorization (per-service
       authz; closes G9-2) keyed to real SA names + ports.
 - [ ] **Step 3d** — HostedProvisioner: stamp linkerd.io/inject on the
