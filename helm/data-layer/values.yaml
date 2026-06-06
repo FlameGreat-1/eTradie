@@ -207,7 +207,13 @@ redis:
       cpu: 500m
       memory: 768Mi
 
-  podAnnotations: {}
+  # Tier 9 (CHECKLIST microservice security): mesh Redis so the
+  # engine/execution/management <-> redis hops are mTLS'd. RESP is a
+  # server-first protocol on 6379, so mark it opaque (raw-TCP mTLS
+  # tunnel, no HTTP detection). Audit ref: Tier 9 G9-1.
+  podAnnotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/opaque-ports: "6379"
 
   # Scheduling. Empty defaults; production overlay sets a toleration
   # for the etradie-system taint.
@@ -254,7 +260,12 @@ chromadb:
       cpu: "1"
       memory: 1Gi
 
-  podAnnotations: {}
+  # Tier 9 (CHECKLIST microservice security): mesh ChromaDB so the
+  # engine <-> chroma hop is mTLS'd. Chroma speaks HTTP on :8000, so
+  # the proxy handles it natively — inject only, no opaque-ports.
+  # Audit ref: Tier 9 G9-1.
+  podAnnotations:
+    linkerd.io/inject: enabled
 
   # Scheduling. Empty defaults; production overlay sets a toleration
   # for the etradie-system taint.
