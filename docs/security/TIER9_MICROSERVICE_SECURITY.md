@@ -99,7 +99,18 @@
         reject Linkerd's default proxy-init (20Mi). Set proxyInit +
         proxy resources in control-plane-values.yaml to clear min.
         Verified ResourceQuota (32cpu/64Gi prod) has headroom.
-- [ ] **Step 3b (edge) NEXT** — mesh decision for the edge chain:
+- [x] **Step 3b (edge)** — DONE. envoy injected (HTTP/2 native to
+      gateway). edge-ingress injected + skip-inbound-ports "443"
+      (Cloudflare AOP mTLS terminates there; Linkerd must not touch the
+      tunnel listener). Full chain CF->(AOP)->edge-ingress->(mTLS)->
+      envoy->(mTLS)->gateway.
+- [x] **Step 3b (mt-node)** — DONE via DATA path (no provisioner.py
+      change): linkerd inject + opaque 5555 added to
+      helm/engine config.mtNode.scheduling.podAnnotations (merged onto
+      every runtime StatefulSet by HostedProvisioner) AND
+      helm/mt-node/values.yaml podAnnotations (chart path). Verified the
+      provisioner merges MT_NODE_POD_ANNOTATIONS_JSON -> merged_annotations.
+- [ ] **Step 3b (cronjobs) NEXT** — OLD edge-decision note retained below:
       edge-ingress (Rust, :443 TLS + :9902), envoy (:8080 + :9901),
       cloudflared. These are in envoy-system / edge-ingress-system
       namespaces (NOT etradie-system). MUST read helm/edge-ingress +
