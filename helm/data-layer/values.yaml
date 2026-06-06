@@ -61,9 +61,9 @@ postgres:
   # Tier 9 G9-1.
   podAnnotations:
     linkerd.io/inject: enabled
-    # Tier 9 M1: native sidecar (K8s SidecarContainers, GA 1.29; OKE
-    # v1.32) for a uniform mesh and deterministic proxy-startup
-    # readiness. pg probes are unix-socket exec (no proxy interaction).
+    # Native sidecar for a uniform mesh and deterministic proxy-startup
+    # readiness. Postgres probes are unix-socket exec, so the proxy does
+    # not affect them.
     config.linkerd.io/proxy-enable-native-sidecar: "true"
     config.linkerd.io/opaque-ports: "5432"
 
@@ -217,8 +217,8 @@ redis:
   # tunnel, no HTTP detection). Audit ref: Tier 9 G9-1.
   podAnnotations:
     linkerd.io/inject: enabled
-    # Tier 9 M1: native sidecar (K8s SidecarContainers, GA 1.29; OKE
-    # v1.32). redis probes are unix-socket exec (no proxy interaction).
+    # Native sidecar for a uniform mesh. Redis probes are unix-socket
+    # exec, so the proxy does not affect them.
     config.linkerd.io/proxy-enable-native-sidecar: "true"
     config.linkerd.io/opaque-ports: "6379"
 
@@ -273,9 +273,9 @@ chromadb:
   # Audit ref: Tier 9 G9-1.
   podAnnotations:
     linkerd.io/inject: enabled
-    # Tier 9 M1: native sidecar (K8s SidecarContainers, GA 1.29; OKE
-    # v1.32). chromadb's HTTP /api/v2/heartbeat probe is proxy-bypassed
-    # by Linkerd's probe rewrite, so the mesh does not affect readiness.
+    # Native sidecar for a uniform mesh. ChromaDB's HTTP
+    # /api/v2/heartbeat probe is rewritten by Linkerd to bypass the
+    # proxy, so readiness is unaffected.
     config.linkerd.io/proxy-enable-native-sidecar: "true"
 
   # Scheduling. Empty defaults; production overlay sets a toleration

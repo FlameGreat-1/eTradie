@@ -115,10 +115,9 @@ config:
         # proxy coexists with the Vault Agent + watchdog sidecars. Audit
         # ref: Tier 9 G9-1.
         linkerd.io/inject: enabled
-        # Tier 9 M1: native sidecar (K8s SidecarContainers, GA 1.29; OKE
-        # v1.32). REQUIRED: runtime mt-node pods carry the Vault Agent
-        # init (agent-init-first); native sidecar brings the proxy up
-        # before the agent init authenticates to Vault. Merged onto
+        # Native sidecar is required: runtime mt-node pods carry the
+        # Vault Agent init container (agent-init-first), which must
+        # reach Vault through an already-running proxy. Merged onto
         # every runtime StatefulSet by HostedProvisioner.
         config.linkerd.io/proxy-enable-native-sidecar: "true"
         config.linkerd.io/opaque-ports: "5555"
