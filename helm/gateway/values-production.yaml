@@ -20,6 +20,11 @@ podAnnotations:
   # the proxy; no opaque-ports needed. Audit ref: Tier 9 G9-1.
   linkerd.io/inject: enabled
 
+# Tier 9 G9-2: activate per-service Linkerd authorization in production
+# (after staging confirms 100% mTLS for the gateway). Audit ref: Tier 9 G9-2.
+linkerdPolicy:
+  enabled: true
+
 config:
   # Arms every Go-service prod fail-closed guard: HIBP breach check
   # (Tier 1 item 7), mandatory Redis attempt limiter, cookie-Secure

@@ -32,6 +32,11 @@ config:
     logLevel: "INFO"
     logJson: "true"
 
+# Tier 9 G9-2: activate per-service Linkerd authorization in production
+# (after staging confirms 100% mTLS for management). Audit ref: Tier 9 G9-2.
+linkerdPolicy:
+  enabled: true
+
 externalSecrets:
   enabled: true
   management:
