@@ -54,7 +54,14 @@ postgres:
       cpu: "1"
       memory: 1Gi
 
-  podAnnotations: {}
+  # Tier 9 (CHECKLIST microservice security): mesh Postgres so the
+  # engine<->postgres hop is mTLS'd. Postgres speaks a server-first
+  # protocol on 5432, so mark it opaque: Linkerd mTLS-tunnels it as
+  # raw TCP between meshed peers without HTTP detection. Audit ref:
+  # Tier 9 G9-1.
+  podAnnotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/opaque-ports: "5432"
 
   # Scheduling. Empty defaults so the chart deploys on any cluster.
   # Production overlay layers a `workload=etradie-system` toleration on
