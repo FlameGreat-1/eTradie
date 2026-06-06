@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/kelseyhightower/envconfig"
 
@@ -115,6 +116,39 @@ type Config struct {
 	// generally export only root APP_ENV, so validate() falls back to
 	// os.Getenv("APP_ENV") when this field is empty / left at default.
 	AppEnv string `envconfig:"APP_ENV" default:""`
+
+	// ----------------------------------------------------------------
+	// Order-integrity request signing (CHECKLIST Tier 8: signed internal
+	// execution requests + replay attack protection).
+	//
+	// The gateway signs every ExecuteTrade call (HMAC-SHA256 over a
+	// canonical request string, carried in gRPC metadata) and execution
+	// verifies it in a dedicated interceptor before any broker work.
+	// ----------------------------------------------------------------
+
+	// RequireSignedRequests controls enforcement of the ExecuteTrade
+	// signature gate. An empty string (the default) is resolved in
+	// validate(): ENFORCE in prod-like environments, warn-only
+	// otherwise, so a phased rollout is possible without a flag day.
+	// Set explicitly to "true"/"false" to override. The resolved
+	// boolean is exposed via RequireSignedRequestsEnabled().
+	RequireSignedRequests string `envconfig:"REQUIRE_SIGNED_REQUESTS" default:""`
+
+	// RequestSignatureMaxSkewSecs is the freshness window (both clock
+	// directions) AND the anti-replay nonce TTL. Default 30s. Range
+	// 5..300. A request whose signed timestamp is outside now ± window
+	// is rejected as stale.
+	RequestSignatureMaxSkewSecs int `envconfig:"REQUEST_SIGNATURE_MAX_SKEW_SECS" default:"30"`
+
+	// RequestSigningSecret is an OPTIONAL dedicated HMAC key for the
+	// ExecuteTrade signature. When empty (the default) the verifier
+	// falls back to EngineInternalSecret — the value the gateway and
+	// execution already share from Vault — so no new secret is needed.
+	RequestSigningSecret string `envconfig:"REQUEST_SIGNING_SECRET" default:""`
+
+	// requireSignedRequests is the resolved boolean from
+	// RequireSignedRequests (computed in validate()).
+	requireSignedRequests bool
 
 	// Mock broker starting balance (only used when BrokerMode=mock).
 	MockBrokerBalance float64 `envconfig:"MOCK_BROKER_BALANCE" default:"10000.0"`
@@ -253,6 +287,34 @@ func (c *Config) validate() error {
 		}
 	}
 	c.AppEnv = env
+
+	// Order-integrity request signing (Tier 8 F-1/F-2). Resolve the
+	// enforcement mode: an explicit true/false wins; an empty value
+	// defaults to ENFORCE in prod-like envs and warn-only elsewhere.
+	switch strings.ToLower(strings.TrimSpace(c.RequireSignedRequests)) {
+	case "true", "1", "yes", "on":
+		c.requireSignedRequests = true
+	case "false", "0", "no", "off":
+		c.requireSignedRequests = false
+	case "":
+		c.requireSignedRequests = isProdLike
+	default:
+		return fmt.Errorf("REQUIRE_SIGNED_REQUESTS must be true/false (or empty to auto-resolve), got %q", c.RequireSignedRequests)
+	}
+	if c.RequestSignatureMaxSkewSecs < 5 || c.RequestSignatureMaxSkewSecs > 300 {
+		return fmt.Errorf("REQUEST_SIGNATURE_MAX_SKEW_SECS must be 5..300, got %d", c.RequestSignatureMaxSkewSecs)
+	}
+	c.RequestSigningSecret = strings.TrimSpace(c.RequestSigningSecret)
+	// When enforcement is on, a usable HMAC key MUST exist now so the
+	// deploy fails fast instead of rejecting every trade at runtime.
+	if c.requireSignedRequests {
+		if key := c.RequestSigningKey(); len(key) < 32 {
+			return fmt.Errorf(
+				"request signing is enforced but no usable key is available: set EXECUTION_REQUEST_SIGNING_SECRET "+
+					"(>=32 chars) or ensure ENGINE_INTERNAL_SHARED_SECRET (>=32 chars) is configured",
+			)
+		}
+	}
 
 	execMode := strings.ToUpper(c.DefaultExecutionMode)
 	if execMode != string(constants.ModeLimit) && execMode != string(constants.ModeInstant) {
@@ -395,4 +457,31 @@ func (c *Config) IsSessionEnabled(session string) bool {
 // IsMT5Mode returns true when the broker is configured for MT5.
 func (c *Config) IsMT5Mode() bool {
 	return c.BrokerMode == "mt5"
+}
+
+// RequireSignedRequestsEnabled reports the resolved enforcement mode
+// for the ExecuteTrade signature gate (Tier 8 F-1/F-2). When false the
+// verifier runs in warn-only mode: it observes/labels outcomes but does
+// not reject.
+func (c *Config) RequireSignedRequestsEnabled() bool {
+	return c.requireSignedRequests
+}
+
+// RequestSignatureMaxSkew returns the freshness window / nonce TTL.
+func (c *Config) RequestSignatureMaxSkew() time.Duration {
+	return time.Duration(c.RequestSignatureMaxSkewSecs) * time.Second
+}
+
+// RequestSigningKey returns the HMAC key for ExecuteTrade signatures:
+// the dedicated RequestSigningSecret when set, otherwise the shared
+// EngineInternalSecret (already loaded from Vault and identical on the
+// gateway side). Returns nil when neither is available.
+func (c *Config) RequestSigningKey() []byte {
+	if c.RequestSigningSecret != "" {
+		return []byte(c.RequestSigningSecret)
+	}
+	if c.EngineInternalSecret != "" {
+		return []byte(c.EngineInternalSecret)
+	}
+	return nil
 }

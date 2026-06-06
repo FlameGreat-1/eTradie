@@ -101,6 +101,73 @@ spec:
               slow.
             runbook_url: "https://docs.etradie.com/runbooks/execution-latency-breach-spike"
 
+        # Idempotency store fall-through. When the idempotency store
+        # errors, the executor deliberately proceeds with a
+        # NON-idempotent placement so a DB blip never blocks trading.
+        # Any non-zero rate means duplicate-order protection is
+        # effectively OFF: a retried gateway call (DefaultRetryConfig
+        # retries 3x) could place a duplicate REAL order. Critical.
+        - alert: ExecutionIdempotencyStoreErrors
+          expr: |
+            sum(rate(etradie_execution_idempotency_store_errors_total[5m])) > 0
+          for: 2m
+          labels:
+            severity: critical
+            component: execution
+            team: trading
+          annotations:
+            summary: "Idempotency store errors: duplicate-order protection degraded"
+            description: |
+              The execution service is falling through to non-idempotent
+              order placement because the idempotency store is returning
+              errors. While this persists, a retried order submission can
+              result in a duplicate REAL broker order. Check PostgreSQL
+              health and connection-pool saturation immediately.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-idempotency-store-errors"
+
+        # Tier 8: request-signature rejections while ENFORCED. A signed
+        # internal request that fails verification or trips the replay
+        # guard is a security event (forged/tampered/replayed order
+        # attempt) — page immediately.
+        - alert: ExecutionRequestSignatureRejections
+          expr: |
+            sum(rate(etradie_execution_request_signature_total{outcome=~"bad_signature|replay|stale|missing",enforced="true"}[5m])) > 0
+          for: 2m
+          labels:
+            severity: critical
+            component: execution
+            team: trading
+          annotations:
+            summary: "ExecuteTrade request-signature rejections (enforced)"
+            description: |
+              The execution service is rejecting ExecuteTrade requests
+              whose HMAC signature is invalid/missing/stale or whose
+              nonce was replayed, while signature enforcement is ON.
+              This indicates a forged, tampered, replayed, or
+              mis-signed internal request. Investigate the gateway
+              signer and the inter-service path immediately.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-request-signature-rejections"
+
+        # Tier 8: warn-only signature failures during rollout. Before
+        # flipping enforcement on, the signer + verifier must show 100%
+        # ok; any warn-only failure is a WIRING bug to fix first.
+        - alert: ExecutionRequestSignatureWarnOnlyFailures
+          expr: |
+            sum(rate(etradie_execution_request_signature_total{outcome=~"bad_signature|replay|stale|missing",enforced="false"}[10m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+            component: execution
+            team: platform
+          annotations:
+            summary: "ExecuteTrade signature failures in warn-only mode"
+            description: |
+              Signature verification is in warn-only mode and is seeing
+              non-ok outcomes. Resolve the signer/verifier wiring (key
+              mismatch, clock skew, canonical drift) BEFORE enabling
+              enforcement, or enforcement will reject live trades.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-request-signature-warn-only"
+
         # Audit write failures = trades happening without DB audit.
         # This is a COMPLIANCE incident, not just an SLO issue.
         - alert: ExecutionAuditWriteFailures

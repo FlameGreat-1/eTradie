@@ -131,10 +131,36 @@ var (
 		Help: "Orders rejected because end-to-end latency exceeded max_order_latency_ms",
 	})
 
+	// IdempotencyStoreErrorsTotal counts the times the executor fell
+	// through to a NON-idempotent placement because the idempotency
+	// store (TryClaim) returned an error. This is the deliberate
+	// availability-over-safety path: a DB blip must not block trading.
+	// A sustained non-zero rate means duplicate-order protection is
+	// effectively OFF and needs operator attention (DB health / pool).
+	IdempotencyStoreErrorsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "etradie_execution_idempotency_store_errors_total",
+		Help: "Times the executor fell through to a non-idempotent placement because the idempotency store errored",
+	})
+
 	PartialFillTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "etradie_execution_partial_fill_total",
 		Help: "Partial-fill events observed at the broker",
 	}, []string{"symbol", "direction"})
+)
+
+// Request-signature metrics (CHECKLIST Tier 8: signed internal
+// execution requests + replay protection).
+var (
+	// RequestSignatureTotal counts ExecuteTrade signature verification
+	// outcomes. outcome: ok|bad_signature|stale|replay|missing.
+	// enforced: true|false (warn-only mode reports false). A spike in
+	// bad_signature/replay with enforced=true is a security event; the
+	// same spike with enforced=false during rollout is a wiring bug to
+	// fix BEFORE flipping enforcement on.
+	RequestSignatureTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "etradie_execution_request_signature_total",
+		Help: "ExecuteTrade request-signature verification outcomes",
+	}, []string{"outcome", "enforced"})
 )
 
 // Kill-switch metrics (CHECKLIST Section 8).

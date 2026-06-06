@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -17,21 +18,27 @@ import (
 	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
+	"github.com/flamegreat-1/etradie/src/pkg/execsigning"
 	"github.com/flamegreat-1/etradie/src/pkg/resilience"
 )
 
 // ExecutionGRPCAdapter implements ports.ExecutionPort by calling
 // Module B's ExecutionService via gRPC.
 type ExecutionGRPCAdapter struct {
-	client executionv1.ExecutionServiceClient
-	conn   *grpc.ClientConn
-	log    zerolog.Logger
+	client    executionv1.ExecutionServiceClient
+	conn      *grpc.ClientConn
+	signKey   []byte // HMAC key for ExecuteTrade signing; empty disables signing.
+	log       zerolog.Logger
 }
 
 // NewExecutionGRPCAdapter creates a gRPC client for Module B's execution engine.
 // Uses grpc.NewClient (non-blocking). The connection is established lazily
 // on the first RPC call. Startup health is verified separately in main.go.
-func NewExecutionGRPCAdapter(addr string, timeoutMs int) (*ExecutionGRPCAdapter, error) {
+// signKey is the HMAC key used to sign ExecuteTrade requests (Tier 8
+// F-1/F-2). Pass the shared ENGINE_INTERNAL_SHARED_SECRET. An empty
+// key disables signing (the execution verifier then decides per its
+// own enforce flag — used during a phased rollout / in dev).
+func NewExecutionGRPCAdapter(addr string, timeoutMs int, signKey []byte) (*ExecutionGRPCAdapter, error) {
 	log := observability.Logger("execution_grpc_adapter")
 
 	_ = timeoutMs // Retained in signature for config compatibility; per-RPC timeouts are set via context.
@@ -43,12 +50,16 @@ func NewExecutionGRPCAdapter(addr string, timeoutMs int) (*ExecutionGRPCAdapter,
 		return nil, fmt.Errorf("execution adapter: create client for %s: %w", addr, err)
 	}
 
-	log.Info().Str("addr", addr).Msg("execution_grpc_client_created")
+	log.Info().
+		Str("addr", addr).
+		Bool("request_signing_enabled", len(signKey) > 0).
+		Msg("execution_grpc_client_created")
 
 	return &ExecutionGRPCAdapter{
-		client: executionv1.NewExecutionServiceClient(conn),
-		conn:   conn,
-		log:    log,
+		client:  executionv1.NewExecutionServiceClient(conn),
+		conn:    conn,
+		signKey: signKey,
+		log:     log,
 	}, nil
 }
 
@@ -87,6 +98,38 @@ func (a *ExecutionGRPCAdapter) Execute(ctx context.Context, decision *models.Pro
 	if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
 		metadataKVs = append(metadataKVs, "authorization", "Bearer "+rawToken)
 	}
+
+	// Order-integrity signature (Tier 8 F-1/F-2/F-5). Computed ONCE
+	// here, BEFORE the retry loop, so every retry resends byte-identical
+	// signed metadata; the execution verifier recognises the repeat
+	// (same canonical hash) as a legitimate retry, never a replay. The
+	// nonce is the idempotency key, binding anti-replay to the same
+	// notion the durable Postgres idempotency table uses. user_id comes
+	// from the authenticated claims so the signature binds to the
+	// principal the execution server re-derives from the forwarded JWT.
+	if len(a.signKey) > 0 {
+		if claims := auth.ClaimsFromContext(ctx); claims != nil && claims.UserID != "" {
+			fields := execsigning.Fields{
+				Timestamp:  time.Now().UTC(),
+				Nonce:      idempotencyKey,
+				UserID:     claims.UserID,
+				Symbol:     req.GetSymbol(),
+				Direction:  strings.ToUpper(req.GetDirection()),
+				AnalysisID: req.GetAnalysisId(),
+			}
+			sig := execsigning.Sign(a.signKey, fields)
+			metadataKVs = append(metadataKVs,
+				execsigning.MetaSignature, sig,
+				execsigning.MetaTimestamp, fields.Timestamp.Format(time.RFC3339Nano),
+				execsigning.MetaNonce, fields.Nonce,
+			)
+		} else {
+			a.log.Warn().
+				Str("symbol", req.GetSymbol()).
+				Msg("execute_trade_signing_skipped_no_claims")
+		}
+	}
+
 	retryCtx := metadata.AppendToOutgoingContext(ctx, metadataKVs...)
 
 	var resp *executionv1.ExecuteTradeResponse

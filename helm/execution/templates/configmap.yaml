@@ -28,6 +28,9 @@ data:
   EXECUTION_MAX_ORDER_LATENCY_MS: {{ .Values.config.execution.maxOrderLatencyMs | default "5000" | quote }}
   # Section 3: order idempotency window.
   EXECUTION_ORDER_IDEMPOTENCY_TTL_SECS: {{ .Values.config.execution.orderIdempotencyTtlSecs | default "86400" | quote }}
+  # Tier 8: signed internal execution requests + replay protection.
+  EXECUTION_REQUIRE_SIGNED_REQUESTS: {{ .Values.config.execution.requireSignedRequests | default "" | quote }}
+  EXECUTION_REQUEST_SIGNATURE_MAX_SKEW_SECS: {{ .Values.config.execution.requestSignatureMaxSkewSecs | default "30" | quote }}
     # Section 3: broker reconciliation cadence.
   EXECUTION_RECONCILE_INTERVAL_SECS: {{ .Values.config.execution.reconcileIntervalSecs | default "60" | quote }}
   # Section 3: order intake backpressure (BurstQueue).
