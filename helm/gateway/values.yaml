@@ -265,6 +265,25 @@ podDisruptionBudget:
   minAvailable: 1
   unhealthyPodEvictionPolicy: IfHealthyBudget
 
+# Tier 9 G9-2: per-service Linkerd authorization. Default FALSE; the
+# production overlay enables it after staging confirms 100% mTLS.
+#
+# gRPC :50052 is the CALLBACK surface — only execution + management call
+# it (ConfirmSetup / NotifyExecutionCompleted / CheckNewsWindow). HTTP
+# :8080 is fronted by envoy (north-south), whose SA lives in the
+# envoy-system namespace.
+linkerdPolicy:
+  enabled: false
+  grpcCallerServiceAccounts:
+    - name: etradie-execution
+      namespace: etradie-system
+    - name: etradie-management
+      namespace: etradie-system
+  httpCallerServiceAccounts:
+    - name: etradie-envoy
+      namespace: envoy-system
+  monitoringNamespace: monitoring
+
 networkPolicy:
   enabled: true
   policyTypes:

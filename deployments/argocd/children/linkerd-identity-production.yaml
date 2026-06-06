@@ -1,0 +1,51 @@
+# Linkerd identity material (CHECKLIST Tier 9). Materialises the issuer
+# TLS Secret + trust-anchor from Vault via ESO into the `linkerd`
+# namespace. Sync-wave -6: BEFORE the CRDs (-5) and control plane (-4)
+# so the issuer Secret exists when the control plane starts and reads
+# identity.issuer.scheme=kubernetes.io/tls.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: linkerd-identity-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    exoper.com/component: linkerd-identity
+    exoper.com/environment: production
+  annotations:
+    argocd.argoproj.io/sync-wave: "-6"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: linkerd
+
+  source:
+    repoURL: https://github.com/FlameGreat-1/eTradie.git
+    targetRevision: main
+    path: deployments/linkerd
+    helm:
+      releaseName: etradie-linkerd-identity
+      valueFiles:
+        - values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: linkerd
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+
+  revisionHistoryLimit: 20

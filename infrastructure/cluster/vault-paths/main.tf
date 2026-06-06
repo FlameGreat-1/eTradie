@@ -268,6 +268,39 @@ resource "vault_kv_secret_v2" "data_layer_chromadb" {
 # Audit ref: CHECKLIST Section 1 (credential security pre-requisite
 # for the mt-node Deployment), and refactor of HostedProvisioner in
 # Step 4 of this MR series.
+# Linkerd service-mesh identity (CHECKLIST Tier 9). Holds the mTLS
+# issuer cert/key + trust anchor the linkerd identity ExternalSecret
+# (deployments/linkerd/templates/identity-externalsecret.yaml) reads.
+# The platform runs NO cert-manager; the mesh CA lifecycle lives here.
+#
+# Keys (all required before the linkerd-control-plane Application syncs):
+#   trust_anchor_pem - PEM root CA (PUBLIC). Generate with:
+#       step certificate create root.linkerd.cluster.local ca.crt ca.key \
+#         --profile root-ca --no-password --insecure
+#     trust_anchor_pem = contents of ca.crt
+#   issuer_tls_crt   - PEM intermediate issuer cert, signed by the root.
+#       step certificate create identity.linkerd.cluster.local \
+#         issuer.crt issuer.key --profile intermediate-ca \
+#         --not-after 8760h --no-password --insecure \
+#         --ca ca.crt --ca-key ca.key
+#     issuer_tls_crt = contents of issuer.crt
+#   issuer_tls_key   - PEM intermediate issuer private key (issuer.key).
+#
+# Rotation: re-issue the intermediate from the same root, update
+# issuer_tls_crt/issuer_tls_key, let ESO refresh; the trust anchor only
+# changes on a full CA rotation (rare, documented in the runbook).
+resource "vault_kv_secret_v2" "linkerd_identity" {
+  mount               = var.vault_mount
+  name                = "etradie/platform/linkerd/${var.environment}"
+  delete_all_versions = false
+  data_json = jsonencode({
+    bootstrap = "placeholder; populate keys trust_anchor_pem (PEM root CA, public), issuer_tls_crt (PEM intermediate issuer cert signed by the root), issuer_tls_key (PEM intermediate issuer key) BEFORE the linkerd-control-plane ArgoCD Application is synced. Generate with smallstep `step` CLI per the runbook in docs/security/TIER9_MICROSERVICE_SECURITY.md."
+  })
+  lifecycle {
+    ignore_changes = [data_json]
+  }
+}
+
 resource "vault_kv_secret_v2" "mt_node" {
   mount               = var.vault_mount
   name                = "etradie/services/mt-node/${var.environment}"

@@ -6,6 +6,13 @@
 podAnnotations:
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: "production"
+  # Tier 9 (CHECKLIST microservice security): mesh envoy so the
+  # envoy->gateway hop is mTLS'd. Envoy speaks HTTP/2 to gateway
+  # (already meshed) so the proxy handles it natively — no opaque-ports.
+  # Envoy's :8080 inbound now arrives from a MESHED edge-ingress and is
+  # accepted under defaultAllowPolicy: all-authenticated. Audit ref:
+  # Tier 9 G9-1.
+  linkerd.io/inject: enabled
 
 # Cloud-agnostic: do NOT pin AWS-specific instance types here. Envoy
 # tolerates the etradie-system taint (set by

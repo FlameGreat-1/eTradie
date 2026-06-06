@@ -1,0 +1,14 @@
+# Values for the etradie-linkerd-identity chart (CHECKLIST Tier 9).
+# Only non-secret references; the actual cert/key bytes live in Vault.
+externalSecrets:
+  enabled: true
+  secretStoreName: vault-backend
+  secretStoreKind: ClusterSecretStore
+  refreshInterval: 1h
+  # Vault KV path holding the Linkerd identity material. Created by
+  # infrastructure/cluster/vault-paths. Operator populates:
+  #   issuer_tls_crt      - PEM issuer (intermediate) certificate
+  #   issuer_tls_key      - PEM issuer private key
+  #   trust_anchor_pem    - PEM trust anchor (root CA, public)
+  vaultPath: etradie/platform/linkerd/production
+  creationPolicy: Owner

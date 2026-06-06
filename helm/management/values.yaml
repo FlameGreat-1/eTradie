@@ -206,6 +206,15 @@ podDisruptionBudget:
   minAvailable: 1
   unhealthyPodEvictionPolicy: IfHealthyBudget
 
+# Tier 9 G9-2: per-service Linkerd authorization. Default FALSE; the
+# production overlay enables it after staging confirms 100% mTLS.
+linkerdPolicy:
+  enabled: false
+  # Only the gateway orchestrator calls management gRPC + dashboard HTTP.
+  callerServiceAccounts:
+    - etradie-gateway
+  monitoringNamespace: monitoring
+
 networkPolicy:
   enabled: true
   policyTypes:

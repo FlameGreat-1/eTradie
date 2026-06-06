@@ -54,7 +54,14 @@ postgres:
       cpu: "1"
       memory: 1Gi
 
-  podAnnotations: {}
+  # Tier 9 (CHECKLIST microservice security): mesh Postgres so the
+  # engine<->postgres hop is mTLS'd. Postgres speaks a server-first
+  # protocol on 5432, so mark it opaque: Linkerd mTLS-tunnels it as
+  # raw TCP between meshed peers without HTTP detection. Audit ref:
+  # Tier 9 G9-1.
+  podAnnotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/opaque-ports: "5432"
 
   # Scheduling. Empty defaults so the chart deploys on any cluster.
   # Production overlay layers a `workload=etradie-system` toleration on
@@ -200,7 +207,13 @@ redis:
       cpu: 500m
       memory: 768Mi
 
-  podAnnotations: {}
+  # Tier 9 (CHECKLIST microservice security): mesh Redis so the
+  # engine/execution/management <-> redis hops are mTLS'd. RESP is a
+  # server-first protocol on 6379, so mark it opaque (raw-TCP mTLS
+  # tunnel, no HTTP detection). Audit ref: Tier 9 G9-1.
+  podAnnotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/opaque-ports: "6379"
 
   # Scheduling. Empty defaults; production overlay sets a toleration
   # for the etradie-system taint.
@@ -247,7 +260,12 @@ chromadb:
       cpu: "1"
       memory: 1Gi
 
-  podAnnotations: {}
+  # Tier 9 (CHECKLIST microservice security): mesh ChromaDB so the
+  # engine <-> chroma hop is mTLS'd. Chroma speaks HTTP on :8000, so
+  # the proxy handles it natively — inject only, no opaque-ports.
+  # Audit ref: Tier 9 G9-1.
+  podAnnotations:
+    linkerd.io/inject: enabled
 
   # Scheduling. Empty defaults; production overlay sets a toleration
   # for the etradie-system taint.
@@ -313,6 +331,28 @@ limitRange:
 # ----------------------------------------------------------------------
 networkPolicy:
   enabled: true
+
+# Tier 9 G9-2: per-datastore Linkerd authorization. Default FALSE; the
+# production overlay enables it after staging confirms 100% mTLS.
+# Caller SAs are the meshed services that each datastore's NetworkPolicy
+# already admits; the postgres-backup pod is UN-meshed (a meshed Job
+# never terminates) and is admitted via a same-namespace
+# NetworkAuthentication so nightly pg_dump backups keep working.
+linkerdPolicy:
+  enabled: false
+  # Meshed caller ServiceAccounts (all etradie-system).
+  postgresCallers:
+    - etradie-gateway
+    - etradie-execution
+    - etradie-management
+    - etradie-engine
+  redisCallers:
+    - etradie-gateway
+    - etradie-execution
+    - etradie-management
+    - etradie-engine
+  chromadbCallers:
+    - etradie-engine
 
 # ----------------------------------------------------------------------
 # PodDisruptionBudgets are NOT useful at single-replica scale (they

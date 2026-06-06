@@ -1,0 +1,174 @@
+{{- if .Values.linkerdPolicy.enabled }}
+{{- /*
+Tier 9 G9-2: per-datastore Linkerd authorization.
+SA identities: <sa>.etradie-system.serviceaccount.identity.linkerd.cluster.local
+(SA name = release name = etradie-<svc>, verified in each service's
+_helpers.tpl). Postgres/Redis are server-first TCP -> proxyProtocol
+opaque (matches the opaque-ports injection in Phase 1). Chroma is HTTP.
+The postgres-backup Job pod is UN-meshed and admitted by a same-ns
+NetworkAuthentication so nightly backups keep working.
+*/ -}}
+{{- $ns := include "data-layer.namespace" . -}}
+{{- $idfmt := "%s.etradie-system.serviceaccount.identity.linkerd.cluster.local" -}}
+{{- if .Values.postgres.enabled }}
+# ── Postgres :5432 ──────────────────────────────────────────
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: postgres
+  namespace: {{ $ns }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  port: {{ .Values.postgres.service.port }}
+  proxyProtocol: opaque
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: MeshTLSAuthentication
+metadata:
+  name: postgres-callers
+  namespace: {{ $ns }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+spec:
+  identities:
+    {{- range .Values.linkerdPolicy.postgresCallers }}
+    - {{ printf $idfmt . | quote }}
+    {{- end }}
+---
+# Un-meshed postgres-backup Job pod (same namespace). A meshed Job would
+# never terminate, so the backup pod stays un-meshed and is admitted by
+# source network. NetworkPolicy already restricts :5432 ingress to the
+# exact caller pods, so this is defense-in-depth, not a wide opening.
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: postgres-backup-network
+  namespace: {{ $ns }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+spec:
+  networks:
+    - cidr: 10.0.0.0/8
+    - cidr: 172.16.0.0/12
+    - cidr: 192.168.0.0/16
+    - cidr: 100.64.0.0/10
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: postgres-authz
+  namespace: {{ $ns }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: postgres
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: postgres-callers
+    - group: policy.linkerd.io
+      kind: NetworkAuthentication
+      name: postgres-backup-network
+{{- end }}
+{{- if .Values.redis.enabled }}
+---
+# ── Redis :6379 ────────────────────────────────────────────
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: redis
+  namespace: {{ $ns }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  port: 6379
+  proxyProtocol: opaque
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: MeshTLSAuthentication
+metadata:
+  name: redis-callers
+  namespace: {{ $ns }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  identities:
+    {{- range .Values.linkerdPolicy.redisCallers }}
+    - {{ printf $idfmt . | quote }}
+    {{- end }}
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: redis-authz
+  namespace: {{ $ns }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: redis
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: redis-callers
+{{- end }}
+{{- if .Values.chromadb.enabled }}
+---
+# ── ChromaDB :8000 (HTTP) — engine only ─────────────────────────
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: chromadb
+  namespace: {{ $ns }}
+  labels:
+    {{- include "chromadb.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: chromadb
+  port: {{ .Values.chromadb.service.port }}
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: MeshTLSAuthentication
+metadata:
+  name: chromadb-callers
+  namespace: {{ $ns }}
+  labels:
+    {{- include "chromadb.labels" . | nindent 4 }}
+spec:
+  identities:
+    {{- range .Values.linkerdPolicy.chromadbCallers }}
+    - {{ printf $idfmt . | quote }}
+    {{- end }}
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: chromadb-authz
+  namespace: {{ $ns }}
+  labels:
+    {{- include "chromadb.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: chromadb
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: chromadb-callers
+{{- end }}
+{{- end }}

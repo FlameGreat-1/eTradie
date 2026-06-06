@@ -1,0 +1,56 @@
+# Linkerd CRDs (CHECKLIST Tier 9). MUST install before the control
+# plane and before ANY workload that could be injected, so sync-wave
+# -5 (below data-layer -2 / engine -1 / gateway 0).
+#
+# Pinned chart version so a mesh upgrade is a deliberate, reviewed
+# commit (never an implicit `latest`). Bump in lockstep with the
+# control-plane chart below.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: linkerd-crds-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    exoper.com/component: linkerd-crds
+    exoper.com/environment: production
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: linkerd
+
+  source:
+    repoURL: https://helm.linkerd.io
+    chart: linkerd-crds
+    targetRevision: 1.8.0
+    helm:
+      releaseName: linkerd-crds
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: linkerd
+
+  syncPolicy:
+    # Manual promotion in production (matches every other *-production
+    # Application: no automated prune / selfHeal; operator clicks Sync
+    # in the AppProject window). CRDs must never be auto-pruned.
+    automated:
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+      # CRDs are large; ServerSideApply avoids the
+      # last-applied-configuration annotation size limit.
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+
+  revisionHistoryLimit: 20

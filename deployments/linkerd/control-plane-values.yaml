@@ -1,0 +1,100 @@
+# Linkerd control-plane Helm values (CHECKLIST Tier 9).
+# Referenced by deployments/argocd/children/linkerd-control-plane-production.yaml
+# as the $values overlay. Contains NO secret bytes.
+#
+# Identity model (no cert-manager on this platform):
+#   - The trust anchor (root CA) PEM is supplied via
+#     identityTrustAnchorsPEM. It is populated by the operator from
+#     Vault (etradie/platform/linkerd/<env>:trust_anchor_pem) at promote
+#     time using `helm ... --set-file` / a sealed overlay; it is a
+#     PUBLIC certificate (no private key), so it is safe to render, but
+#     we keep it out of git so the CA lifecycle stays in Vault as the
+#     single source of truth. ArgoCD operators inject it via the
+#     Application's helm.parameters at sync, OR it is delivered as a
+#     ConfigMap by the identity ExternalSecret and referenced here.
+#   - The issuer cert/key is delivered as the kubernetes.io/tls Secret
+#     `linkerd-identity-issuer` by the identity ExternalSecret (ESO ->
+#     Vault). identity.issuer.scheme=kubernetes.io/tls tells Linkerd to
+#     read that Secret rather than generate its own.
+
+# High-availability control plane (production posture): 3 replicas of
+# each control-plane component + anti-affinity + PodDisruptionBudgets.
+highAvailability: true
+
+# Trust anchor (root CA, PUBLIC cert). Operator populates at promote
+# time from Vault; left empty here so a bare `helm template` does not
+# embed a stale/placeholder CA. The control-plane Application's sync
+# MUST supply it (helm parameter identityTrustAnchorsPEM) or the
+# identity service will not start — this is intentional fail-fast.
+identityTrustAnchorsPEM: ""
+
+identity:
+  issuer:
+    # Read the issuer cert/key from the ESO-materialised Secret instead
+    # of letting Linkerd self-generate (which would not survive a
+    # control-plane restart consistently in HA).
+    scheme: kubernetes.io/tls
+  # The issuer Secret name Linkerd expects under scheme=kubernetes.io/tls.
+  # Materialised by deployments/linkerd identity ExternalSecret.
+
+# Proxy defaults. gRPC (HTTP/2) is detected natively by the proxy, so
+# the gateway<->execution<->management gRPC ports need no opaque-port
+# config. Postgres (5432) and Redis (6379) are server-speaks-first
+# protocols; Linkerd auto-marks well-known ones, but we declare them
+# opaque explicitly on the CLIENTS via podAnnotations in each chart
+# (Step 3b) rather than globally, to avoid over-broad opacity.
+# Proxy + proxy-init resources MUST independently satisfy the
+# namespace-wide LimitRange owned by the data-layer chart
+# (helm/data-layer/values.yaml: container.min cpu=50m, memory=64Mi;
+# container.max cpu=4, memory=8Gi). LimitRange admission rejects any
+# container below min, and Linkerd sets EXPLICIT requests on its
+# injected containers, so the LimitRange default/defaultRequest do not
+# apply — these values must clear min on their own. CRITICAL: the
+# upstream default proxy-init memory request (20Mi) is BELOW the 64Mi
+# min and would block every injected pod at admission.
+proxy:
+  resources:
+    cpu:
+      request: 50m
+      limit: 200m
+    memory:
+      request: 64Mi
+      limit: 256Mi
+  logLevel: warn,linkerd=info
+
+# proxy-init (iptables setup; short-lived). Raised to meet the 64Mi /
+# 50m LimitRange minimum. Operators who instead install the Linkerd CNI
+# plugin (linkerd-cni) get NO init container at all and may drop this
+# block — documented in the Tier 9 runbook.
+proxyInit:
+  resources:
+    cpu:
+      request: 50m
+      limit: 100m
+    memory:
+      request: 64Mi
+      limit: 64Mi
+
+# NOTE on ResourceQuota: the production etradie-system ResourceQuota
+# (helm/data-layer/values-production.yaml: requestsCpu=32,
+# requestsMemory=64Gi) has ample headroom for ~19 proxy sidecars across
+# prod replica counts (~0.95 CPU + ~1.2Gi extra requests). Do NOT
+# tighten the quota below that envelope without re-accounting for the
+# per-pod proxy overhead, or pods will fail admission with
+# 'exceeded quota'.
+
+# Control-plane components inherit the cluster's restricted PSS; the
+# Linkerd chart already sets non-root + read-only-root + drop-ALL, so
+# no override needed here. Documented so a reviewer knows it was
+# considered, not missed.
+
+policyController:
+  # Default inbound policy for meshed pods BEFORE per-service
+  # ServerAuthorization (Step 3c) is applied. "all-authenticated"
+  # means: any meshed (mTLS-identified) workload may connect, but
+  # un-meshed / unauthenticated traffic is REJECTED. This is the
+  # safe phased-rollout default — it enforces mTLS immediately
+  # without blackholing a service whose fine-grained Server/
+  # ServerAuthorization has not landed yet. Step 3c tightens specific
+  # ports to specific caller ServiceAccounts.
+  defaultAllowPolicy: all-authenticated

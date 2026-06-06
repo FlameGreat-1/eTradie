@@ -258,6 +258,27 @@ podDisruptionBudget:
   minAvailable: 1
   unhealthyPodEvictionPolicy: IfHealthyBudget
 
+# Tier 9 (CHECKLIST microservice security) — per-service Linkerd
+# authorization (G9-2). Renders policy.linkerd.io Server +
+# ServerAuthorization that lock each port to the exact client
+# ServiceAccount identities. DEFAULT FALSE: a bare/dev render emits no
+# policy. Production overlay sets enabled=true ONLY after staging
+# confirms 100% mTLS on every edge (phased rollout). Until enabled, the
+# Linkerd control-plane defaultAllowPolicy=all-authenticated still
+# enforces mTLS (any meshed peer) — this just narrows it to the
+# legitimate caller per port.
+linkerdPolicy:
+  enabled: false
+  # Client ServiceAccount identities permitted to reach execution.
+  # SA = release name = etradie-<svc> (verified in _helpers.tpl); all
+  # in etradie-system. The gateway orchestrator is the ONLY execution
+  # gRPC + dashboard-HTTP caller.
+  callerServiceAccounts:
+    - etradie-gateway
+  # Namespace that runs Prometheus (un-meshed) for the /metrics scrape
+  # NetworkAuthentication. Matches the NetworkPolicy ingress selector.
+  monitoringNamespace: monitoring
+
 networkPolicy:
   enabled: true
   policyTypes:
