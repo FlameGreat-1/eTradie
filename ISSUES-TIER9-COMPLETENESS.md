@@ -70,15 +70,18 @@
 ## Progress Tracker
 
 - [x] Step 1 — this tracker.
-- [ ] Step 2 (F5 prep + F1) — mesh billing in base values + native
-      sidecar; billing linkerdPolicy block.
-- [ ] Step 3 (F1) — billing NetworkPolicy linkerd egress + :4191;
-      data-layer postgresCallers/redisCallers += etradie-billing.
-- [ ] Step 4 (F1) — billing linkerd-authzpolicy.yaml + prod overlay
-      enable-flag posture.
-- [ ] Step 5 (F2) — data-layer postgres NetworkAuthentication for the
-      rewrap Job.
-- [ ] Step 6 (F3) — mt-node chart NetworkPolicy linkerd egress + :4191.
+- [x] Step 2 (F1) — DONE. billing meshed in BASE values (inject +
+      native sidecar) + linkerdPolicy block (false).
+- [x] Step 3 (F1) — DONE. billing NP linkerd egress + :4191; data-layer
+      postgresCallers/redisCallers += etradie-billing.
+- [x] Step 4 (F1) — DONE. billing linkerd-authzpolicy.yaml (Server
+      :8082 -> envoy + gateway; Prometheus NetworkAuthentication).
+- [x] Step 5 (F2) — DONE (no functional change). The existing postgres
+      NetworkAuthentication already admits the un-meshed rewrap Job via
+      OR semantics + private-CIDR; comment generalised to say so. No
+      duplicate authn added.
+- [x] Step 6 (F3) — DONE. mt-node chart NP linkerd egress + :4191;
+      runtime no-NP noted.
 - [ ] Step 7 (F5) — move inject+native-sidecar to BASE values for
       gateway/execution/management/engine; drop dup from prod overlays.
 - [ ] Step 8 (F4) — linkerd-viz Application + values + AppProject
