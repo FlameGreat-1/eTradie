@@ -294,7 +294,7 @@ resource "vault_kv_secret_v2" "linkerd_identity" {
   name                = "etradie/platform/linkerd/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate keys trust_anchor_pem (PEM root CA, public), issuer_tls_crt (PEM intermediate issuer cert signed by the root), issuer_tls_key (PEM intermediate issuer key) BEFORE the linkerd-control-plane ArgoCD Application is synced. Generate with smallstep `step` CLI per the runbook in docs/security/TIER9_MICROSERVICE_SECURITY.md."
+    bootstrap = "placeholder; populate keys trust_anchor_pem (PEM root CA, public), issuer_tls_crt (PEM intermediate issuer cert signed by the root), issuer_tls_key (PEM intermediate issuer key) BEFORE the linkerd-control-plane ArgoCD Application is synced. Generate with smallstep `step` CLI per the runbook in docs/runbooks/tier9-linkerd-mesh-rollout.md (section 0)."
   })
   lifecycle {
     ignore_changes = [data_json]
