@@ -20,9 +20,9 @@ podAnnotations:
   # the inbound gRPC from gateway and the HTTP broker-bridge calls to
   # engine are mTLS'd. gRPC/HTTP2 detected natively. Audit ref: Tier 9 G9-1.
   linkerd.io/inject: enabled
-  # Tier 9 M1: native sidecar (K8s SidecarContainers, GA 1.29; cluster
-  # is OKE v1.32) so the wait-for-deps init container reaches meshed
-  # postgres/redis/engine through an already-running proxy.
+  # Run the proxy as a native sidecar so the wait-for-deps init
+  # container reaches meshed postgres/redis/engine through an
+  # already-running proxy.
   config.linkerd.io/proxy-enable-native-sidecar: "true"
 
 config:
