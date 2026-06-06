@@ -132,8 +132,47 @@
       same opaque-ports(5555) on the runtime mt-node StatefulSet pod
       template (code change). Locate _build_statefulset in
       provisioner.py first.
-- [ ] **Step 3c** — per-service Server + ServerAuthorization (G9-2)
-      AFTER all workloads confirmed meshed (linkerd viz edges = 100% TLS).
+- [x] **Step 3b (cronjobs)** — RESOLVED. postgres-backup CronJob Job
+      pod template carries NO podAnnotations-from-values => it is NEVER
+      Linkerd-injected => no stuck-Job risk. CAVEAT for 3c: the backup
+      pod (un-meshed) dials meshed postgres :5432; once postgres
+      ServerAuthorization tightens, it must explicitly permit the
+      backup SA via a same-namespace NetworkAuthentication (un-meshed
+      localhost-ns source) OR the backup pod must be meshed with
+      config.linkerd.io/proxy-enable-native-sidecar (needs K8s>=1.28 —
+      cluster version UNVERIFIED, so prefer the NetworkAuthentication
+      allowance). Same logic for any other un-meshed in-ns client of a
+      meshed server (Prometheus scrape is from `monitoring` ns and is
+      ALSO un-meshed — must be allowed on the metrics ports).
+
+## ===== G9-1 (mTLS data-plane) COMPLETE — committed. =====
+## Remaining: G9-2 (per-service authz) + G9-3 finalisation + rollout.
+
+- [ ] **Step 3c (NEXT phase) — per-service Server + ServerAuthorization
+      (G9-2).** Apply ONLY AFTER staging shows `linkerd viz edges` =
+      100% TLS on every edge (phased: defaultAllowPolicy stays
+      all-authenticated until then). Per-service plan (keyed to real SA
+      names — each chart's serviceaccount.yaml; default SA name =
+      release name e.g. etradie-execution):
+        * execution gRPC :50053  -> allow ONLY gateway SA.
+        * management gRPC :50054  -> allow ONLY gateway SA.
+        * gateway gRPC :50052     -> allow ONLY execution + management SA
+          (ConfirmSetup / NotifyExecutionCompleted callbacks).
+        * engine HTTP :8000       -> allow ONLY gateway + execution +
+          management SA (the /internal/* callers).
+        * data-layer 5432/6379/8000 -> allow engine (+ gateway/execution/
+          management for pg/redis per their NetworkPolicy egress) SA;
+          PLUS a NetworkAuthentication for the un-meshed postgres-backup
+          pod (same-ns) and Prometheus (monitoring ns) on metrics ports.
+        * metrics ports (8080/8083/8000/9100/9902) -> allow Prometheus
+          (monitoring ns, un-meshed) via NetworkAuthentication.
+      Each Server+ServerAuthorization pair lives in the OWNING chart
+      (etradie-system) so it ships with the workload; the etradie
+      AppProject already whitelists policy.linkerd.io kinds (Step 3a).
+      One chart per commit. MUST read each serviceaccount.yaml to get SA
+      names exactly right before writing.
+- [ ] **Step 3f** — docs + phased rollout runbook + `step`-CLI CA
+      generation runbook + finalise tracker.
 - [ ] **Step 3c** — Per-service Server + ServerAuthorization (per-service
       authz; closes G9-2) keyed to real SA names + ports.
 - [ ] **Step 3d** — HostedProvisioner: stamp linkerd.io/inject on the
