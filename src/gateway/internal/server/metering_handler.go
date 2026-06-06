@@ -187,8 +187,9 @@ func (h *MeteringHandler) handleReserve(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var req reserveRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := auth.DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSONError(w, status, msg)
 		return
 	}
 	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
@@ -411,8 +412,9 @@ func (h *MeteringHandler) handleCommit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req commitRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := auth.DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSONError(w, status, msg)
 		return
 	}
 	req.ReservationID = strings.TrimSpace(req.ReservationID)
@@ -521,8 +523,9 @@ func (h *MeteringHandler) handleRefund(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req refundRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := auth.DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSONError(w, status, msg)
 		return
 	}
 	req.ReservationID = strings.TrimSpace(req.ReservationID)
