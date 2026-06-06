@@ -176,7 +176,23 @@
       current behaviour identical; podSecurityStandardVersion declared
       in data-layer values. MED-2: envoy->gateway HTTP/1.1 comment
       corrected.
-- [ ] **Step 9** — final reconciliation read-through + update runbook
-      (TIER9_ROLLOUT_RUNBOOK.md: trust-anchor parameter wiring, native
-      sidecar / K8s>=1.29, defaultAllowPolicy all-unauthenticated,
-      linkerdPolicy deliberate enable) + open ONE MR.
+- [x] **Step 9 (docs)** — DONE. Runbook (TIER9_ROLLOUT_RUNBOOK.md)
+      updated for: trust-anchor sentinel + --helm-set-file promote,
+      native sidecar / K8s>=1.29, defaultAllowPolicy all-unauthenticated,
+      deliberate linkerdPolicy enable. Original design tracker
+      (TIER9_MICROSERVICE_SECURITY.md) headed as design history pointing
+      to the current sources of truth. Data-layer postgres NP render
+      re-verified (backup ingress kept, :4191 added, linkerd egress
+      present, no dead :4143, braces balanced).
+      REMAINING: open the MR.
+
+## All findings resolved
+
+C1 (all-unauthenticated), C2 (linkerd-ns egress on all 9 meshed pods),
+C3 (trust-anchor parameter wired + dead ESO removed), C4 (corrected:
+NetworkPolicy uses app ports; :4191 admin ingress added; dead :4143
+removed), M1 (native sidecar everywhere + K8s>=1.29 floor), H3 (authz
+deferred), MED-1 (dead ESO removed), MED-2 (envoy HTTP/1.1 comment),
+PRE-1 (single-owned namespace, PSS posture preserved). LOW-1 verified
+not-a-bug. Comment hygiene pass complete (no internal tracker tags in
+manifests).
