@@ -63,12 +63,44 @@
       service.yaml; _helpers label scheme; envoy + edge-ingress charts;
       data-layer chart; engine HostedProvisioner spec-builder. NO mesh
       files until this is complete and reported.
-- [ ] **Step 3a** — Linkerd CRDs + control-plane (+ linkerd-viz optional)
-      as ArgoCD Applications at a sync-wave BEFORE workloads; AppProject
-      whitelist for linkerd.io CRDs + namespaces.
-- [ ] **Step 3b** — Namespace/workload injection annotations per chart
-      (etradie-system + data-layer + edge-ingress namespaces), one chart
-      per commit, with correct port config annotations.
+- [x] **Step 2 (read-only trace)** — DONE. Confirmed facts:
+      * App-of-apps: root-app recurses `deployments/argocd/children/`;
+        new mesh apps go there as child Applications.
+      * Sync waves: data-layer **-2**, engine **-1**, gateway **0**.
+        => Linkerd identity **-6**, CRDs **-5**, control plane **-4**.
+      * `etradie` AppProject destinations did NOT allow linkerd ns and
+        its resource whitelist lacked policy.linkerd.io + webhook/CRD
+        kinds => created a SEPARATE `linkerd` AppProject; added
+        policy.linkerd.io kinds to the `etradie` project for Step 3c.
+      * No cert-manager on platform => identity via Vault+ESO
+        (kubernetes.io/tls issuer Secret + trust-anchor), mirroring the
+        existing secret pattern.
+      * Child app format: helm source, releaseName, valueFiles,
+        prune/selfHeal=false in prod, sync-wave annotation.
+      * mt-node runtime pods built by engine HostedProvisioner
+        (kubernetes_asyncio); pod template needs linkerd.io/inject
+        => CODE change in provisioner.py (Step 3d). Spec-builder
+        location still to be pinpointed in the 1759-line file.
+- [x] **Step 3a** — DONE. linkerd-appproject.yaml; child apps
+      linkerd-identity(-6) / linkerd-crds(-5) / linkerd-control-plane(-4);
+      deployments/linkerd chart (identity ExternalSecret + trust anchor);
+      control-plane-values.yaml; etradie AppProject policy.linkerd.io
+      whitelist; Vault path etradie/platform/linkerd/<env> in terraform.
+      Control plane only — NO workload injected yet (services unaffected).
+- [ ] **Step 3b (NEXT)** — Per-workload injection. DECISION: drive via
+      each chart's existing `.Values.podAnnotations` (every deployment.yaml
+      already renders `template.metadata.annotations` from podAnnotations
+      — confirmed in execution/deployment.yaml). Add `linkerd.io/inject:
+      enabled` to podAnnotations in values-production.yaml of: gateway,
+      execution, management, engine, data-layer, edge-ingress, envoy,
+      mt-node (chart). Per-chart Postgres/Redis opaque-port handling via
+      `config.linkerd.io/opaque-ports` ONLY where a service SPEAKS those
+      protocols. One chart per commit. STILL TO READ before editing:
+      each chart's deployment.yaml annotation block (engine/gateway/
+      management/data-layer/edge-ingress/envoy) to confirm podAnnotations
+      is rendered; data-layer statefulset annotation block.
+- [ ] **Step 3b-verify** — confirm gRPC ports need no opaque-ports
+      (h2 native) and init-container `nc` checks still pass under proxy.
 - [ ] **Step 3c** — Per-service Server + ServerAuthorization (per-service
       authz; closes G9-2) keyed to real SA names + ports.
 - [ ] **Step 3d** — HostedProvisioner: stamp linkerd.io/inject on the
