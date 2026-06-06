@@ -2,10 +2,8 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -82,11 +80,12 @@ func (h *Handler) handleOAuthGoogleStart(w http.ResponseWriter, r *http.Request)
 	// ContentLength > 0 was unsound. io.EOF is treated as "no body",
 	// which means "no return_to".
 	var req oauthStartRequest
-	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
-			writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-			return
-		}
+	// Body is OPTIONAL: an absent body simply means "no return_to". A
+	// non-empty body is still size-capped + unknown-field-checked.
+	if err := DecodeJSONStrictAllowEmpty(w, r, &req, 0); err != nil {
+		status, msg := DecodeJSONError(err)
+		writeAuthError(w, status, msg)
+		return
 	}
 	returnTo := sanitiseReturnTo(req.ReturnTo)
 
@@ -157,8 +156,9 @@ func (h *Handler) handleOAuthGoogleCallback(w http.ResponseWriter, r *http.Reque
 	}
 
 	var req oauthCallbackRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := DecodeJSONError(err)
+		writeAuthError(w, status, msg)
 		return
 	}
 	req.Code = strings.TrimSpace(req.Code)
@@ -507,11 +507,12 @@ func (h *Handler) handleOAuthGoogleLinkStart(w http.ResponseWriter, r *http.Requ
 	}
 
 	var req oauthStartRequest
-	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
-			writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-			return
-		}
+	// Body is OPTIONAL: an absent body simply means "no return_to". A
+	// non-empty body is still size-capped + unknown-field-checked.
+	if err := DecodeJSONStrictAllowEmpty(w, r, &req, 0); err != nil {
+		status, msg := DecodeJSONError(err)
+		writeAuthError(w, status, msg)
+		return
 	}
 	returnTo := sanitiseReturnTo(req.ReturnTo)
 
@@ -586,8 +587,9 @@ func (h *Handler) handleOAuthGoogleLinkCallback(w http.ResponseWriter, r *http.R
 	}
 
 	var req oauthCallbackRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := DecodeJSONError(err)
+		writeAuthError(w, status, msg)
 		return
 	}
 	req.Code = strings.TrimSpace(req.Code)
