@@ -93,14 +93,20 @@ on ExecuteTrade is `codes.Unauthenticated`/`PermissionDenied`. Gated by
 ## 3. Progress Tracker (update as each step lands)
 
 - [x] **Step 1** — THIS tracker doc (non-functional, recoverable anchor).
-- [ ] **Step 0b** — Finish tracing: `src/gateway/internal/config/config.go`
-      (confirm `EngineInternalSharedSecret` accessor) + confirm the execution
-      gRPC interceptor chain shape. NO code until done.
-- [ ] **Step 2 (F-6)** — `grpc_server.go::SetHaltState`: on re-read failure,
-      echo the requested intent instead of zero-values.
-- [ ] **Step 3 (F-7)** — new metric `etradie_execution_idempotency_store_errors_total`
-      in `observability/metrics.go`; increment in `executor.go` fall-through;
-      PrometheusRule alert in `helm/execution/templates/prometheusrule.yaml`.
+- [x] **Step 0b** — Tracing complete. CONFIRMED: gateway exposes
+      `cfg.EngineInternalSharedSecret` (`GATEWAY_ENGINE_INTERNAL_SHARED_SECRET`,
+      required, >=32 chars); execution exposes `cfg.EngineInternalSecret`
+      (same root `ENGINE_INTERNAL_SHARED_SECRET`, same Vault property per the
+      execution externalsecret). Execution gRPC chain is
+      `grpc.ChainUnaryInterceptor(auth.UnaryAuthInterceptor(...))` — a second
+      interceptor can be appended. Gateway adapter retries 3x
+      (`resilience.DefaultRetryConfig`) — signature MUST be computed once and
+      reused across retries.
+- [x] **Step 2 (F-6)** — `grpc_server.go::SetHaltState` now echoes requested
+      intent for the written scope on a re-read failure. DONE.
+- [x] **Step 3 (F-7)** — `etradie_execution_idempotency_store_errors_total`
+      added + incremented at both executor fall-through sites +
+      `ExecutionIdempotencyStoreErrors` PrometheusRule alert. DONE.
 - [ ] **Step 4 (F-1/F-2/F-5 core)** — new `execution/internal/signing` package
       (HMAC sign/verify + canonical builder + nonce TTL store); config knobs;
       second gRPC interceptor wired in `main.go`.

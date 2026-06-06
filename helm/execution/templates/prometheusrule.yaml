@@ -101,6 +101,30 @@ spec:
               slow.
             runbook_url: "https://docs.etradie.com/runbooks/execution-latency-breach-spike"
 
+        # Idempotency store fall-through. When the idempotency store
+        # errors, the executor deliberately proceeds with a
+        # NON-idempotent placement so a DB blip never blocks trading.
+        # Any non-zero rate means duplicate-order protection is
+        # effectively OFF: a retried gateway call (DefaultRetryConfig
+        # retries 3x) could place a duplicate REAL order. Critical.
+        - alert: ExecutionIdempotencyStoreErrors
+          expr: |
+            sum(rate(etradie_execution_idempotency_store_errors_total[5m])) > 0
+          for: 2m
+          labels:
+            severity: critical
+            component: execution
+            team: trading
+          annotations:
+            summary: "Idempotency store errors: duplicate-order protection degraded"
+            description: |
+              The execution service is falling through to non-idempotent
+              order placement because the idempotency store is returning
+              errors. While this persists, a retried order submission can
+              result in a duplicate REAL broker order. Check PostgreSQL
+              health and connection-pool saturation immediately.
+            runbook_url: "https://docs.etradie.com/runbooks/execution-idempotency-store-errors"
+
         # Audit write failures = trades happening without DB audit.
         # This is a COMPLIANCE incident, not just an SLO issue.
         - alert: ExecutionAuditWriteFailures
