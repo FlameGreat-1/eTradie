@@ -1,0 +1,11 @@
+apiVersion: v2
+name: etradie-linkerd-identity
+description: >-
+  ExternalSecret + trust-anchor wiring that materialises the Linkerd
+  identity issuer TLS Secret and trust-anchor ConfigMap from Vault
+  (CHECKLIST Tier 9). Keeps the mesh CA lifecycle in Vault with no
+  cert-manager dependency. Deployed into the `linkerd` namespace at a
+  sync-wave before the control plane consumes it.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
