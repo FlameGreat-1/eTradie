@@ -39,6 +39,21 @@ spec:
         releaseName: linkerd-control-plane
         valueFiles:
           - $values/deployments/linkerd/control-plane-values.yaml
+        # Trust anchor (PUBLIC root CA). The chart reads it only as this
+        # literal value; ArgoCD cannot source it from a cluster object,
+        # so the operator overrides this parameter at promote time from
+        # Vault (single source of truth for the mesh CA):
+        #   argocd app set linkerd-control-plane-production \
+        #     --helm-set-file identityTrustAnchorsPEM=ca.crt
+        # where ca.crt = `vault kv get -field=trust_anchor_pem \
+        #   etradie/platform/linkerd/<env>`.
+        # The sentinel below is intentionally NOT a valid PEM so a
+        # forgotten override fails loud at sync instead of silently
+        # starting the identity service with no trust anchor.
+        parameters:
+          - name: identityTrustAnchorsPEM
+            value: "REPLACE_AT_PROMOTE_WITH_VAULT_TRUST_ANCHOR_PEM"
+            forceString: true
     - repoURL: https://github.com/FlameGreat-1/eTradie.git
       targetRevision: main
       ref: values
