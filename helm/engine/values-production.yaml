@@ -39,6 +39,13 @@ podAnnotations:
   # mark it opaque so the proxy mTLS-tunnels it as raw TCP between
   # meshed peers instead of attempting HTTP/2 detection.
   config.linkerd.io/opaque-ports: "5555"
+  # Tier 9 M1: native sidecar (K8s SidecarContainers, GA 1.29; cluster
+  # is OKE v1.32). CRITICAL for the engine: its `migrate` init container
+  # runs `alembic upgrade head` against meshed postgres, and
+  # `wait-for-deps` dials meshed postgres/redis — both run BEFORE a
+  # non-native proxy would start. Native sidecar brings the proxy up
+  # first so migrations + dep-wait are mTLS'd instead of refused.
+  config.linkerd.io/proxy-enable-native-sidecar: "true"
   # OTLP gRPC collector (etradie-observability) is operator-installed
   # and may be un-meshed; skip its port so traces flow regardless and
   # the proxy never fails a handshake to a non-meshed collector. The
