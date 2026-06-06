@@ -107,15 +107,47 @@ on ExecuteTrade is `codes.Unauthenticated`/`PermissionDenied`. Gated by
 - [x] **Step 3 (F-7)** — `etradie_execution_idempotency_store_errors_total`
       added + incremented at both executor fall-through sites +
       `ExecutionIdempotencyStoreErrors` PrometheusRule alert. DONE.
-- [ ] **Step 4 (F-1/F-2/F-5 core)** — new `execution/internal/signing` package
-      (HMAC sign/verify + canonical builder + nonce TTL store); config knobs;
-      second gRPC interceptor wired in `main.go`.
-- [ ] **Step 5 (F-1 gateway side)** — `infra/execution_grpc.go` signs the
-      `ExecuteTrade` metadata (retry-safe: sign once, reuse on retries).
-- [ ] **Step 6** — unit tests: sign/verify round-trip, skew rejection,
-      nonce-replay (same-hash allow / diff-hash reject), retry-safety.
-- [ ] **Step 7** — docs: update kill-switch.md cross-ref + this tracker;
-      update the audit findings to RESOLVED.
+- [x] **Step 4 (F-1/F-2/F-5 core)** — pure primitives in shared
+      `src/pkg/execsigning` (Canonical/Sign/Verify); execution-side
+      `src/execution/internal/signing` (Verifier + retry-safe NonceStore +
+      Outcome); config knobs in `execution/internal/config/config.go`;
+      `server/signing_interceptor.go` verification interceptor; wired as the
+      2nd unary interceptor in `cmd/execution/main.go`. Metric
+      `etradie_execution_request_signature_total`. DONE.
+- [x] **Step 5 (F-1 gateway side)** — `infra/execution_grpc.go` signs
+      ExecuteTrade ONCE before the retry loop (retry-safe); key passed from
+      `cmd/gateway/main.go` as `[]byte(cfg.EngineInternalSharedSecret)`. DONE.
+- [x] **Step 5b (helm)** — `helm/execution` values + configmap emit the new
+      knobs; PrometheusRule `ExecutionRequestSignatureRejections` (enforced)
+      + `ExecutionRequestSignatureWarnOnlyFailures` (rollout). DONE.
+- [x] **Step 6** — unit tests: `execsigning_test.go` (canonical determinism,
+      field sensitivity, sign/verify, wrong-key, tamper, malformed-hex) +
+      `signing_test.go` (valid/bad-sig/stale-both-directions/retry-safety/
+      replay-different-payload/nonce-expiry/nonce-store). DONE.
+- [x] **Step 7** — this tracker finalised. DONE.
+
+## 3a. As-built rollout procedure (warn-only -> enforce)
+
+1. Deploy this branch. In prod-like envs the `""` default resolves to
+   ENFORCE immediately because the gateway already signs and the key is
+   shared — there is NO unsigned-traffic window, so enforce-on-deploy is
+   safe. If an operator prefers a soak: set
+   `EXECUTION_REQUIRE_SIGNED_REQUESTS=false` (warn-only), watch
+   `etradie_execution_request_signature_total{outcome="ok"}` reach ~100%,
+   confirm `ExecutionRequestSignatureWarnOnlyFailures` is silent, then
+   remove the override (or set `true`) to enforce.
+2. The HMAC key is `ENGINE_INTERNAL_SHARED_SECRET` (already in Vault on
+   both gateway and execution) — no new secret, no Vault change.
+
+## 3b. Tier 9 follow-up (OUT OF SCOPE here, recorded)
+
+The signature closes the Tier 8 "signed internal execution requests" +
+"replay attack protection" items at the APPLICATION layer over the
+existing plaintext gRPC channel. TRANSPORT-level mTLS + service identity
+between services is CHECKLIST Tier 9 and remains a separate, deliberate
+piece of work (it is not required to close Tier 8).
+
+## 4. Definition of done
 
 ## 4. Definition of done
 - Gateway signs every `ExecuteTrade`; execution verifies (fail-closed in prod).
