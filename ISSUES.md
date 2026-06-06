@@ -140,10 +140,14 @@
       redis exec probes unaffected; mt-node/runtime carry Vault Agent
       init so native sidecar is REQUIRED there. STILL TODO in Step 3:
       raise bootstrap README floor to K8s >= 1.29.
-- [ ] **Step 4 (C2/C4 services)** — append linkerd egress (ns linkerd)
-      + ingress 4143/4191 to networkPolicy lists in
-      gateway/execution/management/engine values (verify overlays do not
-      drop them).
+- [~] **Step 4 (C2/C4 services)** — IN PROGRESS. DONE: engine + gateway
+      base values (linkerd-ns egress + :4143 in-mesh ingress + :4191
+      Prometheus ingress). PENDING: execution + management base values
+      (same rules). Verified all four prod overlays do NOT define a
+      networkPolicy block, so editing base values is authoritative.
+      NOTE: comment-hygiene pass done — removed internal tracker tags
+      (Tier 9 C2/C4/M1) from all manifest comments added this session;
+      kept clean operational rationale only.
 - [ ] **Step 5 (C2/C4 data-layer)** — edit data-layer networkpolicy.yaml
       template: add linkerd egress + 4143/4191 ingress to
       postgres/redis/chromadb (and confirm chromadb HTTP probe vs proxy).
