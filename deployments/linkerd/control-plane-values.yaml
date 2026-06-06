@@ -7,11 +7,12 @@
 #     identityTrustAnchorsPEM. It is populated by the operator from
 #     Vault (etradie/platform/linkerd/<env>:trust_anchor_pem) at promote
 #     time using `helm ... --set-file` / a sealed overlay; it is a
-#     PUBLIC certificate (no private key), so it is safe to render, but
-#     we keep it out of git so the CA lifecycle stays in Vault as the
-#     single source of truth. ArgoCD operators inject it via the
-#     Application's helm.parameters at sync, OR it is delivered as a
-#     ConfigMap by the identity ExternalSecret and referenced here.
+#     PUBLIC certificate (no private key), but we keep it out of git so
+#     the CA lifecycle stays in Vault as the single source of truth.
+#     ArgoCD operators inject it via the control-plane Application's
+#     helm.parameters at promote time (--helm-set-file
+#     identityTrustAnchorsPEM=ca.crt, sourced from
+#     etradie/platform/linkerd/<env>:trust_anchor_pem).
 #   - The issuer cert/key is delivered as the kubernetes.io/tls Secret
 #     `linkerd-identity-issuer` by the identity ExternalSecret (ESO ->
 #     Vault). identity.issuer.scheme=kubernetes.io/tls tells Linkerd to
