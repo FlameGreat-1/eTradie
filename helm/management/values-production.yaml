@@ -16,6 +16,10 @@ podAnnotations:
   prometheus.io/path: "/metrics"
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: production
+  # Tier 9 (CHECKLIST microservice security): join the Linkerd mesh so
+  # the inbound gRPC from gateway and the HTTP broker-bridge calls to
+  # engine are mTLS'd. gRPC/HTTP2 detected natively. Audit ref: Tier 9 G9-1.
+  linkerd.io/inject: enabled
 
 config:
   # Arms the management prod fail-closed guards
