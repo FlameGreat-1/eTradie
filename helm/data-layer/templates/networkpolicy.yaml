@@ -56,16 +56,6 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.postgres.service.port | default 5432 }}
-    # Linkerd proxy inbound (mTLS data plane). Meshed callers reach
-    # postgres on the proxy port :4143, not :5432, so it must be
-    # allowed from the in-mesh namespace.
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: {{ include "data-layer.namespace" . }}
-      ports:
-        - protocol: TCP
-          port: 4143
     # Linkerd proxy admin port :4191 scraped by Prometheus.
     - from:
         - namespaceSelector:
@@ -149,15 +139,6 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.redis.service.port | default 6379 }}
-    # Linkerd proxy inbound (mTLS data plane). Meshed callers reach
-    # redis on the proxy port :4143, not :6379.
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: {{ include "data-layer.namespace" . }}
-      ports:
-        - protocol: TCP
-          port: 4143
     # Linkerd proxy admin port :4191 scraped by Prometheus.
     - from:
         - namespaceSelector:
@@ -281,15 +262,6 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.chromadb.service.port | default 8000 }}
-    # Linkerd proxy inbound (mTLS data plane). The meshed engine reaches
-    # chromadb on the proxy port :4143, not :8000.
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: {{ include "data-layer.namespace" . }}
-      ports:
-        - protocol: TCP
-          port: 4143
     # Linkerd proxy admin port :4191 scraped by Prometheus.
     - from:
         - namespaceSelector:
