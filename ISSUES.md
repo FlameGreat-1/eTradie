@@ -157,9 +157,14 @@
       egress + :4191 ingress on postgres/redis/chromadb (template),
       envoy, and edge-ingress. :4143 rules removed. chromadb HTTP probe
       confirmed proxy-bypassed.
-- [ ] **Step 6 (C3 + MED-1 + LOW-1)** — wire trust anchor via
-      control-plane child app helm.parameters (fail-loud); resolve the
-      dead trust-anchor ESO object; align identity ESO sync-wave to -6.
+- [x] **Step 6 (C3 + MED-1)** — DONE. Trust anchor wired via the
+      control-plane Application helm.parameters (forceString sentinel
+      that fails loud; operator overrides with --helm-set-file from
+      Vault at promote). Dead linkerd-identity-trust-anchor ExternalSecret
+      removed; stale ConfigMap comments corrected. Issuer ESO unchanged.
+      LOW-1: issuer ESO sync-wave -5 is CORRECT (precedes control plane
+      -4; the identity Application reconciles at -6 then its ESO applies)
+      — no change needed; not a bug.
 - [ ] **Step 7 (H3)** — linkerdPolicy.enabled: false in prod overlays +
       document the deliberate post-verification enable.
 - [ ] **Step 8 (PRE-1 + MED-2)** — engine.namespace.create: false;
