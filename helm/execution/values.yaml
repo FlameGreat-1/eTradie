@@ -98,6 +98,15 @@ config:
     # Section 3 - order idempotency window.
     orderIdempotencyTtlSecs: "86400"
     reconcileIntervalSecs: "60"
+    # Tier 8 (CHECKLIST) - signed internal execution requests + replay
+    # protection. requireSignedRequests="" auto-resolves to ENFORCE in
+    # prod-like envs (APP_ENV=production/staging) and warn-only
+    # otherwise, so the base chart is safe for a bare render while the
+    # production overlay (app.env=production) enforces automatically.
+    # The HMAC key falls back to ENGINE_INTERNAL_SHARED_SECRET (already
+    # delivered via externalsecret), so no new secret is required.
+    requireSignedRequests: ""
+    requestSignatureMaxSkewSecs: "30"
     # Section 3 - order intake backpressure (BurstQueue). queuePerUserCap
     # must be <= queueMaxConcurrent (validated in config.go).
     queueMaxConcurrent: "8"
