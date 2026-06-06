@@ -7,9 +7,15 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from engine.processor.config import get_processor_config
+
+# Shared strict config for every REQUEST model below. extra="forbid"
+# implements TIER 4 "Reject unknown fields": a body carrying any field
+# not declared on the model is a 422, not silently ignored (Pydantic
+# v2's default is extra="ignore"). Response models do not use this.
+_STRICT_REQUEST_CONFIG = ConfigDict(extra="forbid")
 
 
 # -- Request/Response schemas for dashboard API ------------------------------
@@ -24,6 +30,8 @@ class ProcessorConfigResponse(BaseModel):
 
 
 class ProcessorConfigUpdateRequest(BaseModel):
+    model_config = _STRICT_REQUEST_CONFIG
+
     llm_provider: Optional[str] = None
     model_name: Optional[str] = None
     temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
@@ -40,6 +48,8 @@ class ProcessorConfigUpdateRequest(BaseModel):
 
 
 class InternalLTFConfirmRequest(BaseModel):
+    model_config = _STRICT_REQUEST_CONFIG
+
     symbol: str
     direction: str  # "BULLISH" or "BEARISH"
     ltf_timeframe: str  # e.g. "M5", "M15"
@@ -56,15 +66,21 @@ class InternalLTFConfirmRequest(BaseModel):
 
 
 class InternalTARequest(BaseModel):
+    model_config = _STRICT_REQUEST_CONFIG
+
     symbols: list[str]
     trace_id: Optional[str] = None
 
 
 class InternalMacroRequest(BaseModel):
+    model_config = _STRICT_REQUEST_CONFIG
+
     trace_id: Optional[str] = None
 
 
 class InternalRAGRequest(BaseModel):
+    model_config = _STRICT_REQUEST_CONFIG
+
     query_text: str
     strategy: Optional[str] = None
     framework: Optional[str] = None
@@ -103,6 +119,8 @@ class InternalProcessorRequest(BaseModel):
     fields exist for callers that prefer a single transport (the
     handler resolves header-first, body-second).
     """
+    model_config = _STRICT_REQUEST_CONFIG
+
     processor_input: dict
     trace_id: Optional[str] = None
     user_id: Optional[str] = None
@@ -117,6 +135,8 @@ class InternalDebugRunCycleRequest(BaseModel):
     Contains the full pipeline data (TA, macro, RAG, processor) so the
     engine can persist it to /output/runcycle/ for offline inspection.
     """
+    model_config = _STRICT_REQUEST_CONFIG
+
     symbol: str
     ta_data: dict
     macro_data: Optional[dict] = None
@@ -127,6 +147,8 @@ class InternalDebugRunCycleRequest(BaseModel):
 
 
 class CreateLLMConnectionRequest(BaseModel):
+    model_config = _STRICT_REQUEST_CONFIG
+
     provider: str
     api_key: str
     model_name: Optional[str] = None
@@ -137,6 +159,8 @@ class CreateLLMConnectionRequest(BaseModel):
     activate: bool = True
 
 class UpdateLLMConnectionRequest(BaseModel):
+    model_config = _STRICT_REQUEST_CONFIG
+
     provider: Optional[str] = None
     model_name: Optional[str] = None
     api_key: Optional[str] = None
@@ -146,6 +170,8 @@ class UpdateLLMConnectionRequest(BaseModel):
     label: Optional[str] = None
 
 class CreateBrokerConnectionRequest(BaseModel):
+    model_config = _STRICT_REQUEST_CONFIG
+
     connection_type: str  # 'ea', 'metaapi', or 'hosted'
     name: str
     # MetaAPI / Hosted: user's MT broker credentials
@@ -162,6 +188,8 @@ class CreateBrokerConnectionRequest(BaseModel):
     activate: bool = True
 
 class UpdateBrokerConnectionRequest(BaseModel):
+    model_config = _STRICT_REQUEST_CONFIG
+
     name: Optional[str] = None
     mt5_server: Optional[str] = None
     mt5_login: Optional[str] = None
