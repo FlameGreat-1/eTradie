@@ -449,6 +449,26 @@ func (s *HTTPServer) handleAuditReplay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Object-level authorization (TIER 4 ownership verification / TIER 2
+	// tenant isolation). RequireAuth has populated the claims; a
+	// non-admin caller may replay ONLY their own audit trail. An admin
+	// (operator running executionctl) may replay any user's. Without
+	// this gate any valid token could read another tenant's execution
+	// audit log via a forged user_id query parameter.
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil || claims.UserID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	if claims.UserID != userID && claims.Role != auth.RoleAdmin {
+		s.log.Warn().
+			Str("caller_user_id", claims.UserID).
+			Str("requested_user_id", userID).
+			Msg("audit_replay_cross_tenant_denied")
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "cannot replay another user's audit log"})
+		return
+	}
+
 	sinceStr := strings.TrimSpace(q.Get("since"))
 	if sinceStr == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "since is required (RFC3339)"})
