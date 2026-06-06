@@ -37,6 +37,13 @@ config:
     orderIdempotencyTtlSecs: "86400"
     reconcileIntervalSecs: "60"
 
+# Tier 9 G9-2: activate per-service Linkerd authorization in production.
+# Apply ONLY after staging confirms `linkerd viz edges` = 100% TLS for
+# execution. Until then the control-plane defaultAllowPolicy enforces
+# mTLS without per-service scoping. Audit ref: Tier 9 G9-2.
+linkerdPolicy:
+  enabled: true
+
 externalSecrets:
   enabled: true
   execution:

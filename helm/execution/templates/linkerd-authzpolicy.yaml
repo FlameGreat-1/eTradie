@@ -1,0 +1,113 @@
+{{- if .Values.linkerdPolicy.enabled }}
+{{- /*
+Tier 9 G9-2: per-service Linkerd authorization for execution.
+Servers declare each meshed port + its protocol; ServerAuthorizations
+scope each Server to the exact authenticated client identities. SA
+identities are <sa>.<ns>.serviceaccount.identity.linkerd.cluster.local;
+SA name = release name = etradie-<svc> (verified in _helpers.tpl).
+*/ -}}
+{{- $ns := include "execution.namespace" . -}}
+{{- $sel := include "execution.selectorLabels" . -}}
+# ── gRPC :50053 — gateway only ─────────────────────────────────────────
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: {{ include "execution.appName" . }}-grpc
+  namespace: {{ $ns }}
+  labels:
+    {{- include "execution.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $sel | nindent 6 }}
+  port: {{ .Values.service.ports.grpc.port }}
+  proxyProtocol: gRPC
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: MeshTLSAuthentication
+metadata:
+  name: {{ include "execution.appName" . }}-grpc-callers
+  namespace: {{ $ns }}
+  labels:
+    {{- include "execution.labels" . | nindent 4 }}
+spec:
+  identities:
+    {{- range .Values.linkerdPolicy.callerServiceAccounts }}
+    - {{ printf "%s.%s.serviceaccount.identity.linkerd.cluster.local" . $ns | quote }}
+    {{- end }}
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "execution.appName" . }}-grpc-authz
+  namespace: {{ $ns }}
+  labels:
+    {{- include "execution.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: {{ include "execution.appName" . }}-grpc
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: {{ include "execution.appName" . }}-grpc-callers
+---
+# ── HTTP :8080 — gateway (dashboard/API) + Prometheus (/metrics) ────────
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: {{ include "execution.appName" . }}-http
+  namespace: {{ $ns }}
+  labels:
+    {{- include "execution.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $sel | nindent 6 }}
+  port: {{ .Values.service.ports.http.port }}
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "execution.appName" . }}-http-authz
+  namespace: {{ $ns }}
+  labels:
+    {{- include "execution.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: {{ include "execution.appName" . }}-http
+  requiredAuthenticationRefs:
+    # Meshed callers (gateway) by mTLS identity.
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: {{ include "execution.appName" . }}-grpc-callers
+    # Un-meshed Prometheus scrape from the monitoring namespace.
+    - group: policy.linkerd.io
+      kind: NetworkAuthentication
+      name: {{ include "execution.appName" . }}-metrics-scrape
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: {{ include "execution.appName" . }}-metrics-scrape
+  namespace: {{ $ns }}
+  labels:
+    {{- include "execution.labels" . | nindent 4 }}
+spec:
+  # Prometheus runs un-meshed in the monitoring namespace; authorize by
+  # source network. The pod CIDR is cluster-specific, so we allow the
+  # full private ranges here and rely on the existing NetworkPolicy
+  # (which already restricts metrics ingress to the monitoring ns
+  # Prometheus pod) as the precise control. Defense-in-depth: NetPol
+  # selects the exact pod; this NetworkAuthentication satisfies the
+  # Linkerd Server's authn requirement for that un-meshed source.
+  networks:
+    - cidr: 10.0.0.0/8
+    - cidr: 172.16.0.0/12
+    - cidr: 192.168.0.0/16
+    - cidr: 100.64.0.0/10
+{{- end }}
