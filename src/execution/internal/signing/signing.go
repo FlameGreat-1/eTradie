@@ -20,87 +20,31 @@
 package signing
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/flamegreat-1/etradie/src/pkg/execsigning"
 )
 
-// Version prefixes the canonical string so the scheme can evolve
-// without ambiguity. Bump only with a coordinated gateway+execution
-// release.
-const Version = "v1"
+// The pure signing primitives live in the shared src/pkg/execsigning
+// package so the gateway (signer) and execution (verifier) share ONE
+// canonical definition with no drift. This package re-exports them and
+// adds the execution-side stateful verification (freshness + replay).
 
-// Metadata keys carried on the ExecuteTrade gRPC call. Lower-case per
-// the gRPC metadata convention.
+// Fields is the shared request-attribute struct bound by the signature.
+type Fields = execsigning.Fields
+
+// Metadata keys carried on the ExecuteTrade gRPC call (re-exported).
 const (
-	MetaSignature = "x-exec-signature"
-	MetaTimestamp = "x-exec-timestamp"
-	MetaNonce     = "x-exec-nonce"
+	MetaSignature = execsigning.MetaSignature
+	MetaTimestamp = execsigning.MetaTimestamp
+	MetaNonce     = execsigning.MetaNonce
 )
 
-// Fields are the request attributes bound by the signature. user_id is
-// the authenticated principal (resolved from the JWT claims server-side
-// on verify, supplied by the caller on sign) so the signature binds the
-// request to who is making it, not just to its contents.
-type Fields struct {
-	Timestamp  time.Time // signer's clock, UTC
-	Nonce      string    // the request idempotency key
-	UserID     string
-	Symbol     string
-	Direction  string
-	AnalysisID string
-}
-
-// Canonical builds the deterministic signing string. Field order is
-// fixed and values are newline-joined; there is no map iteration so the
-// output is byte-identical across processes and Go versions.
-//
-// Timestamp is encoded as RFC3339Nano in UTC so the signer and verifier
-// agree to the nanosecond regardless of monotonic-clock stripping.
-func (f Fields) Canonical() string {
-	return strings.Join([]string{
-		Version,
-		f.Timestamp.UTC().Format(time.RFC3339Nano),
-		f.Nonce,
-		f.UserID,
-		f.Symbol,
-		f.Direction,
-		f.AnalysisID,
-	}, "\n")
-}
-
-// canonicalHash returns a stable hex digest of the canonical string,
-// used as the NonceStore value to distinguish a legitimate retry (same
-// hash) from a replay/tamper (different hash) for the same nonce.
-func canonicalHash(canonical string) string {
-	sum := sha256.Sum256([]byte(canonical))
-	return hex.EncodeToString(sum[:])
-}
-
-// Sign returns the hex HMAC-SHA256 of the canonical string under key.
-func Sign(key []byte, f Fields) string {
-	mac := hmac.New(sha256.New, key)
-	mac.Write([]byte(f.Canonical()))
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
-// verifySignature reports whether sigHex is a valid HMAC for f under
-// key, using a constant-time comparison (hmac.Equal).
-func verifySignature(key []byte, f Fields, sigHex string) bool {
-	expected := Sign(key, f)
-	// hex.DecodeString both sides and compare bytes in constant time.
-	want, err1 := hex.DecodeString(expected)
-	got, err2 := hex.DecodeString(strings.TrimSpace(sigHex))
-	if err1 != nil || err2 != nil {
-		return false
-	}
-	return hmac.Equal(want, got)
-}
+// Version is the canonical-string scheme version (re-exported).
+const Version = execsigning.Version
 
 // Outcome is the typed result of a verification check. The interceptor
 // maps each to a gRPC status code.
@@ -168,7 +112,7 @@ func NewVerifier(key []byte, window time.Duration) (*Verifier, error) {
 // influence the nonce store), then freshness, then replay. Only a
 // fully-valid, fresh request is recorded in the nonce store.
 func (v *Verifier) Check(f Fields, sigHex string, now time.Time) Outcome {
-	if !verifySignature(v.key, f, sigHex) {
+	if !execsigning.Verify(v.key, f, sigHex) {
 		return OutcomeBadSignature
 	}
 
@@ -180,8 +124,7 @@ func (v *Verifier) Check(f Fields, sigHex string, now time.Time) Outcome {
 		return OutcomeStale
 	}
 
-	canonical := f.Canonical()
-	if !v.nonces.SeenOrRecord(f.UserID, f.Nonce, canonicalHash(canonical), now) {
+	if !v.nonces.SeenOrRecord(f.UserID, f.Nonce, f.CanonicalHash(), now) {
 		return OutcomeReplay
 	}
 	return OutcomeOK
