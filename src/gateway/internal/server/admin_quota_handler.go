@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -162,8 +161,9 @@ func (h *AdminQuotaHandler) handlePut(w http.ResponseWriter, r *http.Request, ti
 	}
 
 	var body billingstore.QuotaPolicyRow
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := auth.DecodeJSONStrict(w, r, &body, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSONError(w, status, msg)
 		return
 	}
 
