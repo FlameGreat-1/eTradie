@@ -28,6 +28,7 @@ import (
 	"github.com/flamegreat-1/etradie/src/execution/internal/models"
 	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
 	"github.com/flamegreat-1/etradie/src/execution/internal/server"
+	"github.com/flamegreat-1/etradie/src/execution/internal/signing"
 	"github.com/flamegreat-1/etradie/src/execution/internal/sizing"
 	"github.com/flamegreat-1/etradie/src/execution/internal/state"
 	"github.com/flamegreat-1/etradie/src/execution/internal/store"
@@ -516,9 +517,30 @@ func main() {
 		"/grpc.health.v1.Health/Watch": true,
 	}
 
+	// Order-integrity request signing (CHECKLIST Tier 8 F-1/F-2/F-5).
+	// Build the verifier from the resolved HMAC key (dedicated override
+	// or the shared ENGINE_INTERNAL_SHARED_SECRET) + freshness window.
+	// When enforcement is on, config.validate() has already guaranteed a
+	// usable key, so signingVerifier is non-nil there. In non-enforced
+	// dev without a key, the verifier stays nil and the interceptor is a
+	// clean passthrough.
+	var signingVerifier *signing.Verifier
+	if key := cfg.RequestSigningKey(); len(key) > 0 {
+		signingVerifier, err = signing.NewVerifier(key, cfg.RequestSignatureMaxSkew())
+		if err != nil {
+			log.Fatal().Err(err).Msg("signing_verifier_init_failed")
+		}
+	}
+	log.Info().
+		Bool("signature_enforced", cfg.RequireSignedRequestsEnabled()).
+		Bool("signature_verifier_active", signingVerifier != nil).
+		Dur("signature_max_skew", cfg.RequestSignatureMaxSkew()).
+		Msg("request_signing_configured")
+
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			auth.UnaryAuthInterceptor(tokenService, skipAuth),
+			server.SigningVerifyInterceptor(signingVerifier, cfg.RequireSignedRequestsEnabled()),
 		),
 	)
 	executionv1.RegisterExecutionServiceServer(grpcServer, execServer)
