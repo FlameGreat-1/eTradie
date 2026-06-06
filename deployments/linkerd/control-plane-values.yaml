@@ -92,9 +92,9 @@ policyController:
   # Default inbound policy for meshed pods BEFORE the per-service
   # policy.linkerd.io/Server + AuthorizationPolicy objects are applied.
   #
-  # MUST be all-unauthenticated for the phased rollout. Rationale
-  # (audit C1): the cluster has LEGITIMATE un-meshed callers that
-  # all-authenticated would blackhole the moment the mesh is injected
+  # MUST be all-unauthenticated for the phased rollout. The cluster has
+  # legitimate un-meshed callers that all-authenticated would blackhole
+  # the moment the mesh is injected
   # but BEFORE the per-service authz (with their NetworkAuthentication
   # allowances) is enabled:
   #   - Prometheus (monitoring ns, un-meshed) scraping /metrics on
