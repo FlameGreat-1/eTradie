@@ -89,8 +89,31 @@
       every meshed workload meshes in BOTH staging and production, so
       the staging mTLS-edge verification gate is executable. Staging
       linkerdPolicy stays false (base default) — verify then enable.
-- [ ] Step 8 (F4) — linkerd-viz Application + values + AppProject
-      whitelist.
-- [ ] Step 9 (F6) — CI linkerd chart lint/template.
-- [ ] Step 10 (F8) — terraform comment path fix.
-- [ ] Step 11 — final reconciliation + runbook update + one MR.
+- [x] Step 8 (F4) — DONE. linkerd-viz-production Application (chart
+      30.12.11, wave -3). AppProject already whitelists the linkerd-viz
+      ns + every kind viz installs, so no AppProject change needed.
+- [x] Step 9 (F6) — DONE. CI helm lint + template + kubeconform for the
+      in-repo deployments/linkerd identity chart; linkerd-appproject.yaml
+      added to the argocd parse check.
+- [x] Step 10 (F8) — DONE. terraform linkerd_identity comment now cites
+      docs/runbooks/tier9-linkerd-mesh-rollout.md.
+- [x] Step 11 — DONE. Runbook updated (viz wave -3, base-values mesh,
+      billing as meshed service, billing authz-matrix row, postgres/redis
+      caller rows include billing + rewrap-Job allowance note, rollback
+      prunes 4 linkerd apps). billing values render verified.
+
+## ALL FINDINGS RESOLVED
+
+F1 billing meshed + authorized (inject+native sidecar base values,
+postgres/redis callers, NP linkerd egress + :4191, linkerd-authzpolicy).
+F2 rewrap Job already covered by postgres NetworkAuthentication (OR
+semantics) — comment generalised, no dup added. F3 mt-node chart NP
+linkerd egress + :4191 (+ runtime no-NP noted). F4 linkerd-viz
+Application. F5 services + envoy mesh in BASE values (staging mirrors
+prod; verification gate executable). F6 CI renders the linkerd chart.
+F8 terraform comment path.
+
+VERIFICATION CAVEATS (must clear at sync, cannot be confirmed from repo/
+tooling here): (a) linkerd-control-plane proxy.resources schema and
+(b) linkerd-viz 30.12.11 <-> control-plane 1.16.11 pairing — both are
+upstream charts validated by ArgoCD dry-run on sync.
