@@ -10,8 +10,8 @@
 > parameter, and per-service `linkerdPolicy.enabled` deferred to a
 > deliberate post-verification step) supersedes several statements
 > below. For the CURRENT operator procedure use
-> `docs/security/TIER9_ROLLOUT_RUNBOOK.md`; for the current status and
-> findings use `ISSUES.md` at the repo root.
+> `docs/runbooks/tier9-linkerd-mesh-rollout.md`; for the current status
+> and findings use `ISSUES.md` at the repo root.
 
 ---
 

@@ -176,7 +176,8 @@
       current behaviour identical; podSecurityStandardVersion declared
       in data-layer values. MED-2: envoy->gateway HTTP/1.1 comment
       corrected.
-- [x] **Step 9 (docs)** — DONE. Runbook (TIER9_ROLLOUT_RUNBOOK.md)
+- [x] **Step 9 (docs)** — DONE. Runbook (moved to
+      docs/runbooks/tier9-linkerd-mesh-rollout.md)
       updated for: trust-anchor sentinel + --helm-set-file promote,
       native sidecar / K8s>=1.29, defaultAllowPolicy all-unauthenticated,
       deliberate linkerdPolicy enable. Original design tracker

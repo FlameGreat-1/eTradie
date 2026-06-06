@@ -1,9 +1,11 @@
 # Tier 9 (Microservice Security / Linkerd mTLS) — Operator Rollout Runbook
 
-> Companion to `TIER9_MICROSERVICE_SECURITY.md`. This is the
-> step-by-step operator procedure to bring the mesh up SAFELY. Follow
-> it in order; do NOT skip the staging verification before enabling
-> per-service authorization in production.
+> Companion to `docs/security/TIER9_MICROSERVICE_SECURITY.md` (design
+> history) and `ISSUES.md` (current status). Step-by-step operator
+> procedure to bring the mesh up SAFELY. Follow it in order; do NOT
+> skip the staging verification before enabling per-service
+> authorization in production. Validate chart renders first with
+> `make mesh-verify`.
 
 ---
 
