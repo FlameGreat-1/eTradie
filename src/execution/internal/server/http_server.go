@@ -123,13 +123,17 @@ func loadAllowedOrigins() map[string]bool {
 	if raw == "" {
 		return map[string]bool{}
 	}
-	out := map[string]bool{}
-	for _, part := range strings.Split(raw, ",") {
-		if p := strings.TrimSpace(part); p != "" {
-			out[p] = true
-		}
+	// Validate every entry through the shared builder so a misconfigured
+	// credentialed-CORS origin ("*", "null", non-http(s), path/query) is
+	// DROPPED and logged rather than reflected with
+	// Access-Control-Allow-Credentials: true. Fail safe.
+	allowed, rejected := auth.BuildCORSAllowlist(strings.Split(raw, ","))
+	if len(rejected) > 0 {
+		observability.Logger("cors").Error().
+			Strs("rejected", rejected).
+			Msg("execution_cors_invalid_origins_dropped")
 	}
-	return out
+	return allowed
 }
 
 // Start begins serving HTTP. Blocks until the server stops.
