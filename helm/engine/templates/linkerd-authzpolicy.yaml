@@ -1,0 +1,73 @@
+{{- if .Values.linkerdPolicy.enabled }}
+{{- /*
+Tier 9 G9-2: per-service Linkerd authorization for the engine.
+The engine exposes a SINGLE inbound port (:8000 HTTP) carrying both the
+/internal/* server-to-server bridge AND /metrics. Callers are the three
+Go services (etradie-system) by mTLS identity; Prometheus (un-meshed)
+by network. SA name = release name = etradie-<svc> (verified in
+_helpers.tpl). Engine OUTBOUND (K8s API / Vault / external HTTPS / ZMQ)
+is not gated by a Server.
+*/ -}}
+{{- $ns := include "engine.namespace" . -}}
+{{- $sel := include "engine.selectorLabels" . -}}
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: {{ include "engine.appName" . }}-http
+  namespace: {{ $ns }}
+  labels:
+    {{- include "engine.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $sel | nindent 6 }}
+  port: {{ .Values.service.ports.http.port }}
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: MeshTLSAuthentication
+metadata:
+  name: {{ include "engine.appName" . }}-http-callers
+  namespace: {{ $ns }}
+  labels:
+    {{- include "engine.labels" . | nindent 4 }}
+spec:
+  identities:
+    {{- range .Values.linkerdPolicy.callerServiceAccounts }}
+    - {{ printf "%s.%s.serviceaccount.identity.linkerd.cluster.local" . $ns | quote }}
+    {{- end }}
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "engine.appName" . }}-http-authz
+  namespace: {{ $ns }}
+  labels:
+    {{- include "engine.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: {{ include "engine.appName" . }}-http
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: {{ include "engine.appName" . }}-http-callers
+    - group: policy.linkerd.io
+      kind: NetworkAuthentication
+      name: {{ include "engine.appName" . }}-metrics-scrape
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: {{ include "engine.appName" . }}-metrics-scrape
+  namespace: {{ $ns }}
+  labels:
+    {{- include "engine.labels" . | nindent 4 }}
+spec:
+  networks:
+    - cidr: 10.0.0.0/8
+    - cidr: 172.16.0.0/12
+    - cidr: 192.168.0.0/16
+    - cidr: 100.64.0.0/10
+{{- end }}

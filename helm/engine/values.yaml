@@ -508,6 +508,21 @@ podDisruptionBudget:
   minAvailable: 1
   unhealthyPodEvictionPolicy: IfHealthyBudget
 
+# Tier 9 G9-2: per-service Linkerd authorization. Default FALSE; the
+# production overlay enables it after staging confirms 100% mTLS.
+# The engine HTTP :8000 bridge is called ONLY by gateway, execution and
+# management (verified against their NetworkPolicy egress + the
+# /internal/* bridge router). Restricting to these three mTLS identities
+# closes the "any shared-secret holder is trusted" gap for the engine's
+# high-value broker-bridge + credential surface.
+linkerdPolicy:
+  enabled: false
+  callerServiceAccounts:
+    - etradie-gateway
+    - etradie-execution
+    - etradie-management
+  monitoringNamespace: monitoring
+
 networkPolicy:
   enabled: true
   policyTypes:

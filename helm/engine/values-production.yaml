@@ -18,6 +18,11 @@ image:
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
+# Tier 9 G9-2: activate per-service Linkerd authorization in production
+# (after staging confirms 100% mTLS for the engine). Audit ref: Tier 9 G9-2.
+linkerdPolicy:
+  enabled: true
+
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8000"
