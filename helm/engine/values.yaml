@@ -74,6 +74,15 @@ podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8000"
   prometheus.io/path: "/metrics"
+  # Join the Linkerd mesh in every environment. Native sidecar so the
+  # proxy is Ready before the engine's migrate + wait-for-deps init
+  # containers reach meshed postgres/redis. ZeroMQ to mt-node :5555 is
+  # opaque (non-HTTP server-first framing); the OTLP collector port
+  # 4317 is skipped so traces flow to a possibly-un-meshed collector.
+  linkerd.io/inject: enabled
+  config.linkerd.io/proxy-enable-native-sidecar: "true"
+  config.linkerd.io/opaque-ports: "5555"
+  config.linkerd.io/skip-outbound-ports: "4317"
 
 podSecurityContext:
   runAsNonRoot: true

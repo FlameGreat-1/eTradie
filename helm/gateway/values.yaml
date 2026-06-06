@@ -39,6 +39,12 @@ podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8080"
   prometheus.io/path: "/metrics"
+  # Join the Linkerd mesh in every environment so gateway pod-to-pod
+  # hops (gRPC to execution/management, HTTP to engine, north-south
+  # from envoy) are mTLS'd. Native sidecar so the proxy is Ready before
+  # the wait-for-deps init container dials meshed postgres/redis/engine.
+  linkerd.io/inject: enabled
+  config.linkerd.io/proxy-enable-native-sidecar: "true"
 
 podSecurityContext:
   runAsNonRoot: true
