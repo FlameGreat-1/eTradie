@@ -165,9 +165,18 @@
       LOW-1: issuer ESO sync-wave -5 is CORRECT (precedes control plane
       -4; the identity Application reconciles at -6 then its ESO applies)
       — no change needed; not a bug.
-- [ ] **Step 7 (H3)** — linkerdPolicy.enabled: false in prod overlays +
-      document the deliberate post-verification enable.
-- [ ] **Step 8 (PRE-1 + MED-2)** — engine.namespace.create: false;
-      fix the envoy HTTP/2 comment.
-- [ ] **Step 9** — final reconciliation read-through + open ONE MR;
-      update runbook (TIER9_ROLLOUT_RUNBOOK.md) to match every change.
+- [x] **Step 7 (H3)** — DONE. linkerdPolicy.enabled: false in all five
+      production overlays (gateway/execution/management/engine/data-
+      layer); comments document the deliberate set-true+re-sync enable
+      after `linkerd viz edges` is SECURED.
+- [x] **Step 8 (PRE-1 + MED-2)** — DONE. engine.namespace.create: false
+      (data-layer is sole owner of the etradie-system Namespace +
+      ResourceQuota + LimitRange); data-layer Namespace aligned to the
+      warn+audit (no enforce) PSS posture with pinned versions to keep
+      current behaviour identical; podSecurityStandardVersion declared
+      in data-layer values. MED-2: envoy->gateway HTTP/1.1 comment
+      corrected.
+- [ ] **Step 9** — final reconciliation read-through + update runbook
+      (TIER9_ROLLOUT_RUNBOOK.md: trust-anchor parameter wiring, native
+      sidecar / K8s>=1.29, defaultAllowPolicy all-unauthenticated,
+      linkerdPolicy deliberate enable) + open ONE MR.
