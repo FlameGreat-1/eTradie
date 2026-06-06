@@ -564,10 +564,9 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 8000
-    # Tier 9 C4: Linkerd proxy inbound (mTLS data plane). Meshed
-    # proxy-to-proxy traffic from any meshed caller lands on :4143, NOT
-    # the app port. Allow it from the in-mesh namespaces or the engine
-    # proxy blackholes all meshed ingress.
+    # Linkerd proxy inbound (mTLS data plane). Meshed callers reach this
+    # pod on the proxy port :4143, not the application port, so it must
+    # be allowed from the in-mesh namespaces.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -578,8 +577,8 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 4143
-    # Tier 9 C4: Linkerd proxy admin :4191 (proxy's own /metrics, tap,
-    # liveness) scraped by Prometheus (un-meshed, monitoring ns).
+    # Linkerd proxy admin port :4191 (proxy metrics, tap, liveness)
+    # scraped by Prometheus from the monitoring namespace.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -591,13 +590,11 @@ networkPolicy:
         - protocol: TCP
           port: 4191
   egress:
-    # Tier 9 C2: the injected Linkerd proxy MUST reach the control
-    # plane in the `linkerd` namespace (identity for cert signing,
-    # destination for discovery, policy for Server/AuthorizationPolicy
-    # lookups). Without this, default-deny egress drops that traffic
-    # and the proxy never becomes Ready. Namespace-scoped (not
-    # port-pinned) because Linkerd control-plane ports vary by version;
-    # the control plane is trusted platform infra.
+    # The injected Linkerd proxy must reach the control plane in the
+    # linkerd namespace (identity for cert signing, destination for
+    # discovery, policy for Server/AuthorizationPolicy lookups), or it
+    # never becomes Ready. Scoped to the namespace rather than specific
+    # ports, which vary across Linkerd versions.
     - to:
         - namespaceSelector:
             matchLabels:
