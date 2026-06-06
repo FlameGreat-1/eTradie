@@ -27,6 +27,14 @@ ENVOY_WASM_FILE     := $(ENVOY_DIR)/target/$(ENVOY_WASM_TARGET)/release/etradie_
 HELM_CHARTS         := edge-ingress envoy gateway engine execution management billing data-layer
 HELM_DIR            := $(PROJECT_ROOT)/helm
 
+# Tier 9 Linkerd mesh. The in-repo identity chart + every chart that
+# carries mesh config (inject annotations, linkerd NetworkPolicy rules,
+# per-service authz). The Linkerd control-plane + CRDs charts are
+# upstream (helm.linkerd.io) and are validated on the live cluster via
+# `linkerd check`, not rendered here.
+LINKERD_DIR         := $(PROJECT_ROOT)/deployments/linkerd
+MESH_CHARTS         := engine execution management data-layer
+
 ARGOCD_DIR          := $(PROJECT_ROOT)/deployments/argocd
 
 INFRA_DIR           := $(PROJECT_ROOT)/infrastructure
@@ -202,6 +210,54 @@ helm-render-all: helm-lint helm-template-staging helm-template-production ## hel
 	echo -e "$(GREEN)\xE2\x9C\x93 all helm renders complete$(NC)"
 
 # ============================================================================
+##@ Linkerd mesh (Tier 9)
+# ============================================================================
+
+.PHONY: mesh-render mesh-check mesh-verify
+
+mesh-render: ## helm lint + render the linkerd identity chart and every mesh chart (staging + production)
+	echo -e "$(BLUE)Linting + rendering the Linkerd mesh charts...$(NC)"
+	helm lint $(LINKERD_DIR)
+	helm template etradie-linkerd-identity $(LINKERD_DIR) \
+		-f $(LINKERD_DIR)/values.yaml > /tmp/linkerd-identity.yaml
+	@for chart in $(MESH_CHARTS); do \
+		echo -e "$(BLUE)  -> render helm/$$chart (staging + production)$(NC)"; \
+		helm lint $(HELM_DIR)/$$chart || exit 1; \
+		helm template etradie-$$chart $(HELM_DIR)/$$chart \
+			-f $(HELM_DIR)/$$chart/values.yaml \
+			-f $(HELM_DIR)/$$chart/values-staging.yaml \
+			> /tmp/$$chart-mesh-staging.yaml || exit 1; \
+		helm template etradie-$$chart $(HELM_DIR)/$$chart \
+			-f $(HELM_DIR)/$$chart/values.yaml \
+			-f $(HELM_DIR)/$$chart/values-production.yaml \
+			> /tmp/$$chart-mesh-production.yaml || exit 1; \
+	done
+	echo -e "$(GREEN)\xE2\x9C\x93 mesh charts render cleanly (renders in /tmp/*-mesh-*.yaml)$(NC)"
+
+mesh-check: ## Live-cluster mesh verification (linkerd check + viz edges/stat); needs kubectl + linkerd CLI
+	echo -e "$(BLUE)Linkerd live-cluster verification...$(NC)"
+	@command -v linkerd >/dev/null 2>&1 || { \
+		echo -e "$(YELLOW)linkerd CLI not found - install from https://linkerd.io/2/getting-started/ then re-run.$(NC)"; \
+		exit 0; \
+	}
+	@kubectl cluster-info >/dev/null 2>&1 || { \
+		echo -e "$(YELLOW)No reachable cluster (kubectl) - run this against the target cluster.$(NC)"; \
+		exit 0; \
+	}
+	echo -e "$(BLUE)  -> linkerd check (control plane + proxies)$(NC)"
+	linkerd check
+	echo -e "$(BLUE)  -> mTLS edges (must be SECURED before enabling linkerdPolicy)$(NC)"
+	linkerd viz edges deployment -n etradie-system || true
+	linkerd viz edges statefulset -n etradie-system || true
+	linkerd viz edges -n envoy-system || true
+	linkerd viz edges -n edge-ingress-system || true
+	echo -e "$(YELLOW)Every internal edge MUST show SECURED before you set"
+	echo -e "linkerdPolicy.enabled=true and re-sync (see docs/runbooks/tier9-linkerd-mesh-rollout.md step 4).$(NC)"
+
+mesh-verify: mesh-render mesh-check ## Render the mesh charts AND run the live-cluster checks
+	echo -e "$(GREEN)\xE2\x9C\x93 mesh-verify complete$(NC)"
+
+# ============================================================================
 ##@ ArgoCD
 # ============================================================================
 
@@ -315,7 +371,7 @@ cf-verify-aop-ca: ## Verify the live Cloudflare AOP CA still matches the committ
 
 .PHONY: platform-ci platform-fmt platform-clean
 
-platform-ci: edge-ingress-ci envoy-ci helm-lint argocd-validate tf-validate-all ## Run every platform CI bundle (rust + helm + argocd + terraform)
+platform-ci: edge-ingress-ci envoy-ci helm-lint mesh-render argocd-validate tf-validate-all ## Run every platform CI bundle (rust + helm + mesh + argocd + terraform)
 	echo -e "$(GREEN)\xE2\x9C\x93 full platform CI passed$(NC)"
 
 platform-fmt: edge-ingress-fmt envoy-fmt tf-fmt ## Format every platform component (rust + terraform)
