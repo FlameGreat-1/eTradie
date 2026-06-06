@@ -14,16 +14,6 @@ podAnnotations:
   prometheus.io/path: "/metrics"
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: production
-  # Tier 9 (CHECKLIST microservice security): join the Linkerd mesh so
-  # the inbound gRPC from gateway, the outbound gRPC callback to gateway,
-  # and the HTTP broker-bridge calls to engine are mTLS'd. The Tier 8
-  # ExecuteTrade HMAC signature now rides INSIDE an mTLS tunnel
-  # (defense-in-depth). gRPC/HTTP2 detected natively. Audit ref: Tier 9 G9-1.
-  linkerd.io/inject: enabled
-  # Run the proxy as a native sidecar so the wait-for-deps init
-  # container reaches meshed postgres/redis/engine through an
-  # already-running proxy.
-  config.linkerd.io/proxy-enable-native-sidecar: "true"
 
 config:
   # Arms the execution prod fail-closed guards
