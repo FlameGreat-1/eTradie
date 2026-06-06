@@ -91,6 +91,22 @@ spec:
       kind: PodDisruptionBudget
     - group: networking.k8s.io
       kind: NetworkPolicy
+    # Tier 9 (CHECKLIST microservice security): per-service mTLS
+    # authorization. Server + ServerAuthorization are namespace-scoped
+    # policy.linkerd.io resources that live in etradie-system alongside
+    # the workloads, so they belong to THIS project (the Linkerd
+    # control plane itself lives in the separate `linkerd` AppProject).
+    # Audit ref: Tier 9 G9-2.
+    - group: policy.linkerd.io
+      kind: Server
+    - group: policy.linkerd.io
+      kind: ServerAuthorization
+    - group: policy.linkerd.io
+      kind: AuthorizationPolicy
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+    - group: policy.linkerd.io
+      kind: NetworkAuthentication
     - group: rbac.authorization.k8s.io
       kind: Role
     - group: rbac.authorization.k8s.io

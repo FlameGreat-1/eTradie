@@ -1,0 +1,94 @@
+# Dedicated AppProject for the Linkerd service mesh (CHECKLIST Tier 9).
+#
+# Linkerd is platform INFRASTRUCTURE with a very different resource
+# footprint from the application workloads: cluster-scoped CRDs,
+# Mutating/ValidatingWebhookConfigurations, an APIService (linkerd-viz),
+# and its own namespaces. Mixing that surface into the tightly-scoped
+# `etradie` AppProject would force that project to whitelist powerful
+# cluster-scoped kinds it has no other reason to hold. A separate
+# project keeps the mesh's blast radius isolated and independently
+# auditable, and lets mesh upgrades be gated separately from app
+# rollouts.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: linkerd
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    description: "Linkerd service mesh control plane + CRDs (Tier 9 mTLS). Isolated from the app-workload AppProject."
+spec:
+  description: "Linkerd service mesh for the eTradie platform"
+
+  sourceRepos:
+    # The Linkerd Helm charts are pulled from the official Linkerd OCI /
+    # HTTPS chart repo by the child Applications; allow it here plus the
+    # platform git repo (for any in-repo values overlays).
+    - https://helm.linkerd.io
+    - https://github.com/FlameGreat-1/eTradie.git
+    - https://github.com/FlameGreat-1/eTradie
+
+  destinations:
+    - name: in-cluster
+      namespace: linkerd
+    - name: in-cluster
+      namespace: linkerd-viz
+
+  # Linkerd installs cluster-scoped resources. These are scoped to the
+  # exact kinds Linkerd's CRDs + control-plane charts create — no
+  # wildcards.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+    - group: apiregistration.k8s.io
+      kind: APIService
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: scheduling.k8s.io
+      kind: PriorityClass
+
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ServiceAccount
+    - group: apps
+      kind: Deployment
+    - group: apps
+      kind: DaemonSet
+    - group: policy
+      kind: PodDisruptionBudget
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
+    - group: external-secrets.io
+      kind: ExternalSecret
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+    - group: monitoring.coreos.com
+      kind: PodMonitor
+
+  roles:
+    - name: maintainers
+      description: "Platform maintainers - can sync Linkerd Applications."
+      policies:
+        - p, proj:linkerd:maintainers, applications, get, linkerd/*, allow
+        - p, proj:linkerd:maintainers, applications, sync, linkerd/*, allow
+        - p, proj:linkerd:maintainers, applications, action/*, linkerd/*, allow
+      groups:
+        - etradie:platform-maintainers
