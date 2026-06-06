@@ -37,12 +37,13 @@ fullnameOverride: ""
 
 namespace:
   name: etradie-system
-  # Render a Namespace resource in this chart. Set to false when the
-  # namespace is created out-of-band (helmfile, terraform, ArgoCD
-  # root-app, or a manual kubectl apply during cluster bootstrap).
-  # Default true because the engine chart is the foundational service
-  # for etradie-system and owns its labels.
-  create: true
+  # The etradie-system Namespace is owned solely by the data-layer
+  # chart (it reconciles first at sync-wave -2 and also owns the
+  # ResourceQuota + LimitRange). The engine chart must NOT also render
+  # it, or both Applications claim the same cluster resource and ArgoCD
+  # flaps OutOfSync. Engine's .Values.namespace.name is still used as
+  # the metadata.namespace target for engine's own resources.
+  create: false
   # PodSecurity Standard target profile. The chart renders this as
   # the value of BOTH pod-security.kubernetes.io/warn AND audit. The
   # follow-up MR that flips enforce will set
@@ -564,7 +565,28 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 8000
+    # Linkerd proxy admin port :4191 (proxy metrics, tap, liveness)
+    # scraped by Prometheus from the monitoring namespace.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 4191
   egress:
+    # The injected Linkerd proxy must reach the control plane in the
+    # linkerd namespace (identity for cert signing, destination for
+    # discovery, policy for Server/AuthorizationPolicy lookups), or it
+    # never becomes Ready. Scoped to the namespace rather than specific
+    # ports, which vary across Linkerd versions.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
     # Postgres.
     - to:
         - podSelector:

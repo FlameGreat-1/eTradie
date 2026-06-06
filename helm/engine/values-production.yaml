@@ -18,10 +18,12 @@ image:
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
-# Tier 9 G9-2: activate per-service Linkerd authorization in production
-# (after staging confirms 100% mTLS for the engine). Audit ref: Tier 9 G9-2.
+# Per-service Linkerd authorization (Server + AuthorizationPolicy).
+# Kept disabled until the mesh is confirmed; enable deliberately (set
+# true + re-sync) once `linkerd viz edges` shows SECURED on every engine
+# edge (docs/runbooks/tier9-linkerd-mesh-rollout.md step 4).
 linkerdPolicy:
-  enabled: true
+  enabled: false
 
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -39,6 +41,11 @@ podAnnotations:
   # mark it opaque so the proxy mTLS-tunnels it as raw TCP between
   # meshed peers instead of attempting HTTP/2 detection.
   config.linkerd.io/opaque-ports: "5555"
+  # Run the proxy as a native sidecar so it is Ready before the engine's
+  # init containers run: `migrate` (alembic upgrade head) and
+  # `wait-for-deps` both dial meshed postgres/redis, which a non-native
+  # proxy would not yet be up to carry.
+  config.linkerd.io/proxy-enable-native-sidecar: "true"
   # OTLP gRPC collector (etradie-observability) is operator-installed
   # and may be un-meshed; skip its port so traces flow regardless and
   # the proxy never fails a handshake to a non-meshed collector. The
@@ -110,6 +117,11 @@ config:
         # proxy coexists with the Vault Agent + watchdog sidecars. Audit
         # ref: Tier 9 G9-1.
         linkerd.io/inject: enabled
+        # Native sidecar is required: runtime mt-node pods carry the
+        # Vault Agent init container (agent-init-first), which must
+        # reach Vault through an already-running proxy. Merged onto
+        # every runtime StatefulSet by HostedProvisioner.
+        config.linkerd.io/proxy-enable-native-sidecar: "true"
         config.linkerd.io/opaque-ports: "5555"
   # Vault address. Production runs an in-cluster Vault on the
   # 'vault' namespace. Operators on HCP Vault or an external

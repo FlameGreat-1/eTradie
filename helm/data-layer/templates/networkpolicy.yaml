@@ -56,8 +56,26 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.postgres.service.port | default 5432 }}
+    # Linkerd proxy admin port :4191 scraped by Prometheus.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 4191
   egress:
-    # Cluster DNS only; no other outbound traffic.
+    # The injected Linkerd proxy must reach the control plane in the
+    # linkerd namespace (identity, destination, policy) or the pod
+    # never becomes Ready.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+    # Cluster DNS.
     - to:
         - namespaceSelector:
             matchLabels:
@@ -121,7 +139,24 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.redis.service.port | default 6379 }}
+    # Linkerd proxy admin port :4191 scraped by Prometheus.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 4191
   egress:
+    # Linkerd control plane.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+    # Cluster DNS.
     - to:
         - namespaceSelector:
             matchLabels:
@@ -227,7 +262,24 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.chromadb.service.port | default 8000 }}
+    # Linkerd proxy admin port :4191 scraped by Prometheus.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 4191
   egress:
+    # Linkerd control plane.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+    # Cluster DNS.
     - to:
         - namespaceSelector:
             matchLabels:

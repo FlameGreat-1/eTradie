@@ -7,11 +7,12 @@
 #     identityTrustAnchorsPEM. It is populated by the operator from
 #     Vault (etradie/platform/linkerd/<env>:trust_anchor_pem) at promote
 #     time using `helm ... --set-file` / a sealed overlay; it is a
-#     PUBLIC certificate (no private key), so it is safe to render, but
-#     we keep it out of git so the CA lifecycle stays in Vault as the
-#     single source of truth. ArgoCD operators inject it via the
-#     Application's helm.parameters at sync, OR it is delivered as a
-#     ConfigMap by the identity ExternalSecret and referenced here.
+#     PUBLIC certificate (no private key), but we keep it out of git so
+#     the CA lifecycle stays in Vault as the single source of truth.
+#     ArgoCD operators inject it via the control-plane Application's
+#     helm.parameters at promote time (--helm-set-file
+#     identityTrustAnchorsPEM=ca.crt, sourced from
+#     etradie/platform/linkerd/<env>:trust_anchor_pem).
 #   - The issuer cert/key is delivered as the kubernetes.io/tls Secret
 #     `linkerd-identity-issuer` by the identity ExternalSecret (ESO ->
 #     Vault). identity.issuer.scheme=kubernetes.io/tls tells Linkerd to
@@ -89,12 +90,26 @@ proxyInit:
 # considered, not missed.
 
 policyController:
-  # Default inbound policy for meshed pods BEFORE per-service
-  # ServerAuthorization (Step 3c) is applied. "all-authenticated"
-  # means: any meshed (mTLS-identified) workload may connect, but
-  # un-meshed / unauthenticated traffic is REJECTED. This is the
-  # safe phased-rollout default — it enforces mTLS immediately
-  # without blackholing a service whose fine-grained Server/
-  # ServerAuthorization has not landed yet. Step 3c tightens specific
-  # ports to specific caller ServiceAccounts.
-  defaultAllowPolicy: all-authenticated
+  # Default inbound policy for meshed pods BEFORE the per-service
+  # policy.linkerd.io/Server + AuthorizationPolicy objects are applied.
+  #
+  # MUST be all-unauthenticated for the phased rollout. The cluster has
+  # legitimate un-meshed callers that all-authenticated would blackhole
+  # the moment the mesh is injected
+  # but BEFORE the per-service authz (with their NetworkAuthentication
+  # allowances) is enabled:
+  #   - Prometheus (monitoring ns, un-meshed) scraping /metrics on
+  #     :8080 / :8083 / :8000 of every service.
+  #   - the postgres-backup CronJob pod (un-meshed) on :5432.
+  #
+  # all-unauthenticated still ENCRYPTS every meshed<->meshed hop (mTLS
+  # is automatic between proxies regardless of this policy); it simply
+  # does not REQUIRE a mesh identity from un-meshed peers. The REAL
+  # zero-trust enforcement is the per-service Server +
+  # AuthorizationPolicy each chart ships (linkerdPolicy.enabled), which
+  # deny-by-default on the exact ports they claim and explicitly admit
+  # Prometheus + the backup pod via NetworkAuthentication. Do NOT switch
+  # this back to all-authenticated unless EVERY legitimate un-meshed
+  # caller is covered by a NetworkAuthentication on a Server that claims
+  # its target port.
+  defaultAllowPolicy: all-unauthenticated

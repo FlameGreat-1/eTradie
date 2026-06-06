@@ -20,6 +20,10 @@ podAnnotations:
   # the inbound gRPC from gateway and the HTTP broker-bridge calls to
   # engine are mTLS'd. gRPC/HTTP2 detected natively. Audit ref: Tier 9 G9-1.
   linkerd.io/inject: enabled
+  # Run the proxy as a native sidecar so the wait-for-deps init
+  # container reaches meshed postgres/redis/engine through an
+  # already-running proxy.
+  config.linkerd.io/proxy-enable-native-sidecar: "true"
 
 config:
   # Arms the management prod fail-closed guards
@@ -32,10 +36,12 @@ config:
     logLevel: "INFO"
     logJson: "true"
 
-# Tier 9 G9-2: activate per-service Linkerd authorization in production
-# (after staging confirms 100% mTLS for management). Audit ref: Tier 9 G9-2.
+# Per-service Linkerd authorization (Server + AuthorizationPolicy).
+# Kept disabled until the mesh is confirmed; enable deliberately (set
+# true + re-sync) once `linkerd viz edges` shows SECURED on every
+# management edge (docs/runbooks/tier9-linkerd-mesh-rollout.md step 4).
 linkerdPolicy:
-  enabled: true
+  enabled: false
 
 externalSecrets:
   enabled: true

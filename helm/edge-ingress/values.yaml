@@ -58,6 +58,9 @@ serviceAccount:
 # is meshed. Audit ref: Tier 9 G9-1.
 podAnnotations:
   linkerd.io/inject: enabled
+  # Native sidecar for a uniform mesh. The :443 listener stays skipped
+  # below.
+  config.linkerd.io/proxy-enable-native-sidecar: "true"
   config.linkerd.io/skip-inbound-ports: "443"
 
 podSecurityContext:

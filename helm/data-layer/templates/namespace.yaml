@@ -11,9 +11,16 @@ metadata:
   name: {{ include "data-layer.namespace" . }}
   labels:
     {{- include "data-layer.commonLabels" . | nindent 4 }}
-    pod-security.kubernetes.io/enforce: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
-    pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    # PodSecurity Standard: WARN + AUDIT only at this stage (no enforce).
+    # The enforce cutover is a deliberate, reviewed follow-up MR after
+    # one full deploy cycle of audit-log events shows no violations
+    # (CHECKLIST Section 9; CIS Kubernetes Benchmark v1.8 5.2.x). The
+    # PSS rule version is pinned so a future minor K8s upgrade does not
+    # silently shift the evaluated surface.
     pod-security.kubernetes.io/warn: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/warn-version: {{ .Values.namespace.podSecurityStandardVersion | default "v1.30" | quote }}
+    pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/audit-version: {{ .Values.namespace.podSecurityStandardVersion | default "v1.30" | quote }}
     kubernetes.io/metadata.name: {{ include "data-layer.namespace" . }}
   annotations:
     description: "eTradie platform namespace - engine, gateway, execution, management, billing, data-layer all live here."

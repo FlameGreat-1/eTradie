@@ -17,6 +17,10 @@
 namespace:
   name: etradie-system
   podSecurityStandard: restricted
+  # Pin the PSS rule version so a future minor K8s upgrade does not
+  # silently shift the evaluated surface. Bump in lockstep with the
+  # cluster's supported PSS version.
+  podSecurityStandardVersion: v1.30
 
 # ----------------------------------------------------------------------
 # PostgreSQL 16 (audit + journal + analytics + auth + watcher state).
@@ -61,6 +65,10 @@ postgres:
   # Tier 9 G9-1.
   podAnnotations:
     linkerd.io/inject: enabled
+    # Native sidecar for a uniform mesh and deterministic proxy-startup
+    # readiness. Postgres probes are unix-socket exec, so the proxy does
+    # not affect them.
+    config.linkerd.io/proxy-enable-native-sidecar: "true"
     config.linkerd.io/opaque-ports: "5432"
 
   # Scheduling. Empty defaults so the chart deploys on any cluster.
@@ -213,6 +221,9 @@ redis:
   # tunnel, no HTTP detection). Audit ref: Tier 9 G9-1.
   podAnnotations:
     linkerd.io/inject: enabled
+    # Native sidecar for a uniform mesh. Redis probes are unix-socket
+    # exec, so the proxy does not affect them.
+    config.linkerd.io/proxy-enable-native-sidecar: "true"
     config.linkerd.io/opaque-ports: "6379"
 
   # Scheduling. Empty defaults; production overlay sets a toleration
@@ -266,6 +277,10 @@ chromadb:
   # Audit ref: Tier 9 G9-1.
   podAnnotations:
     linkerd.io/inject: enabled
+    # Native sidecar for a uniform mesh. ChromaDB's HTTP
+    # /api/v2/heartbeat probe is rewritten by Linkerd to bypass the
+    # proxy, so readiness is unaffected.
+    config.linkerd.io/proxy-enable-native-sidecar: "true"
 
   # Scheduling. Empty defaults; production overlay sets a toleration
   # for the etradie-system taint.

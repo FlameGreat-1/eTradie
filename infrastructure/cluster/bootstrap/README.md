@@ -14,9 +14,18 @@ Audit ref: IB-C1.
 
 ## 0. Prerequisites
 
-- A Kubernetes cluster (>= v1.27) reachable via kubectl from the
+- A Kubernetes cluster (>= v1.29) reachable via kubectl from the
   operator's machine. K3s, kubeadm, kind, k3d, or any conformant
   distribution is fine.
+  NOTE: >= 1.29 is REQUIRED (not just recommended) because the Linkerd
+  mesh (Tier 9) enables native sidecar injection
+  (config.linkerd.io/proxy-enable-native-sidecar), which depends on the
+  K8s SidecarContainers feature that is GA/stable only from 1.29. On an
+  older cluster the annotation is ignored, the linkerd proxy starts
+  AFTER init containers, and meshed init hops (engine alembic migrate,
+  the wait-for-deps probes, the mt-node Vault Agent init) are refused
+  by the meshed datastores -> pods never become Ready. The provisioned
+  OKE cluster (infrastructure/cluster/oci) defaults to v1.32.
 - A Vault instance reachable from the cluster (HCP, Vault chart,
   or external VM). The platform charts read every secret through
   the External Secrets Operator + a Vault ClusterSecretStore.

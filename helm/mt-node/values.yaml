@@ -123,6 +123,10 @@ podAnnotations:
   # (helm/engine config.mtNode.scheduling.podAnnotations). ZeroMQ :5555
   # is opaque (non-HTTP server-first framing). Audit ref: Tier 9 G9-1.
   linkerd.io/inject: enabled
+  # Native sidecar is required here: the pod carries the Vault Agent
+  # init container (agent-init-first), which must reach Vault through an
+  # already-running proxy, otherwise the init sequence deadlocks.
+  config.linkerd.io/proxy-enable-native-sidecar: "true"
   config.linkerd.io/opaque-ports: "5555"
 
 podSecurityContext:

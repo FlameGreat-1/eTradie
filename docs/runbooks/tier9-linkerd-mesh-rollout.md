@@ -1,9 +1,11 @@
 # Tier 9 (Microservice Security / Linkerd mTLS) — Operator Rollout Runbook
 
-> Companion to `TIER9_MICROSERVICE_SECURITY.md`. This is the
-> step-by-step operator procedure to bring the mesh up SAFELY. Follow
-> it in order; do NOT skip the staging verification before enabling
-> per-service authorization in production.
+> Companion to `docs/security/TIER9_MICROSERVICE_SECURITY.md` (design
+> history) and `ISSUES.md` (current status). Step-by-step operator
+> procedure to bring the mesh up SAFELY. Follow it in order; do NOT
+> skip the staging verification before enabling per-service
+> authorization in production. Validate chart renders first with
+> `make mesh-verify`.
 
 ---
 
@@ -33,13 +35,29 @@ vault kv put etradie/platform/linkerd/production \
   issuer_tls_key=@issuer.key
 ```
 
-The control-plane Application also needs the trust anchor as a helm
-parameter (it is a PUBLIC cert). Supply it at sync:
+The control-plane Application carries an `identityTrustAnchorsPEM`
+helm parameter set to a non-PEM sentinel
+(`REPLACE_AT_PROMOTE_WITH_VAULT_TRUST_ANCHOR_PEM`) so a forgotten
+override fails loud at sync instead of silently starting identity with
+no anchor. Override it at promote with the PUBLIC anchor from Vault:
 
 ```bash
+vault kv get -field=trust_anchor_pem \
+  etradie/platform/linkerd/production > ca.crt
 argocd app set linkerd-control-plane-production \
   --helm-set-file identityTrustAnchorsPEM=ca.crt
 ```
+
+The issuer cert/key are delivered separately as the
+`linkerd-identity-issuer` kubernetes.io/tls Secret by ESO; no cert
+bytes live in git.
+
+> Cluster requirement: the mesh enables Linkerd native sidecar
+> (`config.linkerd.io/proxy-enable-native-sidecar`), which needs K8s
+> >= 1.29 (SidecarContainers GA). The provisioned OKE cluster is v1.32.
+> On an older cluster the proxy would start after init containers and
+> meshed init hops (engine migrate, wait-for-deps, the mt-node Vault
+> Agent) would be refused.
 
 > Rotation: re-issue the intermediate from the same root and update
 > `issuer_tls_crt`/`issuer_tls_key`; ESO refreshes within
@@ -98,10 +116,14 @@ enable per-service authorization while an edge is plaintext.
 
 ## 4. Enable per-service authorization (G9-2)
 
-`linkerdPolicy.enabled: true` is ALREADY set in every production
-overlay, so it activates on the same sync that rolls the meshed pods.
-If you are doing a manual phased cut-over, you may instead set it false
-in the overlay, complete steps 2-3, then flip it true and re-sync.
+`linkerdPolicy.enabled` is `false` in every production overlay so the
+mesh rolls (and is verified, steps 2-3) WITHOUT per-service
+deny-by-default. Enabling authz is a deliberate step: set
+`linkerdPolicy.enabled: true` in the affected service's
+`values-production.yaml` and re-sync that one Application. Do this one
+service at a time, only after step 3 shows SECURED on that service's
+edges. Until enabled, the control-plane `defaultAllowPolicy:
+all-unauthenticated` still encrypts every meshed<->meshed hop.
 
 After enabling, verify the authz did not deny legitimate traffic:
 
@@ -134,9 +156,9 @@ kubectl -n etradie-system get jobs -l app.kubernetes.io/name=postgres-backup
 
 - Authz too tight (legitimate traffic denied): set
   `linkerdPolicy.enabled: false` in the affected service overlay and
-  re-sync. The control-plane `defaultAllowPolicy: all-authenticated`
-  still enforces mTLS (any meshed peer) — you lose per-service scoping
-  but NOT encryption.
+  re-sync. The control-plane `defaultAllowPolicy: all-unauthenticated`
+  still encrypts every meshed<->meshed hop — you lose per-service
+  scoping but NOT encryption.
 - Mesh itself problematic: remove `linkerd.io/inject` from the
   service's podAnnotations and re-sync to roll un-meshed pods. The
   NetworkPolicies (unchanged) still enforce L3/L4 segmentation.

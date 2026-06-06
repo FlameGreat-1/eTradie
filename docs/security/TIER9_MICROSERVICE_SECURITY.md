@@ -1,8 +1,17 @@
-# Tier 9 — Microservice Security (Linkerd mTLS) — Progress Tracker
+# Tier 9 — Microservice Security (Linkerd mTLS) — Design History
 
-> **CHECKLIST Section 9 — Microservice Security.** Branch:
-> `feat/tier9-microservice-security-mtls`. Single source of truth; the
-> next engineer resumes from the **Progress Tracker** below.
+> **CHECKLIST Section 9 — Microservice Security.**
+>
+> NOTE: this document is the ORIGINAL design/progress tracker and is
+> retained for history. The mesh-rollout hardening that followed
+> (native sidecar / K8s >= 1.29, `defaultAllowPolicy: all-unauthenticated`
+> bootstrap, NetworkPolicy egress to the linkerd control plane,
+> trust-anchor delivered via the control-plane Application helm
+> parameter, and per-service `linkerdPolicy.enabled` deferred to a
+> deliberate post-verification step) supersedes several statements
+> below. For the CURRENT operator procedure use
+> `docs/runbooks/tier9-linkerd-mesh-rollout.md`; for the current status
+> and findings use `ISSUES.md` at the repo root.
 
 ---
 
@@ -160,7 +169,7 @@
       selectorLabels app.kubernetes.io/name) verified to match the
       Server podSelectors.
 - [x] **Step 3f — runbook + tracker finalised. DONE** (see
-      docs/security/TIER9_ROLLOUT_RUNBOOK.md).
+      docs/runbooks/tier9-linkerd-mesh-rollout.md).
 
 ## ===== TIER 9 COMPLETE: G9-1 (mTLS) + G9-2 (per-service authz) + G9-3
 ## (zero-trust transport) all satisfied. Network Segmentation (section 3)
