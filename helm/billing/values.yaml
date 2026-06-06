@@ -45,6 +45,14 @@ podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8082"
   prometheus.io/path: "/metrics"
+  # Join the Linkerd mesh so billing's HTTP calls to postgres/redis and
+  # its inbound from envoy (webhooks) + gateway (/internal/*) are mTLS'd.
+  # billing speaks HTTP/RESP/postgres on well-known ports; the proxy
+  # handles HTTP natively and auto-marks the server-first datastore
+  # ports. Run the proxy as a native sidecar so it is Ready before the
+  # wait-for-deps init container dials meshed postgres/redis.
+  linkerd.io/inject: enabled
+  config.linkerd.io/proxy-enable-native-sidecar: "true"
 
 podSecurityContext:
   runAsNonRoot: true
@@ -183,6 +191,26 @@ podDisruptionBudget:
   enabled: true
   minAvailable: 1
   unhealthyPodEvictionPolicy: IfHealthyBudget
+
+# Per-service Linkerd authorization (Server + AuthorizationPolicy).
+# Default false; the mesh encrypts every hop regardless. Enable
+# deliberately (set true + re-sync) once `linkerd viz edges` shows
+# SECURED on every billing edge
+# (docs/runbooks/tier9-linkerd-mesh-rollout.md step 4).
+#
+# billing :8082 (HTTP) is reached by envoy (envoy-system, webhook
+# traffic) and the gateway (etradie-system, /internal/* proxy calls);
+# Prometheus (monitoring, un-meshed) scrapes /metrics on the same port.
+linkerdPolicy:
+  enabled: false
+  # Meshed HTTP callers permitted to reach billing :8082, as
+  # {name,namespace} pairs (envoy lives in a different namespace).
+  httpCallerServiceAccounts:
+    - name: etradie-envoy
+      namespace: envoy-system
+    - name: etradie-gateway
+      namespace: etradie-system
+  monitoringNamespace: monitoring
 
 networkPolicy:
   enabled: true
