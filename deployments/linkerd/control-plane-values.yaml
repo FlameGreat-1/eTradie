@@ -43,14 +43,45 @@ identity:
 # protocols; Linkerd auto-marks well-known ones, but we declare them
 # opaque explicitly on the CLIENTS via podAnnotations in each chart
 # (Step 3b) rather than globally, to avoid over-broad opacity.
+# Proxy + proxy-init resources MUST independently satisfy the
+# namespace-wide LimitRange owned by the data-layer chart
+# (helm/data-layer/values.yaml: container.min cpu=50m, memory=64Mi;
+# container.max cpu=4, memory=8Gi). LimitRange admission rejects any
+# container below min, and Linkerd sets EXPLICIT requests on its
+# injected containers, so the LimitRange default/defaultRequest do not
+# apply — these values must clear min on their own. CRITICAL: the
+# upstream default proxy-init memory request (20Mi) is BELOW the 64Mi
+# min and would block every injected pod at admission.
 proxy:
   resources:
     cpu:
       request: 50m
+      limit: 200m
     memory:
       request: 64Mi
       limit: 256Mi
   logLevel: warn,linkerd=info
+
+# proxy-init (iptables setup; short-lived). Raised to meet the 64Mi /
+# 50m LimitRange minimum. Operators who instead install the Linkerd CNI
+# plugin (linkerd-cni) get NO init container at all and may drop this
+# block — documented in the Tier 9 runbook.
+proxyInit:
+  resources:
+    cpu:
+      request: 50m
+      limit: 100m
+    memory:
+      request: 64Mi
+      limit: 64Mi
+
+# NOTE on ResourceQuota: the production etradie-system ResourceQuota
+# (helm/data-layer/values-production.yaml: requestsCpu=32,
+# requestsMemory=64Gi) has ample headroom for ~19 proxy sidecars across
+# prod replica counts (~0.95 CPU + ~1.2Gi extra requests). Do NOT
+# tighten the quota below that envelope without re-accounting for the
+# per-pod proxy overhead, or pods will fail admission with
+# 'exceeded quota'.
 
 # Control-plane components inherit the cluster's restricted PSS; the
 # Linkerd chart already sets non-root + read-only-root + drop-ALL, so
