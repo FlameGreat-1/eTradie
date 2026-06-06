@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -9,6 +10,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
 	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/execution/internal/observability"
 	"github.com/flamegreat-1/etradie/src/execution/internal/signing"
@@ -135,6 +137,34 @@ func SigningVerifyInterceptor(v *signing.Verifier, enforce bool) grpc.UnaryServe
 				"request signature rejected: %s", outcome.String())
 		}
 	}
+}
+
+// executeTradeSymbol / executeTradeDirection / executeTradeAnalysisID
+// extract the request fields bound into the canonical signing string.
+// They type-assert to the concrete ExecuteTrade request; a non-match
+// (impossible on the guarded method, but defended) yields "" so the
+// canonical string is still deterministic and the signature simply
+// fails to verify rather than panicking. Direction is upper-cased to
+// match the gateway signer, which signs the normalised direction.
+func executeTradeSymbol(req interface{}) string {
+	if r, ok := req.(*executionv1.ExecuteTradeRequest); ok {
+		return r.GetSymbol()
+	}
+	return ""
+}
+
+func executeTradeDirection(req interface{}) string {
+	if r, ok := req.(*executionv1.ExecuteTradeRequest); ok {
+		return strings.ToUpper(r.GetDirection())
+	}
+	return ""
+}
+
+func executeTradeAnalysisID(req interface{}) string {
+	if r, ok := req.(*executionv1.ExecuteTradeRequest); ok {
+		return r.GetAnalysisId()
+	}
+	return ""
 }
 
 // firstMD returns the first value for key in md, or "".
