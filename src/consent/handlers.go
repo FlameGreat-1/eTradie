@@ -166,8 +166,9 @@ func (h *Handler) handlePostConsent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req postConsentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+	if err := auth.DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSON(w, status, map[string]string{"error": msg})
 		return
 	}
 
@@ -304,8 +305,9 @@ func (h *Handler) handleAttach(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req attachRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+	if err := auth.DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSON(w, status, map[string]string{"error": msg})
 		return
 	}
 	req.AnonymousID = strings.TrimSpace(req.AnonymousID)
