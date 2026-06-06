@@ -158,8 +158,9 @@ kubectl -n etradie-system get jobs -l app.kubernetes.io/name=postgres-backup
 | gateway gRPC :50052       | etradie-execution, etradie-management                    | — |
 | gateway HTTP :8080        | etradie-envoy (envoy-system)                             | Prometheus (/metrics) |
 | engine HTTP :8000         | etradie-gateway, etradie-execution, etradie-management   | Prometheus (/metrics) |
-| postgres :5432            | gateway, execution, management, engine                   | postgres-backup pod |
-| redis :6379               | gateway, execution, management, engine                   | — |
+| billing HTTP :8082        | etradie-envoy (envoy-system), etradie-gateway            | Prometheus (/metrics) |
+| postgres :5432            | gateway, execution, management, engine, billing          | postgres-backup + credential-rewrap Job (un-meshed batch) |
+| redis :6379               | gateway, execution, management, engine, billing          | — |
 | chromadb :8000            | engine                                                   | — |
 
 ## 5. Rollback
@@ -170,8 +171,9 @@ kubectl -n etradie-system get jobs -l app.kubernetes.io/name=postgres-backup
   still encrypts every meshed<->meshed hop — you lose per-service
   scoping but NOT encryption.
 - Mesh itself problematic: remove `linkerd.io/inject` from the
-  service's podAnnotations and re-sync to roll un-meshed pods. The
-  NetworkPolicies (unchanged) still enforce L3/L4 segmentation.
-- Full backout: prune the three linkerd-* Applications (manual, in
-  order control-plane -> crds -> identity) after all workloads are
-  un-injected.
+  workload's BASE values podAnnotations and re-sync to roll un-meshed
+  pods. The NetworkPolicies (unchanged) still enforce L3/L4
+  segmentation.
+- Full backout: prune the four linkerd-* Applications (manual, in
+  order viz -> control-plane -> crds -> identity) after all workloads
+  are un-injected.
