@@ -428,17 +428,17 @@ func (h *Handler) handleInternalGet(w http.ResponseWriter, r *http.Request) {
 	userID := strings.TrimSpace(r.Header.Get(internalUserIDHeader))
 	if userID == "" {
 		var body internalGetRequest
-		if r.ContentLength > 0 {
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-				// A misconfigured engine deployment would otherwise silently
-				// fall through to "user_id is required" with no diagnostic
-				// breadcrumb. Log at warn so the operator sees the decode
-				// failure before chasing a phantom 400.
-				h.log.Warn().
-					Err(err).
-					Int64("content_length", r.ContentLength).
-					Msg("trading_system_internal_body_decode_failed")
-			}
+		// Body is OPTIONAL: the user_id usually arrives in the
+		// X-User-Id header. AllowEmpty accepts a missing body and still
+		// enforces the size cap + unknown-field rejection on a
+		// non-empty one. A non-empty malformed body is logged at warn
+		// so a misconfigured engine deployment leaves a breadcrumb
+		// before falling through to "user_id is required".
+		if err := auth.DecodeJSONStrictAllowEmpty(w, r, &body, 4*1024); err != nil {
+			h.log.Warn().
+				Err(err).
+				Int64("content_length", r.ContentLength).
+				Msg("trading_system_internal_body_decode_failed")
 		}
 		userID = strings.TrimSpace(body.UserID)
 	}

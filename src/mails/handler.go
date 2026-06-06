@@ -2,6 +2,7 @@ package mails
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -45,8 +46,22 @@ func (h *Handler) handleWaitlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Bound + strict-decode the body. 4 KiB is far above the only
+	// legitimate payload ({"email":"..."}) and DisallowUnknownFields
+	// rejects padded/garbage submissions from bots. The pattern is
+	// inlined rather than calling auth.DecodeJSONStrict because the
+	// auth package already imports this (mails) package, so a reverse
+	// import would create a cycle.
+	r.Body = http.MaxBytesReader(w, r.Body, 4*1024)
 	var req waitlistRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeResponse(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "request body too large"})
+			return
+		}
 		writeResponse(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		return
 	}
