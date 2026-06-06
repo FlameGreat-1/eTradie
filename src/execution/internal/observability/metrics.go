@@ -148,6 +148,21 @@ var (
 	}, []string{"symbol", "direction"})
 )
 
+// Request-signature metrics (CHECKLIST Tier 8: signed internal
+// execution requests + replay protection).
+var (
+	// RequestSignatureTotal counts ExecuteTrade signature verification
+	// outcomes. outcome: ok|bad_signature|stale|replay|missing.
+	// enforced: true|false (warn-only mode reports false). A spike in
+	// bad_signature/replay with enforced=true is a security event; the
+	// same spike with enforced=false during rollout is a wiring bug to
+	// fix BEFORE flipping enforcement on.
+	RequestSignatureTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "etradie_execution_request_signature_total",
+		Help: "ExecuteTrade request-signature verification outcomes",
+	}, []string{"outcome", "enforced"})
+)
+
 // Kill-switch metrics (CHECKLIST Section 8).
 var (
 	// KillSwitchChangedTotal counts operator toggles of the execution
