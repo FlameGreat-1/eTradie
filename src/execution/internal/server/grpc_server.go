@@ -609,9 +609,27 @@ func (s *ExecutionServer) SetHaltState(ctx context.Context, req *executionv1.Set
 	globalHalted, gErr := s.settings.IsGlobalHalted(ctx)
 	userHalted, uErr := s.settings.IsUserHalted(ctx, readTarget)
 	if gErr != nil || uErr != nil {
-		// The write already succeeded; degrade gracefully by echoing the
-		// requested intent rather than failing the whole call.
-		s.log.Warn().Msg("set_halt_state_reread_failed_echoing_intent")
+		// The durable write already succeeded; degrade gracefully by
+		// echoing the operator's REQUESTED intent for the scope that was
+		// just written, instead of returning a misleading zero-value read.
+		// The other scope keeps whatever value was read successfully (or
+		// its zero value if it too failed, which is the best available
+		// answer for a scope this call did not modify).
+		s.log.Warn().
+			Err(gErr).
+			AnErr("user_read_err", uErr).
+			Str("scope", req.GetScope().String()).
+			Msg("set_halt_state_reread_failed_echoing_intent")
+		switch req.GetScope() {
+		case executionv1.KillSwitchScope_KILL_SWITCH_SCOPE_GLOBAL:
+			if gErr != nil {
+				globalHalted = req.GetHalted()
+			}
+		case executionv1.KillSwitchScope_KILL_SWITCH_SCOPE_USER:
+			if uErr != nil {
+				userHalted = req.GetHalted()
+			}
+		}
 	}
 
 	return &executionv1.SetHaltStateResponse{
