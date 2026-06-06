@@ -82,8 +82,13 @@
       duplicate authn added.
 - [x] Step 6 (F3) — DONE. mt-node chart NP linkerd egress + :4191;
       runtime no-NP noted.
-- [ ] Step 7 (F5) — move inject+native-sidecar to BASE values for
-      gateway/execution/management/engine; drop dup from prod overlays.
+- [x] Step 7 (F5) — DONE. inject+native-sidecar moved to BASE values
+      for gateway/execution/management/engine (+ engine opaque/skip) AND
+      envoy; removed the duplicates from their prod overlays. edge-
+      ingress/data-layer/mt-node already injected via base values. Now
+      every meshed workload meshes in BOTH staging and production, so
+      the staging mTLS-edge verification gate is executable. Staging
+      linkerdPolicy stays false (base default) — verify then enable.
 - [ ] Step 8 (F4) — linkerd-viz Application + values + AppProject
       whitelist.
 - [ ] Step 9 (F6) — CI linkerd chart lint/template.
