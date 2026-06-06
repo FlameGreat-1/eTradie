@@ -18,11 +18,12 @@
 # this is safe on Contabo K3s, OCI OKE, Talos, or any cluster that does
 # not taint nodes.
 
-# Tier 9 G9-2: activate per-datastore Linkerd authorization in
-# production (after staging confirms 100% mTLS for the data-layer).
-# Audit ref: Tier 9 G9-2.
+# Per-datastore Linkerd authorization (Server + AuthorizationPolicy).
+# Kept disabled until the mesh is confirmed; enable deliberately (set
+# true + re-sync) once `linkerd viz edges` shows SECURED on every
+# data-layer edge (docs/security/TIER9_ROLLOUT_RUNBOOK.md step 4).
 linkerdPolicy:
-  enabled: true
+  enabled: false
 
 postgres:
   storage:

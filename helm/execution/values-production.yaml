@@ -41,12 +41,14 @@ config:
     orderIdempotencyTtlSecs: "86400"
     reconcileIntervalSecs: "60"
 
-# Tier 9 G9-2: activate per-service Linkerd authorization in production.
-# Apply ONLY after staging confirms `linkerd viz edges` = 100% TLS for
-# execution. Until then the control-plane defaultAllowPolicy enforces
-# mTLS without per-service scoping. Audit ref: Tier 9 G9-2.
+# Per-service Linkerd authorization (Server + AuthorizationPolicy).
+# Kept disabled until the mesh is confirmed; enable deliberately (set
+# true + re-sync) once `linkerd viz edges` shows SECURED on every
+# execution edge (docs/security/TIER9_ROLLOUT_RUNBOOK.md step 4). Until
+# then the control-plane defaultAllowPolicy still encrypts every
+# meshed<->meshed hop.
 linkerdPolicy:
-  enabled: true
+  enabled: false
 
 externalSecrets:
   enabled: true

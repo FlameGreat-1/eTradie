@@ -18,10 +18,12 @@ image:
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
-# Tier 9 G9-2: activate per-service Linkerd authorization in production
-# (after staging confirms 100% mTLS for the engine). Audit ref: Tier 9 G9-2.
+# Per-service Linkerd authorization (Server + AuthorizationPolicy).
+# Kept disabled until the mesh is confirmed; enable deliberately (set
+# true + re-sync) once `linkerd viz edges` shows SECURED on every engine
+# edge (docs/security/TIER9_ROLLOUT_RUNBOOK.md step 4).
 linkerdPolicy:
-  enabled: true
+  enabled: false
 
 podAnnotations:
   prometheus.io/scrape: "true"
