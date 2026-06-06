@@ -320,19 +320,6 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 50052
-    # Linkerd proxy inbound (mTLS data plane). Meshed callers reach this
-    # pod on the proxy port :4143, not the application ports, so it must
-    # be allowed from the in-mesh namespaces.
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: etradie-system
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: envoy-system
-      ports:
-        - protocol: TCP
-          port: 4143
     # Linkerd proxy admin port :4191 (proxy metrics, tap, liveness)
     # scraped by Prometheus from the monitoring namespace.
     - from:
