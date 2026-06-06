@@ -40,9 +40,8 @@ export default function ExecutionSection() {
 
   // The Execution section is a Pro-only surface end-to-end. The
   // ProFeatureLock wrapper renders the canonical locked message for
-  // Free users (the spec verbatim) and the original form for Pro/admin.
-  // 'replace' variant is intentional: the dimmed-children variant
-  // would still show editable inputs which is misleading.
+  // Free users and the original form for Pro/admin. The 'overlay'
+  // variant dims the children and shows the lock card beneath them.
   return (
     <div className="space-y-10 max-w-lg">
       <div className="flex flex-col gap-0.5">

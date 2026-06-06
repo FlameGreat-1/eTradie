@@ -165,12 +165,6 @@ func (m *Manager) WithHaltReader(hr HaltReader) *Manager {
 	return m
 }
 
-func (m *Manager) haltReader() *cachedHaltReader {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.halt
-}
-
 // trackArm fires a non-blocking watcher_count increment. Detached from the
 // caller's context so a cancelled request does not abort the metric write,
 // and run in a goroutine so the Arm hot path is never DB-bound.
@@ -235,7 +229,7 @@ func (m *Manager) Arm(order *models.Order) {
 		tickCache:   m.tickCache,
 		cfg:         m.cfg,
 		idempotency: m.idempotency,
-		halt:        m.haltReader(),
+		halt:        m.halt, // m.mu is already held by Arm; read directly.
 		log: m.log.With().
 			Str("watcher_id", order.WatcherID).
 			Str("symbol", order.Symbol).
@@ -1173,8 +1167,6 @@ func (w *Watcher) tryConfirmAndFire(ctx context.Context) bool {
 	return w.fireMarketOrder(ctx)
 }
 
-// fireMarketOrder places the market order at the broker. This is the
-// final, irreversible step. Any error here is critical.
 // haltTradeRequest builds the minimal TradeRequest the halt audit
 // entry needs from this watcher's order.
 func (w *Watcher) haltTradeRequest() *models.TradeRequest {
@@ -1190,6 +1182,8 @@ func (w *Watcher) haltTradeRequest() *models.TradeRequest {
 	}
 }
 
+// fireMarketOrder places the market order at the broker. This is the
+// final, irreversible step. Any error here is critical.
 func (w *Watcher) fireMarketOrder(ctx context.Context) bool {
 	// Kill-switch fire gate: an engaged global/per-user halt blocks
 	// placement of this already-armed watcher. Analysis is unaffected;
