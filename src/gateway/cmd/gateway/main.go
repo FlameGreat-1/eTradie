@@ -283,7 +283,7 @@ func main() {
 	var execPort ports.ExecutionPort
 	var execAdapter *infra.ExecutionGRPCAdapter
 	if cfg.ExecutionEnabled {
-		adapter, err := infra.NewExecutionGRPCAdapter(cfg.ExecutionAddr, cfg.ExecutionTimeoutMs)
+		adapter, err := infra.NewExecutionGRPCAdapter(cfg.ExecutionAddr, cfg.ExecutionTimeoutMs, []byte(cfg.EngineInternalSharedSecret))
 		if err != nil {
 			log.Warn().Err(err).Str("addr", cfg.ExecutionAddr).Msg("execution_adapter_connect_failed_running_without_execution")
 		} else {
