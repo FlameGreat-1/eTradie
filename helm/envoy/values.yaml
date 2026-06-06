@@ -30,7 +30,15 @@ serviceAccount:
   annotations: {}
   automountServiceAccountToken: false
 
-podAnnotations: {}
+# Mesh envoy in every environment so the edge-ingress->envoy and
+# envoy->gateway hops are mTLS'd. Envoy dials the gateway over HTTP/1.1
+# (gateway_cluster sets no http2_protocol_options), handled natively by
+# the proxy and matching the gateway's Linkerd Server proxyProtocol:
+# HTTP/1. Native sidecar for a uniform mesh and deterministic
+# proxy-startup readiness.
+podAnnotations:
+  linkerd.io/inject: enabled
+  config.linkerd.io/proxy-enable-native-sidecar: "true"
 
 podSecurityContext:
   runAsUser: 1000
