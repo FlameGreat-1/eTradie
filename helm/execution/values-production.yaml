@@ -44,7 +44,7 @@ config:
 # Per-service Linkerd authorization (Server + AuthorizationPolicy).
 # Kept disabled until the mesh is confirmed; enable deliberately (set
 # true + re-sync) once `linkerd viz edges` shows SECURED on every
-# execution edge (docs/security/TIER9_ROLLOUT_RUNBOOK.md step 4). Until
+# execution edge (docs/runbooks/tier9-linkerd-mesh-rollout.md step 4). Until
 # then the control-plane defaultAllowPolicy still encrypts every
 # meshed<->meshed hop.
 linkerdPolicy:

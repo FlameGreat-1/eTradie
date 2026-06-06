@@ -39,7 +39,7 @@ config:
 # Per-service Linkerd authorization (Server + AuthorizationPolicy).
 # Kept disabled until the mesh is confirmed; enable deliberately (set
 # true + re-sync) once `linkerd viz edges` shows SECURED on every
-# management edge (docs/security/TIER9_ROLLOUT_RUNBOOK.md step 4).
+# management edge (docs/runbooks/tier9-linkerd-mesh-rollout.md step 4).
 linkerdPolicy:
   enabled: false
 

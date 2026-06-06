@@ -29,7 +29,7 @@ podAnnotations:
 # sync that first injects the proxies would enforce deny-by-default
 # before 100% mTLS is verified. Enable deliberately (set true + re-sync)
 # once `linkerd viz edges` shows SECURED on every gateway edge
-# (docs/security/TIER9_ROLLOUT_RUNBOOK.md step 4).
+# (docs/runbooks/tier9-linkerd-mesh-rollout.md step 4).
 linkerdPolicy:
   enabled: false
 
