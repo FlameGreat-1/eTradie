@@ -22,7 +22,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from engine.dependencies import Container
 from engine.processor.performance_review import (
@@ -37,6 +37,8 @@ router = APIRouter()
 
 
 class DispatchBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     user_id: str = Field(..., min_length=1, max_length=64)
     period: str = Field(..., pattern=r"^(weekly|monthly)$")
     period_start: datetime
