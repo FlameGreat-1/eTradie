@@ -332,6 +332,28 @@ limitRange:
 networkPolicy:
   enabled: true
 
+# Tier 9 G9-2: per-datastore Linkerd authorization. Default FALSE; the
+# production overlay enables it after staging confirms 100% mTLS.
+# Caller SAs are the meshed services that each datastore's NetworkPolicy
+# already admits; the postgres-backup pod is UN-meshed (a meshed Job
+# never terminates) and is admitted via a same-namespace
+# NetworkAuthentication so nightly pg_dump backups keep working.
+linkerdPolicy:
+  enabled: false
+  # Meshed caller ServiceAccounts (all etradie-system).
+  postgresCallers:
+    - etradie-gateway
+    - etradie-execution
+    - etradie-management
+    - etradie-engine
+  redisCallers:
+    - etradie-gateway
+    - etradie-execution
+    - etradie-management
+    - etradie-engine
+  chromadbCallers:
+    - etradie-engine
+
 # ----------------------------------------------------------------------
 # PodDisruptionBudgets are NOT useful at single-replica scale (they
 # would block voluntary evictions and keep a node draining forever).
