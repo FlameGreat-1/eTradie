@@ -61,6 +61,10 @@ postgres:
   # Tier 9 G9-1.
   podAnnotations:
     linkerd.io/inject: enabled
+    # Tier 9 M1: native sidecar (K8s SidecarContainers, GA 1.29; OKE
+    # v1.32) for a uniform mesh and deterministic proxy-startup
+    # readiness. pg probes are unix-socket exec (no proxy interaction).
+    config.linkerd.io/proxy-enable-native-sidecar: "true"
     config.linkerd.io/opaque-ports: "5432"
 
   # Scheduling. Empty defaults so the chart deploys on any cluster.
@@ -213,6 +217,9 @@ redis:
   # tunnel, no HTTP detection). Audit ref: Tier 9 G9-1.
   podAnnotations:
     linkerd.io/inject: enabled
+    # Tier 9 M1: native sidecar (K8s SidecarContainers, GA 1.29; OKE
+    # v1.32). redis probes are unix-socket exec (no proxy interaction).
+    config.linkerd.io/proxy-enable-native-sidecar: "true"
     config.linkerd.io/opaque-ports: "6379"
 
   # Scheduling. Empty defaults; production overlay sets a toleration
@@ -266,6 +273,10 @@ chromadb:
   # Audit ref: Tier 9 G9-1.
   podAnnotations:
     linkerd.io/inject: enabled
+    # Tier 9 M1: native sidecar (K8s SidecarContainers, GA 1.29; OKE
+    # v1.32). chromadb's HTTP /api/v2/heartbeat probe is proxy-bypassed
+    # by Linkerd's probe rewrite, so the mesh does not affect readiness.
+    config.linkerd.io/proxy-enable-native-sidecar: "true"
 
   # Scheduling. Empty defaults; production overlay sets a toleration
   # for the etradie-system taint.
