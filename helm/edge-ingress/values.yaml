@@ -48,7 +48,17 @@ serviceAccount:
   annotations: {}
   automountServiceAccountToken: false
 
-podAnnotations: {}
+# Tier 9 (CHECKLIST microservice security): mesh edge-ingress so its
+# OUTBOUND hop to envoy is Linkerd-mTLS'd, while LEAVING the external
+# :443 listener untouched. :443 is terminated by the Cloudflare Tunnel
+# with Authenticated Origin Pull (AOP) mTLS — that handshake is the
+# external trust boundary and Linkerd MUST NOT intercept it, or the
+# tunnel breaks. skip-inbound-ports "443" makes the proxy ignore that
+# listener; every other port (metrics/health :9902, outbound to envoy)
+# is meshed. Audit ref: Tier 9 G9-1.
+podAnnotations:
+  linkerd.io/inject: enabled
+  config.linkerd.io/skip-inbound-ports: "443"
 
 podSecurityContext:
   runAsUser: 1000
