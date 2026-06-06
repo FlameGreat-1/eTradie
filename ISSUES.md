@@ -146,17 +146,17 @@
       redis exec probes unaffected; mt-node/runtime carry Vault Agent
       init so native sidecar is REQUIRED there. STILL TODO in Step 3:
       raise bootstrap README floor to K8s >= 1.29.
-- [~] **Step 4 (C2/C4 services)** — IN PROGRESS. DONE: engine + gateway
-      base values (linkerd-ns egress + :4143 in-mesh ingress + :4191
-      Prometheus ingress). PENDING: execution + management base values
-      (same rules). Verified all four prod overlays do NOT define a
-      networkPolicy block, so editing base values is authoritative.
-      NOTE: comment-hygiene pass done — removed internal tracker tags
-      (Tier 9 C2/C4/M1) from all manifest comments added this session;
-      kept clean operational rationale only.
-- [ ] **Step 5 (C2/C4 data-layer)** — edit data-layer networkpolicy.yaml
-      template: add linkerd egress + 4143/4191 ingress to
-      postgres/redis/chromadb (and confirm chromadb HTTP probe vs proxy).
+- [x] **Step 4 (C2/C4 services)** — DONE. linkerd-namespace egress +
+      :4191 proxy-admin ingress on gateway/execution/management/engine
+      base values. The initially-added :4143 ingress was REMOVED after
+      the C4 correction (NetworkPolicy sees original app ports). All
+      four prod overlays verified to NOT define a networkPolicy block,
+      so base values are authoritative. Comments cleaned (no tracker
+      tags).
+- [x] **Step 5 (C2/C4 data-layer + edge/envoy)** — DONE. linkerd-ns
+      egress + :4191 ingress on postgres/redis/chromadb (template),
+      envoy, and edge-ingress. :4143 rules removed. chromadb HTTP probe
+      confirmed proxy-bypassed.
 - [ ] **Step 6 (C3 + MED-1 + LOW-1)** — wire trust anchor via
       control-plane child app helm.parameters (fail-loud); resolve the
       dead trust-anchor ESO object; align identity ESO sync-wave to -6.
