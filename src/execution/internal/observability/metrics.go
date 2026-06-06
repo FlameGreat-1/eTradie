@@ -131,6 +131,17 @@ var (
 		Help: "Orders rejected because end-to-end latency exceeded max_order_latency_ms",
 	})
 
+	// IdempotencyStoreErrorsTotal counts the times the executor fell
+	// through to a NON-idempotent placement because the idempotency
+	// store (TryClaim) returned an error. This is the deliberate
+	// availability-over-safety path: a DB blip must not block trading.
+	// A sustained non-zero rate means duplicate-order protection is
+	// effectively OFF and needs operator attention (DB health / pool).
+	IdempotencyStoreErrorsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "etradie_execution_idempotency_store_errors_total",
+		Help: "Times the executor fell through to a non-idempotent placement because the idempotency store errored",
+	})
+
 	PartialFillTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "etradie_execution_partial_fill_total",
 		Help: "Partial-fill events observed at the broker",

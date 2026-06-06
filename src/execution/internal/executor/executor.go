@@ -97,6 +97,9 @@ func (e *Executor) placeLimit(ctx context.Context, order *models.Order) (*models
 		if err != nil {
 			// A store failure must not block trading; fall through to a
 			// non-idempotent placement, latency + broker guards still apply.
+			// Metered so a sustained DB problem (duplicate-protection OFF)
+			// is alertable, not just a log line. Audit ref: Tier 8 F-7.
+			observability.IdempotencyStoreErrorsTotal.Inc()
 			e.log.Warn().Err(err).Str("order_id", order.OrderID).Msg("idempotency_claim_failed_falling_through")
 		} else if !claim.FirstClaim && claim.Existing != nil {
 			ex := claim.Existing
@@ -259,6 +262,8 @@ func (e *Executor) handleInstant(ctx context.Context, order *models.Order) (*mod
 			LotSize:        order.LotSize,
 		})
 		if err != nil {
+			// Same fall-through + metering as placeLimit. Audit ref: Tier 8 F-7.
+			observability.IdempotencyStoreErrorsTotal.Inc()
 			e.log.Warn().Err(err).Str("order_id", order.OrderID).Msg("idempotency_claim_failed_falling_through")
 		} else if !claim.FirstClaim && claim.Existing != nil {
 			ex := claim.Existing
