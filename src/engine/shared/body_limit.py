@@ -97,27 +97,52 @@ class MaxBodySizeMiddleware:
 
         # Slow path: count bytes as the body streams in. This covers
         # chunked transfer-encoding and any client that omits or lies
-        # about Content-Length. Once the running total exceeds the cap
-        # we emit 413 and stop forwarding body events downstream.
+        # about Content-Length.
+        #
+        # Enforcement contract (both halves matter):
+        #   * MEMORY: the moment the running total exceeds the cap,
+        #     limited_receive STOPS delivering real body bytes to the
+        #     app. It returns a terminal empty http.request
+        #     (more_body=False) so the handler's body read ends
+        #     immediately, then http.disconnect for any further pulls.
+        #     The over-limit bytes are never handed to the handler, so
+        #     nothing downstream can buffer them.
+        #   * RESPONSE: guarded_send maps the over-limit condition to a
+        #     single clean 413 IFF the app has not already committed a
+        #     response. FastAPI reads the body (json()/Pydantic) before
+        #     returning, so the limit always trips before any
+        #     http.response.start; the "already committed" branch is a
+        #     defensive fallthrough that forwards the app's own response
+        #     unchanged rather than corrupting the ASGI stream with a
+        #     second response.start.
         received = 0
         limit = self.max_bytes
         too_large = False
+        terminated = False  # emitted the terminal empty body to the app
 
         async def limited_receive() -> Message:
-            nonlocal received, too_large
+            nonlocal received, too_large, terminated
+            # Once over the cap, never pull more real body from the
+            # client into the app: first hand back a terminal empty
+            # chunk, then disconnect.
+            if too_large:
+                if not terminated:
+                    terminated = True
+                    return {"type": "http.request", "body": b"", "more_body": False}
+                return {"type": "http.disconnect"}
+
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
                 if received > limit:
+                    # Trip the flag and DO NOT forward the over-limit
+                    # bytes to the app: substitute a terminal empty
+                    # chunk so the handler's body read stops here.
                     too_large = True
+                    terminated = True
+                    return {"type": "http.request", "body": b"", "more_body": False}
             return message
 
-        # We cannot know the total until the body is consumed by the
-        # app, so we hand the app a wrapped receive and a wrapped send
-        # that suppresses the app's response if the limit was tripped
-        # mid-stream. The wrapped receive marks too_large; the wrapped
-        # send checks the flag before the app's first response event
-        # and substitutes a 413 instead.
         response_started = False
 
         async def guarded_send(message: Message) -> None:
@@ -127,7 +152,11 @@ class MaxBodySizeMiddleware:
                 await _send_413(send)
                 return
             if too_large:
-                # Drop any further app output once we've sent 413.
+                # App already committed a response before we tripped
+                # (does not occur on FastAPI's read-then-return path).
+                # Forward unchanged rather than emitting a second,
+                # conflicting response.start.
+                await send(message)
                 return
             if message["type"] == "http.response.start":
                 response_started = True
