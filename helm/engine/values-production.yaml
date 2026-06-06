@@ -31,27 +31,6 @@ podAnnotations:
   prometheus.io/path: "/metrics"
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: production
-  # Tier 9 (CHECKLIST microservice security): join the Linkerd mesh.
-  # The engine is the hub — it receives HTTP from gateway/execution/
-  # management and dials Postgres/Redis/Chroma/mt-node + Vault + K8s API
-  # + external HTTPS. Port handling below is tuned to that egress
-  # profile. Audit ref: Tier 9 G9-1.
-  linkerd.io/inject: enabled
-  # ZeroMQ to mt-node :5555 is a non-HTTP, server-speaks-first framing;
-  # mark it opaque so the proxy mTLS-tunnels it as raw TCP between
-  # meshed peers instead of attempting HTTP/2 detection.
-  config.linkerd.io/opaque-ports: "5555"
-  # Run the proxy as a native sidecar so it is Ready before the engine's
-  # init containers run: `migrate` (alembic upgrade head) and
-  # `wait-for-deps` both dial meshed postgres/redis, which a non-native
-  # proxy would not yet be up to carry.
-  config.linkerd.io/proxy-enable-native-sidecar: "true"
-  # OTLP gRPC collector (etradie-observability) is operator-installed
-  # and may be un-meshed; skip its port so traces flow regardless and
-  # the proxy never fails a handshake to a non-meshed collector. The
-  # K8s API server is auto-skipped by Linkerd; external HTTPS (443)
-  # passes through transparently to non-meshed hosts.
-  config.linkerd.io/skip-outbound-ports: "4317"
 
 config:
   # mt-node image: defined in helm/engine/values-image.yaml. Only

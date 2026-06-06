@@ -343,7 +343,26 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 9100
+    # Linkerd proxy admin port :4191 (proxy metrics, tap, liveness)
+    # scraped by Prometheus from the monitoring namespace.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 4191
   egress:
+    # The injected Linkerd proxy must reach the control plane in the
+    # linkerd namespace (identity, destination, policy) or the pod
+    # never becomes Ready.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
     # Cluster DNS for resolving the broker server hostname.
     - to:
         - namespaceSelector:

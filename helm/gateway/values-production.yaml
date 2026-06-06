@@ -14,15 +14,6 @@ podAnnotations:
   prometheus.io/path: "/metrics"
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: production
-  # Tier 9 (CHECKLIST microservice security): join the Linkerd mesh so
-  # every gateway pod-to-pod hop (gRPC to execution/management, HTTP to
-  # engine) is automatically mTLS'd. gRPC/HTTP2 is detected natively by
-  # the proxy; no opaque-ports needed. Audit ref: Tier 9 G9-1.
-  linkerd.io/inject: enabled
-  # Run the proxy as a native sidecar so it is Ready before the
-  # wait-for-deps init container dials meshed postgres/redis/engine;
-  # otherwise the init hop predates the proxy and is refused.
-  config.linkerd.io/proxy-enable-native-sidecar: "true"
 
 # Per-service Linkerd authorization (Server + AuthorizationPolicy).
 # Kept disabled until the mesh is confirmed: enabling it on the same

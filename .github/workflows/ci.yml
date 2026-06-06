@@ -440,12 +440,29 @@ jobs:
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             /tmp/billing-production.yaml
+      - name: helm lint - linkerd identity
+        run: helm lint deployments/linkerd
+      - name: helm template + kubeconform - linkerd identity
+        run: |
+          # The in-repo Linkerd identity chart (ExternalSecret that
+          # materialises the issuer kubernetes.io/tls Secret from Vault).
+          # The upstream linkerd-control-plane + linkerd-viz charts are
+          # pulled from helm.linkerd.io at ArgoCD sync time and are not
+          # rendered here (this CI renders only repo-owned charts).
+          helm template etradie-linkerd-identity deployments/linkerd \
+            -f deployments/linkerd/values.yaml \
+            > /tmp/linkerd-identity.yaml
+          kubeconform -strict -kubernetes-version 1.30.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /tmp/linkerd-identity.yaml
       - name: argocd manifests parse
         run: |
           # ArgoCD CRDs are schema-checked separately. We only confirm
           # the YAML parses and the AppProject + Application docs are
           # syntactically valid Kubernetes manifests.
           for f in deployments/argocd/appproject.yaml \
+                   deployments/argocd/linkerd-appproject.yaml \
                    deployments/argocd/root-app.yaml \
                    deployments/argocd/children/*.yaml; do
             python3 -c "import yaml,sys; list(yaml.safe_load_all(open('$f')))"

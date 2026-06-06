@@ -361,11 +361,13 @@ linkerdPolicy:
     - etradie-execution
     - etradie-management
     - etradie-engine
+    - etradie-billing
   redisCallers:
     - etradie-gateway
     - etradie-execution
     - etradie-management
     - etradie-engine
+    - etradie-billing
   chromadbCallers:
     - etradie-engine
 

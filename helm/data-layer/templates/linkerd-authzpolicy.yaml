@@ -39,10 +39,21 @@ spec:
     - {{ printf $idfmt . | quote }}
     {{- end }}
 ---
-# Un-meshed postgres-backup Job pod (same namespace). A meshed Job would
-# never terminate, so the backup pod stays un-meshed and is admitted by
-# source network. NetworkPolicy already restricts :5432 ingress to the
-# exact caller pods, so this is defense-in-depth, not a wide opening.
+# Un-meshed same-cluster batch clients of postgres. Batch Jobs stay
+# un-meshed (a meshed restartPolicy:Never/OnFailure Job pod would keep
+# the proxy running and never terminate) and are admitted by source
+# network. This intentionally covers EVERY un-meshed private-CIDR
+# client of postgres in the cluster, which today is:
+#   - the nightly postgres-backup CronJob pod, and
+#   - the operator-run engine credential-rewrap Job (Tier 3 KEK
+#     rotation; carries engine.selectorLabels so the engine
+#     NetworkPolicy egress to :5432 applies).
+# Linkerd evaluates requiredAuthenticationRefs as an OR, so an
+# un-meshed source satisfying this NetworkAuthentication is authorized
+# even though it presents no mTLS identity. The PRECISE per-pod control
+# is the NetworkPolicy (which restricts :5432 ingress to the exact
+# caller pods); this authn is the mesh-layer defense-in-depth that
+# keeps those un-meshed batch paths working once authz is enabled.
 apiVersion: policy.linkerd.io/v1alpha1
 kind: NetworkAuthentication
 metadata:

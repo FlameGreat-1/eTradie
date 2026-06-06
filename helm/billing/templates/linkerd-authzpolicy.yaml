@@ -1,0 +1,77 @@
+{{- if .Values.linkerdPolicy.enabled }}
+{{- /*
+Per-service Linkerd authorization for billing. billing exposes a single
+inbound port (:8082 HTTP) carrying the provider webhook routes
+(/webhooks/*), the internal checkout/portal API (/internal/*), and
+/metrics. Meshed callers (envoy, gateway) are authorized by mTLS
+identity; Prometheus (un-meshed) by source network. Identities are
+built from {name,namespace} pairs because envoy is cross-namespace.
+*/ -}}
+{{- $ns := include "billing.namespace" . -}}
+{{- $sel := include "billing.selectorLabels" . -}}
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: {{ include "billing.appName" . }}-http
+  namespace: {{ $ns }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $sel | nindent 6 }}
+  port: {{ .Values.service.ports.http.port }}
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta3
+kind: MeshTLSAuthentication
+metadata:
+  name: {{ include "billing.appName" . }}-http-callers
+  namespace: {{ $ns }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+spec:
+  identities:
+    {{- range .Values.linkerdPolicy.httpCallerServiceAccounts }}
+    - {{ printf "%s.%s.serviceaccount.identity.linkerd.cluster.local" .name .namespace | quote }}
+    {{- end }}
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "billing.appName" . }}-http-authz
+  namespace: {{ $ns }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: {{ include "billing.appName" . }}-http
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: {{ include "billing.appName" . }}-http-callers
+    - group: policy.linkerd.io
+      kind: NetworkAuthentication
+      name: {{ include "billing.appName" . }}-metrics-scrape
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: {{ include "billing.appName" . }}-metrics-scrape
+  namespace: {{ $ns }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+spec:
+  # Prometheus runs un-meshed in the monitoring namespace; authorize it
+  # by source network. The existing NetworkPolicy already restricts
+  # :8082 metrics ingress to the monitoring Prometheus pod, so this is
+  # defense-in-depth satisfying the Server's authn requirement for the
+  # un-meshed source.
+  networks:
+    - cidr: 10.0.0.0/8
+    - cidr: 172.16.0.0/12
+    - cidr: 192.168.0.0/16
+    - cidr: 100.64.0.0/10
+{{- end }}

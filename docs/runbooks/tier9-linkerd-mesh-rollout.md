@@ -66,26 +66,34 @@ bytes live in git.
 
 ---
 
-## 1. Install the control plane (waves -6 -> -4, before workloads)
+## 1. Install the control plane + viz (waves -6 -> -3, before workloads)
 
 ArgoCD reconciles, in order: `linkerd-identity-production` (-6, ESO
 materialises the issuer Secret), `linkerd-crds-production` (-5),
-`linkerd-control-plane-production` (-4). Verify:
+`linkerd-control-plane-production` (-4), `linkerd-viz-production` (-3,
+the extension that powers `linkerd viz edges`/`stat` used as the
+verification gate in step 3). Verify:
 
 ```bash
-linkerd check            # all checks green BEFORE injecting workloads
-kubectl -n linkerd get pods   # identity, destination, proxy-injector Ready
+linkerd check                 # core control plane green
+linkerd viz check             # viz extension green (required for step 3)
+kubectl -n linkerd get pods       # identity, destination, proxy-injector Ready
+kubectl -n linkerd-viz get pods   # metrics-api, tap, web Ready
 ```
 
 ---
 
 ## 2. Roll the workloads into the mesh
 
-The production overlays already carry `linkerd.io/inject: enabled`. A
-normal ArgoCD sync of each service rolls its pods with the proxy. Roll
-ONE service at a time (data-layer first, then engine, then gateway/
-execution/management, then envoy/edge-ingress) and confirm each is
-meshed before the next:
+The BASE chart values carry `linkerd.io/inject: enabled` +
+`proxy-enable-native-sidecar`, so EVERY workload meshes in BOTH staging
+AND production (staging is a faithful mirror; do the staging dry-run of
+steps 2-4 first). Meshed workloads: gateway, execution, management,
+engine, billing, data-layer (postgres/redis/chromadb), envoy,
+edge-ingress, and the mt-node pods. A normal ArgoCD sync of each rolls
+its pods with the proxy. Roll ONE workload at a time (data-layer first,
+then engine, then gateway/execution/management/billing, then
+envoy/edge-ingress) and confirm each is meshed before the next:
 
 ```bash
 linkerd viz stat deploy -n etradie-system
@@ -107,6 +115,8 @@ Every internal edge MUST show `SECURED` (√). Expected edges:
 - gateway <-> execution, gateway <-> management (gRPC)
 - gateway/execution/management -> engine (HTTP)
 - engine -> postgres / redis / chromadb / mt-node
+- billing -> postgres / redis
+- envoy -> billing, gateway -> billing
 - edge-ingress -> envoy -> gateway
 
 If ANY edge is not secured, STOP and fix it before step 4. Do NOT
@@ -148,8 +158,9 @@ kubectl -n etradie-system get jobs -l app.kubernetes.io/name=postgres-backup
 | gateway gRPC :50052       | etradie-execution, etradie-management                    | — |
 | gateway HTTP :8080        | etradie-envoy (envoy-system)                             | Prometheus (/metrics) |
 | engine HTTP :8000         | etradie-gateway, etradie-execution, etradie-management   | Prometheus (/metrics) |
-| postgres :5432            | gateway, execution, management, engine                   | postgres-backup pod |
-| redis :6379               | gateway, execution, management, engine                   | — |
+| billing HTTP :8082        | etradie-envoy (envoy-system), etradie-gateway            | Prometheus (/metrics) |
+| postgres :5432            | gateway, execution, management, engine, billing          | postgres-backup + credential-rewrap Job (un-meshed batch) |
+| redis :6379               | gateway, execution, management, engine, billing          | — |
 | chromadb :8000            | engine                                                   | — |
 
 ## 5. Rollback
@@ -160,8 +171,9 @@ kubectl -n etradie-system get jobs -l app.kubernetes.io/name=postgres-backup
   still encrypts every meshed<->meshed hop — you lose per-service
   scoping but NOT encryption.
 - Mesh itself problematic: remove `linkerd.io/inject` from the
-  service's podAnnotations and re-sync to roll un-meshed pods. The
-  NetworkPolicies (unchanged) still enforce L3/L4 segmentation.
-- Full backout: prune the three linkerd-* Applications (manual, in
-  order control-plane -> crds -> identity) after all workloads are
-  un-injected.
+  workload's BASE values podAnnotations and re-sync to roll un-meshed
+  pods. The NetworkPolicies (unchanged) still enforce L3/L4
+  segmentation.
+- Full backout: prune the four linkerd-* Applications (manual, in
+  order viz -> control-plane -> crds -> identity) after all workloads
+  are un-injected.
