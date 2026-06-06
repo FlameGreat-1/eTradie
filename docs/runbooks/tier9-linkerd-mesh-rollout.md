@@ -66,26 +66,34 @@ bytes live in git.
 
 ---
 
-## 1. Install the control plane (waves -6 -> -4, before workloads)
+## 1. Install the control plane + viz (waves -6 -> -3, before workloads)
 
 ArgoCD reconciles, in order: `linkerd-identity-production` (-6, ESO
 materialises the issuer Secret), `linkerd-crds-production` (-5),
-`linkerd-control-plane-production` (-4). Verify:
+`linkerd-control-plane-production` (-4), `linkerd-viz-production` (-3,
+the extension that powers `linkerd viz edges`/`stat` used as the
+verification gate in step 3). Verify:
 
 ```bash
-linkerd check            # all checks green BEFORE injecting workloads
-kubectl -n linkerd get pods   # identity, destination, proxy-injector Ready
+linkerd check                 # core control plane green
+linkerd viz check             # viz extension green (required for step 3)
+kubectl -n linkerd get pods       # identity, destination, proxy-injector Ready
+kubectl -n linkerd-viz get pods   # metrics-api, tap, web Ready
 ```
 
 ---
 
 ## 2. Roll the workloads into the mesh
 
-The production overlays already carry `linkerd.io/inject: enabled`. A
-normal ArgoCD sync of each service rolls its pods with the proxy. Roll
-ONE service at a time (data-layer first, then engine, then gateway/
-execution/management, then envoy/edge-ingress) and confirm each is
-meshed before the next:
+The BASE chart values carry `linkerd.io/inject: enabled` +
+`proxy-enable-native-sidecar`, so EVERY workload meshes in BOTH staging
+AND production (staging is a faithful mirror; do the staging dry-run of
+steps 2-4 first). Meshed workloads: gateway, execution, management,
+engine, billing, data-layer (postgres/redis/chromadb), envoy,
+edge-ingress, and the mt-node pods. A normal ArgoCD sync of each rolls
+its pods with the proxy. Roll ONE workload at a time (data-layer first,
+then engine, then gateway/execution/management/billing, then
+envoy/edge-ingress) and confirm each is meshed before the next:
 
 ```bash
 linkerd viz stat deploy -n etradie-system
@@ -107,6 +115,8 @@ Every internal edge MUST show `SECURED` (√). Expected edges:
 - gateway <-> execution, gateway <-> management (gRPC)
 - gateway/execution/management -> engine (HTTP)
 - engine -> postgres / redis / chromadb / mt-node
+- billing -> postgres / redis
+- envoy -> billing, gateway -> billing
 - edge-ingress -> envoy -> gateway
 
 If ANY edge is not secured, STOP and fix it before step 4. Do NOT
