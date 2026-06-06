@@ -564,7 +564,44 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 8000
+    # Tier 9 C4: Linkerd proxy inbound (mTLS data plane). Meshed
+    # proxy-to-proxy traffic from any meshed caller lands on :4143, NOT
+    # the app port. Allow it from the in-mesh namespaces or the engine
+    # proxy blackholes all meshed ingress.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: etradie-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-system
+      ports:
+        - protocol: TCP
+          port: 4143
+    # Tier 9 C4: Linkerd proxy admin :4191 (proxy's own /metrics, tap,
+    # liveness) scraped by Prometheus (un-meshed, monitoring ns).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 4191
   egress:
+    # Tier 9 C2: the injected Linkerd proxy MUST reach the control
+    # plane in the `linkerd` namespace (identity for cert signing,
+    # destination for discovery, policy for Server/AuthorizationPolicy
+    # lookups). Without this, default-deny egress drops that traffic
+    # and the proxy never becomes Ready. Namespace-scoped (not
+    # port-pinned) because Linkerd control-plane ports vary by version;
+    # the control plane is trusted platform infra.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
     # Postgres.
     - to:
         - podSelector:
