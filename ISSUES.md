@@ -185,7 +185,13 @@
       to the current sources of truth. Data-layer postgres NP render
       re-verified (backup ingress kept, :4191 added, linkerd egress
       present, no dead :4143, braces balanced).
-      REMAINING: open the MR.
+      Runbook MOVED to docs/runbooks/tier9-linkerd-mesh-rollout.md
+      (official runbook home). Added `make mesh-verify` (mesh-render +
+      mesh-check) so operators/CI render the linkerd identity chart +
+      every mesh chart (engine/execution/management/data-layer) for
+      staging & production and run the live `linkerd check` / `linkerd
+      viz edges` verification; mesh-render wired into `make platform-ci`.
+      MR: !104.
 
 ## All findings resolved
 

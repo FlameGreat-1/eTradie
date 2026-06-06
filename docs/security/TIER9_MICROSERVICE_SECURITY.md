@@ -169,7 +169,7 @@
       selectorLabels app.kubernetes.io/name) verified to match the
       Server podSelectors.
 - [x] **Step 3f — runbook + tracker finalised. DONE** (see
-      docs/security/TIER9_ROLLOUT_RUNBOOK.md).
+      docs/runbooks/tier9-linkerd-mesh-rollout.md).
 
 ## ===== TIER 9 COMPLETE: G9-1 (mTLS) + G9-2 (per-service authz) + G9-3
 ## (zero-trust transport) all satisfied. Network Segmentation (section 3)
