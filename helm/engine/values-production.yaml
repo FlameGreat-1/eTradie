@@ -96,6 +96,16 @@ config:
         prometheus.io/path: "/metrics"
         cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         tier: production
+        # Tier 9 (CHECKLIST microservice security): every runtime-
+        # provisioned mt-node StatefulSet joins the mesh. HostedProvisioner
+        # merges these onto the pod template (MT_NODE_POD_ANNOTATIONS_JSON
+        # -> merged_annotations), so the engine<->mt-node ZeroMQ :5555 hop
+        # is mTLS'd. Opaque because ZMQ is a non-HTTP server-first framing
+        # (matches the engine pod's own opaque-ports 5555). The Linkerd
+        # proxy coexists with the Vault Agent + watchdog sidecars. Audit
+        # ref: Tier 9 G9-1.
+        linkerd.io/inject: enabled
+        config.linkerd.io/opaque-ports: "5555"
   # Vault address. Production runs an in-cluster Vault on the
   # 'vault' namespace. Operators on HCP Vault or an external
   # Vault override this in their own overlay.

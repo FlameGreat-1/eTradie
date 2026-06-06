@@ -118,6 +118,12 @@ podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "9100"
   prometheus.io/path: "/metrics"
+  # Tier 9 (CHECKLIST microservice security): chart-rendered platform
+  # mt-node pods join the mesh, matching the engine-runtime path
+  # (helm/engine config.mtNode.scheduling.podAnnotations). ZeroMQ :5555
+  # is opaque (non-HTTP server-first framing). Audit ref: Tier 9 G9-1.
+  linkerd.io/inject: enabled
+  config.linkerd.io/opaque-ports: "5555"
 
 podSecurityContext:
   runAsNonRoot: true
