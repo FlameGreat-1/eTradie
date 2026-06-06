@@ -129,13 +129,17 @@
 
 - [x] **Step 1** — this authoritative tracker (recoverable anchor). No
       manifest changed.
-- [ ] **Step 2 (C1)** — control-plane-values.yaml defaultAllowPolicy ->
-      all-unauthenticated (+ corrected comment).
-- [ ] **Step 3 (M1)** — native-sidecar: control-plane-values.yaml
-      `proxyInit`/proxy native-sidecar default + per-workload annotation
-      where init must run meshed (engine/gateway/execution/management
-      overlays + engine config.mtNode.scheduling.podAnnotations +
-      helm/mt-node). Raise bootstrap floor to >= 1.29 in the README.
+- [x] **Step 2 (C1)** — DONE. control-plane-values.yaml
+      defaultAllowPolicy -> all-unauthenticated (+ corrected comment).
+- [x] **Step 3 (M1)** — DONE. config.linkerd.io/proxy-enable-native-
+      sidecar="true" added beside linkerd.io/inject on EVERY meshed
+      workload: gateway/execution/management/engine prod overlays;
+      data-layer postgres/redis/chromadb; helm/mt-node; engine
+      config.mtNode.scheduling.podAnnotations (runtime path); edge-
+      ingress; envoy. Verified: chromadb HTTP probe proxy-bypassed; pg/
+      redis exec probes unaffected; mt-node/runtime carry Vault Agent
+      init so native sidecar is REQUIRED there. STILL TODO in Step 3:
+      raise bootstrap README floor to K8s >= 1.29.
 - [ ] **Step 4 (C2/C4 services)** — append linkerd egress (ns linkerd)
       + ingress 4143/4191 to networkPolicy lists in
       gateway/execution/management/engine values (verify overlays do not
