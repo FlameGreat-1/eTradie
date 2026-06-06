@@ -162,7 +162,7 @@ func (s *Scheduler) issueUserServiceContext(ctx context.Context, user *auth.User
 		return nil
 	}
 
-	serviceToken, err := s.tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status)
+	serviceToken, err := s.tokenService.IssueServiceToken(user.ID, user.Username, user.Role, user.Tier, user.Status, user.TokenEpoch)
 	if err != nil {
 		s.log.Error().
 			Err(err).
