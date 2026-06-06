@@ -19,10 +19,9 @@ podAnnotations:
   # engine) is automatically mTLS'd. gRPC/HTTP2 is detected natively by
   # the proxy; no opaque-ports needed. Audit ref: Tier 9 G9-1.
   linkerd.io/inject: enabled
-  # Tier 9 M1: native sidecar (K8s SidecarContainers, GA 1.29; cluster
-  # is OKE v1.32). The proxy starts + is Ready BEFORE the wait-for-deps
-  # init container dials meshed postgres/redis/engine, so the init hop
-  # is mTLS'd instead of being refused by a not-yet-running proxy.
+  # Run the proxy as a native sidecar so it is Ready before the
+  # wait-for-deps init container dials meshed postgres/redis/engine;
+  # otherwise the init hop predates the proxy and is refused.
   config.linkerd.io/proxy-enable-native-sidecar: "true"
 
 # Tier 9 G9-2: activate per-service Linkerd authorization in production
