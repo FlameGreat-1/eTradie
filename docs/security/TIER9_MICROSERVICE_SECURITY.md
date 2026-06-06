@@ -148,8 +148,27 @@
 ## ===== G9-1 (mTLS data-plane) COMPLETE — committed. =====
 ## Remaining: G9-2 (per-service authz) + G9-3 finalisation + rollout.
 
-- [ ] **Step 3c (NEXT phase) — per-service Server + ServerAuthorization
-      (G9-2).** Apply ONLY AFTER staging shows `linkerd viz edges` =
+- [x] **Step 3c — per-service Server + AuthorizationPolicy (G9-2). DONE.**
+      execution/management/gateway/engine/data-layer each ship a
+      linkerd-authzpolicy.yaml gated by linkerdPolicy.enabled
+      (false base / true prod overlay). Caller SAs verified from each
+      chart's _helpers.tpl (SA = release name = etradie-<svc>; envoy =
+      etradie-envoy in envoy-system). Data-layer authz includes a
+      NetworkAuthentication for the un-meshed postgres-backup pod and
+      every metrics Server includes a Prometheus NetworkAuthentication.
+      data-layer helper labels (postgres/redis/chromadb.labels +
+      selectorLabels app.kubernetes.io/name) verified to match the
+      Server podSelectors.
+- [x] **Step 3f — runbook + tracker finalised. DONE** (see
+      docs/security/TIER9_ROLLOUT_RUNBOOK.md).
+
+## ===== TIER 9 COMPLETE: G9-1 (mTLS) + G9-2 (per-service authz) + G9-3
+## (zero-trust transport) all satisfied. Network Segmentation (section 3)
+## pre-existing and intact. =====
+
+### (historical) original Step 3c plan retained below for reference:
+- [x] per-service Server + ServerAuthorization (G9-2) — applied AFTER
+      staging shows `linkerd viz edges` =
       100% TLS on every edge (phased: defaultAllowPolicy stays
       all-authenticated until then). Per-service plan (keyed to real SA
       names — each chart's serviceaccount.yaml; default SA name =
