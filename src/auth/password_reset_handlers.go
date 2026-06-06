@@ -3,8 +3,6 @@ package auth
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -514,16 +512,9 @@ func buildPasswordResetURL(base, token string) string {
 // size cap) and returns the error so the caller can early-return
 // without writing a second response.
 func decodeResetJSON(w http.ResponseWriter, r *http.Request, out interface{}) error {
-	r.Body = http.MaxBytesReader(w, r.Body, passwordResetMaxBodyBytes)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(out); err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			writeAuthError(w, http.StatusRequestEntityTooLarge, "request body too large")
-			return err
-		}
-		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := DecodeJSONStrict(w, r, out, passwordResetMaxBodyBytes); err != nil {
+		status, msg := DecodeJSONError(err)
+		writeAuthError(w, status, msg)
 		return err
 	}
 	return nil
@@ -532,16 +523,10 @@ func decodeResetJSON(w http.ResponseWriter, r *http.Request, out interface{}) er
 // decodeResetJSONSilent is the variant used by /reset/validate, where
 // every failure mode (including oversize, malformed JSON, empty body)
 // is mapped to the same {valid:false} response by the caller. The
-// caller writes the response; we just bound the read.
+// caller writes the response; we just bound the read with the same
+// shared strict decoder.
 func decodeResetJSONSilent(r *http.Request, out interface{}) error {
-	// Use a discard ResponseWriter-ish bound: MaxBytesReader needs an
-	// http.ResponseWriter only to set the connection-close hint on
-	// oversize; we pass nil to suppress that side-effect and let the
-	// caller decide how to respond. Inspect via errors.As below.
-	r.Body = http.MaxBytesReader(nil, r.Body, passwordResetMaxBodyBytes)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	return dec.Decode(out)
+	return DecodeJSONStrict(nil, r, out, passwordResetMaxBodyBytes)
 }
 
 // logForgotSkip emits a debug-level structured event on every silent-

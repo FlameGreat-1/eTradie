@@ -39,7 +39,7 @@ import asyncio
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from engine.dependencies import Container
 from engine.processor.trading_plan import (
@@ -54,6 +54,8 @@ router = APIRouter()
 
 
 class DispatchBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     user_id: str = Field(..., min_length=1, max_length=64)
     balance: float = Field(..., ge=0.0)
     balance_currency: str = Field(..., min_length=3, max_length=8)

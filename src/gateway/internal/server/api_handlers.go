@@ -187,11 +187,14 @@ func (h *APIHandler) handleRunCycle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req runCycleRequest
-	if r.Body != nil && r.ContentLength > 0 {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-			return
-		}
+	// Body is OPTIONAL: an empty body means "run the user's stored
+	// active symbols". AllowEmpty accepts a missing body and still
+	// enforces the size cap + unknown-field rejection on a non-empty
+	// one.
+	if err := auth.DecodeJSONStrictAllowEmpty(w, r, &req, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSONError(w, status, msg)
+		return
 	}
 
 	userID := claims.UserID
@@ -378,8 +381,9 @@ func (h *APIHandler) getSymbols(w http.ResponseWriter, r *http.Request) {
 
 func (h *APIHandler) setSymbols(w http.ResponseWriter, r *http.Request) {
 	var req setSymbolsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := auth.DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSONError(w, status, msg)
 		return
 	}
 
@@ -593,8 +597,9 @@ func (h *APIHandler) handleSetInterval(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req setIntervalRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := auth.DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSONError(w, status, msg)
 		return
 	}
 

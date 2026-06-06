@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -368,8 +367,9 @@ func (h *BillingHandler) handleCreateCheckout(w http.ResponseWriter, r *http.Req
 	}
 
 	var req checkoutRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := auth.DecodeJSONStrict(w, r, &req, 16*1024); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSONError(w, status, msg)
 		return
 	}
 	if !validProviders[req.Provider] {

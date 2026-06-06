@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -282,35 +281,14 @@ func (s *HTTPServer) Shutdown(ctx context.Context) error {
 //   - entries containing a path, query, or fragment,
 //   - entries that fail url.Parse.
 func buildCORSAllowlist(raw []string) (map[string]bool, error) {
-	out := make(map[string]bool, len(raw))
-	for _, entry := range raw {
-		s := strings.TrimSpace(entry)
-		if s == "" {
-			continue
-		}
-		if s == "*" {
-			return nil, fmt.Errorf("wildcard origin %q is incompatible with credentialed CORS", s)
-		}
-		if strings.EqualFold(s, "null") {
-			return nil, fmt.Errorf("literal null origin is not a valid CORS entry")
-		}
-		u, err := url.Parse(s)
-		if err != nil {
-			return nil, fmt.Errorf("invalid origin %q: %w", s, err)
-		}
-		if u.Scheme != "http" && u.Scheme != "https" {
-			return nil, fmt.Errorf("origin %q must use http or https scheme", s)
-		}
-		if u.Host == "" {
-			return nil, fmt.Errorf("origin %q is missing host", s)
-		}
-		if u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
-			return nil, fmt.Errorf("origin %q must not contain a path, query, or fragment", s)
-		}
-		normalised := u.Scheme + "://" + u.Host
-		out[normalised] = true
+	allowed, rejected := auth.BuildCORSAllowlist(raw)
+	if len(rejected) > 0 {
+		// Fail the deploy: a malformed credentialed-CORS entry is an
+		// operator error that must be fixed before the gateway serves
+		// traffic, not silently dropped.
+		return nil, fmt.Errorf("invalid CORS origin(s) %v: each entry must be a full http(s) origin (scheme://host[:port]) with no wildcard, no \"null\", and no path/query/fragment", rejected)
 	}
-	return out, nil
+	return allowed, nil
 }
 
 // corsMiddleware adds CORS headers for dashboard cross-origin requests.

@@ -123,13 +123,17 @@ func loadAllowedOrigins() map[string]bool {
 	if raw == "" {
 		return map[string]bool{}
 	}
-	out := map[string]bool{}
-	for _, part := range strings.Split(raw, ",") {
-		if p := strings.TrimSpace(part); p != "" {
-			out[p] = true
-		}
+	// Validate every entry through the shared builder so a misconfigured
+	// credentialed-CORS origin ("*", "null", non-http(s), path/query) is
+	// DROPPED and logged rather than reflected with
+	// Access-Control-Allow-Credentials: true. Fail safe.
+	allowed, rejected := auth.BuildCORSAllowlist(strings.Split(raw, ","))
+	if len(rejected) > 0 {
+		observability.Logger("cors").Error().
+			Strs("rejected", rejected).
+			Msg("execution_cors_invalid_origins_dropped")
 	}
-	return out
+	return allowed
 }
 
 // Start begins serving HTTP. Blocks until the server stops.
@@ -446,6 +450,26 @@ func (s *HTTPServer) handleAuditReplay(w http.ResponseWriter, r *http.Request) {
 	userID := strings.TrimSpace(q.Get("user_id"))
 	if userID == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "user_id is required"})
+		return
+	}
+
+	// Object-level authorization (TIER 4 ownership verification / TIER 2
+	// tenant isolation). RequireAuth has populated the claims; a
+	// non-admin caller may replay ONLY their own audit trail. An admin
+	// (operator running executionctl) may replay any user's. Without
+	// this gate any valid token could read another tenant's execution
+	// audit log via a forged user_id query parameter.
+	claims := auth.ClaimsFromContext(r.Context())
+	if claims == nil || claims.UserID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	if claims.UserID != userID && claims.Role != auth.RoleAdmin {
+		s.log.Warn().
+			Str("caller_user_id", claims.UserID).
+			Str("requested_user_id", userID).
+			Msg("audit_replay_cross_tenant_denied")
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "cannot replay another user's audit log"})
 		return
 	}
 

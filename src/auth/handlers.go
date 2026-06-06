@@ -384,8 +384,9 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req loginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := DecodeJSONError(err)
+		writeAuthError(w, status, msg)
 		return
 	}
 
@@ -560,8 +561,9 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req registerRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := DecodeJSONError(err)
+		writeAuthError(w, status, msg)
 		return
 	}
 
@@ -661,11 +663,14 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req refreshRequest
-	if r.Body != nil && r.ContentLength != 0 {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-			return
-		}
+	// Body is OPTIONAL: a cookie-auth browser sends the refresh token
+	// in the refresh cookie, not the body. AllowEmpty accepts a missing
+	// body and still enforces the size cap + unknown-field rejection on
+	// a non-empty one.
+	if err := DecodeJSONStrictAllowEmpty(w, r, &req, 0); err != nil {
+		status, msg := DecodeJSONError(err)
+		writeAuthError(w, status, msg)
+		return
 	}
 	if req.RefreshToken == "" {
 		req.RefreshToken = RefreshTokenFromCookie(r)
@@ -762,9 +767,12 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req refreshRequest
-	if r.Body != nil && r.ContentLength > 0 {
-		_ = json.NewDecoder(r.Body).Decode(&req)
-	}
+	// Logout tolerates a missing/!malformed body: the refresh token may
+	// come from the cookie, and cookie clearing happens regardless. A
+	// non-empty body is still size-capped + unknown-field-checked; a
+	// decode failure simply leaves req zero-valued so we fall back to
+	// the cookie.
+	_ = DecodeJSONStrictAllowEmpty(w, r, &req, 0)
 	if req.RefreshToken == "" {
 		req.RefreshToken = RefreshTokenFromCookie(r)
 	}
@@ -838,8 +846,9 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req changePasswordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := DecodeJSONError(err)
+		writeAuthError(w, status, msg)
 		return
 	}
 
@@ -953,8 +962,9 @@ func (h *Handler) adminListUsers(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) adminCreateUser(w http.ResponseWriter, r *http.Request) {
 	var req adminCreateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAuthError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := DecodeJSONError(err)
+		writeAuthError(w, status, msg)
 		return
 	}
 

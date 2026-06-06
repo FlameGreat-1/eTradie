@@ -106,8 +106,9 @@ func (h *KillSwitchHandler) handleClient(w http.ResponseWriter, r *http.Request)
 		var body struct {
 			Halted bool `json:"halted"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		if err := auth.DecodeJSONStrict(w, r, &body, 0); err != nil {
+			status, msg := auth.DecodeJSONError(err)
+			writeJSONError(w, status, msg)
 			return
 		}
 		// scope=user, empty target => execution binds the caller from JWT.
@@ -153,8 +154,9 @@ func (h *KillSwitchHandler) handleAdmin(w http.ResponseWriter, r *http.Request) 
 		TargetUserID string `json:"target_user_id"`
 		Halted       bool   `json:"halted"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+	if err := auth.DecodeJSONStrict(w, r, &body, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSONError(w, status, msg)
 		return
 	}
 

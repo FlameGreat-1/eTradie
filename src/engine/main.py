@@ -266,6 +266,45 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("application_stopped")
 
 
+def _validate_cors_origins(origins) -> list[str]:
+    """Return only the origins that are valid under credentialed CORS.
+
+    An entry is accepted when it is a full origin (scheme://host[:port])
+    with an https scheme, OR an http scheme limited to localhost /
+    127.0.0.1 for local dev. "*", "null", non-http(s) schemes, a missing
+    host, or any path/query/fragment is rejected and logged. Mirrors the
+    Go services' auth.BuildCORSAllowlist so every service validates the
+    shared ALLOWED_ORIGINS the same way.
+    """
+    from urllib.parse import urlparse
+
+    accepted: list[str] = []
+    rejected: list[str] = []
+    for origin in origins:
+        if origin == "*" or origin.lower() == "null":
+            rejected.append(origin)
+            continue
+        parsed = urlparse(origin)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            rejected.append(origin)
+            continue
+        if parsed.path or parsed.query or parsed.fragment:
+            rejected.append(origin)
+            continue
+        if parsed.scheme == "http":
+            host = (parsed.hostname or "").lower()
+            if host not in ("localhost", "127.0.0.1"):
+                rejected.append(origin)
+                continue
+        accepted.append(f"{parsed.scheme}://{parsed.netloc}")
+    if rejected:
+        logger.warning(
+            "engine_cors_invalid_origins_dropped",
+            extra={"rejected": rejected},
+        )
+    return accepted
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
@@ -291,6 +330,18 @@ def create_app() -> FastAPI:
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
 
+    # -- Request body-size limit (TIER 4 "Length limits") -----------------
+    # FastAPI/uvicorn impose no body cap by default and several
+    # /internal/broker/* order-path endpoints decode raw
+    # `await request.json()`. This middleware bounds every inbound body
+    # (Content-Length fast path + streaming byte count) and is the
+    # authoritative request-body size limit for the engine, mirroring
+    # the Go services' http.MaxBytesReader cap. Added FIRST so it sits
+    # OUTERMOST in Starlette's reverse-add middleware order and rejects
+    # an oversized body before CSRF or any route handler runs.
+    from engine.shared.body_limit import MaxBodySizeMiddleware
+    app.add_middleware(MaxBodySizeMiddleware)
+
     # -- CSRF middleware ---------------------------------------------------
     # Must be added BEFORE the CORS middleware so the CSRF check runs
     # on the already-authenticated request (get_current_user populates
@@ -305,11 +356,16 @@ def create_app() -> FastAPI:
         "ALLOWED_ORIGINS",
         "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173",
     )
-    allowed_origins = [
+    # Validate every entry before handing it to CORSMiddleware. With
+    # allow_credentials=True a reflected "*", "null", or malformed
+    # origin is a credentialed-CORS bypass, so invalid entries are
+    # DROPPED (fail safe) and logged loudly — the same posture as the
+    # Go execution/management services' auth.BuildCORSAllowlist.
+    allowed_origins = _validate_cors_origins(
         origin.strip()
         for origin in allowed_origins_str.split(",")
         if origin.strip()
-    ]
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
