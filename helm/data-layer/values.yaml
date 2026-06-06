@@ -17,6 +17,10 @@
 namespace:
   name: etradie-system
   podSecurityStandard: restricted
+  # Pin the PSS rule version so a future minor K8s upgrade does not
+  # silently shift the evaluated surface. Bump in lockstep with the
+  # cluster's supported PSS version.
+  podSecurityStandardVersion: v1.30
 
 # ----------------------------------------------------------------------
 # PostgreSQL 16 (audit + journal + analytics + auth + watcher state).
