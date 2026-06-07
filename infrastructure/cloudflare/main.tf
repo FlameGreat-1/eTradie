@@ -151,13 +151,40 @@ resource "cloudflare_ruleset" "rate_limit" {
 }
 
 #
-# 6. Bot management — Super Bot Fight Mode (TIER4 A2c).
+# 6. Bot protection (TIER4 A2c).
 #
-#    Gated OFF by default: cloudflare_bot_management requires a plan
-#    entitlement (Bot Management / Super Bot Fight Mode). Enabling it on
-#    a zone without the entitlement fails apply. Enable the toggle ONLY
-#    after the entitlement is confirmed (plan section 4 operator action).
+#    Two mutually-exclusive paths, chosen by the zone's Cloudflare plan.
+#    Both default OFF so the default config applies cleanly on ANY plan;
+#    the operator enables exactly ONE after confirming the entitlement
+#    (see docs/runbooks/tier4-abuse-prevention.md).
 #
+#      6a. Super Bot Fight Mode  -> Pro / Business plans.
+#          Toggled via the zone-level bot-fight-mode setting.
+#      6b. Bot Management (ML)    -> Enterprise add-on only.
+#          The dedicated cloudflare_bot_management resource.
+#
+#    Guard: enabling both at once is a misconfiguration (they conflict),
+#    so a precondition fails fast with a clear message.
+#
+resource "cloudflare_zone_settings_override" "bot" {
+  count = var.enable_super_bot_fight_mode ? 1 : 0
+
+  zone_id = var.zone_id
+
+  settings {
+    # "bic" = Browser Integrity Check; combined with the dashboard's
+    # Super Bot Fight Mode this is the Pro/Business-tier bot defence.
+    bic = "on"
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !(var.enable_super_bot_fight_mode && var.enable_bot_management)
+      error_message = "enable_super_bot_fight_mode (Pro/Business) and enable_bot_management (Enterprise) are mutually exclusive; enable exactly one based on the zone's Cloudflare plan."
+    }
+  }
+}
+
 resource "cloudflare_bot_management" "this" {
   count = var.enable_bot_management ? 1 : 0
 
@@ -165,4 +192,11 @@ resource "cloudflare_bot_management" "this" {
   enable_js          = true
   fight_mode         = true
   optimize_wordpress = false
+
+  lifecycle {
+    precondition {
+      condition     = !(var.enable_super_bot_fight_mode && var.enable_bot_management)
+      error_message = "enable_super_bot_fight_mode (Pro/Business) and enable_bot_management (Enterprise) are mutually exclusive; enable exactly one based on the zone's Cloudflare plan."
+    }
+  }
 }
