@@ -624,9 +624,12 @@ jobs:
     needs: [test, test-go, helm]
     # GHCR push requires packages: write. contents: read is the
     # workflow's read-only access to the repo for actions/checkout.
+    # id-token: write mints the OIDC token cosign uses for keyless
+    # signing (Fulcio/Rekor); no long-lived signing key is stored.
     permissions:
       contents: read
       packages: write
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -747,6 +750,7 @@ jobs:
           echo "production build guard passed: WINEHQ_VERSION=$WINEHQ_VERSION"
 
       - name: Build${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && ' and push' || '' }} ${{ matrix.service }}
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
@@ -758,8 +762,8 @@ jobs:
             ${{ env.IMAGE_BASE }}/${{ matrix.service }}:${{ env.RELEASE_TAG }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
-          provenance: false
-          sbom: false
+          provenance: true
+          sbom: true
           # mt-node needs the supply-chain build-args plumbed in;
           # other services have no build args and ignore this block.
           build-args: |
@@ -770,6 +774,22 @@ jobs:
             EA_EX5_SHA256=${{ matrix.service == 'mt-node' && (secrets.EA_EX5_SHA256 || 'skip') || '' }}
             EA_EX4_SHA256=${{ matrix.service == 'mt-node' && (secrets.EA_EX4_SHA256 || 'skip') || '' }}
             WINEHQ_VERSION=${{ matrix.service == 'mt-node' && secrets.WINEHQ_VERSION || '' }}
+
+      # Sign the pushed image keylessly with cosign. Runs only on a
+      # main-branch push (the only time we push). Signing is by DIGEST,
+      # not tag: the git-SHA tag and the RELEASE_TAG ref share one
+      # digest, so a single signature covers both and a tag re-point
+      # cannot move the signature onto different bytes.
+      - name: Install Cosign
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: sigstore/cosign-installer@v3
+      - name: Sign ${{ matrix.service }} image (cosign keyless)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          COSIGN_YES: "true"
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign sign "${IMAGE_BASE}/${{ matrix.service }}@${DIGEST}"
 
       # Smoke-verify the engine image only (it is the one we used to
       # verify before this commit; the Go images are statically linked
