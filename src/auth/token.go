@@ -62,6 +62,7 @@ func (ts *TokenService) IssueTokenPair(user *User) (*TokenPair, string, error) {
 		"tier":     user.Tier,
 		"status":   user.Status,
 		"iss":      ts.cfg.Issuer,
+		"aud":      ts.cfg.Audience,
 		"iat":      now.Unix(),
 		"exp":      accessExpiry.Unix(),
 		"tv":       user.TokenEpoch,
@@ -138,6 +139,20 @@ func (ts *TokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
 	// "Token issuer validation".
 	if iss, ok := mapClaims["iss"].(string); !ok || iss != ts.cfg.Issuer {
 		return nil, fmt.Errorf("invalid or missing 'iss' claim")
+	}
+
+	// Validate the audience. Rollout-safe (see Config.RequireAudience):
+	// when RequireAudience is false, a token with NO aud is tolerated
+	// (pre-rollout token), but a token that DOES present an aud must
+	// match. When RequireAudience is true, aud is mandatory and must
+	// match. Fail-closed on mismatch, same posture as the iss check.
+	if aud, ok := mapClaims["aud"].(string); ok && aud != "" {
+		claims.Audience = aud
+		if aud != ts.cfg.Audience {
+			return nil, fmt.Errorf("invalid 'aud' claim")
+		}
+	} else if ts.cfg.RequireAudience {
+		return nil, fmt.Errorf("missing 'aud' claim")
 	}
 
 	// tier is an entitlement floor, not a security gate. Defaulting a
@@ -252,6 +267,7 @@ func (ts *TokenService) IssueServiceToken(userID, username string, role Role, ti
 		"tier":       tier,
 		"status":     statusClaim,
 		"iss":        ts.cfg.Issuer,
+		"aud":        ts.cfg.Audience,
 		"iat":        now.Unix(),
 		"exp":        expiry.Unix(),
 		"token_type": "svc",

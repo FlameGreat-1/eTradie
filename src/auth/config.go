@@ -48,6 +48,22 @@ type Config struct {
 	// Issuer claim for JWT tokens.
 	Issuer string `envconfig:"ISSUER" default:"etradie"`
 
+	// Audience claim for JWT tokens. Issued on every user and service
+	// token and verified on the way in (see RequireAudience for the
+	// rollout semantics).
+	Audience string `envconfig:"AUDIENCE" default:"etradie-api"`
+
+	// RequireAudience controls aud enforcement during rollout.
+	//   false (default): newly issued tokens carry aud, and verify
+	//     enforces aud only when the token presents one; a token with
+	//     no aud (minted before this change) still verifies. This is
+	//     the safe first deploy.
+	//   true: every token MUST carry a matching aud or it is rejected.
+	//     Flip to true only AFTER every pre-rollout access token has
+	//     expired (<= AccessTokenTTLSeconds), so no live session is
+	//     invalidated.
+	RequireAudience bool `envconfig:"REQUIRE_AUDIENCE" default:"false"`
+
 	// TrustedProxyCIDRs is the list of CIDR blocks whose peer addresses
 	// are treated as trusted proxies for client-IP resolution.
 	TrustedProxyCIDRs []string `envconfig:"TRUSTED_PROXY_CIDRS"`
