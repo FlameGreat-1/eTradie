@@ -43,7 +43,7 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "postgres.labels" . | nindent 12 }}
+            {{- include "data-layer.commonLabels" . | nindent 12 }}
             app.kubernetes.io/name: postgres-backup
             app.kubernetes.io/component: postgres-backup
         spec:
