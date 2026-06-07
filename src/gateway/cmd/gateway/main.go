@@ -61,8 +61,12 @@ func main() {
 		pgHost := envOrDefault("POSTGRES_HOST", "postgres")
 		pgPort := envOrDefault("POSTGRES_PORT", "5432")
 		pgDB := envOrDefault("POSTGRES_DB", "etradie")
-		authDBURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-			pgUser, pgPass, pgHost, pgPort, pgDB)
+		// sslmode defaults to require so the auth connection is
+		// encrypted even when the service mesh is off; operators
+		// override (or relax in local dev) via POSTGRES_SSLMODE.
+		pgSSLMode := envOrDefault("POSTGRES_SSLMODE", "require")
+		authDBURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			pgUser, pgPass, pgHost, pgPort, pgDB, pgSSLMode)
 	}
 
 	ctx := context.Background()
