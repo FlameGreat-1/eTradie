@@ -56,6 +56,17 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.postgres.service.port | default 5432 }}
+    {{- if .Values.postgres.restoreDrill.enabled }}
+    # Restore-drill CronJob. Connects to recreate + restore into a
+    # throwaway scratch database.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-restore-drill
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgres.service.port | default 5432 }}
+    {{- end }}
     # Linkerd proxy admin port :4191 scraped by Prometheus.
     - from:
         - namespaceSelector:
@@ -235,6 +246,50 @@ spec:
         - protocol: TCP
           port: 443
     {{- end }}
+{{- end }}
+{{- if and .Values.postgres.enabled .Values.postgres.backup.enabled .Values.postgres.restoreDrill.enabled }}
+---
+# Egress policy for the postgres-restore-drill CronJob pods. Mirrors the
+# backup pod's egress trap: the postgres ingress rule above admits the
+# drill pod, but under default-deny the drill pod also needs its own
+# explicit egress to reach postgres + DNS. It talks only to the
+# in-cluster postgres, so no off-cluster egress is granted.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-restore-drill-network-policy
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres-restore-drill-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres-restore-drill
+  policyTypes:
+    - Egress
+  egress:
+    # Egress to postgres on the standard port.
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "postgres.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgres.service.port | default 5432 }}
+    # Cluster DNS (SRV/A lookup for the postgres FQDN).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
 {{- end }}
 {{- if .Values.chromadb.enabled }}
 ---
