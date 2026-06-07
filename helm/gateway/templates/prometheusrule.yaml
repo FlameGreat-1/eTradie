@@ -1,0 +1,136 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "gateway.appName" . }}-abuse
+  namespace: {{ include "gateway.namespace" . }}
+  labels:
+    {{- include "gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alerting
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    # Abuse-prevention signals across the request path: app per-user
+    # limiters (gateway + execution), the Envoy L7 backstop, and the
+    # edge-ingress L4 connection caps. Thresholds are rate-spike /
+    # sustained conditions so an occasional 429 never pages; only a
+    # broad sustained spike (attack or misconfigured limit) fires.
+    - name: gateway.abuse
+      interval: 30s
+      rules:
+        # Broad gateway per-user 429 spike. > 1/s summed across routes
+        # for 10m means many users (or one user across many pods) are
+        # being throttled — either an attack or a too-tight limit.
+        - alert: GatewayRateLimitSpike
+          expr: |
+            sum(rate(etradie_gateway_rate_limited_total[5m])) > 1
+          for: 10m
+          labels:
+            severity: warning
+            component: gateway
+            team: platform
+          annotations:
+            summary: "Gateway per-user rate limiter rejecting > 1/s for 10m"
+            description: |
+              The gateway per-user limiters (cycle/run + the default
+              API limiter) are returning HTTP 429 at a sustained rate.
+              Either a client is flooding authenticated endpoints or a
+              limit is mis-sized. Break down by route/tier:
+                sum by (route, tier) (rate(etradie_gateway_rate_limited_total[5m]))
+            runbook_url: "https://docs.etradie.com/runbooks/gateway-rate-limit-spike"
+
+        # Execution per-user 429 spike on the settings / cancel routes.
+        - alert: ExecutionRateLimitSpike
+          expr: |
+            sum(rate(etradie_execution_rate_limited_total[5m])) > 0.5
+          for: 10m
+          labels:
+            severity: warning
+            component: execution
+            team: platform
+          annotations:
+            summary: "Execution per-user rate limiter rejecting > 0.5/s for 10m"
+            description: |
+              PUT /api/v1/settings or POST /api/v1/orders/cancel is
+              being throttled at a sustained rate. These are
+              low-frequency control routes, so a sustained spike is
+              suspicious. Break down by route:
+                sum by (route) (rate(etradie_execution_rate_limited_total[5m]))
+            runbook_url: "https://docs.etradie.com/runbooks/execution-rate-limit-spike"
+
+        # Auth attempt-limiter saturation = credential stuffing. The
+        # gateway auth endpoints return 429 from the Redis attempt
+        # limiter; a broad spike across source IPs is the stuffing
+        # signature. (Counts the gateway's own 429 responses on the
+        # auth paths via the Envoy access-log-derived code metric is
+        # not available here, so we alert on the app limiter counter.)
+        - alert: AuthCredentialStuffingSuspected
+          expr: |
+            sum(rate(etradie_gateway_rate_limited_total{route="auth"}[5m])) > 1
+          for: 5m
+          labels:
+            severity: critical
+            component: gateway
+            team: security
+          annotations:
+            summary: "Sustained auth rate-limit rejections — possible credential stuffing"
+            description: |
+              The auth endpoints are being rate-limited at a sustained
+              rate, the signature of a credential-stuffing run. Cross-
+              check the Cloudflare /auth/* rate rule and the edge-ingress
+              per-IP connection rejections below.
+            runbook_url: "https://docs.etradie.com/runbooks/auth-credential-stuffing"
+
+    - name: envoy.abuse
+      interval: 30s
+      rules:
+        # Envoy L7 local rate-limit backstop tripping broadly. This is
+        # the always-on origin backstop; if it is firing, either
+        # Cloudflare is bypassed/misconfigured or the origin is under a
+        # genuine flood.
+        - alert: EnvoyLocalRateLimitActive
+          expr: |
+            sum(rate(envoy_http_local_rate_limiter_rate_limited[5m])) > 1
+          for: 10m
+          labels:
+            severity: warning
+            component: envoy
+            team: platform
+          annotations:
+            summary: "Envoy L7 local_ratelimit backstop rejecting > 1/s for 10m"
+            description: |
+              The Envoy per-pod local rate-limit backstop is returning
+              429s at a sustained rate. This backstop should rarely
+              trip because Cloudflare + the app per-user limiters
+              absorb abuse first; sustained activity means traffic is
+              reaching the origin un-absorbed (CDN bypass/misconfig) or
+              a real flood is in progress.
+            runbook_url: "https://docs.etradie.com/runbooks/envoy-local-rate-limit-active"
+
+    - name: edge_ingress.abuse
+      interval: 30s
+      rules:
+        # Edge-ingress per-IP / global connection-cap rejections. A
+        # sustained spike is connection-level abuse (slowloris-style
+        # connection exhaustion or a single noisy IP).
+        - alert: EdgeIngressConnectionRejections
+          expr: |
+            sum(rate(edge_ingress_connection_errors_total{error_type=~"per_ip_limit|global_limit"}[5m])) > 1
+          for: 10m
+          labels:
+            severity: warning
+            component: edge-ingress
+            team: platform
+          annotations:
+            summary: "edge-ingress rejecting connections at the cap > 1/s for 10m"
+            description: |
+              The Rust edge-ingress is refusing new connections because
+              the per-IP (1,000) or global (100,000) connection cap is
+              being hit. Break down by reason:
+                sum by (error_type) (rate(edge_ingress_connection_errors_total{error_type=~"per_ip_limit|global_limit"}[5m]))
+              A per_ip_limit spike from few sources is a single abusive
+              client; a global_limit spike is a platform-wide flood.
+            runbook_url: "https://docs.etradie.com/runbooks/edge-ingress-connection-rejections"
+{{- end }}

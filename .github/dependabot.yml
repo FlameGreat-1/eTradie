@@ -1,0 +1,92 @@
+version: 2
+updates:
+  # ── Python (engine) ───────────────────────────────────────────
+  - package-ecosystem: pip
+    directory: "/requirements"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - python
+
+  # ── Go modules (gateway, execution, management, billing, auth) ─
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - go
+
+  # ── Rust (edge-ingress) ───────────────────────────────────────
+  - package-ecosystem: cargo
+    directory: "/src/edge-ingress"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - rust
+
+  # ── GitHub Actions workflows ──────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - ci
+
+  # ── Container base images ─────────────────────────────────────
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - docker
+  - package-ecosystem: docker
+    directory: "/src/gateway"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - docker
+  - package-ecosystem: docker
+    directory: "/src/execution"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - docker
+  - package-ecosystem: docker
+    directory: "/src/management"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - docker
+  - package-ecosystem: docker
+    directory: "/src/billing"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - docker
+  - package-ecosystem: docker
+    directory: "/docker/mt-node"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - docker
+  - package-ecosystem: docker
+    directory: "/deployments/edge-ingress/docker"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - docker

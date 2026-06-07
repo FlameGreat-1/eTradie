@@ -48,6 +48,22 @@ type Config struct {
 	// Issuer claim for JWT tokens.
 	Issuer string `envconfig:"ISSUER" default:"etradie"`
 
+	// Audience claim for JWT tokens. Issued on every user and service
+	// token and verified on the way in (see RequireAudience for the
+	// rollout semantics).
+	Audience string `envconfig:"AUDIENCE" default:"etradie-api"`
+
+	// RequireAudience controls aud enforcement during rollout.
+	//   false (default): newly issued tokens carry aud, and verify
+	//     enforces aud only when the token presents one; a token with
+	//     no aud (minted before this change) still verifies. This is
+	//     the safe first deploy.
+	//   true: every token MUST carry a matching aud or it is rejected.
+	//     Flip to true only AFTER every pre-rollout access token has
+	//     expired (<= AccessTokenTTLSeconds), so no live session is
+	//     invalidated.
+	RequireAudience bool `envconfig:"REQUIRE_AUDIENCE" default:"false"`
+
 	// TrustedProxyCIDRs is the list of CIDR blocks whose peer addresses
 	// are treated as trusted proxies for client-IP resolution.
 	TrustedProxyCIDRs []string `envconfig:"TRUSTED_PROXY_CIDRS"`
@@ -155,6 +171,14 @@ type Config struct {
 	TierProByokCycleBurst            int `envconfig:"TIER_PRO_BYOK_CYCLE_BURST" default:"60"`
 	TierProManagedCycleRPM           int `envconfig:"TIER_PRO_MANAGED_CYCLE_RPM" default:"10"`
 	TierProManagedCycleBurst         int `envconfig:"TIER_PRO_MANAGED_CYCLE_BURST" default:"20"`
+
+	// Per-user default rate limit applied to the mutating dashboard API
+	// routes other than /api/v1/cycle/run (which has its own tiered
+	// limiter above). A loose catch-all cap so a single authenticated
+	// user cannot flood the chatty config/symbols endpoints. Keyed by
+	// JWT subject; enforced in-memory per gateway pod.
+	APIDefaultRPM   int `envconfig:"API_DEFAULT_RPM" default:"120"`
+	APIDefaultBurst int `envconfig:"API_DEFAULT_BURST" default:"240"`
 
 	// cookieSameSite is the parsed http.SameSite derived from
 	// CookieSameSite at validate-time.
@@ -301,6 +325,18 @@ func (c *Config) validate() error {
 		if p.burst < p.rpm || p.burst > 1200 {
 			return fmt.Errorf("TIER_%s_CYCLE_BURST must be %d..1200, got %d", p.name, p.rpm, p.burst)
 		}
+	}
+
+	// Per-user default API limiter bounds. RPM > 0 so a misconfigured
+	// zero does not lock everyone out; burst >= RPM so the bucket can
+	// serve the steady-state rate. Ceilings are generous because this
+	// is a coarse anti-abuse cap on cheap dashboard calls, not a
+	// billing control.
+	if c.APIDefaultRPM <= 0 || c.APIDefaultRPM > 6000 {
+		return fmt.Errorf("API_DEFAULT_RPM must be 1..6000, got %d", c.APIDefaultRPM)
+	}
+	if c.APIDefaultBurst < c.APIDefaultRPM || c.APIDefaultBurst > 12000 {
+		return fmt.Errorf("API_DEFAULT_BURST must be %d..12000, got %d", c.APIDefaultRPM, c.APIDefaultBurst)
 	}
 
 	// Model allow-list normalisation moved to billing/store.ValidatePolicy

@@ -41,6 +41,20 @@ serviceMonitor:
     prometheus: kube-prometheus
     environment: staging
 
+# TIER4 A2a: in staging keep the filter ENABLED but ENFORCED at 0% so
+# the 429 path is exercised in metrics/logs without actually rejecting
+# traffic, and trip it at a lower token ceiling for load testing. Flip
+# enforcedFraction to 100 in a staging soak before trusting the prod
+# value. (config block is layered over values.yaml.)
+config:
+  envoy:
+    localRateLimit:
+      enabled: true
+      maxTokens: 500
+      tokensPerFill: 500
+      fillIntervalSeconds: 1
+      enforcedFraction: 0
+
 terminationGracePeriodSeconds: 45
 
 volumes:

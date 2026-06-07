@@ -174,3 +174,11 @@ var (
 		Help: "Kill-switch toggle actions by scope and resulting state",
 	}, []string{"scope", "state"})
 )
+
+// RateLimitedTotal counts requests rejected with HTTP 429 by the
+// per-user limiter on the execution dashboard API. The route label is
+// the limited endpoint ("settings" or "orders_cancel").
+var RateLimitedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "etradie_execution_rate_limited_total",
+	Help: "Requests rejected with HTTP 429 by the execution per-user rate limiter",
+}, []string{"route"})

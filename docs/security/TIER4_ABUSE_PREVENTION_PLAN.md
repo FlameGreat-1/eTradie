@@ -298,7 +298,40 @@ threat model must assume the CDN can be bypassed or misconfigured.
   byte-limit absent, Cloudflare WAF/rate/bot not in Terraform, app
   per-user limit only on /cycle/run. This plan written + committed to
   MR !107. TASKS 1–7 NOT yet executed.
-- Session 2: <fill in>
+- Session 2: Executed Tasks 1-7 on branch
+  `security/tier4-abuse-prevention` (MR pending; !107 was already merged,
+  so this is a fresh branch off main). Done:
+  * Task 1+2 (A2a/A2b): Envoy `local_ratelimit` (per-pod backstop,
+    webhooks exempt) + per-route `max_request_bytes` (gateway 10 MiB,
+    webhooks 256 KiB) + `max_request_headers_kb`. Topology verified:
+    engine traffic does NOT traverse this Envoy, so the cap is safe.
+  * Task 3 (A2c): Cloudflare WAF managed ruleset + per-IP rate rules on
+    /api/* and /auth/* + Super Bot Fight Mode, v4 provider syntax,
+    additive, gated behind toggles (bot defaults off pending plan
+    entitlement).
+  * Task 4 (A2d): full per-service audit found tradingplan /
+    tradingsystem / performancereview / consent / support ALREADY
+    self-limit per-route (do NOT double-limit them). Covered the real
+    gaps in each service's own idiom: gateway api routes (default
+    per-user limiter + AUTH_API_DEFAULT_RPM/BURST), execution settings/
+    cancel (per-user limiter + strict-decode fix), engine
+    /api/analysis/rerun (_rate_limit). New gateway + execution
+    rate-limit metrics added.
+  * Task 5 (E5): removed dead MAX_REQUEST_SIZE/MAX_HEADER_SIZE from
+    edge-ingress (traced unreferenced).
+  * Task 6 (A1): aud claim issued + verified, two-deploy tolerant
+    window (AUTH_AUDIENCE / AUTH_REQUIRE_AUDIENCE) + tests.
+  * Task 7 (A2e): helm/gateway prometheusrule.yaml with VERIFIED metric
+    names (the draft's PerIpConnectionLimitExceeded is an error enum,
+    not a metric; used edge_ingress_total_connections /
+    _connection_errors_total instead).
+  * NEW-3: corrected the now-stale decode.go body-limit comment.
+  Still open: F5 (operator: rotate committed NVIDIA key + purge git
+  history) and the section-4 operator actions (bot-management
+  entitlement, origin-firewall TCP/443 restricted to Cloudflare). CI
+  (build/lint/helm-template/terraform-validate/promtool) is the
+  authoritative green check; the assistant cannot run builds locally.
+- Session 3: <fill in>
 
 
 

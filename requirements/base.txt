@@ -37,10 +37,10 @@ opentelemetry-instrumentation-redis==0.51b0
 structlog==24.4.0
 
 # ── Authentication (JWT) ────────────────────────────────────
-PyJWT>=2.8.0
+PyJWT==2.8.0
 
 # ── Credential Encryption ───────────────────────────────────
-cryptography>=42.0.0
+cryptography==42.0.0
 
 # ── Serialization / Utilities ────────────────────────────────
 orjson==3.10.15
@@ -52,9 +52,9 @@ pyzmq==26.2.1
 msgpack==1.1.0
 
 # ── AI & Language Models ─────────────────────────────────────
-openai>=1.14.0
-anthropic>=0.21.0
-google-genai>=0.2.0
+openai==1.14.0
+anthropic==0.21.0
+google-genai==0.2.0
 
 # ── RAG & Embeddings ─────────────────────────────────────────
 # Using local offline wheel for torch:
@@ -63,8 +63,8 @@ google-genai>=0.2.0
 # --extra-index-url https://download.pytorch.org/whl/cpu
 # torch>=2.2.0
 # torchvision>=0.17.0
-sentence-transformers>=2.5.1
+sentence-transformers==2.5.1
 chromadb==0.5.20
 
 # ── Kubernetes (Hosted Provisioner) ──────────────────────────
-kubernetes_asyncio>=28.0.0
+kubernetes_asyncio==28.0.0

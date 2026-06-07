@@ -210,6 +210,83 @@ helm-render-all: helm-lint helm-template-staging helm-template-production ## hel
 	echo -e "$(GREEN)\xE2\x9C\x93 all helm renders complete$(NC)"
 
 # ============================================================================
+##@ Alerting & proxy config validation
+# ============================================================================
+
+.PHONY: promtool-check envoy-config-validate
+
+promtool-check: ## Render gateway+engine PrometheusRules and run `promtool check rules` on each
+	echo -e "$(BLUE)Validating PrometheusRule alert expressions...$(NC)"
+	@command -v promtool >/dev/null 2>&1 || { \
+		echo -e "$(YELLOW)promtool not found - install Prometheus tooling (or rely on CI). Skipping.$(NC)"; \
+		exit 0; \
+	}
+	@command -v yq >/dev/null 2>&1 || { \
+		echo -e "$(YELLOW)yq not found - required to extract PrometheusRule docs. Skipping.$(NC)"; \
+		exit 0; \
+	}
+	@set -eu; \
+	tmp=$$(mktemp -d); \
+	trap 'rm -rf "$$tmp"' EXIT INT TERM HUP; \
+	for chart in gateway engine; do \
+		echo -e "$(BLUE)  -> render helm/$$chart and extract PrometheusRule docs$(NC)"; \
+		helm template etradie-$$chart $(HELM_DIR)/$$chart \
+			-f $(HELM_DIR)/$$chart/values.yaml \
+			-f $(HELM_DIR)/$$chart/values-production.yaml \
+			2>/dev/null > "$$tmp/$$chart-all.yaml" || { \
+				echo -e "$(RED)\xE2\x9C\x97 helm template failed for $$chart$(NC)"; exit 1; }; \
+		i=0; \
+		while yq eval "select(documentIndex == $$i)" "$$tmp/$$chart-all.yaml" >/dev/null 2>&1; do \
+			kind=$$(yq eval "select(documentIndex == $$i) | .kind" "$$tmp/$$chart-all.yaml" 2>/dev/null || echo ""); \
+			if [ "$$kind" = "PrometheusRule" ]; then \
+				yq eval "select(documentIndex == $$i)" "$$tmp/$$chart-all.yaml" > "$$tmp/$$chart-rule-$$i.yaml"; \
+				echo -e "$(BLUE)     promtool check rules $$chart (doc $$i)$(NC)"; \
+				promtool check rules "$$tmp/$$chart-rule-$$i.yaml" || exit 1; \
+			fi; \
+			i=$$((i+1)); \
+		done; \
+	done; \
+	echo -e "$(GREEN)\xE2\x9C\x93 all PrometheusRule expressions valid$(NC)"
+
+envoy-config-validate: ## Render the envoy chart, extract envoy.yaml, and `envoy --mode validate` it
+	echo -e "$(BLUE)Validating the rendered Envoy bootstrap config...$(NC)"
+	@command -v yq >/dev/null 2>&1 || { \
+		echo -e "$(YELLOW)yq not found - required to extract envoy.yaml from the ConfigMap. Skipping.$(NC)"; \
+		exit 0; \
+	}
+	@set -eu; \
+	tmp=$$(mktemp -d); \
+	trap 'rm -rf "$$tmp"' EXIT INT TERM HUP; \
+	helm template etradie-envoy $(HELM_DIR)/envoy \
+		-f $(HELM_DIR)/envoy/values.yaml \
+		-f $(HELM_DIR)/envoy/values-production.yaml \
+		--set wasm.base64=AA== --set wasm.sha256=local-validate \
+		2>/dev/null > "$$tmp/envoy-all.yaml" || { \
+			echo -e "$(RED)\xE2\x9C\x97 helm template failed for envoy$(NC)"; exit 1; }; \
+	i=0; found=0; \
+	while yq eval "select(documentIndex == $$i)" "$$tmp/envoy-all.yaml" >/dev/null 2>&1; do \
+		name=$$(yq eval "select(documentIndex == $$i) | .metadata.name" "$$tmp/envoy-all.yaml" 2>/dev/null || echo ""); \
+		kind=$$(yq eval "select(documentIndex == $$i) | .kind" "$$tmp/envoy-all.yaml" 2>/dev/null || echo ""); \
+		if [ "$$kind" = "ConfigMap" ] && yq eval "select(documentIndex == $$i) | .data.\"envoy.yaml\"" "$$tmp/envoy-all.yaml" >/dev/null 2>&1; then \
+			yq eval "select(documentIndex == $$i) | .data.\"envoy.yaml\"" "$$tmp/envoy-all.yaml" > "$$tmp/envoy.yaml"; \
+			if [ -s "$$tmp/envoy.yaml" ] && [ "$$(head -c4 $$tmp/envoy.yaml)" != "null" ]; then found=1; break; fi; \
+		fi; \
+		i=$$((i+1)); \
+	done; \
+	if [ "$$found" != "1" ]; then \
+		echo -e "$(RED)\xE2\x9C\x97 could not extract envoy.yaml from the rendered ConfigMap$(NC)"; exit 1; \
+	fi; \
+	if command -v envoy >/dev/null 2>&1; then \
+		envoy --mode validate -c "$$tmp/envoy.yaml" && \
+			echo -e "$(GREEN)\xE2\x9C\x93 envoy config valid$(NC)"; \
+	elif command -v func-e >/dev/null 2>&1; then \
+		func-e run --mode validate -c "$$tmp/envoy.yaml" && \
+			echo -e "$(GREEN)\xE2\x9C\x93 envoy config valid (via func-e)$(NC)"; \
+	else \
+		echo -e "$(YELLOW)no envoy / func-e binary found - extracted config to $$tmp/envoy.yaml but cannot validate. Skipping (CI validates).$(NC)"; \
+	fi
+
+# ============================================================================
 ##@ Linkerd mesh (Tier 9)
 # ============================================================================
 
@@ -371,7 +448,7 @@ cf-verify-aop-ca: ## Verify the live Cloudflare AOP CA still matches the committ
 
 .PHONY: platform-ci platform-fmt platform-clean
 
-platform-ci: edge-ingress-ci envoy-ci helm-lint mesh-render argocd-validate tf-validate-all ## Run every platform CI bundle (rust + helm + mesh + argocd + terraform)
+platform-ci: edge-ingress-ci envoy-ci helm-lint promtool-check envoy-config-validate mesh-render argocd-validate tf-validate-all ## Run every platform CI bundle (rust + helm + alert/proxy validation + mesh + argocd + terraform)
 	echo -e "$(GREEN)\xE2\x9C\x93 full platform CI passed$(NC)"
 
 platform-fmt: edge-ingress-fmt envoy-fmt tf-fmt ## Format every platform component (rust + terraform)

@@ -290,11 +290,37 @@ config:
       idleTimeout: "60s"
       numRetries: 2
       perTryTimeout: "10s"
+      # TIER4 A2b: per-route request-body cap on the gateway route.
+      # 10 MiB leaves margin above the engine 8 MiB body cap; the heavy
+      # gateway->engine traffic does NOT traverse this Envoy, and the
+      # inbound dashboard/auth bodies are a few KB, so this never clips
+      # legitimate traffic. An over-cap body gets a 413.
+      maxRequestBytes: 10485760
     webhookRoute:
       timeout: "20s"
       idleTimeout: "30s"
       numRetries: 0
       perTryTimeout: "15s"
+      # Webhook bodies are small JSON events; a tight 256 KiB cap is
+      # ample. Webhook routes are also EXEMPT from local_ratelimit.
+      maxRequestBytes: 262144
+    # TIER4 A2b: HCM header-size cap + the chain-level buffer ceiling.
+    # The chain-level buffer is effectively the gateway-route value; the
+    # real per-route enforcement is via BufferPerRoute on each route.
+    maxRequestHeadersKb: 64
+    maxRequestBytesChainCeiling: 10485760
+    # TIER4 A2a: coarse per-Envoy-POD L7 rate-limit backstop. Sized
+    # generously: 2000 tokens, refilled 2000 every 1s => ~2000 rps per
+    # pod steady-state with a 2000 burst. With replicaCount=5 that is a
+    # ~10k rps aggregate floor before the backstop trips, far above
+    # legitimate dashboard + cycle/run traffic. enforcedFraction=100
+    # means trips are enforced (return 429) in production.
+    localRateLimit:
+      enabled: true
+      maxTokens: 2000
+      tokensPerFill: 2000
+      fillIntervalSeconds: 1
+      enforcedFraction: 100
     overload:
       maxHeapSizeBytes: 2147483648
       globalMaxConnections: 50000

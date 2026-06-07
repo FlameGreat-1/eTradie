@@ -193,6 +193,10 @@ type Claims struct {
 	Status   string `json:"status"`
 	IssuedAt int64  `json:"iat"`
 	Expiry   int64  `json:"exp"`
+	// Audience is the 'aud' claim: the intended consumer of the token
+	// (the configured AUTH_AUDIENCE). Verified against the configured
+	// audience at parse time.
+	Audience string `json:"aud,omitempty"`
 	// TokenEpoch is the 'tv' claim: the user's token-version at issue
 	// time. The service-token verification path rejects a token whose
 	// TokenEpoch is below the user's current epoch (revocation).
