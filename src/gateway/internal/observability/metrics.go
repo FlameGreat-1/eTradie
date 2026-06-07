@@ -108,6 +108,18 @@ var GatewayStageErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 	Help: "Errors by pipeline stage",
 }, []string{"stage", "error_type"})
 
+// Abuse-prevention metrics (TIER4 A2d/A2e). Incremented every time a
+// per-user token-bucket limiter rejects a request with HTTP 429. The
+// `route` label is the limiter scope ("cycle_run" for the dedicated
+// tiered limiter on POST /api/v1/cycle/run, or "api_default" for the
+// shared catch-all limiter on the other mutating /api/v1/* routes);
+// `tier` is the caller's subscription tier. The abuse PrometheusRule
+// (helm/gateway) alerts on a broad spike in this counter.
+var GatewayRateLimitedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "etradie_gateway_rate_limited_total",
+	Help: "Requests rejected with HTTP 429 by a gateway per-user rate limiter",
+}, []string{"route", "tier"})
+
 // ReadGaugeValue reads the current value of a prometheus.Gauge safely
 // for production use. Returns 0 on any error. This replaces the
 // test-only testutil.ToFloat64 which can panic in production.
