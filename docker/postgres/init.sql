@@ -19,6 +19,12 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 -- SECURITY DEFINER maintenance functions keep executing as this owner.
 -- It simply can no longer act as a cluster superuser.
 --
+-- CREATEDB is deliberately retained: the weekly restore drill connects
+-- as this same role and must CREATE/DROP a throwaway scratch database
+-- to prove the latest dump restores. CREATEDB only lets the role create
+-- and drop databases it owns; it grants no access to other databases,
+-- no role creation, no RLS bypass, and no superuser escalation.
+--
 -- A role is allowed to drop its own superuser attribute, so this runs
 -- correctly even though the entrypoint executes the script as the role
 -- itself. current_user is the POSTGRES_USER role; we target it by name
@@ -26,7 +32,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 DO $$
 BEGIN
     EXECUTE format(
-        'ALTER ROLE %I NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION NOBYPASSRLS',
+        'ALTER ROLE %I NOSUPERUSER NOCREATEROLE NOREPLICATION NOBYPASSRLS',
         current_user
     );
 END
