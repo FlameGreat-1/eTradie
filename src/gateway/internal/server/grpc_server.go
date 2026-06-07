@@ -113,8 +113,6 @@ func NewGRPCServer(
 	healthpb.RegisterHealthServer(grpcServer, healthServer)
 	s.healthServer = healthServer
 
-	reflection.Register(grpcServer)
-
 	s.server = grpcServer
 	return s
 }
