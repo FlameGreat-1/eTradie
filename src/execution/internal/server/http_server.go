@@ -23,6 +23,85 @@ import (
 	"github.com/flamegreat-1/etradie/src/execution/internal/store"
 )
 
+// userRateLimiter is a per-user sliding-window rate limiter keyed on the
+// authenticated user_id, matching the pattern used by the gateway's
+// tradingplan / tradingsystem / performancereview packages. Safe for
+// concurrent use; a background goroutine reaps stale windows every 5
+// minutes. Close() terminates that goroutine on shutdown.
+type userRateLimiter struct {
+	mu       sync.Mutex
+	windows  map[string]*rlWindow
+	limit    int
+	interval time.Duration
+	done     chan struct{}
+}
+
+type rlWindow struct {
+	count   int
+	resetAt time.Time
+}
+
+func newUserRateLimiter(limit int, interval time.Duration) *userRateLimiter {
+	rl := &userRateLimiter{
+		windows:  make(map[string]*rlWindow),
+		limit:    limit,
+		interval: interval,
+		done:     make(chan struct{}),
+	}
+	go rl.cleanup()
+	return rl
+}
+
+// Allow reports whether user_id is within budget. An empty user_id
+// (cannot occur behind RequireAuth) is allowed so a missing identity
+// never wedges a legitimate request behind a phantom budget.
+func (rl *userRateLimiter) Allow(userID string) bool {
+	if userID == "" {
+		return true
+	}
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	now := time.Now()
+	w, exists := rl.windows[userID]
+	if !exists || now.After(w.resetAt) {
+		rl.windows[userID] = &rlWindow{count: 1, resetAt: now.Add(rl.interval)}
+		return true
+	}
+	if w.count >= rl.limit {
+		return false
+	}
+	w.count++
+	return true
+}
+
+func (rl *userRateLimiter) Close() {
+	select {
+	case <-rl.done:
+	default:
+		close(rl.done)
+	}
+}
+
+func (rl *userRateLimiter) cleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-rl.done:
+			return
+		case <-ticker.C:
+			rl.mu.Lock()
+			now := time.Now()
+			for uid, w := range rl.windows {
+				if now.After(w.resetAt) {
+					delete(rl.windows, uid)
+				}
+			}
+			rl.mu.Unlock()
+		}
+	}
+}
+
 // HTTPServer serves the dashboard-facing REST API and WebSocket notifications.
 //
 // Middleware chain for every protected route:
@@ -43,6 +122,11 @@ type HTTPServer struct {
 	transport       *alertredis.Transport
 	log             zerolog.Logger
 	symbolMetaCache sync.Map // symbol -> symbolMeta (cached forever)
+
+	// settingsLimiter and cancelLimiter are per-user abuse caps on the
+	// two mutating dashboard routes. Closed in Shutdown().
+	settingsLimiter *userRateLimiter
+	cancelLimiter   *userRateLimiter
 }
 
 // symbolMeta holds broker-sourced instrument metadata for the frontend.
@@ -63,12 +147,14 @@ func NewHTTPServer(
 	authCfg *auth.Config,
 ) *HTTPServer {
 	s := &HTTPServer{
-		state:     sm,
-		broker:    bp,
-		settings:  ss,
-		auditLog:  al,
-		transport: transport,
-		log:       observability.Logger("http_server"),
+		state:           sm,
+		broker:          bp,
+		settings:        ss,
+		auditLog:        al,
+		transport:       transport,
+		log:             observability.Logger("http_server"),
+		settingsLimiter: newUserRateLimiter(30, time.Minute),
+		cancelLimiter:   newUserRateLimiter(30, time.Minute),
 	}
 
 	mux := http.NewServeMux()
@@ -146,9 +232,12 @@ func (s *HTTPServer) Start() error {
 	return err
 }
 
-// Shutdown gracefully stops the HTTP server.
+// Shutdown gracefully stops the HTTP server and reaps the rate-limiter
+// background goroutines.
 func (s *HTTPServer) Shutdown(ctx context.Context) error {
 	s.log.Info().Msg("http_api_server_shutting_down")
+	s.settingsLimiter.Close()
+	s.cancelLimiter.Close()
 	return s.server.Shutdown(ctx)
 }
 
@@ -222,15 +311,22 @@ func (s *HTTPServer) getSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HTTPServer) putSettings(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserIDFromContext(r.Context())
+	if !s.settingsLimiter.Allow(userID) {
+		observability.RateLimitedTotal.WithLabelValues("settings").Inc()
+		w.Header().Set("Retry-After", "60")
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "too many requests; please slow down"})
+		return
+	}
+
 	var req store.Settings
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+	if err := auth.DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSON(w, status, map[string]string{"error": msg})
 		return
 	}
 
 	req.ExecutionMode = strings.ToUpper(req.ExecutionMode)
-
-	userID := auth.UserIDFromContext(r.Context())
 	if err := s.settings.SaveAll(r.Context(), userID, &req); err != nil {
 		s.log.Error().Err(err).Msg("put_settings_failed")
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -322,13 +418,22 @@ func (s *HTTPServer) handleCancelOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cancelUserID := auth.UserIDFromContext(r.Context())
+	if !s.cancelLimiter.Allow(cancelUserID) {
+		observability.RateLimitedTotal.WithLabelValues("orders_cancel").Inc()
+		w.Header().Set("Retry-After", "60")
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "too many requests; please slow down"})
+		return
+	}
+
 	var req struct {
 		OrderID string `json:"order_id"`
 		Symbol  string `json:"symbol"`
 		Reason  string `json:"reason"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+	if err := auth.DecodeJSONStrict(w, r, &req, 0); err != nil {
+		status, msg := auth.DecodeJSONError(err)
+		writeJSON(w, status, map[string]string{"error": msg})
 		return
 	}
 
