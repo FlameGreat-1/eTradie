@@ -428,6 +428,15 @@ serviceMonitor:
     - process_
     - promhttp_
 
+# Abuse-monitoring alert rules (gateway per-user limiter, execution
+# per-user limiter, Envoy L7 backstop, edge-ingress connection caps).
+# The labels block must match the operator's Prometheus ruleSelector
+# (kube-prometheus by default), mirroring serviceMonitor.labels.
+prometheusRule:
+  enabled: true
+  labels:
+    prometheus: kube-prometheus
+
 resourceQuota:
   enabled: true
   hard:

@@ -19,7 +19,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from engine.dependencies import Container
-from engine.helpers import _resolve_user_broker, _resolve_user_processor, _save_debug_output
+from engine.helpers import (
+    _rate_limit,
+    _resolve_user_broker,
+    _resolve_user_processor,
+    _save_debug_output,
+)
 from engine.processor.mapping.dashboard_formatter import format_for_dashboard
 from engine.processor.models.io import ProcessorInput
 from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
@@ -566,6 +571,12 @@ async def rerun_analysis(
     in sequence. It does NOT go through the Go gateway's guards or
     execution routing (those are gateway-side concerns).
     """
+    # Abuse cap on the single most expensive engine endpoint. Rejects a
+    # flood with 429 BEFORE any TA / broker / RAG / LLM work begins. The
+    # free-tier 1/24h business gate below is a separate, downstream
+    # entitlement check.
+    await _rate_limit(request, "analysis_rerun", max_requests=10, window_seconds=60)
+
     container: Container = request.app.state.container
     processor = await _resolve_user_processor(container, user)
     if not hasattr(container, "ta_orchestrator"):

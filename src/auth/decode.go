@@ -15,12 +15,14 @@ import (
 // modest array of symbols) yet far below any value that could threaten
 // gateway memory under a flood.
 //
-// TIER 4 "Length limits": the edge-ingress is an L4 TCP/TLS proxy
-// (copy_bidirectional) and the Envoy L7 config sets no
-// max_request_bytes, so this is the authoritative request-body size
-// limit for the platform. An oversized body cannot be streamed into
-// json.Decode beyond this bound because http.MaxBytesReader fails the
-// read first.
+// TIER 4 "Length limits", app layer. The edge-ingress is an L4 TCP/TLS
+// proxy (copy_bidirectional) and enforces no HTTP byte cap; Envoy
+// enforces a coarse per-route max_request_bytes (10 MiB on the gateway
+// route) as the L7 backstop. This MaxBytesReader is the TIGHTER
+// per-endpoint app-layer cap (256 KiB) sized to the small, flat JSON
+// bodies these handlers actually accept. An oversized body cannot be
+// streamed into json.Decode beyond this bound because
+// http.MaxBytesReader fails the read first.
 const MaxJSONBodyBytes int64 = 256 * 1024
 
 // DecodeJSONStrict decodes exactly one JSON value from the request body

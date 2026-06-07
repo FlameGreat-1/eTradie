@@ -6,6 +6,8 @@
 # - DNS records pointing the public hostnames at the Cloudflare
 #   Tunnel UUID (`<tunnel-id>.cfargotunnel.com`) created in the
 #   Cloudflare Zero Trust UI / via cloudflare_zero_trust_tunnel.
+# - TIER4 A2c abuse-prevention edge controls: WAF managed ruleset,
+#   per-IP rate limits on /api/* and /auth/*, and Super Bot Fight Mode.
 #
 # Does NOT own:
 # - The AOP CA bytes (those live in Vault, written by the operator
@@ -67,4 +69,100 @@ resource "cloudflare_record" "hostname" {
   lifecycle {
     prevent_destroy = true
   }
+}
+
+#
+# 4. WAF — Cloudflare Managed Ruleset (TIER4 A2c).
+#
+#    This is the FIRST layer of abuse prevention (anonymous / volumetric
+#    / known-bad-signature). The Envoy local_ratelimit + max_request_bytes
+#    and the gateway per-user limiter are the always-on origin BACKSTOP
+#    (see docs/security/TIER4_ABUSE_PREVENTION_PLAN.md section 0).
+#
+#    Deploys Cloudflare's Managed Ruleset in the
+#    http_request_firewall_managed phase via an `execute` action, which
+#    is the v4-provider-correct way to enable a managed WAF ruleset.
+#
+resource "cloudflare_ruleset" "waf_managed" {
+  count = var.enable_waf ? 1 : 0
+
+  zone_id     = var.zone_id
+  name        = "etradie-waf-managed"
+  description = "TIER4 A2c: enable Cloudflare Managed Ruleset (WAF). Managed by infrastructure/cloudflare."
+  kind        = "zone"
+  phase       = "http_request_firewall_managed"
+
+  rules {
+    ref         = "exec_cloudflare_managed"
+    description = "Execute the Cloudflare Managed Ruleset"
+    expression  = "true"
+    action      = "execute"
+    action_parameters {
+      id = "efb7b8c949ac4650a09736fc376e9aee" # Cloudflare Managed Ruleset (stable well-known id)
+    }
+  }
+}
+
+#
+# 5. Rate limiting (TIER4 A2c).
+#
+#    Coarse per-IP limit on /api/* and a TIGHTER per-IP limit on /auth/*
+#    (login / register / refresh / password-reset) to blunt credential
+#    stuffing at the edge before it reaches the origin. Both return 429.
+#    The origin still enforces its own per-user limits regardless.
+#
+resource "cloudflare_ruleset" "rate_limit" {
+  count = var.enable_rate_limiting ? 1 : 0
+
+  zone_id     = var.zone_id
+  name        = "etradie-rate-limit"
+  description = "TIER4 A2c: per-IP edge rate limits on /api/* and /auth/*. Managed by infrastructure/cloudflare."
+  kind        = "zone"
+  phase       = "http_ratelimit"
+
+  # TIGHTER /auth/* rule listed FIRST so it matches before the broad
+  # /api/* rule (rules evaluate top-down; /auth/* is not under /api/* in
+  # this platform, but ordering tightest-first is the safe convention).
+  rules {
+    ref         = "auth_credential_stuffing"
+    description = "Tight per-IP limit on auth endpoints (credential stuffing)"
+    expression  = "(http.request.uri.path matches \"^/auth/\")"
+    action      = "block"
+    ratelimit {
+      characteristics     = ["ip.src", "cf.colo.id"]
+      period              = var.auth_rate_limit_period
+      requests_per_period = var.auth_rate_limit_requests
+      mitigation_timeout  = var.auth_rate_limit_period
+    }
+  }
+
+  rules {
+    ref         = "api_coarse"
+    description = "Coarse per-IP limit on /api/*"
+    expression  = "(http.request.uri.path matches \"^/api/\")"
+    action      = "block"
+    ratelimit {
+      characteristics     = ["ip.src", "cf.colo.id"]
+      period              = var.api_rate_limit_period
+      requests_per_period = var.api_rate_limit_requests
+      mitigation_timeout  = var.api_rate_limit_period
+    }
+  }
+}
+
+#
+# 6. Bot management — Super Bot Fight Mode (TIER4 A2c).
+#
+#    Gated OFF by default: cloudflare_bot_management requires a plan
+#    entitlement (Bot Management / Super Bot Fight Mode). Enabling it on
+#    a zone without the entitlement fails apply. Enable the toggle ONLY
+#    after the entitlement is confirmed (plan section 4 operator action).
+#
+resource "cloudflare_bot_management" "this" {
+  count = var.enable_bot_management ? 1 : 0
+
+  zone_id            = var.zone_id
+  enable_js          = true
+  fight_mode         = true
+  optimize_wordpress = false
 }
