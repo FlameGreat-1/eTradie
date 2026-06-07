@@ -1,0 +1,152 @@
+{{- if and .Values.postgres.enabled .Values.postgres.backup.enabled .Values.postgres.restoreDrill.enabled }}
+# Weekly restore drill. Proves the latest pg_dump is actually
+# restorable by restoring it into a throwaway scratch database, running
+# an integrity check, and dropping the scratch database. Never touches
+# the live application database. Reads the same backups PVC the backup
+# CronJob writes to.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "postgres.backupName" . }}-restore-drill
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+    app.kubernetes.io/name: postgres-restore-drill
+    app.kubernetes.io/component: postgres-restore-drill
+spec:
+  schedule: {{ .Values.postgres.restoreDrill.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            {{- include "postgres.labels" . | nindent 12 }}
+            app.kubernetes.io/name: postgres-restore-drill
+            app.kubernetes.io/component: postgres-restore-drill
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+            fsGroup: 70
+            seccompProfile:
+              type: RuntimeDefault
+          {{- with .Values.postgres.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.postgres.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.postgres.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.postgres.topologySpreadConstraints }}
+          topologySpreadConstraints:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: restore-drill
+              image: "{{ .Values.postgres.backup.image.repository }}:{{ .Values.postgres.backup.image.tag }}"
+              imagePullPolicy: {{ .Values.postgres.backup.image.pullPolicy | default "IfNotPresent" }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 70
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: PGHOST
+                  value: {{ .Values.postgres.service.name | default "postgres" }}
+                - name: PGPORT
+                  value: {{ .Values.postgres.service.port | default 5432 | quote }}
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "postgres.secretName" . }}
+                      key: POSTGRES_USER
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "postgres.secretName" . }}
+                      key: POSTGRES_PASSWORD
+                # Maintenance DB to connect to for the DROP/CREATE of the
+                # scratch database. Never the scratch DB itself.
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "postgres.secretName" . }}
+                      key: POSTGRES_DB
+                - name: SCRATCH_DB
+                  value: {{ .Values.postgres.restoreDrill.scratchDatabase | default "etradie_restore_drill" | quote }}
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  LATEST=$(ls -1t /backups/etradie-*.dump 2>/dev/null | head -n1 || true)
+                  if [ -z "${LATEST}" ]; then
+                    echo "[restore-drill] FATAL: no dump found in /backups; has the backup CronJob run yet?"
+                    exit 1
+                  fi
+                  echo "[restore-drill] restoring ${LATEST} into scratch DB ${SCRATCH_DB}"
+                  # Recreate the scratch DB from a clean slate. Connect
+                  # to the maintenance DB (PGDATABASE) for these admin
+                  # statements; the scratch DB is fully disposable.
+                  psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}" -c "DROP DATABASE IF EXISTS ${SCRATCH_DB};"
+                  psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}" -c "CREATE DATABASE ${SCRATCH_DB};"
+                  # Restore into the scratch DB. --no-owner/--no-privileges
+                  # so the restore does not depend on roles that only
+                  # exist in the live cluster.
+                  if ! pg_restore --no-owner --no-privileges --exit-on-error --dbname="${SCRATCH_DB}" "${LATEST}"; then
+                    echo "[restore-drill] FATAL: pg_restore failed for ${LATEST}"
+                    psql -d "${PGDATABASE}" -c "DROP DATABASE IF EXISTS ${SCRATCH_DB};" || true
+                    exit 1
+                  fi
+                  # Integrity check: the restored DB must have tables and
+                  # the canonical cross-service table must be queryable.
+                  TABLE_COUNT=$(psql -tA -d "${SCRATCH_DB}" -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';")
+                  echo "[restore-drill] restored public table count: ${TABLE_COUNT}"
+                  if [ "${TABLE_COUNT}" -lt 1 ]; then
+                    echo "[restore-drill] FATAL: restored database has no tables"
+                    psql -d "${PGDATABASE}" -c "DROP DATABASE IF EXISTS ${SCRATCH_DB};" || true
+                    exit 1
+                  fi
+                  if ! psql -v ON_ERROR_STOP=1 -tA -d "${SCRATCH_DB}" -c "SELECT count(*) FROM auth_users;" >/dev/null 2>&1; then
+                    echo "[restore-drill] FATAL: auth_users not queryable in restored database"
+                    psql -d "${PGDATABASE}" -c "DROP DATABASE IF EXISTS ${SCRATCH_DB};" || true
+                    exit 1
+                  fi
+                  echo "[restore-drill] integrity check passed"
+                  # Tear down the scratch DB regardless of where we got to.
+                  psql -v ON_ERROR_STOP=1 -d "${PGDATABASE}" -c "DROP DATABASE IF EXISTS ${SCRATCH_DB};"
+                  echo "[restore-drill] PASS: ${LATEST} is restorable"
+              resources:
+                {{- toYaml .Values.postgres.restoreDrill.resources | nindent 16 }}
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: {{ include "postgres.backupPVC" . }}
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi
+{{- end }}
