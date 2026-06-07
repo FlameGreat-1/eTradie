@@ -32,6 +32,10 @@ data:
                     codec_type: AUTO
                     use_remote_address: {{ .Values.config.envoy.listener.useRemoteAddress | default true }}
                     xff_num_trusted_hops: {{ .Values.config.envoy.listener.xffNumTrustedHops | default 1 }}
+                    # TIER4 A2b: header-size backstop on the HCM. The
+                    # per-route request-BODY cap (max_request_bytes) is
+                    # set via typed_per_filter_config on each route below.
+                    max_request_headers_kb: {{ .Values.config.envoy.maxRequestHeadersKb | default 64 }}
                     route_config:
                       name: local_route
                       virtual_hosts:
@@ -48,6 +52,31 @@ data:
                                   retry_on: ""
                                   num_retries: {{ .Values.config.envoy.webhookRoute.numRetries | default 0 }}
                                   per_try_timeout: {{ .Values.config.envoy.webhookRoute.perTryTimeout | default "15s" }}
+                              # TIER4: payment webhooks must NEVER be rate
+                              # limited (a dropped webhook = lost billing
+                              # event) and get their own smaller body cap.
+                              typed_per_filter_config:
+                                {{- if .Values.config.envoy.localRateLimit.enabled }}
+                                envoy.filters.http.local_ratelimit:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                                  stat_prefix: http_local_rate_limiter_webhook
+                                  token_bucket:
+                                    max_tokens: 1
+                                    tokens_per_fill: 1
+                                    fill_interval: 0.001s
+                                  filter_enabled:
+                                    default_value:
+                                      numerator: 0
+                                      denominator: HUNDRED
+                                  filter_enforced:
+                                    default_value:
+                                      numerator: 0
+                                      denominator: HUNDRED
+                                {{- end }}
+                                envoy.filters.http.buffer:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.BufferPerRoute
+                                  buffer:
+                                    max_request_bytes: {{ .Values.config.envoy.webhookRoute.maxRequestBytes | default 262144 }}
                             - match:
                                 prefix: "/webhooks/lemonsqueezy"
                               route:
@@ -58,6 +87,28 @@ data:
                                   retry_on: ""
                                   num_retries: {{ .Values.config.envoy.webhookRoute.numRetries | default 0 }}
                                   per_try_timeout: {{ .Values.config.envoy.webhookRoute.perTryTimeout | default "15s" }}
+                              typed_per_filter_config:
+                                {{- if .Values.config.envoy.localRateLimit.enabled }}
+                                envoy.filters.http.local_ratelimit:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                                  stat_prefix: http_local_rate_limiter_webhook
+                                  token_bucket:
+                                    max_tokens: 1
+                                    tokens_per_fill: 1
+                                    fill_interval: 0.001s
+                                  filter_enabled:
+                                    default_value:
+                                      numerator: 0
+                                      denominator: HUNDRED
+                                  filter_enforced:
+                                    default_value:
+                                      numerator: 0
+                                      denominator: HUNDRED
+                                {{- end }}
+                                envoy.filters.http.buffer:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.BufferPerRoute
+                                  buffer:
+                                    max_request_bytes: {{ .Values.config.envoy.webhookRoute.maxRequestBytes | default 262144 }}
                             - match:
                                 prefix: "/"
                               route:
@@ -69,6 +120,16 @@ data:
                                   num_retries: {{ .Values.config.envoy.route.numRetries | default 2 }}
                                   per_try_timeout: {{ .Values.config.envoy.route.perTryTimeout | default "10s" }}
                                   retriable_status_codes: [503]
+                              # TIER4 A2b: gateway-route request-body cap.
+                              # Sized with margin above the engine 8 MiB
+                              # body cap; the heavy east-west engine
+                              # traffic does NOT traverse this Envoy, so
+                              # this never clips the analysis pipeline.
+                              typed_per_filter_config:
+                                envoy.filters.http.buffer:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.BufferPerRoute
+                                  buffer:
+                                    max_request_bytes: {{ .Values.config.envoy.route.maxRequestBytes | default 10485760 }}
                     http_filters:
                       - name: envoy.filters.http.wasm
                         typed_config:
@@ -82,6 +143,52 @@ data:
                                 local:
                                   filename: /etc/envoy/wasm/integration-filter.wasm
                               allow_precompiled: true
+                      # TIER4 A2b: request-body buffer filter. Declared
+                      # here (chain-level, effectively unbounded) and
+                      # constrained per-route via BufferPerRoute in each
+                      # route's typed_per_filter_config above. Must sit
+                      # before the rate-limit + router filters.
+                      - name: envoy.filters.http.buffer
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.Buffer
+                          max_request_bytes: {{ .Values.config.envoy.maxRequestBytesChainCeiling | default 10485760 }}
+                      {{- if .Values.config.envoy.localRateLimit.enabled }}
+                      # TIER4 A2a: COARSE per-Envoy-POD L7 rate-limit
+                      # backstop. Defense-in-depth ONLY: NOT a substitute
+                      # for the gateway per-user (JWT-scoped) limiter or
+                      # Cloudflare's per-IP edge limit. It guarantees the
+                      # origin enforces a ceiling even if Cloudflare is
+                      # bypassed/misconfigured. Effective cluster ceiling
+                      # is ~ replicaCount x maxTokens; sized from values
+                      # ABOVE legitimate p99 aggregate rps per pod so
+                      # normal traffic is never clipped. Webhook routes
+                      # disable this per-route (see typed_per_filter_config).
+                      - name: envoy.filters.http.local_ratelimit
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                          stat_prefix: http_local_rate_limiter
+                          token_bucket:
+                            max_tokens: {{ .Values.config.envoy.localRateLimit.maxTokens }}
+                            tokens_per_fill: {{ .Values.config.envoy.localRateLimit.tokensPerFill }}
+                            fill_interval: {{ printf "%ds" (int .Values.config.envoy.localRateLimit.fillIntervalSeconds) }}
+                          filter_enabled:
+                            default_value:
+                              numerator: 100
+                              denominator: HUNDRED
+                            runtime_key: local_rate_limit_enabled
+                          filter_enforced:
+                            default_value:
+                              numerator: {{ .Values.config.envoy.localRateLimit.enforcedFraction }}
+                              denominator: HUNDRED
+                            runtime_key: local_rate_limit_enforced
+                          status:
+                            code: 429
+                          response_headers_to_add:
+                            - append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                              header:
+                                key: Retry-After
+                                value: "{{ .Values.config.envoy.localRateLimit.fillIntervalSeconds }}"
+                      {{- end }}
                       - name: envoy.filters.http.router
                         typed_config:
                           "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
