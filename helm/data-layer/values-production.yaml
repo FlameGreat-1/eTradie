@@ -25,9 +25,22 @@
 linkerdPolicy:
   enabled: false
 
+# Encryption at rest (production requirement).
+#
+# Every datastore below MUST bind to a StorageClass whose underlying
+# volumes are encrypted at rest. The class NAME is provider-specific, so
+# it is an operator decision rather than a chart hard-pin:
+#   - OCI OKE: the default oci-bv class is encrypted at rest by default.
+#   - Contabo / bare-metal K3s: an encryption-enabled Longhorn class
+#     (LUKS) or a LUKS-backed local class.
+#   - Any cloud: that provider's encrypted block class.
+# Set storageClassName per datastore to the encrypted class. Left empty
+# it falls back to the cluster default class; verify that default is
+# encrypted using the per-provider step in the restore-drill runbook.
 postgres:
   storage:
     size: 32Gi
+    # storageClassName: "<encrypted-class>"  # operator-set; see note above
   resources:
     requests:
       cpu: 500m
@@ -71,6 +84,7 @@ postgres:
 redis:
   storage:
     size: 8Gi
+    # storageClassName: "<encrypted-class>"  # operator-set; see note above
   maxmemory: "1gb"
   resources:
     requests:
@@ -91,6 +105,7 @@ redis:
 chromadb:
   storage:
     size: 32Gi
+    # storageClassName: "<encrypted-class>"  # operator-set; see note above
   resources:
     requests:
       cpu: 500m
