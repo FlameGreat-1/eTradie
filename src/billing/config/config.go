@@ -199,7 +199,11 @@ func buildPostgresURL() string {
 	user := envOrDefault("POSTGRES_USER", "etradie")
 	pass := envOrDefault("POSTGRES_PASSWORD", "")
 	db := envOrDefault("POSTGRES_DB", "etradie")
-	ssl := envOrDefault("POSTGRES_SSLMODE", "disable")
+	// TLS in transit (CHECKLIST Tier 7). Default to require so the
+	// connection is encrypted even when the service mesh is off;
+	// operators tighten to verify-full (or relax in local dev) via
+	// POSTGRES_SSLMODE.
+	ssl := envOrDefault("POSTGRES_SSLMODE", "require")
 	return fmt.Sprintf("postgres[REDACTED]%s:%s/%s?sslmode=%s",
 		user, pass, host, port, db, ssl)
 }
