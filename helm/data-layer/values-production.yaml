@@ -7,12 +7,12 @@
 # chromadb.storage.storageClassName here.
 #
 # Production schedules every data-layer pod on the dedicated
-# etradie-system node group (taint workload=etradie-system:NoSchedule,
-# applied by
-# infrastructure/cluster/main.tf::eks_managed_node_groups.etradie_system).
-# Without the per-datastore toleration below, pods land on the untainted
-# `system` add-on pool which is sized for cluster controllers only and
-# cannot fit the data-plane.
+# etradie-system node pool (taint workload=etradie-system:NoSchedule,
+# applied by the platform node pool in
+# infrastructure/cluster/oci/main.tf via the kubelet
+# --register-with-taints arg). Without the per-datastore toleration
+# below, pods land on the untainted add-on pool which is sized for
+# cluster controllers only and cannot fit the data-plane.
 #
 # Cloud-agnostic: a toleration without a matching taint is a no-op, so
 # this is safe on Contabo K3s, OCI OKE, Talos, or any cluster that does

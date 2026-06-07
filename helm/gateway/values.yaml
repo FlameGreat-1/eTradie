@@ -209,7 +209,7 @@ initContainer:
   image: busybox:1.36
   pullPolicy: IfNotPresent
   # Total wall-clock budget across ALL dependencies. 120s is enough
-  # for an EKS node cold-start to bring up its CoreDNS forwarder.
+  # for a node cold-start to bring up its CoreDNS forwarder.
   timeoutSeconds: 120
   # Sleep between consecutive `nc -z` retries against the same dep.
   intervalSeconds: 2
@@ -217,7 +217,8 @@ initContainer:
   # container starts. MUST match the endpoints the gateway dials at
   # runtime, otherwise the chart will pass init-checks then crash on
   # first request. Production / staging overlays override the host
-  # values when datastores are off-cluster (RDS / ElastiCache).
+  # values when datastores are off-cluster (a managed Postgres / Redis
+  # offering).
   dependencies:
     - host: "postgres.etradie-system.svc.cluster.local"
       port: 5432
