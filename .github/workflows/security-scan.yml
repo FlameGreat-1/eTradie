@@ -97,6 +97,26 @@ jobs:
           exit-code: "1"
           format: table
 
+  dockerfile-digest-pin:
+    name: Dockerfile base-image digest pin check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check every Dockerfile FROM is digest-pinned
+        # WARN-ONLY until the base images are pinned. The base images
+        # are not yet pinned to @sha256 digests; a hard failure here
+        # would break CI before an operator has run
+        # `make pin-image-digests` and committed the result.
+        #
+        # TO MAKE THIS A BLOCKING GATE once digests are committed:
+        # replace the whole `run:` body below with the single line
+        #     bash scripts/check-image-digests.sh
+        # so a non-zero exit fails the job.
+        run: |
+          bash scripts/check-image-digests.sh || {
+            echo "::warning::Unpinned Dockerfile base images detected. Run 'make pin-image-digests' and commit the result; this check will become blocking afterwards."
+          }
+
   trivy-image:
     name: Trivy image scan (Go services)
     runs-on: ubuntu-latest
