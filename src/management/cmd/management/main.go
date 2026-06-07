@@ -413,9 +413,8 @@ func main() {
 		),
 	)
 	managementv1.RegisterManagementServiceServer(grpcServer, mgmtServer)
-	// gRPC reflection leaks the full service descriptor to any client
-	// that reaches :50054. Register it only in non-prod-like
-	// environments. Audit ref: Tier 10 minimal attack surface.
+	// Reflection exposes the full service descriptor to any client that
+	// reaches the port; keep it out of production and staging.
 	if !cfg.IsProdLike() {
 		reflection.Register(grpcServer)
 	}
