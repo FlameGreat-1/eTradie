@@ -6,6 +6,8 @@
 # - DNS records pointing the public hostnames at the Cloudflare
 #   Tunnel UUID (`<tunnel-id>.cfargotunnel.com`) created in the
 #   Cloudflare Zero Trust UI / via cloudflare_zero_trust_tunnel.
+# - TIER4 A2c abuse-prevention edge controls: WAF managed ruleset,
+#   per-IP rate limits on /api/* and /auth/*, and Super Bot Fight Mode.
 #
 # Does NOT own:
 # - The AOP CA bytes (those live in Vault, written by the operator
@@ -131,7 +133,7 @@ resource "cloudflare_ruleset" "rate_limit" {
       period              = var.auth_rate_limit_period
       requests_per_period = var.auth_rate_limit_requests
       mitigation_timeout  = var.auth_rate_limit_period
-￼    }
+    }
   }
 
   rules {
@@ -159,8 +161,8 @@ resource "cloudflare_ruleset" "rate_limit" {
 resource "cloudflare_bot_management" "this" {
   count = var.enable_bot_management ? 1 : 0
 
-  zone_id                = var.zone_id
-  enable_js              = true
-  fight_mode             = true
-  optimize_wordpress     = false
+  zone_id            = var.zone_id
+  enable_js          = true
+  fight_mode         = true
+  optimize_wordpress = false
 }
