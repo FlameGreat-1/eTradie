@@ -42,3 +42,65 @@ variable "always_use_https" {
   type        = bool
   default     = true
 }
+
+# ---------------------------------------------------------------------------
+# TIER4 A2c: abuse-prevention edge controls (WAF / rate limiting / bot).
+# ---------------------------------------------------------------------------
+
+variable "enable_waf" {
+  description = "Deploy the Cloudflare Managed Ruleset (WAF) in the http_request_firewall_managed phase. Default ON."
+  type        = bool
+  default     = true
+}
+
+variable "enable_rate_limiting" {
+  description = "Deploy per-IP edge rate-limit rules on /api/* and /auth/*. Default ON."
+  type        = bool
+  default     = true
+}
+
+variable "enable_bot_management" {
+  description = "Enable Cloudflare Super Bot Fight Mode. Default OFF: requires a Bot Management plan entitlement; enabling on a non-entitled zone fails apply (plan section 4 operator action)."
+  type        = bool
+  default     = false
+}
+
+variable "api_rate_limit_requests" {
+  description = "Coarse per-IP request budget on /api/* within api_rate_limit_period. Sized generously so it only trips on volumetric abuse; the origin enforces per-user limits."
+  type        = number
+  default     = 600
+  validation {
+    condition     = var.api_rate_limit_requests >= 1 && var.api_rate_limit_requests <= 1000000
+    error_message = "api_rate_limit_requests must be 1..1000000."
+  }
+}
+
+variable "api_rate_limit_period" {
+  description = "Window (seconds) for the /api/* per-IP rate limit. Cloudflare allows 10, 60, 120, 300, 600, 3600."
+  type        = number
+  default     = 60
+  validation {
+    condition     = contains([10, 60, 120, 300, 600, 3600], var.api_rate_limit_period)
+    error_message = "api_rate_limit_period must be one of 10, 60, 120, 300, 600, 3600 (Cloudflare-allowed periods)."
+  }
+}
+
+variable "auth_rate_limit_requests" {
+  description = "TIGHTER per-IP request budget on /auth/* within auth_rate_limit_period to blunt credential stuffing."
+  type        = number
+  default     = 20
+  validation {
+    condition     = var.auth_rate_limit_requests >= 1 && var.auth_rate_limit_requests <= 100000
+    error_message = "auth_rate_limit_requests must be 1..100000."
+  }
+}
+
+variable "auth_rate_limit_period" {
+  description = "Window (seconds) for the /auth/* per-IP rate limit. Cloudflare allows 10, 60, 120, 300, 600, 3600."
+  type        = number
+  default     = 60
+  validation {
+    condition     = contains([10, 60, 120, 300, 600, 3600], var.auth_rate_limit_period)
+    error_message = "auth_rate_limit_period must be one of 10, 60, 120, 300, 600, 3600 (Cloudflare-allowed periods)."
+  }
+}
