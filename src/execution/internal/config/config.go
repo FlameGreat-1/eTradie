@@ -410,6 +410,21 @@ func (c *Config) validate() error {
 	if c.DatabaseURL == "" {
 		return fmt.Errorf("DATABASE_URL must not be empty")
 	}
+	// Fail closed on a non-TLS DB connection in production/staging. Only
+	// require/verify-ca/verify-full encrypt unconditionally; disable/
+	// allow/prefer (and an absent sslmode, which libpq treats as prefer)
+	// can yield a plaintext connection.
+	if isProdLike {
+		u, err := url.Parse(strings.TrimSpace(c.DatabaseURL))
+		if err != nil {
+			return fmt.Errorf("DATABASE_URL is unparseable: %w", err)
+		}
+		switch strings.ToLower(strings.TrimSpace(u.Query().Get("sslmode"))) {
+		case "require", "verify-ca", "verify-full":
+		default:
+			return fmt.Errorf("DATABASE_URL is not TLS-encrypted in %s; set sslmode to require, verify-ca, or verify-full", env)
+		}
+	}
 	if c.DatabaseMaxConns < 1 || c.DatabaseMaxConns > 100 {
 		return fmt.Errorf("DATABASE_MAX_CONNS must be 1..100, got %d", c.DatabaseMaxConns)
 	}
