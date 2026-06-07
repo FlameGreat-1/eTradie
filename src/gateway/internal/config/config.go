@@ -133,6 +133,15 @@ func isProdLikeEnv() bool {
 	return false
 }
 
+// IsProdLike reports whether the gateway is running in a production or
+// staging environment, derived from APP_ENV / ENV / ENVIRONMENT. It is
+// the single source of truth callers (e.g. the gRPC server's decision
+// to register reflection) use to disable developer-only surfaces in
+// prod-like deployments.
+func (c *Config) IsProdLike() bool {
+	return isProdLikeEnv()
+}
+
 func (c *Config) validate() error {
 	// Cycle timing bounds.
 	if c.CycleIntervalSeconds < 60 {

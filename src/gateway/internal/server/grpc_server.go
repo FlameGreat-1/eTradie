@@ -95,6 +95,15 @@ func NewGRPCServer(
 
 	gatewayv1.RegisterGatewayServiceServer(grpcServer, s)
 
+	// gRPC server reflection is a developer convenience (grpcurl, schema
+	// discovery) that leaks the full service descriptor to any client
+	// that can reach :50052. Register it ONLY in non-prod-like
+	// environments; production/staging keep the surface minimal.
+	// Audit ref: Tier 10 minimal attack surface.
+	if !cfg.IsProdLike() {
+		reflection.Register(grpcServer)
+	}
+
 	// Wire the health server but DO NOT flip status to SERVING here.
 	// Status is flipped immediately before grpcServer.Serve() inside
 	// Start() so /readiness reports not-ready until the listener is
