@@ -78,6 +78,9 @@ postgres:
       enabled: true
       provider: "b2"
       vaultPath: etradie/data-layer/postgres-backup/production
+  # Prove backups are restorable on a weekly cadence in production.
+  restoreDrill:
+    enabled: true
   tolerations:
     - key: workload
       operator: Equal
