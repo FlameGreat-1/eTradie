@@ -50,15 +50,7 @@ Does that clarify how they work? If you're ready, we can move on to the **Server
 
 
 
-
-
 ssh -i ~/.exoper.key ubuntu@159.13.40.89
-
-
-
-
-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
-
 
 
 
