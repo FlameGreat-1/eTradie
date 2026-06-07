@@ -307,7 +307,6 @@ threat model must assume the CDN can be bypassed or misconfigured.
 
 
 
-Now I have the full picture. The edge-ingress is an **L4 TCP/TLS pass-through proxy** (`copy_bidirectional`), not an L7 HTTP proxy. This is the key architectural fact that determines the answer to your question. Here is the complete, truthful audit and the engineering recommendation.
 
 ## Edge-ingress + Envoy + Cloudflare — complete audit & the real best-practice answer
 
