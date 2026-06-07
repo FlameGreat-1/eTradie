@@ -85,6 +85,21 @@ postgres:
   initSQL:
     enabled: true
 
+  # Database-level audit logging. Rendered as `postgres -c` args in the
+  # StatefulSet (no config-file mount, so the readOnly/non-root posture
+  # is preserved). log_statement=ddl records every CREATE/ALTER/DROP
+  # against the money database (including the sensitive auth_users,
+  # broker_connections, llm_connections and billing_* tables) without
+  # logging row data; connection/disconnection lines answer "who
+  # connected". Raise logStatement to 'mod' or 'all' for a forensic
+  # window; set enabled=false to turn the block off entirely.
+  auditLogging:
+    enabled: true
+    logConnections: true
+    logDisconnections: true
+    logStatement: "ddl"
+    logLinePrefix: "%m [%p] user=%u db=%d client=%h app=%a "
+
   externalSecret:
     enabled: true
     secretStoreName: vault-backend
@@ -177,6 +192,23 @@ postgres:
       # 0 on success; the backup container only deletes old dumps
       # after the upload-ready flag is observed.
       uploadTimeoutSeconds: 1800
+
+  # Restore drill (proves backups are restorable). Restores the latest
+  # local dump into a throwaway scratch database, runs an integrity
+  # check, then drops the scratch database. Never touches the live
+  # database. Disabled by default so a bare render / dev install does
+  # not schedule it; the production overlay enables it weekly.
+  restoreDrill:
+    enabled: false
+    schedule: "0 3 * * 1"  # Mondays 03:00 UTC, after the 02:00 backup
+    scratchDatabase: "etradie_restore_drill"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
 
 # ----------------------------------------------------------------------
 # Redis 7 (shared alert hub + execution/management transport).

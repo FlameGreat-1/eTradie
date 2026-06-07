@@ -131,7 +131,51 @@ func Load() (*Config, error) {
 	if cfg.RedisURL == "" {
 		return nil, errors.New("billing config: BILLING_REDIS_URL or REDIS_URL is required for cross-service alert publishing")
 	}
+	if isProdLikeEnv() {
+		if err := requireTLSDatabaseURL(cfg.DatabaseURL); err != nil {
+			return nil, fmt.Errorf("billing config: %w", err)
+		}
+	}
 	return &cfg, nil
+}
+
+// isProdLikeEnv reports whether the runtime environment is one in which
+// the fail-closed transit-encryption guard must be enforced. Mirrors the
+// APP_ENV / ENV / ENVIRONMENT precedence used by the auth and execution
+// configs so a single deploy-time value flips every service in lockstep.
+func isProdLikeEnv() bool {
+	for _, k := range []string{"APP_ENV", "ENV", "ENVIRONMENT"} {
+		switch strings.ToLower(strings.TrimSpace(os.Getenv(k))) {
+		case "production", "prod", "staging":
+			return true
+		}
+	}
+	return false
+}
+
+// requireTLSDatabaseURL refuses a Postgres DSN that does not guarantee an
+// encrypted connection. It inspects the FINAL resolved DSN, so it catches
+// both a constructed URL (POSTGRES_SSLMODE) and an explicit
+// BILLING_DATABASE_URL an operator supplied with a weak sslmode. Only
+// require / verify-ca / verify-full encrypt unconditionally; disable /
+// allow / prefer (and an absent sslmode, which libpq treats as prefer)
+// can all yield a plaintext connection.
+func requireTLSDatabaseURL(dsn string) error {
+	u, err := url.Parse(strings.TrimSpace(dsn))
+	if err != nil {
+		return fmt.Errorf("database URL is unparseable: %w", err)
+	}
+	mode := strings.ToLower(strings.TrimSpace(u.Query().Get("sslmode")))
+	switch mode {
+	case "require", "verify-ca", "verify-full":
+		return nil
+	default:
+		return fmt.Errorf(
+			"database connection is not TLS-encrypted (sslmode=%q); refusing to start in a production-like environment. "+
+				"Set POSTGRES_SSLMODE (or the sslmode in BILLING_DATABASE_URL) to require, verify-ca, or verify-full",
+			mode,
+		)
+	}
 }
 
 // validatePublicURL ensures BILLING_PUBLIC_BASE_URL is a syntactically valid
@@ -199,7 +243,10 @@ func buildPostgresURL() string {
 	user := envOrDefault("POSTGRES_USER", "etradie")
 	pass := envOrDefault("POSTGRES_PASSWORD", "")
 	db := envOrDefault("POSTGRES_DB", "etradie")
-	ssl := envOrDefault("POSTGRES_SSLMODE", "disable")
+	// Default to require so the connection is encrypted even when the
+	// service mesh is off; operators tighten to verify-full (or relax
+	// in local dev) via POSTGRES_SSLMODE.
+	ssl := envOrDefault("POSTGRES_SSLMODE", "require")
 	return fmt.Sprintf("postgres[REDACTED]%s:%s/%s?sslmode=%s",
 		user, pass, host, port, db, ssl)
 }

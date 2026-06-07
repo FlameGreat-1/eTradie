@@ -67,6 +67,20 @@ spec:
             capabilities:
               drop:
                 - ALL
+          {{- if .Values.postgres.auditLogging.enabled }}
+          # Database-level audit logging. Passed as args so the official
+          # entrypoint forwards them to `postgres` without a config-file
+          # mount, keeping the readOnly/non-root posture intact.
+          args:
+            - -c
+            - log_connections={{ ternary "on" "off" .Values.postgres.auditLogging.logConnections }}
+            - -c
+            - log_disconnections={{ ternary "on" "off" .Values.postgres.auditLogging.logDisconnections }}
+            - -c
+            - log_statement={{ .Values.postgres.auditLogging.logStatement | default "ddl" }}
+            - -c
+            - log_line_prefix={{ .Values.postgres.auditLogging.logLinePrefix | default "%m [%p] user=%u db=%d client=%h app=%a " | quote }}
+          {{- end }}
           ports:
             - name: postgres
               containerPort: {{ .Values.postgres.service.port | default 5432 }}

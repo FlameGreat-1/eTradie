@@ -8,12 +8,13 @@ metadata:
     {{- include "redis.labels" . | nindent 4 }}
     app.kubernetes.io/component: redis-config
   annotations:
-    description: "Redis runtime configuration. Mirrors docker-compose.yml command-line flags. Password is supplied via env var at startup, never persisted here."
+    description: "Redis runtime configuration template. Mirrors docker-compose.yml command-line flags. The password is never persisted here; an init container appends it to the rendered runtime config."
 data:
-  # Mounted at /etc/redis/redis.conf. The container starts with
-  # `redis-server /etc/redis/redis.conf --requirepass $REDIS_PASSWORD`
-  # so the auth password is appended on the command line at runtime,
-  # NOT baked into the configmap.
+  # Mounted read-only at /etc/redis-template/redis.conf. The render
+  # init container concatenates this template with a runtime
+  # `requirepass <password>` line into /run/redis/redis.conf, and the
+  # redis container starts with `redis-server /run/redis/redis.conf`.
+  # The password therefore never appears on argv or in this ConfigMap.
   redis.conf: |
     bind 0.0.0.0
     protected-mode yes

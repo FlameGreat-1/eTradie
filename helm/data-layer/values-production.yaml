@@ -7,12 +7,12 @@
 # chromadb.storage.storageClassName here.
 #
 # Production schedules every data-layer pod on the dedicated
-# etradie-system node group (taint workload=etradie-system:NoSchedule,
-# applied by
-# infrastructure/cluster/main.tf::eks_managed_node_groups.etradie_system).
-# Without the per-datastore toleration below, pods land on the untainted
-# `system` add-on pool which is sized for cluster controllers only and
-# cannot fit the data-plane.
+# etradie-system node pool (taint workload=etradie-system:NoSchedule,
+# applied by the platform node pool in
+# infrastructure/cluster/oci/main.tf via the kubelet
+# --register-with-taints arg). Without the per-datastore toleration
+# below, pods land on the untainted add-on pool which is sized for
+# cluster controllers only and cannot fit the data-plane.
 #
 # Cloud-agnostic: a toleration without a matching taint is a no-op, so
 # this is safe on Contabo K3s, OCI OKE, Talos, or any cluster that does
@@ -25,9 +25,22 @@
 linkerdPolicy:
   enabled: false
 
+# Encryption at rest (production requirement).
+#
+# Every datastore below MUST bind to a StorageClass whose underlying
+# volumes are encrypted at rest. The class NAME is provider-specific, so
+# it is an operator decision rather than a chart hard-pin:
+#   - OCI OKE: the default oci-bv class is encrypted at rest by default.
+#   - Contabo / bare-metal K3s: an encryption-enabled Longhorn class
+#     (LUKS) or a LUKS-backed local class.
+#   - Any cloud: that provider's encrypted block class.
+# Set storageClassName per datastore to the encrypted class. Left empty
+# it falls back to the cluster default class; verify that default is
+# encrypted using the per-provider step in the restore-drill runbook.
 postgres:
   storage:
     size: 32Gi
+    # storageClassName: "<encrypted-class>"  # operator-set; see note above
   resources:
     requests:
       cpu: 500m
@@ -44,6 +57,9 @@ postgres:
     retentionDays: 30
     storage:
       size: 64Gi
+      # storageClassName: "<encrypted-class>"  # operator-set; the local
+      # dump holds the same data as the live volume and must be
+      # encrypted at rest. See the encryption-at-rest note above.
     resources:
       requests:
         cpu: 250m
@@ -62,6 +78,9 @@ postgres:
       enabled: true
       provider: "b2"
       vaultPath: etradie/data-layer/postgres-backup/production
+  # Prove backups are restorable on a weekly cadence in production.
+  restoreDrill:
+    enabled: true
   tolerations:
     - key: workload
       operator: Equal
@@ -71,6 +90,7 @@ postgres:
 redis:
   storage:
     size: 8Gi
+    # storageClassName: "<encrypted-class>"  # operator-set; see note above
   maxmemory: "1gb"
   resources:
     requests:
@@ -91,6 +111,7 @@ redis:
 chromadb:
   storage:
     size: 32Gi
+    # storageClassName: "<encrypted-class>"  # operator-set; see note above
   resources:
     requests:
       cpu: 500m

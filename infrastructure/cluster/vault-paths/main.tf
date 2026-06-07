@@ -80,7 +80,7 @@ resource "vault_kv_secret_v2" "gateway" {
   name                = "etradie/services/gateway/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
-    bootstrap = "placeholder; populate keys: auth_database_url, postgres_user, postgres_password, postgres_host, postgres_port, postgres_db, gateway_redis_url, auth_jwt_secret, auth_admin_password, engine_internal_shared_secret (must equal etradie/services/engine/${var.environment}:engine_internal_shared_secret if you also store it there), billing_internal_shared_secret (MUST EQUAL etradie/services/billing/${var.environment}:internal_shared_secret)."
+    bootstrap = "placeholder; populate keys: auth_database_url, postgres_user, postgres_password, postgres_host, postgres_port, postgres_db, postgres_sslmode (require/verify-full; consumed by the gateway POSTGRES_* fallback DSN when auth_database_url is unset), gateway_redis_url, auth_jwt_secret, auth_admin_password, engine_internal_shared_secret (must equal etradie/services/engine/${var.environment}:engine_internal_shared_secret if you also store it there), billing_internal_shared_secret (MUST EQUAL etradie/services/billing/${var.environment}:internal_shared_secret)."
   })
   lifecycle {
     ignore_changes = [data_json]
