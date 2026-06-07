@@ -10,6 +10,7 @@ from __future__ import annotations
 from enum import StrEnum
 from functools import lru_cache
 from typing import Any, Optional, Self
+from urllib.parse import parse_qs, urlparse
 
 from pydantic import AliasChoices, Field, PostgresDsn, RedisDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -210,6 +211,21 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"REDIS_URL points at localhost in {self.app_env.value}; "
                     "refusing to boot with a Redis fallback that bypasses ExternalSecrets"
+                )
+            # Fail closed on a non-TLS DB connection. Only require/
+            # verify-ca/verify-full encrypt unconditionally; disable/
+            # allow/prefer (and an absent sslmode) can yield plaintext.
+            sslmode = (
+                parse_qs(urlparse(str(self.database_url)).query)
+                .get("sslmode", [""])[0]
+                .strip()
+                .lower()
+            )
+            if sslmode not in {"require", "verify-ca", "verify-full"}:
+                raise ValueError(
+                    f"DATABASE_URL is not TLS-encrypted in {self.app_env.value} "
+                    f"(sslmode={sslmode!r}); set sslmode to require, verify-ca, "
+                    "or verify-full"
                 )
         if self.app_env == AppEnvironment.PRODUCTION and self.app_debug:
             raise ValueError("app_debug must be False in production")
