@@ -14,7 +14,26 @@
 >   `POSTGRES_SSLMODE` mapped in the gateway ExternalSecret (live) +
 >   documented in the gateway Vault path. NOT mapped for engine/execution/
 >   management (they read a full `*_DATABASE_URL`; sslmode lives in the
->   URL — a mapping there would be dead config).
+>   URL — a mapping there would be dead config). Additionally, ALL five
+>   Postgres-connecting services (gateway, billing, execution,
+>   management, engine) now FAIL CLOSED in production/staging on a DSN
+>   whose sslmode is not require/verify-ca/verify-full — closing the
+>   operator-override loophole behind the require default. Dev/test
+>   unaffected.
+>
+> ### Accepted, non-blocking follow-ups (deferred deliberately)
+> - **(B) Native Postgres server TLS** (`ssl=on` + Vault-mounted server
+>   cert/key on the StatefulSet, the doc's OPEN DECISION). Deferred:
+>   with the fail-closed `require` guards above every connection is
+>   encrypted, and the in-cluster hop additionally rides Linkerd mesh
+>   mTLS for peer identity. (B) upgrades `require` → verify-full
+>   (MITM-resistance) and is recommended defense-in-depth, not a launch
+>   blocker.
+> - **(C) pgaudit sensitive-table read/write monitoring.** Deferred:
+>   needs a custom image with the extension. DDL + connection audit
+>   logging (Fix 5), execution audit/snapshot DB-level immutability, and
+>   app-level audit (Tier 13) are already in place; (C) adds row-level
+>   read/write logging of broker_connections / auth_users.
 > - [x] **Fix 3 — encryption at rest.** `values-production.yaml`
 >   documents + exposes an operator-set encrypted `storageClassName` for
 >   postgres/redis/chromadb and the backup PVC (portable; empty = cluster
