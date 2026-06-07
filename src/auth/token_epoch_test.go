@@ -119,3 +119,62 @@ func TestVerify_RejectsWrongIssuer(t *testing.T) {
 		t.Fatalf("token with mismatched issuer must be rejected")
 	}
 }
+
+func TestVerify_RejectsWrongAudience(t *testing.T) {
+	issCfg := testTokenConfig()
+	issCfg.Audience = "etradie-api"
+	issuer := NewTokenService(issCfg)
+	u := testUser()
+	pair, _, _ := issuer.IssueTokenPair(u)
+
+	other := testTokenConfig()
+	other.Audience = "some-other-audience"
+	verifier := NewTokenService(other)
+	if _, err := verifier.VerifyAccessToken(pair.AccessToken); err == nil {
+		t.Fatalf("token with mismatched audience must be rejected")
+	}
+}
+
+func TestVerify_AcceptsMatchingAudience(t *testing.T) {
+	cfg := testTokenConfig()
+	cfg.Audience = "etradie-api"
+	ts := NewTokenService(cfg)
+	u := testUser()
+	pair, _, _ := ts.IssueTokenPair(u)
+	claims, err := ts.VerifyAccessToken(pair.AccessToken)
+	if err != nil {
+		t.Fatalf("token with matching audience must verify: %v", err)
+	}
+	if claims.Audience != "etradie-api" {
+		t.Fatalf("expected aud=etradie-api, got %q", claims.Audience)
+	}
+}
+
+func TestVerify_AudienceTolerantWindow(t *testing.T) {
+	// A token minted with NO aud (pre-rollout) must still verify while
+	// RequireAudience is false, but must be rejected once it is true.
+	cfg := testTokenConfig()
+	cfg.Audience = "etradie-api"
+	cfg.RequireAudience = false
+
+	// Mint a token WITHOUT aud by issuing from a service whose Audience
+	// is empty (simulating a pre-rollout token).
+	noAudCfg := testTokenConfig()
+	noAudCfg.Audience = ""
+	noAudIssuer := NewTokenService(noAudCfg)
+	u := testUser()
+	pair, _, _ := noAudIssuer.IssueTokenPair(u)
+
+	tolerant := NewTokenService(cfg)
+	if _, err := tolerant.VerifyAccessToken(pair.AccessToken); err != nil {
+		t.Fatalf("tolerant window must accept a token with no aud: %v", err)
+	}
+
+	strictCfg := testTokenConfig()
+	strictCfg.Audience = "etradie-api"
+	strictCfg.RequireAudience = true
+	strict := NewTokenService(strictCfg)
+	if _, err := strict.VerifyAccessToken(pair.AccessToken); err == nil {
+		t.Fatalf("with RequireAudience=true a token without aud must be rejected")
+	}
+}
