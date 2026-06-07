@@ -14,8 +14,17 @@ pub const UPSTREAM_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 pub const IDLE_TIMEOUT: Duration = Duration::from_secs(300);
 pub const UPSTREAM_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
-pub const MAX_HEADER_SIZE: usize = 16_384;
-pub const MAX_REQUEST_SIZE: usize = 10_485_760;
+// NOTE: HTTP request-byte and header-size limits are intentionally NOT
+// defined here. edge-ingress is a Layer-4 TLS-terminating TCP proxy
+// (handler.rs: TLS handshake -> geo-route -> copy_bidirectional); it
+// never parses HTTP and therefore cannot enforce an HTTP byte/header
+// cap. Those limits live at the HTTP-aware layer (Envoy:
+// max_request_bytes per route + max_request_headers_kb on the HTTP
+// connection manager, see helm/envoy/templates/configmap.yaml) and at
+// the Go services' auth.MaxJSONBodyBytes. The previously-declared
+// MAX_REQUEST_SIZE / MAX_HEADER_SIZE constants were never read on the
+// L4 path and were removed (TIER4 finding E5) because they implied a
+// protection this proxy does not provide.
 
 pub const MAX_RETRY_ATTEMPTS: u8 = 1;
 pub const RETRY_BACKOFF_MS: u64 = 100;
