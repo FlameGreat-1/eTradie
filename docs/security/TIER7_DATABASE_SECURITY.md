@@ -63,6 +63,30 @@
 >
 > ---
 >
+> ### Post-merge follow-up (branch `security/tier7-followup-restore-drill-and-consistency`)
+> A post-merge re-audit of the whole Tier 7 surface surfaced four items,
+> all fixed on the follow-up branch:
+> - [x] **R1 — restore-drill RWO multi-attach.** The backups PVC is
+>   ReadWriteOnce and is mounted by both the backup and restore-drill
+>   CronJobs; on a multi-node cluster a job could schedule off the node
+>   holding the volume and hang on Multi-Attach. Both jobs now use a
+>   REQUIRED pod affinity onto the postgres pod (replacing the inherited
+>   postgres anti-affinity) so they always co-locate with the RWO volume.
+> - [x] **R2 — `.env.example` sslmode.** `DATABASE_URL` now shows
+>   `?sslmode=require` so a prod deploy copied from the example does not
+>   trip the new fail-closed TLS guard with a surprising boot failure.
+> - [x] **R3 — init-configmap byte-alignment.** Realigned the
+>   least-privilege comment to mirror `docker/postgres/init.sql`.
+> - [x] **R4 — label-override fragility.** The backup/drill pod templates
+>   no longer override `app.kubernetes.io/name` from `postgres.labels`;
+>   they use `data-layer.commonLabels` + the job's own name, so the
+>   selector label every NetworkPolicy and the R1 affinity depend on has
+>   a single authoritative source. (The job-specific
+>   `app.kubernetes.io/component` is set intentionally and is not a
+>   selector key.)
+>
+> ---
+>
 > Original audit status: **AUDIT COMPLETE — implementation NOT started.**
 > Completed/merged tiers so far: TIER 1, 2, 3, 4, 6, 8, 9.
 > This document is the authoritative pickup point for TIER 7. It records
