@@ -64,10 +64,20 @@ spec:
           tolerations:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.postgres.affinity }}
+          # Co-schedule with the postgres pod. The backups PVC is
+          # ReadWriteOnce; landing on the same node as postgres (and
+          # therefore the same node the RWO volume attaches to) avoids a
+          # Multi-Attach hang on multi-node clusters. NOTE: this
+          # deliberately does NOT inherit .Values.postgres.affinity,
+          # which is the postgres pod's ANTI-affinity and would push the
+          # job away from postgres.
           affinity:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      {{- include "postgres.selectorLabels" . | nindent 22 }}
+                  topologyKey: kubernetes.io/hostname
           {{- with .Values.postgres.topologySpreadConstraints }}
           topologySpreadConstraints:
             {{- toYaml . | nindent 12 }}
