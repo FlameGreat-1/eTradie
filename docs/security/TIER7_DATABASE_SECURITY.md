@@ -1,6 +1,50 @@
 # 🔴 TIER 7: Database Security — Audit & Remediation Plan
 
-> Status: **AUDIT COMPLETE — implementation NOT started.**
+> Status: **IMPLEMENTATION IN PROGRESS** on branch
+> `security/tier7-database-hardening` (Option B: in-place role downgrade).
+>
+> ### Progress tracker (this branch)
+> - [x] **Fix 1 — least-privilege role.** `docker/postgres/init.sql` +
+>   chart init-configmap downgrade the role: `NOSUPERUSER NOCREATEROLE
+>   NOREPLICATION NOBYPASSRLS`. CREATEDB retained (restore drill needs
+>   it; low-risk). Role stays owner so all boot DDL + SECURITY DEFINER
+>   funcs keep working.
+> - [x] **Fix 2 — TLS in transit.** billing `buildPostgresURL()` and the
+>   gateway fallback DSN default `sslmode=require` (was `disable`).
+>   `POSTGRES_SSLMODE` mapped in the gateway ExternalSecret (live) +
+>   documented in the gateway Vault path. NOT mapped for engine/execution/
+>   management (they read a full `*_DATABASE_URL`; sslmode lives in the
+>   URL — a mapping there would be dead config).
+> - [x] **Fix 3 — encryption at rest.** `values-production.yaml`
+>   documents + exposes an operator-set encrypted `storageClassName` for
+>   postgres/redis/chromadb and the backup PVC (portable; empty = cluster
+>   default). Per-provider verification in the runbook.
+> - [x] **Fix 4 — restore testing.** Weekly `postgres-restore-drill`
+>   CronJob (restore latest dump into scratch DB, integrity check, drop),
+>   values block, NetworkPolicy ingress+egress wiring, prod-enabled,
+>   runbook `docs/runbooks/tier7-database-backup-restore.md`.
+> - [x] **Fix 5 — DB audit logging.** Postgres `log_connections`,
+>   `log_disconnections`, `log_statement=ddl`, attributable
+>   `log_line_prefix` via `-c` args; `postgres.auditLogging` values
+>   (enabled by default).
+> - [x] **Fix 6 — comment cleanups.** gateway `values.yaml` (EKS/RDS/
+>   ElastiCache wording), data-layer `values-production.yaml`
+>   (eks_managed_node_groups/EKS), stale redis-configmap header comment.
+> - [ ] Open the MR once CI (helm lint + kubeconform + Go build/tests +
+>   Trivy/govulncheck) is green.
+>
+> ### Deviations from the original plan (for correctness)
+> - Engine `POSTGRES_SSLMODE` ExternalSecret mapping was NOT added: the
+>   engine reads a full `DATABASE_URL`, so the mapping would be an unused
+>   (dead) env var. sslmode is carried in the URL.
+> - `CREATEDB` retained on the role: under single-role Option B the
+>   restore drill connects as this role and must CREATE/DROP a scratch
+>   database. CREATEDB is low-risk (own-databases only; no cross-db
+>   access, no role creation, no RLS bypass, no superuser escalation).
+>
+> ---
+>
+> Original audit status: **AUDIT COMPLETE — implementation NOT started.**
 > Completed/merged tiers so far: TIER 1, 2, 3, 4, 6, 8, 9.
 > This document is the authoritative pickup point for TIER 7. It records
 > the full audit exactly as delivered, plus the exact files to touch and
