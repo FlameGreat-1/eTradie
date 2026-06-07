@@ -193,6 +193,23 @@ postgres:
       # after the upload-ready flag is observed.
       uploadTimeoutSeconds: 1800
 
+  # Restore drill (proves backups are restorable). Restores the latest
+  # local dump into a throwaway scratch database, runs an integrity
+  # check, then drops the scratch database. Never touches the live
+  # database. Disabled by default so a bare render / dev install does
+  # not schedule it; the production overlay enables it weekly.
+  restoreDrill:
+    enabled: false
+    schedule: "0 3 * * 1"  # Mondays 03:00 UTC, after the 02:00 backup
+    scratchDatabase: "etradie_restore_drill"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
 # ----------------------------------------------------------------------
 # Redis 7 (shared alert hub + execution/management transport).
 # Single replica with AOF disabled (matches docker-compose.yml command).
