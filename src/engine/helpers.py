@@ -76,15 +76,27 @@ async def _rate_limit(
     key_prefix: str,
     max_requests: int = 10,
     window_seconds: int = 60,
+    user_id: str | None = None,
 ) -> None:
     """Redis-based sliding window rate limiter for dashboard API endpoints.
 
     Raises HTTP 429 if the caller exceeds max_requests within window_seconds.
-    Uses the client IP as the rate limit key.
+
+    Keying:
+      * When user_id is provided, the limiter keys on the authenticated
+        user ("user:<user_id>"), giving a true per-user window. This is
+        the correct axis for authenticated endpoints behind Cloudflare
+        Tunnel, where request.client.host is the tunnel / ingress IP
+        (shared across all users) rather than the real client IP.
+      * When user_id is omitted, it keys on the client IP, preserving
+        the original behaviour for callers that want an IP axis.
     """
     container: Container = request.app.state.container
-    client_ip = request.client.host if request.client else "unknown"
-    rate_key = f"ratelimit:{key_prefix}:{client_ip}"
+    if user_id:
+        rate_subject = f"user:{user_id}"
+    else:
+        rate_subject = request.client.host if request.client else "unknown"
+    rate_key = f"ratelimit:{key_prefix}:{rate_subject}"
 
     try:
         current = await container.cache.increment(rate_key)
