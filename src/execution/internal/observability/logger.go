@@ -36,3 +36,11 @@ func SetLevel(level string) {
 func Logger(component string) zerolog.Logger {
 	return baseLogger.With().Str("component", component).Logger()
 }
+
+// LogPanicRecovery logs a recovered panic with full context.
+func LogPanicRecovery(log zerolog.Logger, recovered interface{}, method string) {
+	log.Error().
+		Interface("panic", recovered).
+		Str("method", method).
+		Msg("panic_recovered")
+}

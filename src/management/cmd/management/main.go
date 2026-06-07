@@ -408,6 +408,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
+			server.PanicRecoveryInterceptor(observability.Logger("grpc_panic")),
 			auth.UnaryAuthInterceptor(tokenService, skipAuth),
 		),
 	)

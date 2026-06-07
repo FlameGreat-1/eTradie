@@ -49,3 +49,50 @@ jobs:
           name: security-report
           path: bandit-report.json
           retention-days: 30
+
+  go-vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: govulncheck — Go dependency CVEs
+        # Reports known vulnerabilities in go.mod/go.sum that are
+        # reachable from the service entrypoints. Fails the build on
+        # any finding.
+        run: govulncheck ./src/gateway/... ./src/execution/... ./src/management/... ./src/billing/... ./src/auth/...
+
+  rust-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: cargo audit — Rust dependency advisories
+        # Scans src/edge-ingress/Cargo.lock against the RustSec
+        # advisory database. Fails on any unpatched advisory.
+        working-directory: src/edge-ingress
+        run: cargo audit
+
+  trivy-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy — filesystem vulnerability + misconfig scan
+        # Scans dependency manifests (go.sum, requirements/*, Cargo.lock)
+        # for known CVEs and the Dockerfiles/Helm/Kubernetes manifests
+        # for misconfigurations. Fails only on fixable HIGH/CRITICAL so
+        # the gate is actionable.
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table

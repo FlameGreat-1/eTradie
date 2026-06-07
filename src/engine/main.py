@@ -330,6 +330,15 @@ def create_app() -> FastAPI:
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
 
+    # -- Global last-resort exception handler -----------------------------
+    # Catches any exception that escapes a route or middleware without a
+    # more specific handler, logs it with full structured context, and
+    # returns a sanitized generic 500 so no internal detail leaks. Does
+    # not intercept HTTPException / RequestValidationError or the
+    # routers' typed ETradieBaseError mappings.
+    from engine.shared.error_handler import register_exception_handlers
+    register_exception_handlers(app)
+
     # -- Request body-size limit (TIER 4 "Length limits") -----------------
     # FastAPI/uvicorn impose no body cap by default and several
     # /internal/broker/* order-path endpoints decode raw

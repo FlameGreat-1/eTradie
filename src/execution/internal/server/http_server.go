@@ -187,11 +187,12 @@ func NewHTTPServer(
 	mux.Handle("/metrics", promhttp.Handler())
 
 	s.server = &http.Server{
-		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      corsMiddleware(loadAllowedOrigins(), authCfg.CSRFHeader)(mux),
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              fmt.Sprintf(":%d", port),
+		Handler:           corsMiddleware(loadAllowedOrigins(), authCfg.CSRFHeader)(mux),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	return s
