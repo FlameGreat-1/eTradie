@@ -156,6 +156,14 @@ type Config struct {
 	TierProManagedCycleRPM           int `envconfig:"TIER_PRO_MANAGED_CYCLE_RPM" default:"10"`
 	TierProManagedCycleBurst         int `envconfig:"TIER_PRO_MANAGED_CYCLE_BURST" default:"20"`
 
+	// Per-user default rate limit applied to the mutating dashboard API
+	// routes other than /api/v1/cycle/run (which has its own tiered
+	// limiter above). A loose catch-all cap so a single authenticated
+	// user cannot flood the chatty config/symbols endpoints. Keyed by
+	// JWT subject; enforced in-memory per gateway pod.
+	APIDefaultRPM   int `envconfig:"API_DEFAULT_RPM" default:"120"`
+	APIDefaultBurst int `envconfig:"API_DEFAULT_BURST" default:"240"`
+
 	// cookieSameSite is the parsed http.SameSite derived from
 	// CookieSameSite at validate-time.
 	cookieSameSite http.SameSite
@@ -301,6 +309,18 @@ func (c *Config) validate() error {
 		if p.burst < p.rpm || p.burst > 1200 {
 			return fmt.Errorf("TIER_%s_CYCLE_BURST must be %d..1200, got %d", p.name, p.rpm, p.burst)
 		}
+	}
+
+	// Per-user default API limiter bounds. RPM > 0 so a misconfigured
+	// zero does not lock everyone out; burst >= RPM so the bucket can
+	// serve the steady-state rate. Ceilings are generous because this
+	// is a coarse anti-abuse cap on cheap dashboard calls, not a
+	// billing control.
+	if c.APIDefaultRPM <= 0 || c.APIDefaultRPM > 6000 {
+		return fmt.Errorf("API_DEFAULT_RPM must be 1..6000, got %d", c.APIDefaultRPM)
+	}
+	if c.APIDefaultBurst < c.APIDefaultRPM || c.APIDefaultBurst > 12000 {
+		return fmt.Errorf("API_DEFAULT_BURST must be %d..12000, got %d", c.APIDefaultRPM, c.APIDefaultBurst)
 	}
 
 	// Model allow-list normalisation moved to billing/store.ValidatePolicy

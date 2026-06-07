@@ -55,6 +55,11 @@ type APIHandler struct {
 	cycleLimitFree       *billingservice.TokenBucketRateLimiter
 	cycleLimitProByok    *billingservice.TokenBucketRateLimiter
 	cycleLimitProManaged *billingservice.TokenBucketRateLimiter
+
+	// apiDefaultLimit is the per-user catch-all limiter applied to the
+	// mutating dashboard routes other than /cycle/run. Keyed by JWT
+	// subject, built from AUTH_API_DEFAULT_RPM / _BURST.
+	apiDefaultLimit *billingservice.TokenBucketRateLimiter
 }
 
 // NewAPIHandler creates the dashboard REST API handler. authCfg
@@ -96,7 +101,20 @@ func NewAPIHandler(
 		cycleLimitFree:       makeLimiter(authCfg.TierFreeCycleRPM, authCfg.TierFreeCycleBurst),
 		cycleLimitProByok:    makeLimiter(authCfg.TierProByokCycleRPM, authCfg.TierProByokCycleBurst),
 		cycleLimitProManaged: makeLimiter(authCfg.TierProManagedCycleRPM, authCfg.TierProManagedCycleBurst),
+		apiDefaultLimit:      makeLimiter(authCfg.APIDefaultRPM, authCfg.APIDefaultBurst),
 	}
+}
+
+// tierLabel returns a non-empty tier label for metrics. Defaults to
+// "free" so the rate-limit counter never carries an empty label.
+func tierLabel(claims *auth.Claims) string {
+	if claims == nil {
+		return "free"
+	}
+	if t := strings.ToLower(strings.TrimSpace(claims.Tier)); t != "" {
+		return t
+	}
+	return "free"
 }
 
 // cycleLimiterForClaims returns the right token bucket for the user's
@@ -136,13 +154,55 @@ func (h *APIHandler) RegisterProtectedRoutes(
 	wrap := func(handler http.HandlerFunc) http.Handler {
 		return authMiddleware(csrfMiddleware(h.withPanicRecovery(handler)))
 	}
+	// wrapLimited adds the shared per-user default limiter inside the
+	// auth+csrf chain (after auth, so claims are in context). Used for
+	// the mutating dashboard routes other than /cycle/run, which keeps
+	// its own dedicated tiered limiter.
+	wrapLimited := func(handler http.HandlerFunc) http.Handler {
+		return authMiddleware(csrfMiddleware(h.withPanicRecovery(h.withDefaultRateLimit(handler))))
+	}
 
 	mux.Handle("/api/v1/cycle/run", wrap(h.handleRunCycle))
-	mux.Handle("/api/v1/symbols", wrap(h.handleSymbols))
-	mux.Handle("/api/v1/symbols/reset", wrap(h.handleResetSymbols))
-	mux.Handle("/api/v1/config", wrap(h.handleGetConfig))
-	mux.Handle("/api/v1/config/interval", wrap(h.handleSetInterval))
-	mux.Handle("/api/v1/health", wrap(h.handleDetailedHealth))
+	mux.Handle("/api/v1/symbols", wrapLimited(h.handleSymbols))
+	mux.Handle("/api/v1/symbols/reset", wrapLimited(h.handleResetSymbols))
+	mux.Handle("/api/v1/config", wrapLimited(h.handleGetConfig))
+	mux.Handle("/api/v1/config/interval", wrapLimited(h.handleSetInterval))
+	mux.Handle("/api/v1/health", wrapLimited(h.handleDetailedHealth))
+}
+
+// withDefaultRateLimit applies the shared per-user token bucket to a
+// handler. Safe methods (GET/HEAD/OPTIONS) pass through without
+// consuming a token; only mutating methods are limited, so a dashboard
+// that polls a GET endpoint is never throttled by this catch-all. On
+// rejection it returns 429 with Retry-After and records the rejection.
+func (h *APIHandler) withDefaultRateLimit(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			next(w, r)
+			return
+		}
+		claims := auth.ClaimsFromContext(r.Context())
+		key := ""
+		if claims != nil {
+			key = claims.UserID
+		}
+		if !h.apiDefaultLimit.Allow(key) {
+			retryAfter := 60 / max(h.authCfg.APIDefaultRPM, 1)
+			if retryAfter < 1 {
+				retryAfter = 1
+			}
+			w.Header().Set("Retry-After", fmt.Sprintf("%d", retryAfter))
+			observability.GatewayRateLimitedTotal.WithLabelValues("api_default", tierLabel(claims)).Inc()
+			h.log.Info().
+				Str("user_id", key).
+				Str("path", r.URL.Path).
+				Msg("api_default_rate_limited")
+			writeJSONError(w, http.StatusTooManyRequests, "too many requests; please slow down")
+			return
+		}
+		next(w, r)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -177,6 +237,7 @@ func (h *APIHandler) handleRunCycle(w http.ResponseWriter, r *http.Request) {
 		}
 		retryAfter := 60 / max(rpm, 1)
 		w.Header().Set("Retry-After", fmt.Sprintf("%d", retryAfter))
+		observability.GatewayRateLimitedTotal.WithLabelValues("cycle_run", tierLabel(claims)).Inc()
 		h.log.Info().
 			Str("user_id", claims.UserID).
 			Str("tier", claims.Tier).
