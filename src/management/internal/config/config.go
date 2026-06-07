@@ -210,3 +210,12 @@ func (c *Config) validate() error {
 func (c *Config) IsMT5Mode() bool {
 	return c.BrokerMode == "mt5"
 }
+
+// IsProdLike reports whether the service is running in a production or
+// staging environment. It reads the AppEnv value that validate()
+// already normalized (prefixed override -> root APP_ENV -> development),
+// so it is the single source of truth callers use to disable
+// developer-only surfaces (e.g. gRPC reflection) in prod-like deploys.
+func (c *Config) IsProdLike() bool {
+	return c.AppEnv == "production" || c.AppEnv == "prod" || c.AppEnv == "staging"
+}
