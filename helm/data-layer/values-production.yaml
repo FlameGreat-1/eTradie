@@ -57,6 +57,9 @@ postgres:
     retentionDays: 30
     storage:
       size: 64Gi
+      # storageClassName: "<encrypted-class>"  # operator-set; the local
+      # dump holds the same data as the live volume and must be
+      # encrypted at rest. See the encryption-at-rest note above.
     resources:
       requests:
         cpu: 250m
