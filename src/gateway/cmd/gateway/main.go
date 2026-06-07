@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -67,6 +68,17 @@ func main() {
 		pgSSLMode := envOrDefault("POSTGRES_SSLMODE", "require")
 		authDBURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 			pgUser, pgPass, pgHost, pgPort, pgDB, pgSSLMode)
+	}
+
+	// Fail closed on a non-TLS auth DB connection in production/staging.
+	// Inspects the FINAL resolved URL so it catches both the constructed
+	// fallback (POSTGRES_SSLMODE) and an explicit AUTH_DATABASE_URL that
+	// carries a weak sslmode. Dev/test are unaffected.
+	if gatewayIsProdLikeEnv() {
+		if err := requireTLSDatabaseURL(authDBURL); err != nil {
+			os.Stderr.WriteString("FATAL: gateway auth database: " + err.Error() + "\n")
+			os.Exit(1)
+		}
 	}
 
 	ctx := context.Background()
@@ -625,6 +637,38 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// gatewayIsProdLikeEnv reports whether the runtime environment is one in
+// which the fail-closed transit-encryption guard must be enforced. Same
+// APP_ENV / ENV / ENVIRONMENT precedence the rest of the platform uses.
+func gatewayIsProdLikeEnv() bool {
+	for _, k := range []string{"APP_ENV", "ENV", "ENVIRONMENT"} {
+		switch strings.ToLower(strings.TrimSpace(os.Getenv(k))) {
+		case "production", "prod", "staging":
+			return true
+		}
+	}
+	return false
+}
+
+// requireTLSDatabaseURL refuses a Postgres DSN that does not guarantee an
+// encrypted connection. Only require / verify-ca / verify-full encrypt
+// unconditionally; disable / allow / prefer (and an absent sslmode, which
+// libpq treats as prefer) can all yield a plaintext connection.
+func requireTLSDatabaseURL(dsn string) error {
+	u, err := url.Parse(strings.TrimSpace(dsn))
+	if err != nil {
+		return fmt.Errorf("database URL is unparseable: %w", err)
+	}
+	switch strings.ToLower(strings.TrimSpace(u.Query().Get("sslmode"))) {
+	case "require", "verify-ca", "verify-full":
+		return nil
+	default:
+		return fmt.Errorf(
+			"connection is not TLS-encrypted; set POSTGRES_SSLMODE (or the sslmode in AUTH_DATABASE_URL) to require, verify-ca, or verify-full",
+		)
+	}
 }
 
 // breachCheckEnabled decides whether the HIBP password-breach checker
