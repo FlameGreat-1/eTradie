@@ -85,6 +85,21 @@ postgres:
   initSQL:
     enabled: true
 
+  # Database-level audit logging. Rendered as `postgres -c` args in the
+  # StatefulSet (no config-file mount, so the readOnly/non-root posture
+  # is preserved). log_statement=ddl records every CREATE/ALTER/DROP
+  # against the money database (including the sensitive auth_users,
+  # broker_connections, llm_connections and billing_* tables) without
+  # logging row data; connection/disconnection lines answer "who
+  # connected". Raise logStatement to 'mod' or 'all' for a forensic
+  # window; set enabled=false to turn the block off entirely.
+  auditLogging:
+    enabled: true
+    logConnections: true
+    logDisconnections: true
+    logStatement: "ddl"
+    logLinePrefix: "%m [%p] user=%u db=%d client=%h app=%a "
+
   externalSecret:
     enabled: true
     secretStoreName: vault-backend
