@@ -545,7 +545,11 @@ func main() {
 		),
 	)
 	executionv1.RegisterExecutionServiceServer(grpcServer, execServer)
-	reflection.Register(grpcServer)
+	// Reflection exposes the full service descriptor to any client that
+	// reaches the port; keep it out of production and staging.
+	if !cfg.IsProdLike() {
+		reflection.Register(grpcServer)
+	}
 
 	go func() {
 		log.Info().Int("port", cfg.GRPCPort).Msg("execution_grpc_server_started")

@@ -413,7 +413,11 @@ func main() {
 		),
 	)
 	managementv1.RegisterManagementServiceServer(grpcServer, mgmtServer)
-	reflection.Register(grpcServer)
+	// Reflection exposes the full service descriptor to any client that
+	// reaches the port; keep it out of production and staging.
+	if !cfg.IsProdLike() {
+		reflection.Register(grpcServer)
+	}
 
 	go func() {
 		log.Info().Int("port", cfg.GRPCPort).Msg("management_grpc_server_started")

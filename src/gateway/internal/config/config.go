@@ -133,6 +133,12 @@ func isProdLikeEnv() bool {
 	return false
 }
 
+// IsProdLike reports whether the gateway is running in production or
+// staging, derived from APP_ENV / ENV / ENVIRONMENT.
+func (c *Config) IsProdLike() bool {
+	return isProdLikeEnv()
+}
+
 func (c *Config) validate() error {
 	// Cycle timing bounds.
 	if c.CycleIntervalSeconds < 60 {

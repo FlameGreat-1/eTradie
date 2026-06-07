@@ -210,3 +210,9 @@ func (c *Config) validate() error {
 func (c *Config) IsMT5Mode() bool {
 	return c.BrokerMode == "mt5"
 }
+
+// IsProdLike reports whether the service is running in production or
+// staging, reading the AppEnv value normalized by validate().
+func (c *Config) IsProdLike() bool {
+	return c.AppEnv == "production" || c.AppEnv == "prod" || c.AppEnv == "staging"
+}

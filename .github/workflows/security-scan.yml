@@ -96,3 +96,65 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
           format: table
+
+  dockerfile-digest-pin:
+    name: Dockerfile base-image digest pin check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check every Dockerfile FROM is digest-pinned
+        # WARN-ONLY until the base images are pinned. The base images
+        # are not yet pinned to @sha256 digests; a hard failure here
+        # would break CI before an operator has run
+        # `make pin-image-digests` and committed the result.
+        #
+        # TO MAKE THIS A BLOCKING GATE once digests are committed:
+        # replace the whole `run:` body below with the single line
+        #     bash scripts/check-image-digests.sh
+        # so a non-zero exit fails the job.
+        run: |
+          bash scripts/check-image-digests.sh || {
+            echo "::warning::Unpinned Dockerfile base images detected. Run 'make pin-image-digests' and commit the result; this check will become blocking afterwards."
+          }
+
+  trivy-image:
+    name: Trivy image scan (Go services)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: gateway
+            dockerfile: src/gateway/Dockerfile
+          - service: execution
+            dockerfile: src/execution/Dockerfile
+          - service: management
+            dockerfile: src/management/Dockerfile
+          - service: billing
+            dockerfile: src/billing/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build ${{ matrix.service }} image (local, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          load: true
+          tags: etradie/${{ matrix.service }}:scan
+          cache-from: type=gha,scope=${{ matrix.service }}
+      - name: Trivy — image layer vulnerability scan
+        # Scans the assembled image layers (OS packages + the Go binary)
+        # for known CVEs. Fails only on fixable HIGH/CRITICAL so the
+        # gate is actionable, matching the fs-scan posture above.
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: etradie/${{ matrix.service }}:scan
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table

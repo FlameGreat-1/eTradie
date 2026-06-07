@@ -475,6 +475,12 @@ func (c *Config) IsMT5Mode() bool {
 	return c.BrokerMode == "mt5"
 }
 
+// IsProdLike reports whether the service is running in production or
+// staging, reading the AppEnv value normalized by validate().
+func (c *Config) IsProdLike() bool {
+	return c.AppEnv == "production" || c.AppEnv == "prod" || c.AppEnv == "staging"
+}
+
 // RequireSignedRequestsEnabled reports the resolved enforcement mode
 // for the ExecuteTrade signature gate (Tier 8 F-1/F-2). When false the
 // verifier runs in warn-only mode: it observes/labels outcomes but does

@@ -67,6 +67,19 @@ LDFLAGS := -s -w
 BUILD_FLAGS := -trimpath -ldflags "$(LDFLAGS)"
 
 # ============================================================================
+# CONTAINER SUPPLY CHAIN
+# ============================================================================
+
+##@ Security
+.PHONY: pin-image-digests check-image-digests
+
+pin-image-digests: ## Resolve + pin every Dockerfile FROM to an @sha256 digest (requires docker)
+	bash scripts/pin-image-digests.sh
+
+check-image-digests: ## Fail if any Dockerfile FROM is not digest-pinned
+	bash scripts/check-image-digests.sh
+
+# ============================================================================
 # HELP SYSTEM
 # ============================================================================
 

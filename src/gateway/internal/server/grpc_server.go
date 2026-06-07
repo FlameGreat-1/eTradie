@@ -95,6 +95,12 @@ func NewGRPCServer(
 
 	gatewayv1.RegisterGatewayServiceServer(grpcServer, s)
 
+	// Reflection exposes the full service descriptor to any client that
+	// reaches the port; keep it out of production and staging.
+	if !cfg.IsProdLike() {
+		reflection.Register(grpcServer)
+	}
+
 	// Wire the health server but DO NOT flip status to SERVING here.
 	// Status is flipped immediately before grpcServer.Serve() inside
 	// Start() so /readiness reports not-ready until the listener is
@@ -103,8 +109,6 @@ func NewGRPCServer(
 	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
 	healthpb.RegisterHealthServer(grpcServer, healthServer)
 	s.healthServer = healthServer
-
-	reflection.Register(grpcServer)
 
 	s.server = grpcServer
 	return s

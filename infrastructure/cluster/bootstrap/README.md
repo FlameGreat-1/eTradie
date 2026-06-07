@@ -14,6 +14,12 @@ Audit ref: IB-C1.
 
 ## 0. Prerequisites
 
+- Host hardening (self-managed hosts only). BEFORE installing K3s /
+  kubeadm on a VPS or bare-metal host, harden the host per
+  `docs/runbooks/tier11-vps-host-hardening.md`: SSH key-only auth,
+  password login disabled, fail2ban, a default-deny host firewall, and
+  a private (non-public) K8s API reached over SSH tunnel / VPN. The OCI
+  OKE path delegates this to the managed node image and can skip it.
 - A Kubernetes cluster (>= v1.29) reachable via kubectl from the
   operator's machine. K3s, kubeadm, kind, k3d, or any conformant
   distribution is fine.
