@@ -26,17 +26,17 @@ RUN apk --no-cache add ca-certificates tzdata \
 
 WORKDIR /app
 
-# Non-root user setup
-RUN addgroup -S etradie && adduser -S etradie -G etradie
+# Copy over the static binary, owned by the numeric UID/GID the Helm
+# chart pins in securityContext.runAsUser/runAsGroup (65532).
+COPY --from=builder --chown=65532:65532 /bin/management /app/management
 
-# Copy over the static binary
-COPY --from=builder /bin/management /app/management
-
-RUN chown -R etradie:etradie /app
-
-USER etradie
+# Numeric, deterministic non-root user matching the chart.
+USER 65532:65532
 
 # Internal ports: gRPC=50054, HTTP=8083
 EXPOSE 8083 50054
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8083/health || exit 1
 
 CMD ["/app/management"]
