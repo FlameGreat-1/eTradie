@@ -81,10 +81,7 @@ pin_file() {
       fi
       local digest
       digest="$(resolve_digest "${imageref}")"
-      printf '%sFROM %s@%s%s\n' "" "${imageref}" "${digest}" "${suffix}" >> "${tmp}"
-      # Preserve the original leading whitespace of the FROM token.
-      # (prefix already contains it; rebuild precisely.)
-      sed -i '$ d' "${tmp}"
+      # prefix retains the original 'FROM ' token plus its indentation.
       printf '%s%s@%s%s\n' "${prefix}" "${imageref}" "${digest}" "${suffix}" >> "${tmp}"
       echo "pinned: ${imageref}@${digest}  (${file})" >&2
     else
