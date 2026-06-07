@@ -22,10 +22,11 @@ data:
 
     -- Least-privilege hardening. The official postgres entrypoint
     -- creates the role named by POSTGRES_USER as a SUPERUSER and runs
-    -- this script AS that role. A superuser connection string in any one service
-    -- means a single leaked credential can drop tables, erase the
-    -- audit trail, create new roles, read every broker credential, and
-    -- bypass row-level security.
+    -- this script AS that role.
+    -- A superuser connection string in any one service means a single
+    -- leaked credential can drop tables, erase the audit trail, create
+    -- new roles, read every broker credential, and bypass row-level
+    -- security.
     --
     -- We strip the dangerous role attributes in place. The role stays
     -- the OWNER of the application database and of every object it
