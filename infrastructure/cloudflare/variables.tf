@@ -60,7 +60,13 @@ variable "enable_rate_limiting" {
 }
 
 variable "enable_bot_management" {
-  description = "Enable Cloudflare Super Bot Fight Mode. Default OFF: requires a Bot Management plan entitlement; enabling on a non-entitled zone fails apply (plan section 4 operator action)."
+  description = "Enable the ENTERPRISE Cloudflare Bot Management resource (cloudflare_bot_management, ML bot scoring). Default OFF: requires the Enterprise Bot Management add-on; enabling on a non-Enterprise zone fails apply. Use enable_super_bot_fight_mode instead on Pro/Business. The two are mutually exclusive."
+  type        = bool
+  default     = false
+}
+
+variable "enable_super_bot_fight_mode" {
+  description = "Enable Super Bot Fight Mode (Pro/Business plans) via the zone bot-fight-mode setting. Default OFF: requires a Pro or Business plan. Mutually exclusive with enable_bot_management (Enterprise)."
   type        = bool
   default     = false
 }

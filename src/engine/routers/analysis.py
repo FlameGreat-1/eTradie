@@ -575,7 +575,17 @@ async def rerun_analysis(
     # flood with 429 BEFORE any TA / broker / RAG / LLM work begins. The
     # free-tier 1/24h business gate below is a separate, downstream
     # entitlement check.
-    await _rate_limit(request, "analysis_rerun", max_requests=10, window_seconds=60)
+    #
+    # Keyed on the authenticated user_id (not client IP): behind
+    # Cloudflare Tunnel the origin sees the tunnel IP for every user, so
+    # an IP key would throttle all users against one shared bucket.
+    await _rate_limit(
+        request,
+        "analysis_rerun",
+        max_requests=10,
+        window_seconds=60,
+        user_id=user.user_id,
+    )
 
     container: Container = request.app.state.container
     processor = await _resolve_user_processor(container, user)

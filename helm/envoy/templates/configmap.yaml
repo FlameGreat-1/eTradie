@@ -57,13 +57,20 @@ data:
                               # event) and get their own smaller body cap.
                               typed_per_filter_config:
                                 {{- if .Values.config.envoy.localRateLimit.enabled }}
+                                # Webhook routes are EXEMPT from L7 rate
+                                # limiting (a dropped payment-provider
+                                # webhook = a lost billing event). Both
+                                # filter_enabled and filter_enforced are
+                                # 0%, so the token_bucket below is never
+                                # consulted; it is present only because
+                                # LocalRateLimit requires the field.
                                 envoy.filters.http.local_ratelimit:
                                   "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
                                   stat_prefix: http_local_rate_limiter_webhook
                                   token_bucket:
-                                    max_tokens: 1
-                                    tokens_per_fill: 1
-                                    fill_interval: 0.001s
+                                    max_tokens: {{ .Values.config.envoy.localRateLimit.maxTokens }}
+                                    tokens_per_fill: {{ .Values.config.envoy.localRateLimit.tokensPerFill }}
+                                    fill_interval: {{ printf "%ds" (int .Values.config.envoy.localRateLimit.fillIntervalSeconds) }}
                                   filter_enabled:
                                     default_value:
                                       numerator: 0
@@ -89,13 +96,15 @@ data:
                                   per_try_timeout: {{ .Values.config.envoy.webhookRoute.perTryTimeout | default "15s" }}
                               typed_per_filter_config:
                                 {{- if .Values.config.envoy.localRateLimit.enabled }}
+                                # See /webhooks/paddle above: identical
+                                # exemption (filter disabled at 0%).
                                 envoy.filters.http.local_ratelimit:
                                   "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
                                   stat_prefix: http_local_rate_limiter_webhook
                                   token_bucket:
-                                    max_tokens: 1
-                                    tokens_per_fill: 1
-                                    fill_interval: 0.001s
+                                    max_tokens: {{ .Values.config.envoy.localRateLimit.maxTokens }}
+                                    tokens_per_fill: {{ .Values.config.envoy.localRateLimit.tokensPerFill }}
+                                    fill_interval: {{ printf "%ds" (int .Values.config.envoy.localRateLimit.fillIntervalSeconds) }}
                                   filter_enabled:
                                     default_value:
                                       numerator: 0
