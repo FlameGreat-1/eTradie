@@ -120,8 +120,19 @@ func NewReverseProxyHandler(engineURL, executionURL, managementURL string) (*Rev
 		// Management's native browser routes live under /api/v1/management/*.
 		// The SPA calls /api/management/* and the proxy rewrites it to the
 		// management service's /api/v1/management/* surface.
+		//
+		// /api/journal/* is the Option-B diagram's distinct "Journal"
+		// surface. There is no separate Journal microservice in this
+		// platform: the trade journal + PnL calendar are served by the
+		// MANAGEMENT service (src/management/internal/http/server.go:
+		// /api/v1/management/journal, /api/v1/management/pnl-calendar).
+		// We therefore expose /api/journal/* at the gateway edge and
+		// rewrite it onto management's journal surface, so the public
+		// API matches the diagram while the internal topology stays
+		// truthful (one management service owns journal).
 		managementRoutes: []proxyRoute{
 			{browserPrefix: "/api/management", upstreamPrefix: "/api/v1/management"},
+			{browserPrefix: "/api/journal", upstreamPrefix: "/api/v1/management/journal"},
 		},
 		log: log,
 	}, nil
