@@ -439,9 +439,16 @@ resume from the first unchecked item.
 - [x] **Step 5b — Header generator**: `cotradee/scripts/generate-vercel-headers.mjs`
       now derives `connect-src` from `VITE_API_URL`/`VITE_API_WS_URL`; committed
       `vercel.json` matches the baseline output so `lint:headers` passes.
-- [~] **Step 6 — Gateway e2e proxy test** in `src/gateway/e2etest/`: DEFERRED by
-      explicit instruction to focus on the main wiring first. The proxy is
-      exercised by the verification checklist in §6 once deployed.
+- [x] **Step 6 — Gateway proxy tests**: `src/gateway/internal/server/proxy_handler_test.go`
+      covers, against httptest upstreams: path-prefix rewrite for every route
+      (execution `/api/execution/*`->`/api/v1/*`, management
+      `/api/management/*`->`/api/v1/management/*`, engine identity), query-
+      string preservation, Cookie + X-CSRF-Token forwarding, verbatim
+      status+body pass-through for `tier_required` 403 and
+      `llm_quota_exceeded` 429, a 502 JSON on an unreachable upstream, and
+      constructor rejection of malformed upstream URLs. Implemented as a
+      focused `server`-package test (no Redis/DB harness) since it isolates
+      the new proxy behaviour; the auth/CSRF chain is covered by src/auth tests.
 - [x] **Step 7 — Helm wiring**: `helm/gateway/values.yaml` +
       `templates/configmap.yaml` set `GATEWAY_EXECUTION_HTTP_URL`
       (`http://execution.etradie-system.svc.cluster.local:8080`) and
