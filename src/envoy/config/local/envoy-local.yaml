@@ -26,10 +26,8 @@ static_resources:
                   virtual_hosts:
                     - name: backend
                       domains: ["*"]
-                      # TIER5 browser-security response headers. See the
-                      # production config for the full rationale; local
-                      # mirrors it so dev sees the same posture. HSTS is
-                      # asserted at the Cloudflare edge, not here.
+                      # Browser security headers applied to every response.
+                      # HSTS is set at the Cloudflare TLS edge, not here.
                       response_headers_to_add:
                         - header:
                             key: "X-Content-Type-Options"

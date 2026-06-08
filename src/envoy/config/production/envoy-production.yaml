@@ -65,16 +65,8 @@ static_resources:
                   virtual_hosts:
                     - name: backend
                       domains: ["*"]
-                      # TIER5 browser-security response headers. Applied
-                      # at the virtual_host so EVERY response Envoy emits
-                      # (proxied + direct_response) carries them. Envoy
-                      # is the only in-cluster HTTP-aware layer in the
-                      # path (edge-ingress is L4-only and cannot set
-                      # headers), so this is the authoritative enforcement
-                      # point. OVERWRITE_IF_EXISTS_OR_ADD prevents a
-                      # duplicate header if an upstream ever sets one.
-                      # HSTS is deliberately omitted here and asserted at
-                      # the TLS-terminating Cloudflare edge instead.
+                      # Browser security headers applied to every response.
+                      # HSTS is set at the Cloudflare TLS edge, not here.
                       response_headers_to_add:
                         - header:
                             key: "X-Content-Type-Options"

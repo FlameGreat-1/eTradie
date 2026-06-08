@@ -44,12 +44,8 @@ variable "always_use_https" {
 }
 
 # ---------------------------------------------------------------------------
-# TIER5: HSTS (Strict-Transport-Security).
-#
-# Asserted at the Cloudflare edge via an http_response_headers_transform
-# ruleset (see main.tf). HSTS must only ever be emitted over the
-# TLS-terminating edge, which is Cloudflare; the in-cluster Envoy never
-# sets it. Default ON for the production security posture.
+# HSTS (Strict-Transport-Security), emitted at the Cloudflare TLS edge via
+# the response-header transform ruleset in main.tf.
 # ---------------------------------------------------------------------------
 
 variable "enable_hsts" {

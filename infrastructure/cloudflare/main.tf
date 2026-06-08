@@ -202,20 +202,12 @@ resource "cloudflare_bot_management" "this" {
 }
 
 #
-# 7. TIER5: HSTS (Strict-Transport-Security) at the edge.
+# 7. HSTS (Strict-Transport-Security) at the TLS-terminating edge.
 #
-#    HSTS must be asserted ONLY over the TLS-terminating edge, which is
-#    Cloudflare. The in-cluster Envoy sets the other four browser
-#    security headers (X-Content-Type-Options, X-Frame-Options,
-#    Referrer-Policy, Content-Security-Policy) but deliberately NOT
-#    HSTS, so the platform never emits Strict-Transport-Security over a
-#    non-edge hop.
-#
-#    Implemented as a response-header transform rule (the v4-provider-
-#    correct way to set a response header at the edge). The header
-#    value is composed from the hsts_* variables. always_use_https
-#    (resource 1) already upgrades http->https; HSTS instructs the
-#    browser to do so itself on every subsequent visit.
+#    Emitted as a response-header transform rule. The other browser
+#    security headers are set at Envoy; HSTS is set here so it is only
+#    ever asserted over the Cloudflare-terminated TLS connection. The
+#    value is composed from the hsts_* variables.
 #
 resource "cloudflare_ruleset" "hsts" {
   count = var.enable_hsts ? 1 : 0
