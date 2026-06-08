@@ -24,7 +24,7 @@ that governs the document the browser actually loads). They are:
 
 | Header | Value |
 |--------|-------|
-| `Content-Security-Policy` | `script-src 'self'` (no inline script, no hash), Google Fonts allowed for style/font, `connect-src` scoped to the API + WS origins, `frame-ancestors 'none'`, `object-src 'none'`, `upgrade-insecure-requests` |
+| `Content-Security-Policy` | `script-src 'self'` (no inline script, no hash), Google Fonts allowed for style/font, `connect-src` derived from the build's `VITE_*` backend origins, `frame-ancestors 'none'`, `object-src 'none'`, `upgrade-insecure-requests` |
 | `X-Frame-Options` | `DENY` |
 | `X-Content-Type-Options` | `nosniff` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
@@ -42,24 +42,33 @@ module script. Keeping it external (not inline) is what lets the CSP be
 > the SPA document; the Envoy headers protect the JSON API. Both are
 > required — a CSP only governs the response it is attached to.
 
-### Scoping `connect-src` per environment
+### `connect-src` is derived from `VITE_*` — nothing extra to set
 
-`connect-src` defaults to the production gateway origin
-(`https://api.exoper.com` + `wss://api.exoper.com`). It MUST list every
-origin the browser calls — i.e. the `VITE_*` URLs in
-`src/config/env.ts` for that build (gateway HTTP + WS, and engine /
-execution / management if the SPA calls them directly). Override at
-build time and regenerate:
+The browser calls FOUR backends directly (traced from `src/lib/axios.ts`
++ `src/config/env.ts`): the gateway does NOT proxy the engine /
+execution / management browser routes, so the SPA reaches each on its
+own origin:
 
-```bash
-VERCEL_CONNECT_SRC="https://api.exoper.com wss://api.exoper.com" \
-  npm run generate:headers
-```
+| `VITE_*` var | service the browser calls |
+|--------------|---------------------------|
+| `VITE_GATEWAY_HTTP_URL` | `/auth/*`, `/api/v1/cycle/run`, `/api/v1/symbols*`, `/api/v1/config*`, `/api/v1/health`, billing, `/events/*` |
+| `VITE_GATEWAY_WS_URL` | `/ws/notifications` |
+| `VITE_ENGINE_URL` | `/api/broker/*`, `/api/analysis/*`, `/api/llm/*`, `/api/usage/me` |
+| `VITE_EXECUTION_URL` | `/api/v1/state`, `/api/v1/account`, `/api/v1/orders/cancel`, `/api/v1/settings` |
+| `VITE_MANAGEMENT_URL` | management surface |
 
-Set `VERCEL_CONNECT_SRC` as a Vercel Project Environment Variable so the
-`prebuild` step bakes the correct origins into `vercel.json` for each
-environment (production / preview). If it is unset the production
-default above is used.
+`generate-vercel-headers.mjs` reads these same five vars from
+`process.env` and emits a `connect-src` containing exactly those origins
+(each `http(s)` origin also contributes its `ws(s)` companion). Because
+`prebuild` runs in the SAME environment Vite builds in, the CSP can
+never disagree with what the bundle actually connects to.
+
+**Operator action: none beyond the normal `VITE_*` Vercel project env
+vars.** Set `VITE_GATEWAY_HTTP_URL`, `VITE_GATEWAY_WS_URL`,
+`VITE_ENGINE_URL`, `VITE_EXECUTION_URL`, `VITE_MANAGEMENT_URL` for the
+environment (as you must anyway for the app to function), and the build
+bakes the matching `connect-src`. The committed `vercel.json` uses the
+`.env.example` localhost origins as the in-repo baseline.
 
 ## Environment variables
 
