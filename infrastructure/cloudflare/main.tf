@@ -204,10 +204,14 @@ resource "cloudflare_bot_management" "this" {
 #
 # 7. HSTS (Strict-Transport-Security) at the TLS-terminating edge.
 #
-#    Emitted as a response-header transform rule. The other browser
-#    security headers are set at Envoy; HSTS is set here so it is only
-#    ever asserted over the Cloudflare-terminated TLS connection. The
-#    value is composed from the hsts_* variables.
+#    Emitted as a response-header transform rule. HSTS is set HERE (not
+#    at Envoy) so it is only ever asserted over the Cloudflare-terminated
+#    TLS connection. The other browser security headers
+#    (Content-Security-Policy, X-Frame-Options, X-Content-Type-Options,
+#    Referrer-Policy) are emitted at Envoy via
+#    helm/envoy/values.yaml::securityHeaders -> the HCM
+#    response_headers_to_add block in helm/envoy/templates/configmap.yaml.
+#    The HSTS value is composed from the hsts_* variables.
 #
 resource "cloudflare_ruleset" "hsts" {
   count = var.enable_hsts ? 1 : 0
