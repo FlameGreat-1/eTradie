@@ -175,7 +175,7 @@ async def broker_symbols(
             "broker_symbols_failed",
             extra={"error": str(exc), "user_id": user.user_id},
         )
-        raise HTTPException(status_code=502, detail=f"Failed to fetch broker symbols: {exc}")
+        raise HTTPException(status_code=502, detail="Could not fetch broker symbols. Please try again in a moment.")
 
 
 # -- Timeframe map (shared by candles + pre-warm) --------------------------
@@ -469,7 +469,7 @@ async def chart_candles(
             },
         )
         raise HTTPException(
-            status_code=502, detail=f"Failed to fetch candles: {exc}"
+            status_code=502, detail="Could not fetch chart data. Please try again in a moment."
         )
 
     if payload is not None:
@@ -630,9 +630,14 @@ async def stream_ticks(websocket: WebSocket):
                     "symbol": symbol,
                 })
             except Exception as exc:
-                # Send error frame but don't disconnect — transient broker glitch.
+                # Transient broker glitch: log the cause, send a generic
+                # frame to the browser, and keep the stream open.
+                logger.warning(
+                    "tick_stream_fetch_failed",
+                    extra={"symbol": symbol, "error": str(exc), "user_id": user_id},
+                )
                 await websocket.send_json({
-                    "error": str(exc),
+                    "error": "Live price temporarily unavailable.",
                     "symbol": symbol,
                 })
                 await asyncio.sleep(2.0)  # Back off on error.

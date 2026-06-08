@@ -65,6 +65,25 @@ static_resources:
                   virtual_hosts:
                     - name: backend
                       domains: ["*"]
+                      # Browser security headers applied to every response.
+                      # HSTS is set at the Cloudflare TLS edge, not here.
+                      response_headers_to_add:
+                        - header:
+                            key: "X-Content-Type-Options"
+                            value: "nosniff"
+                          append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                        - header:
+                            key: "X-Frame-Options"
+                            value: "DENY"
+                          append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                        - header:
+                            key: "Referrer-Policy"
+                            value: "strict-origin-when-cross-origin"
+                          append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                        - header:
+                            key: "Content-Security-Policy"
+                            value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+                          append_action: OVERWRITE_IF_EXISTS_OR_ADD
                       routes:
                         # Long-running, NON-IDEMPOTENT analysis POSTs.
                         # These trigger a full TA+Macro+RAG+LLM cycle

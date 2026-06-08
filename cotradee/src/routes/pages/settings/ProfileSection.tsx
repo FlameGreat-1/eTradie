@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth, useGoogleOAuth } from '@/features/auth';
-import { changePassword } from '@/features/auth/api/profile';
+import { changePassword, logoutAll } from '@/features/auth/api/profile';
+import { broadcastLogoutAndRedirect } from '@/lib/axios';
 import { env } from '@/config/env';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 export default function ProfileSection() {
   const { user } = useAuth();
@@ -44,6 +46,8 @@ export default function ProfileSection() {
 
       {env.googleOAuthEnabled && <ConnectedAccountsPanel />}
 
+      <ActiveSessionsPanel />
+
       <section>
         <div className="flex flex-col gap-0.5 mb-4">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Security</div>
@@ -75,6 +79,70 @@ export default function ProfileSection() {
         </form>
       </section>
     </div>
+  );
+}
+
+function ActiveSessionsPanel() {
+  const [confirming, setConfirming] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSignOutEverywhere = async () => {
+    setError('');
+    setPending(true);
+    try {
+      await logoutAll();
+      // The server has revoked every refresh token (including this
+      // session's). Broadcast to peer tabs and redirect to /login via
+      // the same channel the axios layer uses on a hard sign-out.
+      broadcastLogoutAndRedirect('user');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not sign out of all sessions');
+      setPending(false);
+      setConfirming(false);
+    }
+  };
+
+  return (
+    <section>
+      <div className="flex flex-col gap-0.5 mb-4">
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-black/30 dark:text-white/30">Security</div>
+        <h3 className="text-base font-bold text-black dark:text-white tracking-tight">Active Sessions</h3>
+      </div>
+      <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-black/[0.01] dark:bg-white/[0.02] p-6 space-y-5 shadow-sm">
+        {error && (
+          <div role="alert" className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-[11px] font-bold text-red-500 tracking-tight">
+            <span className="uppercase text-[9px] font-black tracking-widest bg-red-500/10 px-2 py-0.5 rounded-full mr-2">Error</span>
+            {error}
+          </div>
+        )}
+        <p className="text-[12px] font-medium text-black/50 dark:text-white/50 leading-relaxed">
+          Sign out of every device and browser where your account is
+          currently logged in. Use this if you suspect your account has
+          been accessed from a device you do not recognise. You will need
+          to sign in again on this device too.
+        </p>
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          disabled={pending}
+          className="rounded-xl border border-red-500/20 bg-red-500/5 px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-all disabled:opacity-40"
+        >
+          {pending ? 'Signing out\u2026' : 'Sign out of all sessions'}
+        </button>
+      </div>
+
+      <ConfirmDialog
+        open={confirming}
+        danger
+        title="Sign out everywhere"
+        description="This revokes every active session on every device, including this one. You will be returned to the login screen."
+        confirmLabel="Sign out everywhere"
+        pending={pending}
+        onConfirm={handleSignOutEverywhere}
+        onCancel={() => setConfirming(false)}
+      />
+    </section>
   );
 }
 

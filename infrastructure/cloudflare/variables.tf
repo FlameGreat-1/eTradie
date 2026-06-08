@@ -44,6 +44,39 @@ variable "always_use_https" {
 }
 
 # ---------------------------------------------------------------------------
+# HSTS (Strict-Transport-Security), emitted at the Cloudflare TLS edge via
+# the response-header transform ruleset in main.tf.
+# ---------------------------------------------------------------------------
+
+variable "enable_hsts" {
+  description = "Emit Strict-Transport-Security at the Cloudflare edge via a response-header transform rule. Default ON."
+  type        = bool
+  default     = true
+}
+
+variable "hsts_max_age" {
+  description = "HSTS max-age in seconds. Default 31536000 (1 year), the value browsers require for HSTS preload eligibility."
+  type        = number
+  default     = 31536000
+  validation {
+    condition     = var.hsts_max_age >= 0 && var.hsts_max_age <= 63072000
+    error_message = "hsts_max_age must be 0..63072000 (0..2 years)."
+  }
+}
+
+variable "hsts_include_subdomains" {
+  description = "Append includeSubDomains to the HSTS header so every subdomain of the zone is covered."
+  type        = bool
+  default     = true
+}
+
+variable "hsts_preload" {
+  description = "Append preload to the HSTS header. Default OFF: preload is a deliberate, hard-to-reverse opt-in; flip it ON only after confirming every subdomain is HTTPS-only and you intend to submit to the browser preload list."
+  type        = bool
+  default     = false
+}
+
+# ---------------------------------------------------------------------------
 # TIER4 A2c: abuse-prevention edge controls (WAF / rate limiting / bot).
 # ---------------------------------------------------------------------------
 

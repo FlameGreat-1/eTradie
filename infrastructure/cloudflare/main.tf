@@ -200,3 +200,35 @@ resource "cloudflare_bot_management" "this" {
     }
   }
 }
+
+#
+# 7. HSTS (Strict-Transport-Security) at the TLS-terminating edge.
+#
+#    Emitted as a response-header transform rule. The other browser
+#    security headers are set at Envoy; HSTS is set here so it is only
+#    ever asserted over the Cloudflare-terminated TLS connection. The
+#    value is composed from the hsts_* variables.
+#
+resource "cloudflare_ruleset" "hsts" {
+  count = var.enable_hsts ? 1 : 0
+
+  zone_id     = var.zone_id
+  name        = "etradie-hsts"
+  description = "TIER5: emit Strict-Transport-Security on every edge response. Managed by infrastructure/cloudflare."
+  kind        = "zone"
+  phase       = "http_response_headers_transform"
+
+  rules {
+    ref         = "set_hsts"
+    description = "Set Strict-Transport-Security on all responses"
+    expression  = "true"
+    action      = "rewrite"
+    action_parameters {
+      headers {
+        name      = "Strict-Transport-Security"
+        operation = "set"
+        value     = "max-age=${var.hsts_max_age}${var.hsts_include_subdomains ? "; includeSubDomains" : ""}${var.hsts_preload ? "; preload" : ""}"
+      }
+    }
+  }
+}

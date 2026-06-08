@@ -4,7 +4,10 @@ node_modules/
 # Build output
 dist/
 
-# Environment (keep .env committed, .env.local for personal overrides)
+# Environment. Only .env.example (public placeholders) is tracked; any
+# real .env stays local because Vite inlines VITE_-prefixed values into
+# the public bundle.
+.env
 .env.local
 .env.*.local
 

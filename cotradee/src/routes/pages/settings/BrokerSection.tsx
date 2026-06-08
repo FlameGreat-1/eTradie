@@ -4,6 +4,7 @@ import {
   useCreateBrokerConnection, useActivateBroker, useTestBrokerConnection, useDeleteBrokerConnection,
 } from '@/features/broker/api/brokerConnections';
 import { Plus, Trash2, Zap, Check, ChevronDown, Loader2 } from 'lucide-react';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 type BrokerForm = {
   connection_type: 'ea' | 'metaapi' | 'hosted';
@@ -41,6 +42,19 @@ export default function BrokerSection() {
   const [testingIds, setTestingIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [activatingIds, setActivatingIds] = useState<Set<string>>(new Set());
+  // Connection pending disconnect confirmation. The delete button opens
+  // the dialog; the mutation only fires after the user confirms.
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setDeletingIds((s) => setMember(s, id, true));
+    deleteConn.mutate(id, {
+      onSettled: () => setDeletingIds((s) => setMember(s, id, false)),
+    });
+    setPendingDelete(null);
+  };
 
   const setMember = (set: Set<string>, id: string, present: boolean): Set<string> => {
     const next = new Set(set);
@@ -234,12 +248,7 @@ export default function BrokerSection() {
                 )}
                 <button
                   type="button"
-                  onClick={() => {
-                    setDeletingIds((s) => setMember(s, id, true));
-                    deleteConn.mutate(id, {
-                      onSettled: () => setDeletingIds((s) => setMember(s, id, false)),
-                    });
-                  }}
+                  onClick={() => setPendingDelete({ id, name: String(c.name) })}
                   disabled={deletingIds.has(id)}
                   className="p-2 rounded-lg text-black/40 dark:text-white/40 hover:text-red-500 hover:bg-red-500/10 transition-all opacity-100 disabled:opacity-40"
                   title="Delete"
@@ -253,6 +262,21 @@ export default function BrokerSection() {
           );
         })}
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        danger
+        title="Disconnect broker"
+        description={
+          pendingDelete
+            ? `Disconnect "${pendingDelete.name}"? This removes the connection and any hosted node it provisioned. This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Disconnect"
+        pending={pendingDelete ? deletingIds.has(pendingDelete.id) : false}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

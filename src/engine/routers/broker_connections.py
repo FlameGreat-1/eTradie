@@ -59,20 +59,26 @@ def _ea_connection_type_disabled() -> bool:
 
 
 def _serialize_broker_connection(row) -> dict:
-    """Serialize a BrokerConnectionRow to a JSON-safe dict."""
+    """Serialize a BrokerConnectionRow to a JSON-safe dict.
+
+    For hosted connections ea_host/ea_port hold the cluster-internal
+    Kubernetes service DNS and ZMQ port, so they are nulled; for the 'ea'
+    type they are the user's own VPS endpoint and are returned.
+    hosted_container_id is an internal identifier and is never serialized.
+    """
+    is_hosted = row.connection_type == "hosted"
     return {
         "id": str(row.id),
         "connection_type": row.connection_type,
         "name": row.name,
-        "ea_host": row.ea_host,
-        "ea_port": row.ea_port,
+        "ea_host": None if is_hosted else row.ea_host,
+        "ea_port": None if is_hosted else row.ea_port,
         "metaapi_account_id": row.metaapi_account_id,
         "metaapi_region": row.metaapi_region,
         "mt5_server": row.mt5_server,
         "mt5_login": row.mt5_login,
         "mt5_symbol": getattr(row, "mt5_symbol", None),
         "platform": getattr(row, "platform", "mt5"),
-        "hosted_container_id": getattr(row, "hosted_container_id", None),
         "is_active": row.is_active,
         "is_primary": row.is_primary,
         "status": row.status,
@@ -206,7 +212,7 @@ async def create_broker_connection(
                 )
                 raise HTTPException(
                     status_code=400,
-                    detail=f"MetaAPI provisioning failed: {exc}"
+                    detail="Broker provisioning failed. Check the broker server, login and password and try again."
                 )
 
         elif body.connection_type == "hosted":
@@ -656,20 +662,27 @@ async def test_broker_connection(
             platform_token=platform_token,
         )
     except Exception as exc:
-        # Update status in DB.
+        # The raw cause is logged for operators; the persisted
+        # status_message is re-served on every later fetch, so keep it
+        # generic.
+        logger.error(
+            "broker_test_create_client_failed",
+            extra={"connection_id": connection_id, "error": str(exc)},
+        )
+        generic_msg = "Could not establish a broker client. Check the connection's credentials and try again."
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
             await repo.update_status(
                 connection_id,
                 user_id=user.user_id,
                 status=STATUS_ERROR,
-                status_message=f"Failed to create client: {exc}",
+                status_message=generic_msg,
             )
         return {
             "connection_id": connection_id,
             "healthy": False,
             "status": STATUS_ERROR,
-            "message": f"Failed to create client: {exc}",
+            "message": generic_msg,
         }
 
     # Run health check.

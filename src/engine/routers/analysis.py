@@ -643,7 +643,7 @@ async def rerun_analysis(
         )
     except Exception as exc:
         logger.error("rerun_ta_failed", extra={"symbol": symbol, "error": str(exc)})
-        raise HTTPException(status_code=500, detail=f"TA analysis failed: {exc}")
+        raise HTTPException(status_code=500, detail="Technical analysis failed. Please try again in a moment.")
 
     if isinstance(ta_result, dict):
         ta_analysis = ta_result
@@ -661,7 +661,7 @@ async def rerun_analysis(
     )
     if ta_status in ("error", "insufficient_data") and not ta_has_candidates:
         ta_error = ta_analysis.get("error", "unknown error")
-        saved = _save_debug_output(symbol, ta_data=ta_analysis, subdirectory="rerun")
+        _save_debug_output(symbol, ta_data=ta_analysis, subdirectory="rerun")
         return {
             "status": "completed",
             "symbol": symbol,
@@ -670,7 +670,6 @@ async def rerun_analysis(
                 "reason": f"TA analysis: {ta_error}",
                 "proceed_to_module_b": False,
             },
-            "output_files": saved,
         }
 
     # Step 2: Run macro collection.
@@ -703,7 +702,7 @@ async def rerun_analysis(
             "rerun_macro_failed", extra={"symbol": symbol, "error": str(exc)}
         )
         raise HTTPException(
-            status_code=500, detail=f"Macro collection failed: {exc}"
+            status_code=500, detail="Macro collection failed. Please try again in a moment."
         )
 
     # Derive enriched macro signal flags from collected data.
@@ -843,7 +842,7 @@ async def rerun_analysis(
         )
         raise HTTPException(
             status_code=500,
-            detail=f"RAG retrieval failed: {exc}. The LLM cannot reason without the knowledge base.",
+            detail="Knowledge retrieval failed. Please try again in a moment.",
         )
 
     if not retrieved_knowledge:
@@ -960,7 +959,7 @@ async def _rerun_process_and_return(
         logger.info(
             "rerun_processor_no_setup", extra={"symbol": symbol, "reason": str(exc)}
         )
-        saved = _save_debug_output(
+        _save_debug_output(
             symbol,
             ta_data=ta_analysis,
             macro_data=macro_analysis,
@@ -975,13 +974,12 @@ async def _rerun_process_and_return(
                 "reason": str(exc),
                 "proceed_to_module_b": False,
             },
-            "output_files": saved,
         }
     except Exception as exc:
         logger.error(
             "rerun_processor_failed", extra={"symbol": symbol, "error": str(exc)}
         )
-        saved = _save_debug_output(
+        _save_debug_output(
             symbol,
             ta_data=ta_analysis,
             macro_data=macro_analysis,
@@ -993,10 +991,9 @@ async def _rerun_process_and_return(
             "symbol": symbol,
             "result": {
                 "direction": "LLM_ERROR",
-                "reason": f"Processor failed: {exc}",
+                "reason": "Analysis processor failed. Please try again in a moment.",
                 "proceed_to_module_b": False,
             },
-            "output_files": saved,
         }
 
     # Build processor result dict.
@@ -1007,7 +1004,7 @@ async def _rerun_process_and_return(
     else:
         processor_dict = {"raw": str(result)}
 
-    saved = _save_debug_output(
+    _save_debug_output(
         symbol,
         ta_data=ta_analysis,
         macro_data=macro_analysis,
@@ -1019,5 +1016,4 @@ async def _rerun_process_and_return(
         "status": "completed",
         "symbol": symbol,
         "result": processor_dict,
-        "output_files": saved,
     }
