@@ -29,15 +29,6 @@
 
 ---
 
-
-
-
-No.
-
-That frontend section is only a **small subset** of what should be done.
-
-And regarding DevTools:
-
 > **You cannot prevent users from seeing data that the frontend has already received.**
 
 That's a fundamental web security principle.
@@ -322,6 +313,14 @@ For every field returned by every API endpoint, ask:
 If the answer is **No**, then the backend should not send it.
 
 That single rule eliminates a huge percentage of frontend data-leak vulnerabilities.
+
+
+
+
+
+
+
+
 
 
 
