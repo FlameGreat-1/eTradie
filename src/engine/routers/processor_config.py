@@ -153,7 +153,8 @@ async def update_processor_config(
     try:
         new_cfg = ProcessorConfig(**config_overrides)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid configuration: {exc}")
+        logger.error("processor_config_invalid", extra={"error": str(exc)})
+        raise HTTPException(status_code=400, detail="Invalid processor configuration. Check the provider, model and limits and try again.")
 
     if hasattr(container, "processor_llm_client"):
         await container.processor_llm_client.close()
