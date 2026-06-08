@@ -61,24 +61,16 @@ def _ea_connection_type_disabled() -> bool:
 def _serialize_broker_connection(row) -> dict:
     """Serialize a BrokerConnectionRow to a JSON-safe dict.
 
-    TIER5 (infrastructure-topology redaction): for connection_type='hosted'
-    the ea_host/ea_port are the in-cluster Kubernetes service DNS
-    ({release}.{namespace}.svc.cluster.local) and internal ZMQ port, and
-    hosted_container_id is the StatefulSet release name. None of those may
-    reach the browser. They are therefore:
-      - ea_host/ea_port: emitted ONLY for non-hosted connections (the 'ea'
-        path, where they are the user's OWN VPS host/port and are
-        legitimately user-facing); nulled for 'hosted'.
-      - hosted_container_id: never serialized for any type. Recovery and GC
-        key on broker_connections.id server-side, never on the wire.
+    For hosted connections ea_host/ea_port hold the cluster-internal
+    Kubernetes service DNS and ZMQ port, so they are nulled; for the 'ea'
+    type they are the user's own VPS endpoint and are returned.
+    hosted_container_id is an internal identifier and is never serialized.
     """
     is_hosted = row.connection_type == "hosted"
     return {
         "id": str(row.id),
         "connection_type": row.connection_type,
         "name": row.name,
-        # ea_host/ea_port are the user's own VPS endpoint for 'ea'; for
-        # 'hosted' they are cluster-internal DNS and are redacted.
         "ea_host": None if is_hosted else row.ea_host,
         "ea_port": None if is_hosted else row.ea_port,
         "metaapi_account_id": row.metaapi_account_id,
@@ -218,8 +210,6 @@ async def create_broker_connection(
                     "metaapi_provisioning_error_in_api",
                     extra={"error": str(exc)},
                 )
-                # TIER5: do not leak the raw provisioner/SDK exception to
-                # the browser. The detail is logged above for operators.
                 raise HTTPException(
                     status_code=400,
                     detail="Broker provisioning failed. Check the broker server, login and password and try again."
@@ -672,9 +662,9 @@ async def test_broker_connection(
             platform_token=platform_token,
         )
     except Exception as exc:
-        # TIER5: log the raw cause for operators, but never persist or
-        # return it to the browser (status_message is re-served on every
-        # later connection fetch). Use a stable generic message on both.
+        # The raw cause is logged for operators; the persisted
+        # status_message is re-served on every later fetch, so keep it
+        # generic.
         logger.error(
             "broker_test_create_client_failed",
             extra={"connection_id": connection_id, "error": str(exc)},
