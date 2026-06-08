@@ -959,7 +959,7 @@ async def _rerun_process_and_return(
         logger.info(
             "rerun_processor_no_setup", extra={"symbol": symbol, "reason": str(exc)}
         )
-        saved = _save_debug_output(
+        _save_debug_output(
             symbol,
             ta_data=ta_analysis,
             macro_data=macro_analysis,
@@ -974,13 +974,12 @@ async def _rerun_process_and_return(
                 "reason": str(exc),
                 "proceed_to_module_b": False,
             },
-            "output_files": saved,
         }
     except Exception as exc:
         logger.error(
             "rerun_processor_failed", extra={"symbol": symbol, "error": str(exc)}
         )
-        saved = _save_debug_output(
+        _save_debug_output(
             symbol,
             ta_data=ta_analysis,
             macro_data=macro_analysis,
@@ -992,10 +991,9 @@ async def _rerun_process_and_return(
             "symbol": symbol,
             "result": {
                 "direction": "LLM_ERROR",
-                "reason": f"Processor failed: {exc}",
+                "reason": "Analysis processor failed. Please try again in a moment.",
                 "proceed_to_module_b": False,
             },
-            "output_files": saved,
         }
 
     # Build processor result dict.
@@ -1006,7 +1004,7 @@ async def _rerun_process_and_return(
     else:
         processor_dict = {"raw": str(result)}
 
-    saved = _save_debug_output(
+    _save_debug_output(
         symbol,
         ta_data=ta_analysis,
         macro_data=macro_analysis,
@@ -1018,5 +1016,4 @@ async def _rerun_process_and_return(
         "status": "completed",
         "symbol": symbol,
         "result": processor_dict,
-        "output_files": saved,
     }
