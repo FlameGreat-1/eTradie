@@ -59,20 +59,34 @@ def _ea_connection_type_disabled() -> bool:
 
 
 def _serialize_broker_connection(row) -> dict:
-    """Serialize a BrokerConnectionRow to a JSON-safe dict."""
+    """Serialize a BrokerConnectionRow to a JSON-safe dict.
+
+    TIER5 (infrastructure-topology redaction): for connection_type='hosted'
+    the ea_host/ea_port are the in-cluster Kubernetes service DNS
+    ({release}.{namespace}.svc.cluster.local) and internal ZMQ port, and
+    hosted_container_id is the StatefulSet release name. None of those may
+    reach the browser. They are therefore:
+      - ea_host/ea_port: emitted ONLY for non-hosted connections (the 'ea'
+        path, where they are the user's OWN VPS host/port and are
+        legitimately user-facing); nulled for 'hosted'.
+      - hosted_container_id: never serialized for any type. Recovery and GC
+        key on broker_connections.id server-side, never on the wire.
+    """
+    is_hosted = row.connection_type == "hosted"
     return {
         "id": str(row.id),
         "connection_type": row.connection_type,
         "name": row.name,
-        "ea_host": row.ea_host,
-        "ea_port": row.ea_port,
+        # ea_host/ea_port are the user's own VPS endpoint for 'ea'; for
+        # 'hosted' they are cluster-internal DNS and are redacted.
+        "ea_host": None if is_hosted else row.ea_host,
+        "ea_port": None if is_hosted else row.ea_port,
         "metaapi_account_id": row.metaapi_account_id,
         "metaapi_region": row.metaapi_region,
         "mt5_server": row.mt5_server,
         "mt5_login": row.mt5_login,
         "mt5_symbol": getattr(row, "mt5_symbol", None),
         "platform": getattr(row, "platform", "mt5"),
-        "hosted_container_id": getattr(row, "hosted_container_id", None),
         "is_active": row.is_active,
         "is_primary": row.is_primary,
         "status": row.status,
