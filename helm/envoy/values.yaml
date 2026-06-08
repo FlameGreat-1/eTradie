@@ -325,6 +325,43 @@ config:
       maxHeapSizeBytes: 2147483648
       globalMaxConnections: 50000
 
+# ---------------------------------------------------------------------------
+# TIER 5: browser security response headers.
+#
+# Emitted by the Envoy HCM on EVERY response via response_headers_to_add
+# (see templates/configmap.yaml). This Envoy fronts the API origin
+# (api.* -> gateway_cluster, plus the billing webhook routes); it serves
+# JSON, never HTML or scripts, so the CSP below is the locked-down
+# API-origin policy: nothing may be loaded, executed, or framed from this
+# origin. That is correct and SAFE for an API surface and cannot affect
+# the SPA, whose HTML document is served by a separate static host and
+# carries its own page-level CSP.
+#
+# HSTS is intentionally NOT set here: it is emitted once at the
+# TLS-terminating Cloudflare edge (infrastructure/cloudflare/main.tf,
+# cloudflare_ruleset.hsts) so it is only ever asserted over the
+# Cloudflare-terminated TLS connection. Setting it here too would be a
+# duplicate with a weaker trust boundary.
+#
+# Every value is operator-overridable per environment (values-staging /
+# values-production). No hostname is hardcoded in the chart.
+securityHeaders:
+  # Master switch. When false the response_headers_to_add block is not
+  # rendered at all, so the chart degrades to its previous behaviour.
+  enabled: true
+  # Content-Security-Policy for the API origin. default-src 'none'
+  # forbids loading/executing anything from api.*; frame-ancestors 'none'
+  # blocks clickjacking via <frame>/<iframe>/<embed>/<object>; base-uri
+  # 'none' blocks <base> tag injection; form-action 'none' blocks the
+  # origin being used as a form target. An API never needs more.
+  contentSecurityPolicy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+  # Defence-in-depth alongside frame-ancestors for legacy browsers.
+  xFrameOptions: "DENY"
+  # Stop MIME sniffing of API responses.
+  xContentTypeOptions: "nosniff"
+  # Never leak the API URL (which can carry resource ids) cross-origin.
+  referrerPolicy: "no-referrer"
+
 # WASM filter binary. Chart REQUIRES this to be set; rendering fails
 # without it.
 #
