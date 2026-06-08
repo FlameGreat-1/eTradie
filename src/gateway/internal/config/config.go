@@ -2,11 +2,43 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
 	"github.com/kelseyhightower/envconfig"
 )
+
+// validateProxyUpstream enforces that a browser-facing reverse-proxy
+// upstream URL (Option B — single public entry point) is a usable
+// http(s) base URL. In production/staging it additionally refuses a
+// localhost/127.0.0.1 host: such a value in cluster means the service
+// DNS wiring is missing and every proxied dashboard request would fail
+// closed against the gateway pod's own loopback. Dev/test are exempt so
+// docker-compose and local runs keep working against localhost ports.
+func validateProxyUpstream(name, raw string) error {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return fmt.Errorf("%s must not be empty", name)
+	}
+	u, err := url.Parse(v)
+	if err != nil {
+		return fmt.Errorf("%s is not a valid URL: %w", name, err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("%s must be an http(s) URL, got scheme %q", name, u.Scheme)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("%s must include a host", name)
+	}
+	if isProdLikeEnv() {
+		host := strings.ToLower(u.Hostname())
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+			return fmt.Errorf("%s points at localhost in production; set the in-cluster service DNS (e.g. http://execution.<ns>.svc.cluster.local:8081)", name)
+		}
+	}
+	return nil
+}
 
 // Config holds all gateway configuration loaded from environment variables.
 // Prefix: GATEWAY_. Validated at startup; the application fails fast on
@@ -80,6 +112,17 @@ type Config struct {
 	ManagementEnabled   bool   `envconfig:"MANAGEMENT_ENABLED" default:"true"`
 	ManagementAddr      string `envconfig:"MANAGEMENT_ADDR" default:"localhost:50054"`
 	ManagementTimeoutMs int    `envconfig:"MANAGEMENT_TIMEOUT_MS" default:"5000"`
+
+	// Browser-facing reverse-proxy upstreams (Option B — single public
+	// entry point). The gateway proxies the SPA's /api/execution/* and
+	// /api/management/* prefixes to these internal HTTP servers so the
+	// browser only ever talks to the gateway origin. These are the HTTP
+	// surfaces (execution http_server.go :8081, management http :8083),
+	// NOT the gRPC addresses above which the orchestrator/kill-switch use.
+	// Engine's browser HTTP surface (/api/analysis|broker|llm|usage|
+	// processor/*) is proxied to EngineHTTPURL, already configured above.
+	ExecutionHTTPURL  string `envconfig:"EXECUTION_HTTP_URL" default:"http://localhost:8081"`
+	ManagementHTTPURL string `envconfig:"MANAGEMENT_HTTP_URL" default:"http://localhost:8083"`
 
 	// Billing microservice. The gateway calls /internal/checkout on this
 	// service so provider API keys never leak into user-facing services.
@@ -221,6 +264,22 @@ func (c *Config) validate() error {
 	}
 	if c.HTTPPort == c.GRPCPort {
 		return fmt.Errorf("HTTP_PORT and GRPC_PORT must be different, both are %d", c.HTTPPort)
+	}
+
+	// Browser-facing reverse-proxy upstream validation (Option B).
+	// Both must be non-empty, parseable http(s) URLs. In production/
+	// staging they must NOT point at localhost: a localhost upstream in
+	// cluster silently masks a missing service-DNS wiring and would make
+	// the gateway proxy fail closed on every dashboard request. Mirrors
+	// the Redis prod guard below.
+	if err := validateProxyUpstream("EXECUTION_HTTP_URL", c.ExecutionHTTPURL); err != nil {
+		return err
+	}
+	if err := validateProxyUpstream("MANAGEMENT_HTTP_URL", c.ManagementHTTPURL); err != nil {
+		return err
+	}
+	if err := validateProxyUpstream("ENGINE_HTTP_URL", c.EngineHTTPURL); err != nil {
+		return err
 	}
 
 	// Billing client validation.
