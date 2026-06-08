@@ -439,13 +439,32 @@ resume from the first unchecked item.
 - [x] **Step 5b — Header generator**: `cotradee/scripts/generate-vercel-headers.mjs`
       now derives `connect-src` from `VITE_API_URL`/`VITE_API_WS_URL`; committed
       `vercel.json` matches the baseline output so `lint:headers` passes.
-- [ ] **Step 6 — Gateway e2e proxy test** in `src/gateway/e2etest/`.
-- [ ] **Step 7 — Helm wiring**: gateway `values*.yaml`/`configmap.yaml` set
-      `GATEWAY_EXECUTION_HTTP_URL` + `GATEWAY_MANAGEMENT_HTTP_URL` to in-cluster
-      service DNS; confirm engine/execution/management remain ClusterIP with
-      gateway-only NetworkPolicy/authz.
-- [ ] **Step 8 — docker-compose**: set the gateway's execution/management HTTP
-      URLs to compose service names for local dev.
+- [~] **Step 6 — Gateway e2e proxy test** in `src/gateway/e2etest/`: DEFERRED by
+      explicit instruction to focus on the main wiring first. The proxy is
+      exercised by the verification checklist in §6 once deployed.
+- [x] **Step 7 — Helm wiring**: `helm/gateway/values.yaml` +
+      `templates/configmap.yaml` set `GATEWAY_EXECUTION_HTTP_URL`
+      (`http://execution.etradie-system.svc.cluster.local:8080`) and
+      `GATEWAY_MANAGEMENT_HTTP_URL`
+      (`http://management.etradie-system.svc.cluster.local:8083`); gateway
+      egress NetworkPolicy extended to execution :8080 and management :8083.
+      VERIFIED: execution & management charts ALREADY provisioned
+      gateway→HTTP ingress (`networkPolicy.ingress` on :8080 / :8083) and list
+      `etradie-gateway` as the dashboard-HTTP caller in `linkerdPolicy`, so no
+      change was needed on those two services. All services remain ClusterIP.
+- [x] **Step 8 — docker-compose**: gateway service sets
+      `GATEWAY_EXECUTION_HTTP_URL=http://execution:8080` and
+      `GATEWAY_MANAGEMENT_HTTP_URL=http://management:8083` for local dev.
+
+### Ports reference (verified from source, prevents the :8081/:8083 trap)
+
+* Execution container HTTP listen port: **8080** (`EXECUTION_HTTP_PORT` default
+  in `src/execution/internal/config/config.go`; Helm Service `http` 8080).
+  docker-compose maps host `8081 -> container 8080`; in-cluster + in-compose-
+  network the proxy targets **8080**.
+* Management container HTTP listen port: **8083** (`MANAGEMENT_HTTP_PORT`;
+  Helm Service `http` 8083; compose `8083:8083`).
+* Engine HTTP: **8000** (`GATEWAY_ENGINE_HTTP_URL`, already configured).
 
 ## 6. Verification checklist (post-implementation)
 
