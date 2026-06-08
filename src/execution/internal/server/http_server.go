@@ -330,7 +330,7 @@ func (s *HTTPServer) putSettings(w http.ResponseWriter, r *http.Request) {
 	req.ExecutionMode = strings.ToUpper(req.ExecutionMode)
 	if err := s.settings.SaveAll(r.Context(), userID, &req); err != nil {
 		s.log.Error().Err(err).Msg("put_settings_failed")
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to save settings"})
 		return
 	}
 
@@ -474,7 +474,7 @@ func (s *HTTPServer) handleCancelOrder(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]interface{}{
 			"success": false,
 			"status":  "NOT_FOUND",
-			"error":   err.Error(),
+			"error":   "could not cancel the order; it may already be filled or cancelled",
 		})
 		return
 	}
