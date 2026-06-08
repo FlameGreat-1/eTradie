@@ -20,16 +20,22 @@
 | ------- | ------------------------------------- | ----------------------------------------------------- | ----- |
 | Metrics | Prometheus `:9090` + Grafana `:3000`  | Prometheus Operator (`ServiceMonitor` + `PrometheusRule`) | LIVE |
 | Logs    | container stdout (JSON)               | Loki + Promtail in `etradie-observability`            | LIVE |
-| Traces  | Jaeger `:16686` (OTLP `:4317`)        | **DARK by design** — no collector/Jaeger deployed, OTEL endpoint empty | OPT-IN |
+| Traces  | Jaeger `:16686` (OTLP `:4317`)        | OTel Collector + Jaeger in `etradie-observability`; all services export OTLP | LIVE |
 
-**Read this first:** distributed tracing is fully instrumented in the
-code (engine `src/engine/shared/tracing/otel.py`, gateway
-`src/gateway/internal/observability/tracing.go`) and works end to end in
-local docker-compose. In **production it is intentionally OFF**: the
-OTLP exporter endpoint is empty in the prod/staging overlays and no
-OTel Collector or Jaeger backend is deployed in cluster. Section 4 is
-the exact procedure to turn it on. Metrics and logs require no such
-step — they are live as soon as the charts are synced.
+**Read this first:** all three pillars are live in cluster. Distributed
+tracing is instrumented in code (engine
+`src/engine/shared/tracing/otel.py`, gateway
+`src/gateway/internal/observability/tracing.go`), and the
+`helm/observability-logs` chart now deploys an **OpenTelemetry
+Collector + Jaeger** (enabled in the prod + staging overlays via
+`tracing.enabled=true`). Every service's prod + staging overlay sets
+its OTEL endpoint to
+`otel-collector.etradie-observability.svc.cluster.local:4317`, so spans
+flow Browser → gateway → (engine | execution | management) → Collector
+→ Jaeger. Section 4 covers how the stack is wired and how to verify,
+tune, and roll it back. Tracing stays a clean no-op only where the
+endpoint is left empty (a bare `helm template` / dev render with
+`tracing.enabled=false`).
 
 ---
 
@@ -168,82 +174,71 @@ Service-name keys (`*.otelServiceName`) are already set
 * **Local docker-compose:** Jaeger runs (`jaegertracing/all-in-one`,
   `COLLECTOR_OTLP_ENABLED=true`, OTLP ingest `:4317`, UI `:16686`).
   Grafana has a Jaeger datasource (`docker/grafana/datasources.yml`).
-  Tracing works end to end locally.
-* **Cluster (staging/production): OFF.** The base values set
-  `otelEndpoint: ""` and the prod/staging overlays do NOT override it,
-  so the exporters are no-ops. No OTel Collector and no Jaeger are
-  deployed by any chart (`helm/observability-logs` deploys ONLY Loki +
-  Promtail). The engine + mt-node NetworkPolicy egress ALLOW
-  `otel-collector.etradie-observability.svc.cluster.local:4317`, but
-  nothing materialises that collector yet.
+* **Cluster (staging/production): LIVE.** `helm/observability-logs`
+  deploys, in the `etradie-observability` namespace:
+  * an **OpenTelemetry Collector** (Deployment + Service `otel-collector`,
+    OTLP/gRPC `:4317` + OTLP/HTTP `:4318`, memory-limiter + batch
+    processors, self-metrics `:8888`), and
+  * **Jaeger all-in-one** (Deployment + Service, OTLP ingest `:4317`,
+    query UI `:16686`, admin/metrics `:14269`, in-memory store).
+  Both are gated by `tracing.enabled` (false in base, true in the prod
+  + staging overlays). Every service's prod + staging overlay sets its
+  OTEL endpoint to `otel-collector.etradie-observability.svc.cluster.local:4317`.
+  The NetworkPolicies lock the collector's ingress to the
+  `etradie-system` namespace (OTLP) + Prometheus (self-metrics), and
+  its egress to Jaeger + DNS; Jaeger ingress is collector + Grafana
+  (UI) + Prometheus only.
 
 ---
 
-## 4. Procedure: enable tracing in a cluster
+## 4. Tracing stack — wiring, verify, tune, roll back
 
-This is the one observability lever that requires deliberate operator
-action. The code path is ready; you are deploying a backend and flipping
-a config value.
+The collector + Jaeger are deployed and tracing is ON in prod + staging.
+This section is the operator reference for that stack.
 
-### 4.1 Decide the backend
+### 4.1 What is deployed (and the contract)
 
-Two supported shapes:
+* Templates: `helm/observability-logs/templates/otel-collector-*.yaml`,
+  `jaeger-*.yaml`, `networkpolicy-tracing.yaml`. Values: the
+  `tracing.*` block in `values.yaml` (+ prod/staging overlays).
+* **Fixed contract:** the collector Service is named exactly
+  `otel-collector` on `:4317`, so
+  `otel-collector.etradie-observability.svc.cluster.local:4317`
+  resolves and matches the per-service egress
+  (`app.kubernetes.io/name: otel-collector`, port 4317) already present
+  in every service's NetworkPolicy. Do NOT rename the Service or move
+  its namespace without updating those egress rules + the overlays.
+* Pipeline: service SDK → Collector (OTLP, batched, memory-bounded) →
+  Jaeger (OTLP) → Jaeger in-memory store → query UI.
 
-* **(A) In-cluster OTel Collector + Jaeger** — self-hosted, no egress.
-* **(B) SaaS OTLP endpoint** (Grafana Cloud Tempo, Honeycomb, etc.) —
-  point the services straight at the vendor's OTLP/gRPC ingest and
-  skip the collector. You must also widen the service NetworkPolicy
-  egress to the vendor endpoint (the current egress only allows the
-  in-cluster `otel-collector` address).
+### 4.2 Per-service OTEL endpoint (where it is set)
 
-### 4.2 (A) Deploy the collector + Jaeger
+| Service | Overlay key (prod + staging)        |
+| ------- | ----------------------------------- |
+| Engine  | `config.observability.otelEndpoint` |
+| Gateway | `config.gateway.otelEndpoint`       |
+| Execution | `config.execution.otelEndpoint`   |
+| Management | `config.management.otelEndpoint` |
 
-Deploy into the `etradie-observability` namespace (already created by
-`helm/observability-logs`, and already whitelisted in every service's
-NetworkPolicy egress for `:4317`). Minimum viable shape:
-
-* An **OTel Collector** Deployment + Service named `otel-collector`,
-  OTLP/gRPC receiver on `:4317`, exporting to Jaeger.
-* A **Jaeger** backend (all-in-one for staging; Jaeger + a real store
-  for production) with its query UI behind the same access controls as
-  Grafana (do NOT expose `:16686` publicly).
-
-> NOTE: there is currently no `helm/tracing` chart. If you choose path
-> (A), add one (mirror the security posture of `helm/observability-logs`:
-> ClusterIP, NetworkPolicy restricting the collector's ingress to the
-> service SAs and its egress to Jaeger, non-root + RO-rootfs + drop-ALL).
-> Wire its ServiceMonitor with `prometheus: kube-prometheus` so the
-> collector's own pipeline metrics are scraped.
-
-### 4.3 Flip the endpoint in the overlays
-
-Set the OTLP endpoint in EACH service's production (and staging)
-overlay. For path (A) in-cluster:
-
-```yaml
-# helm/engine/values-production.yaml
-config:
-  observability:
-    otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
-
-# helm/gateway/values-production.yaml
-config:
-  gateway:
-    otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
-
-# helm/execution/values-production.yaml  -> config.execution.otelEndpoint
-# helm/management/values-production.yaml -> config.management.otelEndpoint
-```
-
-Sync via ArgoCD (the child Applications pick up the overlay). The
-services read the endpoint at boot, so a rollout restart is required
-for the change to take effect:
+All set to `otel-collector.etradie-observability.svc.cluster.local:4317`.
+After changing any of these, rollout-restart (the value is read at
+boot):
 
 ```bash
 kubectl -n etradie-system rollout restart deploy/engine deploy/gateway \
   deploy/execution
 kubectl -n etradie-system rollout restart deploy/management   # singleton; Recreate strategy
 ```
+
+### 4.3 Alternative backend (SaaS OTLP)
+
+To export to a vendor (Grafana Cloud Tempo, Honeycomb, …) instead of
+in-cluster Jaeger: set `tracing.jaeger.enabled=false`, point the
+collector's `otlp/jaeger` exporter at the vendor (edit
+`otel-collector-config.yaml` / parameterise it), and widen the
+collector's egress NetworkPolicy to the vendor endpoint. The services
+still export to the in-cluster collector, so their overlays are
+unchanged.
 
 ### 4.4 Verify
 
@@ -262,8 +257,31 @@ kubectl -n etradie-system logs deploy/engine  | grep tracing_initialized
 
 ### 4.5 Roll back
 
-Set `otelEndpoint` back to `""` in the overlay and rollout-restart. The
-exporters revert to no-ops immediately; no other change is needed.
+Two levers, smallest blast radius first:
+
+* **Disable one service's export:** set its `otelEndpoint` back to `""`
+  in the overlay and rollout-restart that deployment. Its exporter
+  reverts to a no-op immediately; the rest keep tracing.
+* **Tear down the backend:** set `tracing.enabled=false` in the
+  `observability-logs` overlay and sync. The Collector + Jaeger +
+  their NetworkPolicies are removed. Leave the service `otelEndpoint`s
+  set or clear them too — with the collector gone the SDK simply fails
+  the dial and drops spans (BatchSpanProcessor swallows export errors;
+  it does NOT block request handling), but clearing the endpoints is
+  tidier and silences the export-retry logs.
+
+### 4.6 Tuning
+
+* **Span loss under load:** raise `tracing.jaeger.memoryMaxTraces` and
+  the collector's `batch` size, or move Jaeger to a durable store.
+* **Durable / HA traces:** the all-in-one in-memory store is ephemeral
+  (lost on restart). For production-grade retention, point
+  `tracing.jaeger.image` at a badger/Elasticsearch-backed Jaeger (or
+  split collector/query) and add persistence — deliberately out of
+  scope for this chart's minimal footprint.
+* **Collector pipeline metrics:** scraped on `:8888` via the
+  collector's ServiceMonitor (`prometheus: kube-prometheus`); watch
+  `otelcol_processor_dropped_spans` / `otelcol_exporter_send_failed_spans`.
 
 ---
 
