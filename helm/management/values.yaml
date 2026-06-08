@@ -178,10 +178,20 @@ initContainer:
       cpu: 50m
       memory: 32Mi
 
+# SINGLETON CONSTRAINT (see replicaCount above). Autoscaling is OFF in
+# the base chart: scaling management above 1 replica re-introduces the
+# duplicate-firing problem (every EOD tick / weekly report / news poll /
+# service-token renewal fires once per pod) and corrupts the per-pod
+# in-memory active-trades + tick state. The HPA min/max are pinned to 1
+# so that even if an operator flips enabled=true without reading the
+# constraint, the autoscaler cannot grow the Deployment. The production
+# and staging overlays keep this disabled; do NOT raise these without
+# first moving the four background loops behind a Lease/CronJob and the
+# in-memory state behind Redis. Audit ref: MG-C1.
 autoscaling:
-  enabled: true
-  minReplicas: 2
-  maxReplicas: 4
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
   behavior:
@@ -206,8 +216,14 @@ autoscaling:
           periodSeconds: 30
       selectPolicy: Max
 
+# SINGLETON CONSTRAINT (see replicaCount + autoscaling above). With
+# replicaCount=1 a minAvailable>=1 PDB would block every voluntary node
+# drain forever (there is no second pod to keep available), so the PDB
+# is disabled in the base chart to match the production overlay. The
+# ~30s recreate gap on a drain is tolerated by every upstream caller's
+# retry path. Audit ref: MG-C1.
 podDisruptionBudget:
-  enabled: true
+  enabled: false
   minAvailable: 1
   unhealthyPodEvictionPolicy: IfHealthyBudget
 
