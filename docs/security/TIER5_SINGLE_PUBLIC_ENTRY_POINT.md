@@ -409,6 +409,44 @@ For `helm/engine`, `helm/execution`, `helm/management`, `helm/billing`:
 
 ---
 
+## 5b. Implementation progress tracker
+
+This section is updated as each step lands on branch
+`docs/tier5-single-entry-point-execution-plan` (MR !118). If a chat ends,
+resume from the first unchecked item.
+
+- [x] **Step 1 — Gateway config**: `EXECUTION_HTTP_URL` + `MANAGEMENT_HTTP_URL`
+      added to `src/gateway/internal/config/config.go` with `validateProxyUpstream`
+      (http(s) + host required; no localhost in prod) applied to execution,
+      management, and engine HTTP URLs.
+- [x] **Step 2 — Proxy handler**: `src/gateway/internal/server/proxy_handler.go`
+      (`ReverseProxyHandler`, per-upstream `httputil.ReverseProxy` with
+      `Rewrite`, `FlushInterval=-1` for SSE, native WS upgrade, `ErrorHandler`
+      → 502 JSON, prefix-rewrite route table).
+- [x] **Step 3 — Mount proxy**: wired into `src/gateway/internal/server/http_server.go`
+      after `RegisterProtectedRoutes`, wrapped with the same auth+CSRF chain.
+- [x] **Step 4a — Frontend env**: `cotradee/src/config/env.ts` collapsed to
+      `apiUrl`/`apiWsUrl` (`VITE_API_URL`/`VITE_API_WS_URL`) with deprecated
+      aliases pointing at the single origin.
+- [x] **Step 4b — Frontend axios**: `cotradee/src/lib/axios.ts` collapsed to
+      ONE client; `api.{gateway,engine,execution,management}` are aliases.
+- [x] **Step 4c — Call sites**: execution paths → `/api/execution/*`,
+      management paths → `/api/management/*`, tick WS → `env.apiWsUrl`.
+      (Engine `/api/broker|analysis|llm|usage|processor/*` paths unchanged —
+      identity proxy rewrite.)
+- [x] **Step 5 — env.example + CSP**: `cotradee/.env.example` collapsed to the
+      two vars; `cotradee/vercel.json` `connect-src` regenerated.
+- [x] **Step 5b — Header generator**: `cotradee/scripts/generate-vercel-headers.mjs`
+      now derives `connect-src` from `VITE_API_URL`/`VITE_API_WS_URL`; committed
+      `vercel.json` matches the baseline output so `lint:headers` passes.
+- [ ] **Step 6 — Gateway e2e proxy test** in `src/gateway/e2etest/`.
+- [ ] **Step 7 — Helm wiring**: gateway `values*.yaml`/`configmap.yaml` set
+      `GATEWAY_EXECUTION_HTTP_URL` + `GATEWAY_MANAGEMENT_HTTP_URL` to in-cluster
+      service DNS; confirm engine/execution/management remain ClusterIP with
+      gateway-only NetworkPolicy/authz.
+- [ ] **Step 8 — docker-compose**: set the gateway's execution/management HTTP
+      URLs to compose service names for local dev.
+
 ## 6. Verification checklist (post-implementation)
 
 * [ ] Browser DevTools → Network shows ALL XHR/fetch/WS go to `api.exoper.com`
