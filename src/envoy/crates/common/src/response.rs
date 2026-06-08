@@ -1,5 +1,8 @@
 use crate::constants::{
-    HEADER_RETRY_AFTER, HEADER_X_TRACE_ID,
+    HEADER_CONTENT_SECURITY_POLICY, HEADER_REFERRER_POLICY, HEADER_RETRY_AFTER,
+    HEADER_X_CONTENT_TYPE_OPTIONS, HEADER_X_FRAME_OPTIONS, HEADER_X_TRACE_ID,
+    VALUE_CONTENT_SECURITY_POLICY, VALUE_REFERRER_POLICY, VALUE_X_CONTENT_TYPE_OPTIONS,
+    VALUE_X_FRAME_OPTIONS,
 };
 use crate::error::FilterError;
 use crate::types::SecurityEvent;
@@ -68,6 +71,10 @@ impl ResponseBuilder {
             status,
             headers: vec![
                 ("content-type".to_string(), "application/json".to_string()),
+                (HEADER_X_CONTENT_TYPE_OPTIONS.to_string(), VALUE_X_CONTENT_TYPE_OPTIONS.to_string()),
+                (HEADER_X_FRAME_OPTIONS.to_string(), VALUE_X_FRAME_OPTIONS.to_string()),
+                (HEADER_REFERRER_POLICY.to_string(), VALUE_REFERRER_POLICY.to_string()),
+                (HEADER_CONTENT_SECURITY_POLICY.to_string(), VALUE_CONTENT_SECURITY_POLICY.to_string()),
             ],
             body: None,
         }

@@ -26,6 +26,21 @@ pub const HEADER_CONTENT_TYPE: &str = "content-type";
 pub const HEADER_CONTENT_LENGTH: &str = "content-length";
 pub const HEADER_RETRY_AFTER: &str = "retry-after";
 
+// Browser security headers. The Envoy route_config sets these on proxied
+// responses; ResponseBuilder seeds the same values on filter-generated
+// local replies so blocked requests carry them too. Kept byte-identical
+// to the route_config block so the two paths never drift. HSTS is set at
+// the Cloudflare TLS edge, not here.
+pub const HEADER_X_CONTENT_TYPE_OPTIONS: &str = "x-content-type-options";
+pub const HEADER_X_FRAME_OPTIONS: &str = "x-frame-options";
+pub const HEADER_REFERRER_POLICY: &str = "referrer-policy";
+pub const HEADER_CONTENT_SECURITY_POLICY: &str = "content-security-policy";
+
+pub const VALUE_X_CONTENT_TYPE_OPTIONS: &str = "nosniff";
+pub const VALUE_X_FRAME_OPTIONS: &str = "DENY";
+pub const VALUE_REFERRER_POLICY: &str = "strict-origin-when-cross-origin";
+pub const VALUE_CONTENT_SECURITY_POLICY: &str = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'";
+
 // Cloudflare-set headers honoured by the trust-chain resolver. Envoy
 // itself does NOT validate these; trust enforcement lives in the gateway
 // auth/clientip resolver, which gates them on the immediate peer being
