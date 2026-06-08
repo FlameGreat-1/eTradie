@@ -126,6 +126,28 @@ func NewHTTPServer(
 	api := NewAPIHandler(cfg, authHandler.AuthConfig(), orchestrator, symbolStore, settingsStore, scheduler, redis, engine, transport, quotaPolicyStore, usageStore)
 	api.RegisterProtectedRoutes(mux, authMiddleware, csrfMiddleware)
 
+	// Browser-facing reverse proxy (Option B — single public entry point).
+	//
+	// The SPA talks ONLY to the gateway origin; the gateway forwards the
+	// dashboard's engine/execution/management calls to the correct
+	// internal HTTP service, re-prefixing the path to the service-native
+	// route. Every proxied route is wrapped with the SAME auth + CSRF
+	// chain as the gateway-native protected routes, and the proxy
+	// forwards the Cookie jar + X-CSRF-Token header unchanged so each
+	// upstream re-validates the identical signed double-submit token.
+	//
+	// The browser prefixes (/api/analysis|broker|llm|usage|processor,
+	// /api/execution, /api/management) do not overlap any gateway-native
+	// pattern (/api/v1/*, /auth/*, /ws/*, /events/*, billing), so mux
+	// registration is collision-free. Engine WS (/api/broker/stream-ticks,
+	// stream-positions) and SSE (/api/analysis/stream-live) stream through
+	// transparently (FlushInterval=-1 + native ReverseProxy upgrade).
+	proxy, err := NewReverseProxyHandler(cfg.EngineHTTPURL, cfg.ExecutionHTTPURL, cfg.ManagementHTTPURL)
+	if err != nil {
+		return nil, fmt.Errorf("http_server: build reverse proxy: %w", err)
+	}
+	proxy.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
+
 	billing := NewBillingHandler(subStore, portalAudStore, billingClient, userStore)
 	billing.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 
