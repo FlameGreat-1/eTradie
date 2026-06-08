@@ -121,15 +121,22 @@ func NewReverseProxyHandler(engineURL, executionURL, managementURL string) (*Rev
 		// The SPA calls /api/management/* and the proxy rewrites it to the
 		// management service's /api/v1/management/* surface.
 		//
-		// /api/journal/* is the Option-B diagram's distinct "Journal"
-		// surface. There is no separate Journal microservice in this
-		// platform: the trade journal + PnL calendar are served by the
-		// MANAGEMENT service (src/management/internal/http/server.go:
-		// /api/v1/management/journal, /api/v1/management/pnl-calendar).
-		// We therefore expose /api/journal/* at the gateway edge and
-		// rewrite it onto management's journal surface, so the public
-		// API matches the diagram while the internal topology stays
-		// truthful (one management service owns journal).
+		// /api/journal is the Option-B diagram's distinct "Journal"
+		// surface. There is NO separate Journal microservice in this
+		// platform: the closed-trade journal is served by the MANAGEMENT
+		// service at /api/v1/management/journal
+		// (src/management/internal/http/server.go). We expose the diagram's
+		// /api/journal path at the gateway edge and rewrite it onto exactly
+		// that management endpoint.
+		//
+		// SCOPE NOTE (deliberate, not an omission): this maps ONLY the
+		// journal feed. The sibling PnL-calendar endpoint is
+		// /api/v1/management/pnl-calendar (NOT under .../journal/), so it
+		// is reached via /api/management/pnl-calendar and is intentionally
+		// NOT folded under /api/journal — doing so would mis-rewrite
+		// /api/journal/pnl-calendar to /api/v1/management/journal/pnl-calendar,
+		// a route that does not exist. Journal == the journal feed; the
+		// calendar remains a management endpoint.
 		managementRoutes: []proxyRoute{
 			{browserPrefix: "/api/management", upstreamPrefix: "/api/v1/management"},
 			{browserPrefix: "/api/journal", upstreamPrefix: "/api/v1/management/journal"},
