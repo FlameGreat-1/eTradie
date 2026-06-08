@@ -1,0 +1,31 @@
+{{- if .Values.tracing.enabled }}
+# The Service name is the stable contract every eTradie service's OTEL
+# endpoint + NetworkPolicy egress points at:
+#   otel-collector.etradie-observability.svc.cluster.local:4317
+# Do NOT rename without updating the service overlays + egress rules.
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.collector.selectorLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+      appProtocol: grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+      protocol: TCP
+    - name: metrics
+      port: 8888
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    {{- include "olog.collector.selectorLabels" . | nindent 4 }}
+{{- end }}
