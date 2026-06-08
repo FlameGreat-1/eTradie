@@ -473,6 +473,59 @@ resume from the first unchecked item.
   Helm Service `http` 8083; compose `8083:8083`).
 * Engine HTTP: **8000** (`GATEWAY_ENGINE_HTTP_URL`, already configured).
 
+## 5c. Diagram-parity decisions (verified against `main`, not assumed)
+
+The Option-B diagram lists boxes for Auth, Engine, Execution, Management,
+Billing, Journal. Each was verified against the real source tree and a
+decision recorded here so nothing is left ambiguous.
+
+* **Auth** — gateway-native (`/auth/*`). Already single-origin. No change.
+* **Engine** — proxied: `/api/analysis|broker|llm|usage|processor/*` (incl.
+  WS `/api/broker/stream-ticks`, `/api/broker/stream-positions` and SSE
+  `/api/analysis/stream-live`). Implemented.
+* **Execution** — proxied: `/api/execution/*` -> execution `/api/v1/*`.
+  Implemented. (Execution chart already allowed gateway->HTTP :8080 ingress.)
+* **Management** — proxied: `/api/management/*` -> management
+  `/api/v1/management/*`. Implemented. (Management chart already allowed
+  gateway->HTTP :8083 ingress.)
+* **Billing** — VERIFIED ALREADY INTERNAL; NO CHANGE NEEDED. The billing
+  microservice (`src/billing`, `helm/billing`) exposes only: provider
+  WEBHOOKS (called by Paddle/Lemon Squeezy via Envoy, not the browser),
+  an `/internal/checkout` + `/internal/portal` surface guarded by the
+  `X-Internal-Auth` shared secret (called by the gateway), and ops
+  endpoints. The browser's billing calls go to GATEWAY-NATIVE handlers
+  `/api/v1/billing/{subscription,checkout,portal}`
+  (`src/gateway/internal/server/billing_handler.go`), which call billing
+  `/internal/*`. There is no `VITE_BILLING_URL` and no billing axios
+  client — the browser never had a direct billing origin. The Option-B
+  invariant (browser -> gateway only; billing private) is therefore
+  ALREADY satisfied. The public path stays `/api/v1/billing/*` to match
+  the existing `/api/v1/*` convention; renaming to the diagram's literal
+  `/api/billing/*` would be cosmetic churn across the SPA with zero
+  security/architecture benefit, so it is deliberately NOT done.
+* **Journal** — VERIFIED NOT A SERVICE; NO CHANGE NEEDED. There is no
+  `src/journal` and no `helm/journal`. The trade journal + PnL calendar
+  are owned by the MANAGEMENT service (`src/management/internal/journal/*`).
+  The browser reaches them through the gateway via
+  `/api/management/journal` and `/api/management/pnl-calendar` (proxied),
+  so journal is already private behind the gateway. A separate
+  `/api/journal/*` edge route was considered and intentionally NOT added:
+  nothing in the SPA calls it, so it would be dead code, and the journal
+  list vs. pnl-calendar are sibling endpoints that a single `/api/journal`
+  prefix cannot map cleanly.
+
+### Edge passthrough — VERIFIED
+
+`src/envoy/config/production/envoy-production.yaml` routes a catch-all
+`prefix: "/"` to `gateway_cluster` (the only override is a no-retry rule
+for the two long-running analysis POSTs). There is NO path allowlist, so
+every new `/api/{analysis,broker,llm,usage,processor,execution,management}/*`
+prefix is forwarded to the gateway with zero Envoy change. The full edge
+chain Cloudflare -> edge-ingress -> Envoy -> Gateway therefore carries the
+Option-B surface as-is. Envoy's own response CSP
+(`connect-src 'self' https: wss:`) is the permissive API-origin CSP and is
+intentionally distinct from the SPA page CSP in `cotradee/vercel.json`.
+
 ## 6. Verification checklist (post-implementation)
 
 * [ ] Browser DevTools → Network shows ALL XHR/fetch/WS go to `api.exoper.com`
