@@ -297,7 +297,7 @@ func (h *BillingHandler) handleGetSubscription(w http.ResponseWriter, r *http.Re
 		// have one. A paying customer must not see 503 because the DB
 		// is wobbling for a hundred milliseconds.
 		if cached, ok := h.subCache.peek(userID); ok {
-			writeJSON(w, http.StatusOK, cached)
+			writeJSON(w, http.StatusOK, userSubscriptionView(cached))
 			return
 		}
 
@@ -308,7 +308,26 @@ func (h *BillingHandler) handleGetSubscription(w http.ResponseWriter, r *http.Re
 	}
 
 	h.subCache.put(userID, sub)
-	writeJSON(w, http.StatusOK, sub)
+	writeJSON(w, http.StatusOK, userSubscriptionView(sub))
+}
+
+// userSubscriptionView projects a Subscription onto the fields the
+// user-facing dashboard needs. The provider customer / subscription IDs
+// and internal timestamps are deliberately excluded: the dashboard
+// reads tier/status from /auth/me and never needs the provider
+// identifiers, which the portal endpoint resolves server-side.
+func userSubscriptionView(sub *billingstore.Subscription) map[string]any {
+	if sub == nil {
+		return map[string]any{"tier": "free", "status": "active"}
+	}
+	view := map[string]any{
+		"tier":   sub.Tier,
+		"status": sub.Status,
+	}
+	if sub.CurrentPeriodEnd != nil {
+		view["current_period_end"] = sub.CurrentPeriodEnd.UTC().Format(time.RFC3339)
+	}
+	return view
 }
 
 // loadSubscriptionWithRetry calls subStore.GetSubscription up to 3 times
