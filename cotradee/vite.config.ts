@@ -44,19 +44,30 @@ function patchLightweightCharts(): Plugin {
 /**
  * Vite config for the cotradee dashboard.
  *
- * The SPA talks to the backend through axios clients whose base URLs
- * come from VITE_* env vars at build time (see src/config/env.ts). For
- * local development we also expose a convenience proxy so operators
- * who prefer same-origin URLs can hit /api/engine and /api/gateway
- * without thinking about CORS. The SPA itself does not depend on the
- * proxy; production builds go directly to the configured engine /
- * gateway hosts.
+ * Single public entry point (Option B): the SPA talks to ONE origin,
+ * the gateway, whose base URL comes from VITE_API_URL at build time
+ * (see src/config/env.ts). The gateway reverse-proxies the dashboard's
+ * engine/execution/management calls to the internal services by path
+ * prefix, so there is no per-service origin to proxy here.
+ *
+ * The dev `server.proxy` below forwards EVERY backend path the SPA uses
+ * (/api/*, /auth/*, /ws/*, /events/*) to the local gateway on :8080 so
+ * the Vite dev server (:5173) is same-origin with the app and there is
+ * no CORS or cookie-domain friction in local development. Production
+ * builds are served by Vercel and talk directly to VITE_API_URL
+ * (https://api.exoper.com); this proxy is dev-only.
  */
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
-  const engineUrl = env.VITE_ENGINE_URL || 'http://localhost:8000';
-  const gatewayUrl = env.VITE_GATEWAY_HTTP_URL || 'http://localhost:8080';
+  // Single origin. VITE_API_URL is the canonical var; VITE_GATEWAY_HTTP_URL
+  // is accepted as a back-compat fallback to match src/config/env.ts.
+  const apiUrl =
+    env.VITE_API_URL || env.VITE_GATEWAY_HTTP_URL || 'http://localhost:8080';
+  // WebSocket upstream for the dev proxy (/ws/*). Derived from apiUrl so
+  // a single override flips both; mirrors env.apiWsUrl.
+  const apiWsUrl =
+    env.VITE_API_WS_URL || apiUrl.replace(/^http/, 'ws');
 
   return {
     plugins: [patchLightweightCharts(), react()],
@@ -88,21 +99,28 @@ export default defineConfig(({ mode }) => {
         clientPort: 5173,
         overlay: false,
       },
+      // Dev-only same-origin proxy to the local gateway. The keys are
+      // the real backend path prefixes the SPA calls (no rewrite): the
+      // gateway owns /api/*, /auth/*, /events/* and the /ws/* upgrade.
+      // ws:true on /ws so the live notifications + chart tick streams
+      // upgrade through the dev proxy exactly as they do in production.
       proxy: {
-        '/api/engine': {
-          target: engineUrl,
+        '/api': {
+          target: apiUrl,
           changeOrigin: true,
-          ws: false,
-          rewrite: (requestPath) => requestPath.replace(/^\/api\/engine/, ''),
         },
-        '/api/gateway': {
-          target: gatewayUrl,
+        '/auth': {
+          target: apiUrl,
           changeOrigin: true,
-          rewrite: (requestPath) => requestPath.replace(/^\/api\/gateway/, ''),
         },
-        '/api/waitlist': {
-          target: gatewayUrl,
+        '/events': {
+          target: apiUrl,
           changeOrigin: true,
+        },
+        '/ws': {
+          target: apiWsUrl,
+          changeOrigin: true,
+          ws: true,
         },
       },
     },
