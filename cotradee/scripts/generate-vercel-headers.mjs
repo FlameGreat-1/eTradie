@@ -118,8 +118,10 @@ function companionOrigin(origin) {
 
 /**
  * Build the de-duplicated, sorted connect-src origin list from the
- * five VITE_* vars (env override -> .env.example default). 'self' is
- * added by the CSP builder, never here.
+ * two VITE_* API-origin vars (VITE_API_URL/VITE_API_WS_URL; env
+ * override -> .env.example default). Each origin also contributes its
+ * ws(s)/http(s) companion so the single host is allowed for both XHR
+ * and WebSocket. 'self' is added by the CSP builder, never here.
  */
 function deriveConnectSrc(envLookup) {
   const set = new Set();

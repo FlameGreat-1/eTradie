@@ -10,12 +10,13 @@ import { useAuth } from '@/features/auth';
  *   handshake automatically. The engine resolves the user from that
  *   cookie before the init frame (src/engine/routers/chart.py,
  *   src/engine/shared/auth.py::verify_token_from_websocket).
- *   Cookies are scoped by host (not port) under RFC 6265, so cookies
- *   set on the gateway host reach the engine host on local-dev
- *   (`localhost:8080` + `localhost:8000`) and on any production
- *   topology where the gateway and engine share a registrable
- *   domain configured via AUTH_COOKIE_DOMAIN. See section 4.4 of
- *   docs/cookie-auth.md for the cross-host constraint.
+ *   Single public entry point (Option B): the WS connects to the
+ *   gateway WS origin (env.apiWsUrl) and the gateway reverse-proxies
+ *   the upgrade to the engine's /api/broker/stream-ticks handler, so
+ *   the access_token cookie set by the gateway is sent straight back
+ *   to the gateway — there is no cross-host cookie constraint. In
+ *   production the cookie is `__Secure-access_token`; the engine
+ *   accepts both the prefixed and unprefixed names.
  *
  * Protocol (server contract now matches; no mismatch):
  *   1. On mount, opens a WebSocket to /api/broker/stream-ticks. The
