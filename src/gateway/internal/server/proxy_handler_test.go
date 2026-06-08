@@ -23,7 +23,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -244,10 +243,11 @@ func TestReverseProxy_StatusAndBodyPassthrough(t *testing.T) {
 }
 
 func TestReverseProxy_UnreachableUpstreamReturns502(t *testing.T) {
-	// Point the engine upstream at a closed port so the proxy dial fails.
-	closed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	deadURL := closed.URL
-	closed.Close() // close immediately so connections are refused.
+	// 127.0.0.1:1 is the well-known unused/privileged TCP port; a dial
+	// there is refused deterministically, so the proxy must surface its
+	// 502 JSON ErrorHandler. (Avoids the close-then-reuse race of
+	// pointing at a just-closed httptest server.)
+	deadURL := "http://127.0.0.1:1"
 
 	mux := newTestMux(t, deadURL, deadURL, deadURL)
 	ts := httptest.NewServer(mux)
