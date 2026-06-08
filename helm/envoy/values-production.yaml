@@ -31,3 +31,10 @@ serviceMonitor:
     prometheus: kube-prometheus
     environment: production
     tier: critical
+
+# TIER 5 browser security response headers (CSP / X-Frame-Options /
+# X-Content-Type-Options / Referrer-Policy) are inherited UNCHANGED from
+# helm/envoy/values.yaml::securityHeaders. They are an API-origin policy
+# (default-src 'none'; frame-ancestors 'none') that is identical in every
+# environment, so there is deliberately no production override here.
+# Override a single header only if a production-specific need arises.

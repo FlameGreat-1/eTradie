@@ -41,6 +41,41 @@ data:
                       virtual_hosts:
                         - name: backend
                           domains: ["*"]
+                          {{- if .Values.securityHeaders.enabled }}
+                          # TIER 5: browser security response headers,
+                          # applied at the virtual_host so EVERY route
+                          # (gateway + webhook routes) carries them with
+                          # no per-route duplication. HSTS is emitted at
+                          # the Cloudflare edge, not here (see
+                          # helm/envoy/values.yaml::securityHeaders).
+                          # OVERWRITE_IF_EXISTS_OR_ADD makes Envoy the
+                          # authority even if an upstream sets the header.
+                          response_headers_to_add:
+                            {{- with .Values.securityHeaders.contentSecurityPolicy }}
+                            - append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                              header:
+                                key: Content-Security-Policy
+                                value: {{ . | quote }}
+                            {{- end }}
+                            {{- with .Values.securityHeaders.xFrameOptions }}
+                            - append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                              header:
+                                key: X-Frame-Options
+                                value: {{ . | quote }}
+                            {{- end }}
+                            {{- with .Values.securityHeaders.xContentTypeOptions }}
+                            - append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                              header:
+                                key: X-Content-Type-Options
+                                value: {{ . | quote }}
+                            {{- end }}
+                            {{- with .Values.securityHeaders.referrerPolicy }}
+                            - append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                              header:
+                                key: Referrer-Policy
+                                value: {{ . | quote }}
+                            {{- end }}
+                          {{- end }}
                           routes:
                             - match:
                                 prefix: "/webhooks/paddle"

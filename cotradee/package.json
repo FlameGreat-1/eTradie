@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/generate-vercel-headers.mjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0 && npm run lint:consent",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0 && npm run lint:consent && npm run lint:headers",
     "lint:consent": "node scripts/check-consent-consumers.mjs",
+    "lint:headers": "node scripts/generate-vercel-headers.mjs --check",
+    "generate:headers": "node scripts/generate-vercel-headers.mjs",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {

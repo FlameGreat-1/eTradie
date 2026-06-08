@@ -55,6 +55,11 @@ config:
       fillIntervalSeconds: 1
       enforcedFraction: 0
 
+# TIER 5 browser security response headers are inherited UNCHANGED from
+# helm/envoy/values.yaml::securityHeaders (API-origin CSP +
+# X-Frame-Options + X-Content-Type-Options + Referrer-Policy). The policy
+# is environment-independent, so staging deliberately adds no override.
+
 terminationGracePeriodSeconds: 45
 
 volumes:
