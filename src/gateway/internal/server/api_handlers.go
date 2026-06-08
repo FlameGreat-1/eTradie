@@ -295,6 +295,20 @@ func (h *APIHandler) handleRunCycle(w http.ResponseWriter, r *http.Request) {
 
 	results := make([]map[string]interface{}, 0, len(outputs))
 	for _, out := range outputs {
+		// out.Error can carry internal subsystem detail proxied from the
+		// engine/LLM path; log the raw value and surface only a generic
+		// message to the browser. The controlled status/stage fields are
+		// bounded enums and are safe to return verbatim.
+		errMsg := ""
+		if out.Error != "" {
+			h.log.Error().
+				Str("symbol", out.Symbol).
+				Str("trace_id", out.TraceID).
+				Str("error_stage", string(out.ErrorStage)).
+				Str("error", out.Error).
+				Msg("cycle_symbol_failed")
+			errMsg = "Analysis failed for this symbol. Please try again in a moment."
+		}
 		entry := map[string]interface{}{
 			"cycle_status":  string(out.CycleStatus),
 			"cycle_outcome": string(out.CycleOutcome),
@@ -302,8 +316,8 @@ func (h *APIHandler) handleRunCycle(w http.ResponseWriter, r *http.Request) {
 			"symbol":        out.Symbol,
 			"duration_ms":   out.DurationMs,
 			"trace_id":      out.TraceID,
-			"error":         out.Error,
-			"error_stage":   out.ErrorStage,
+			"error":         errMsg,
+			"error_stage":   string(out.ErrorStage),
 		}
 		if out.ProcessorOutput != nil {
 			entry["processor_output"] = out.ProcessorOutput
