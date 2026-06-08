@@ -164,9 +164,75 @@ promtail:
       - csi-node-driver-registrar
 
 # ---------------------------------------------------------------------
+# Tracing backend (OpenTelemetry Collector + Jaeger).
+#
+# DISABLED by default: a bare `helm template` / dev render emits no
+# tracing objects, matching the historical "metrics + logs first"
+# posture. The production and staging overlays set tracing.enabled=true
+# AND the four service overlays set their OTEL endpoint to
+# otel-collector.etradie-observability.svc.cluster.local:4317 (the
+# Service name below is fixed at `otel-collector` precisely so those
+# endpoints + the per-service NetworkPolicy egress resolve).
+#
+# Jaeger here is the all-in-one image with an in-memory span store:
+# correct for staging and for a first production rollout. For durable,
+# horizontally-scaled traces, point tracing.jaeger.image at a
+# badger/Elasticsearch-backed Jaeger and add persistence (out of scope
+# for this chart's minimal footprint).
+# ---------------------------------------------------------------------
+tracing:
+  enabled: false
+
+  collector:
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: "0.103.1"
+      pullPolicy: IfNotPresent
+    replicaCount: 2
+    # Namespaces whose pods may push OTLP to the collector. All eTradie
+    # services (engine, gateway, execution, management, mt-node) run in
+    # etradie-system, so that one namespace covers the fleet.
+    allowedSourceNamespaces:
+      - etradie-system
+    resources:
+      requests:
+        cpu: 100m
+        memory: 192Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+      labels:
+        prometheus: kube-prometheus
+    podAnnotations: {}
+
+  jaeger:
+    enabled: true
+    image:
+      repository: jaegertracing/all-in-one
+      tag: "1.62.0"
+      pullPolicy: IfNotPresent
+    # In-memory store bound. Raise via the overlay if traces are lost
+    # under load; switch the image for durable storage.
+    spanStorageType: memory
+    memoryMaxTraces: "50000"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    podAnnotations: {}
+
+# ---------------------------------------------------------------------
 # NetworkPolicy. Loki accepts ingress from Promtail and from Grafana
 # (monitoring namespace). Promtail egresses ONLY to Loki and the K8s
-# API server (for service discovery).
+# API server (for service discovery). When tracing.enabled, the OTel
+# Collector + Jaeger get their own policies (networkpolicy-tracing.yaml).
 # ---------------------------------------------------------------------
 networkPolicy:
   enabled: true
