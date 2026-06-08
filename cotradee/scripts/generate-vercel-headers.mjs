@@ -21,23 +21,41 @@
  * still runs before any ES module. So the CSP is `script-src 'self'`
  * with no 'sha256-' hash and no 'unsafe-inline' — nothing to drift.
  *
- * connect-src ORIGINS
- * -------------------
- * The browser calls the gateway (HTTP + WS) and may call the engine /
- * execution / management origins directly via the VITE_* build vars
- * (see cotradee/src/config/env.ts). connect-src is composed from
- * VERCEL_CONNECT_SRC so it matches the VITE_* values of the SAME build,
- * with the production gateway origin as the documented default. Pass a
- * space- or comma-separated list; 'self' is always added by the CSP
- * builder and must NOT be repeated.
+ * connect-src IS DERIVED FROM THE BUILD'S VITE_* ORIGINS
+ * -----------------------------------------------------
+ * Traced request flow (NOT an assumption): lib/axios.ts builds four
+ * clients — gatewayApi, engineApi, executionApi, managementApi — each
+ * against its own base URL from src/config/env.ts. The gateway does NOT
+ * proxy the engine/execution/management browser routes (its mux mounts
+ * only /auth/*, /api/v1/cycle/run, /api/v1/symbols*, /api/v1/config*,
+ * /api/v1/health, billing, /ws, /events), so the browser reaches those
+ * services on their OWN origins:
+ *
+ *   VITE_GATEWAY_HTTP_URL   gateway: /auth/*, /api/v1/cycle/run,
+ *                           /api/v1/symbols*, /api/v1/config*,
+ *                           /api/v1/health, billing, /events/*
+ *   VITE_GATEWAY_WS_URL     gateway WS: /ws/notifications
+ *   VITE_ENGINE_URL         engine: /api/broker/*, /api/analysis/*,
+ *                           /api/llm/*, /api/usage/me
+ *   VITE_EXECUTION_URL      execution: /api/v1/state, /api/v1/account,
+ *                           /api/v1/orders/cancel, /api/v1/settings
+ *   VITE_MANAGEMENT_URL     management surface
+ *
+ * connect-src is therefore DERIVED from exactly these five vars so it
+ * always matches what the bundle calls — one origin or five, any
+ * environment, no hardcoded host. The generator reads the SAME
+ * process.env Vite reads at build time, so prebuild bakes the
+ * production origins in on every Vercel deploy.
  *
  * USAGE
  *   node scripts/generate-vercel-headers.mjs           # writes vercel.json
  *   node scripts/generate-vercel-headers.mjs --check    # verify, no write
  *
- * --check is the CI drift gate (npm run lint:headers): it regenerates in
- * memory and exits 1 if the committed vercel.json differs, so a policy /
- * connect-src change without regenerating fails the build loudly.
+ * --check is the CI drift gate (npm run lint:headers). It compares
+ * against the SAME VITE_* env it sees, so CI runs it with the env that
+ * produced the committed file (the repo baseline uses the .env.example
+ * localhost origins). The authoritative production file is produced by
+ * prebuild on Vercel with the project's env vars.
  *
  * Zero npm deps, Node ESM — same constraints as
  * scripts/check-consent-consumers.mjs.
@@ -54,24 +72,69 @@ const __dirname = path.dirname(__filename);
 const SPA_ROOT = path.resolve(__dirname, '..');
 const VERCEL_JSON = path.join(SPA_ROOT, 'vercel.json');
 
-// ---------------------------------------------------------------------------
-// connect-src origins
-// ---------------------------------------------------------------------------
-//
-// Default to the production gateway origin (HTTP + WS) the whole edge
-// stack is built around (api.exoper.com). Operators / CI override per
-// environment via VERCEL_CONNECT_SRC so the policy tracks the VITE_*
-// build vars exactly. 'self' is always included by the CSP builder
-// below; do NOT repeat it here.
-const DEFAULT_CONNECT_SRC = ['https://api.exoper.com', 'wss://api.exoper.com'];
+// The five backend base-URL vars the SPA's axios/WS clients use. These
+// are the SINGLE source of truth for what the browser connects to;
+// connect-src is derived from them. Mirrors src/config/env.ts exactly.
+// Defaults match cotradee/.env.example so a bare repo checkout produces
+// a deterministic baseline vercel.json.
+const VITE_ORIGIN_VARS = {
+  VITE_GATEWAY_HTTP_URL: 'http://localhost:8080',
+  VITE_GATEWAY_WS_URL: 'ws://localhost:8080',
+  VITE_ENGINE_URL: 'http://localhost:8000',
+  VITE_EXECUTION_URL: 'http://localhost:8081',
+  VITE_MANAGEMENT_URL: 'http://localhost:8083',
+};
 
-function parseConnectSrc(raw) {
-  if (!raw || !raw.trim()) return DEFAULT_CONNECT_SRC;
-  const parts = raw
-    .split(/[\s,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return parts.length > 0 ? parts : DEFAULT_CONNECT_SRC;
+// ---------------------------------------------------------------------------
+// connect-src derivation
+// ---------------------------------------------------------------------------
+
+/**
+ * Collapse a full URL to its CSP source origin: scheme://host[:port],
+ * no path/query/fragment. Returns null for an unparseable/empty value.
+ */
+function toOrigin(raw) {
+  if (!raw || !raw.trim()) return null;
+  let u;
+  try {
+    u = new URL(raw.trim());
+  } catch {
+    return null;
+  }
+  // u.origin is scheme://host[:port] for http/https/ws/wss.
+  if (u.origin && u.origin !== 'null') return u.origin;
+  return null;
+}
+
+/**
+ * For an http(s) origin, return its ws(s) companion (same host), because
+ * the WS client connects to the same host over ws/wss. For a ws(s)
+ * origin, return its http(s) companion for symmetry. Returns null when
+ * no mapping applies.
+ */
+function companionOrigin(origin) {
+  if (origin.startsWith('https://')) return 'wss://' + origin.slice('https://'.length);
+  if (origin.startsWith('http://')) return 'ws://' + origin.slice('http://'.length);
+  if (origin.startsWith('wss://')) return 'https://' + origin.slice('wss://'.length);
+  if (origin.startsWith('ws://')) return 'http://' + origin.slice('ws://'.length);
+  return null;
+}
+
+/**
+ * Build the de-duplicated, sorted connect-src origin list from the
+ * five VITE_* vars (env override -> .env.example default). 'self' is
+ * added by the CSP builder, never here.
+ */
+function deriveConnectSrc(envLookup) {
+  const set = new Set();
+  for (const [name, fallback] of Object.entries(VITE_ORIGIN_VARS)) {
+    const origin = toOrigin(envLookup(name) || fallback);
+    if (!origin) continue;
+    set.add(origin);
+    const companion = companionOrigin(origin);
+    if (companion) set.add(companion);
+  }
+  return [...set].sort();
 }
 
 // ---------------------------------------------------------------------------
@@ -138,7 +201,7 @@ function serialize(config) {
 async function main() {
   const checkOnly = process.argv.includes('--check');
 
-  const connectSrc = parseConnectSrc(process.env.VERCEL_CONNECT_SRC);
+  const connectSrc = deriveConnectSrc((name) => process.env[name]);
   const csp = buildCsp(connectSrc);
   const expected = serialize(buildVercelConfig(csp));
 
@@ -156,8 +219,10 @@ async function main() {
     if (actual !== expected) {
       console.error(
         '[vercel-headers] FAIL: cotradee/vercel.json is out of sync with the generator.\n' +
-          '  The header policy or connect-src drifted. Regenerate and commit:\n' +
-          '    npm run generate:headers',
+          '  Either the header policy changed or the VITE_* origins differ from the\n' +
+          '  committed baseline. Regenerate with the intended env and commit:\n' +
+          '    npm run generate:headers\n' +
+          `  Derived connect-src: ${connectSrc.join(' ') || '(none)'}`,
       );
       process.exit(1);
     }
@@ -166,7 +231,10 @@ async function main() {
   }
 
   await fs.writeFile(VERCEL_JSON, expected, 'utf8');
-  console.log('[vercel-headers] wrote cotradee/vercel.json.');
+  console.log(
+    '[vercel-headers] wrote cotradee/vercel.json (connect-src: ' +
+      (connectSrc.join(' ') || '(none)') + ').',
+  );
 }
 
 main().catch((err) => {
