@@ -121,25 +121,18 @@ func NewReverseProxyHandler(engineURL, executionURL, managementURL string) (*Rev
 		// The SPA calls /api/management/* and the proxy rewrites it to the
 		// management service's /api/v1/management/* surface.
 		//
-		// /api/journal is the Option-B diagram's distinct "Journal"
-		// surface. There is NO separate Journal microservice in this
-		// platform: the closed-trade journal is served by the MANAGEMENT
-		// service at /api/v1/management/journal
-		// (src/management/internal/http/server.go). We expose the diagram's
-		// /api/journal path at the gateway edge and rewrite it onto exactly
-		// that management endpoint.
-		//
-		// SCOPE NOTE (deliberate, not an omission): this maps ONLY the
-		// journal feed. The sibling PnL-calendar endpoint is
-		// /api/v1/management/pnl-calendar (NOT under .../journal/), so it
-		// is reached via /api/management/pnl-calendar and is intentionally
-		// NOT folded under /api/journal — doing so would mis-rewrite
-		// /api/journal/pnl-calendar to /api/v1/management/journal/pnl-calendar,
-		// a route that does not exist. Journal == the journal feed; the
-		// calendar remains a management endpoint.
+		// JOURNAL: the Option-B diagram lists a "Journal" box, but there is
+		// NO separate Journal microservice in this platform (verified: no
+		// src/journal, no helm/journal). The closed-trade journal and the
+		// PnL calendar are owned by the MANAGEMENT service
+		// (src/management/internal/journal/* -> /api/v1/management/journal,
+		// /api/v1/management/pnl-calendar). The browser reaches them through
+		// the gateway via /api/management/* — so the Option-B invariant
+		// (no direct browser->internal-service call) is already satisfied
+		// for journal. A separate /api/journal/* edge route is intentionally
+		// NOT added: nothing in the SPA calls it, so it would be dead code.
 		managementRoutes: []proxyRoute{
 			{browserPrefix: "/api/management", upstreamPrefix: "/api/v1/management"},
-			{browserPrefix: "/api/journal", upstreamPrefix: "/api/v1/management/journal"},
 		},
 		log: log,
 	}, nil
