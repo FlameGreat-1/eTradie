@@ -16,7 +16,7 @@ export function useManagedTrades() {
   return useQuery<unknown[]>({
     queryKey: ['management', 'trades'],
     queryFn: async () => {
-      const { data } = await api.management.get('/api/v1/management/trades');
+      const { data } = await api.management.get('/api/management/trades');
       const trades = (data && Array.isArray(data.trades) ? data.trades : []) as unknown[];
       return trades;
     },
@@ -51,7 +51,7 @@ export function useTradeJournal(params?: {
       if (params?.symbol) searchParams.append('symbol', params.symbol);
       if (params?.style) searchParams.append('style', params.style);
 
-      const { data } = await api.management.get(`/api/v1/management/journal?${searchParams}`);
+      const { data } = await api.management.get(`/api/management/journal?${searchParams}`);
       return data;
     },
     refetchInterval: adaptiveInterval(30_000),
@@ -71,7 +71,7 @@ export function usePerformanceMetrics(period = 'ALL_TIME') {
   return useQuery({
     queryKey: ['management', 'metrics', period],
     queryFn: async () => {
-      const { data } = await api.management.get(`/api/v1/management/metrics?period=${period}`);
+      const { data } = await api.management.get(`/api/management/metrics?period=${period}`);
       return data;
     },
     refetchInterval: adaptiveInterval(15_000),
@@ -104,7 +104,7 @@ export function usePnLCalendar(year: number, month: number) {
         month: month.toString(),
         tz,
       });
-      const { data } = await api.management.get(`/api/v1/management/pnl-calendar?${params}`);
+      const { data } = await api.management.get(`/api/management/pnl-calendar?${params}`);
       return data;
     },
     staleTime: 30_000,

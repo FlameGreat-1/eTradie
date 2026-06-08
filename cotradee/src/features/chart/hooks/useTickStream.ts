@@ -68,9 +68,11 @@ export function useTickStream({ symbol, onTick }: UseTickStreamOptions) {
 
     if (!symbolRef.current) return;
 
-    // Derive WebSocket URL from the engine HTTP URL.
-    const wsBase = env.engineUrl.replace(/^http/, 'ws');
-    const ws = new WebSocket(`${wsBase}/api/broker/stream-ticks`);
+    // Single public entry point (Option B): the live-tick WebSocket goes
+    // to the gateway WS origin, which reverse-proxies the upgrade to the
+    // engine's /api/broker/stream-ticks handler. The browser attaches the
+    // HttpOnly access_token cookie to the handshake automatically.
+    const ws = new WebSocket(`${env.apiWsUrl}/api/broker/stream-ticks`);
     wsRef.current = ws;
 
     ws.onopen = () => {

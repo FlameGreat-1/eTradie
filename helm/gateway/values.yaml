@@ -123,6 +123,14 @@ config:
     managementEnabled: "true"
     managementAddr: "management.etradie-system.svc.cluster.local:50054"
     managementTimeoutMs: "5000"
+    # Browser-facing reverse-proxy upstreams (Option B). HTTP surfaces of
+    # the execution (:8080) and management (:8083) services — the same
+    # in-cluster Service DNS the gRPC ADDRs use, but the HTTP ports. The
+    # SPA's /api/execution/* and /api/management/* go through the gateway
+    # to these. NOTE: management HTTP is :8083 (NOT :8080) — matches
+    # src/management/internal/config/config.go and helm/management.
+    executionHttpUrl: "http://execution.etradie-system.svc.cluster.local:8080"
+    managementHttpUrl: "http://management.etradie-system.svc.cluster.local:8083"
     redisMaxConnections: "20"
     allowedOrigins: "http://localhost:3000,http://localhost:5173"
     # Billing microservice client. The gateway's billing handler
@@ -374,15 +382,24 @@ networkPolicy:
             matchLabels:
               app.kubernetes.io/name: etradie-execution
       ports:
+        # gRPC (orchestrator / kill-switch) AND HTTP (browser reverse
+        # proxy: /api/execution/* -> execution :8080). Both are required
+        # now that the gateway fronts the execution dashboard surface.
         - protocol: TCP
           port: 50053
+        - protocol: TCP
+          port: 8080
     - to:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: etradie-management
       ports:
+        # gRPC (orchestrator) AND HTTP (browser reverse proxy:
+        # /api/management/* -> management :8083).
         - protocol: TCP
           port: 50054
+        - protocol: TCP
+          port: 8083
     # Billing microservice (Phase 4 wiring). The gateway dials
     # billing-service:8082 for every /internal/checkout and
     # /internal/portal call. Without this egress rule the gateway

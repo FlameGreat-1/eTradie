@@ -21,31 +21,28 @@
  * still runs before any ES module. So the CSP is `script-src 'self'`
  * with no 'sha256-' hash and no 'unsafe-inline' — nothing to drift.
  *
- * connect-src IS DERIVED FROM THE BUILD'S VITE_* ORIGINS
- * -----------------------------------------------------
- * Traced request flow (NOT an assumption): lib/axios.ts builds four
- * clients — gatewayApi, engineApi, executionApi, managementApi — each
- * against its own base URL from src/config/env.ts. The gateway does NOT
- * proxy the engine/execution/management browser routes (its mux mounts
- * only /auth/*, /api/v1/cycle/run, /api/v1/symbols*, /api/v1/config*,
- * /api/v1/health, billing, /ws, /events), so the browser reaches those
- * services on their OWN origins:
+ * connect-src IS DERIVED FROM THE BUILD'S SINGLE API ORIGIN
+ * --------------------------------------------------------
+ * Single public entry point (Option B). lib/axios.ts now builds ONE
+ * axios client against VITE_API_URL (src/config/env.ts), and the
+ * gateway reverse-proxies the dashboard's engine/execution/management
+ * calls to the internal services by path prefix. The browser therefore
+ * connects to exactly ONE HTTP origin and ONE WebSocket origin:
  *
- *   VITE_GATEWAY_HTTP_URL   gateway: /auth/*, /api/v1/cycle/run,
- *                           /api/v1/symbols*, /api/v1/config*,
- *                           /api/v1/health, billing, /events/*
- *   VITE_GATEWAY_WS_URL     gateway WS: /ws/notifications
- *   VITE_ENGINE_URL         engine: /api/broker/*, /api/analysis/*,
- *                           /api/llm/*, /api/usage/me
- *   VITE_EXECUTION_URL      execution: /api/v1/state, /api/v1/account,
- *                           /api/v1/orders/cancel, /api/v1/settings
- *   VITE_MANAGEMENT_URL     management surface
+ *   VITE_API_URL     gateway HTTP origin: /auth/*, /api/v1/*,
+ *                    /api/analysis|broker|llm|usage|processor/* (proxied
+ *                    to engine), /api/execution/* (proxied to execution),
+ *                    /api/management/* (proxied to management), billing,
+ *                    /events/*
+ *   VITE_API_WS_URL  gateway WS origin: /ws/notifications and the
+ *                    proxied engine streams /api/broker/stream-ticks,
+ *                    /api/broker/stream-positions
  *
- * connect-src is therefore DERIVED from exactly these five vars so it
- * always matches what the bundle calls — one origin or five, any
- * environment, no hardcoded host. The generator reads the SAME
+ * connect-src is therefore DERIVED from exactly these two vars so it
+ * always matches what the bundle calls. The generator reads the SAME
  * process.env Vite reads at build time, so prebuild bakes the
- * production origins in on every Vercel deploy.
+ * production origin (https://api.exoper.com + wss://api.exoper.com) in
+ * on every Vercel deploy.
  *
  * USAGE
  *   node scripts/generate-vercel-headers.mjs           # writes vercel.json
@@ -72,17 +69,16 @@ const __dirname = path.dirname(__filename);
 const SPA_ROOT = path.resolve(__dirname, '..');
 const VERCEL_JSON = path.join(SPA_ROOT, 'vercel.json');
 
-// The five backend base-URL vars the SPA's axios/WS clients use. These
-// are the SINGLE source of truth for what the browser connects to;
+// The single API-origin vars the SPA's axios/WS clients use. These are
+// the SINGLE source of truth for what the browser connects to;
 // connect-src is derived from them. Mirrors src/config/env.ts exactly.
 // Defaults match cotradee/.env.example so a bare repo checkout produces
-// a deterministic baseline vercel.json.
+// a deterministic baseline vercel.json. Production overrides these via
+// the Vercel project env (VITE_API_URL=https://api.exoper.com,
+// VITE_API_WS_URL=wss://api.exoper.com) and prebuild bakes them in.
 const VITE_ORIGIN_VARS = {
-  VITE_GATEWAY_HTTP_URL: 'http://localhost:8080',
-  VITE_GATEWAY_WS_URL: 'ws://localhost:8080',
-  VITE_ENGINE_URL: 'http://localhost:8000',
-  VITE_EXECUTION_URL: 'http://localhost:8081',
-  VITE_MANAGEMENT_URL: 'http://localhost:8083',
+  VITE_API_URL: 'http://localhost:8080',
+  VITE_API_WS_URL: 'ws://localhost:8080',
 };
 
 // ---------------------------------------------------------------------------

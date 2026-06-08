@@ -481,14 +481,31 @@ function createClient(baseURL: string): AxiosInstance {
 // Exported per-service clients
 // ---------------------------------------------------------------------------
 
-export const gatewayApi = createClient(env.gatewayHttpUrl);
-export const engineApi = createClient(env.engineUrl);
-export const executionApi = createClient(env.executionUrl);
-export const managementApi = createClient(env.managementUrl);
+// Single public entry point (Option B). There is now exactly ONE axios
+// client, pointed at the gateway origin (env.apiUrl). The gateway
+// reverse-proxies the dashboard's engine/execution/management calls to
+// the internal services by path prefix, so the browser only ever talks
+// to one origin.
+//
+// The four named exports below are kept as ALIASES of the single client
+// so existing call sites (api.gateway / api.engine / api.execution /
+// api.management) keep compiling unchanged. They are the same instance;
+// there is no per-service client anymore. Path prefixes at the call
+// sites determine which internal service the gateway forwards to:
+//   /api/analysis|broker|llm|usage|processor/*  -> engine
+//   /api/execution/*                            -> execution
+//   /api/management/*                           -> management
+//   everything else (/api/v1/*, /auth/*, ...)   -> gateway-native
+const client = createClient(env.apiUrl);
+
+export const gatewayApi = client;
+export const engineApi = client;
+export const executionApi = client;
+export const managementApi = client;
 
 export const api = {
-  gateway: gatewayApi,
-  engine: engineApi,
-  execution: executionApi,
-  management: managementApi,
+  gateway: client,
+  engine: client,
+  execution: client,
+  management: client,
 } as const;

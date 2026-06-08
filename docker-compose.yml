@@ -182,6 +182,13 @@ services:
       - GATEWAY_ENGINE_HTTP_URL=http://engine:8000
       - GATEWAY_EXECUTION_ADDR=execution:50053
       - GATEWAY_MANAGEMENT_ADDR=management:50054
+      # Browser-facing reverse-proxy upstreams (Option B). In-network the
+      # execution HTTP server listens on :8080 (host maps 8081:8080) and
+      # management on :8083. The SPA's /api/execution/* and
+      # /api/management/* go through the gateway to these. The gateway
+      # validates these are non-empty http(s) URLs at boot.
+      - GATEWAY_EXECUTION_HTTP_URL=http://execution:8080
+      - GATEWAY_MANAGEMENT_HTTP_URL=http://management:8083
       # In-network FQDN for postgres is the service name `postgres`;
       # do NOT interpolate ${POSTGRES_HOST} from .env here because
       # that variable is shared with host-side tooling and may be set

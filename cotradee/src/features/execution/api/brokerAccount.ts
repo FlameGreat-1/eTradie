@@ -16,7 +16,7 @@ export function useBrokerAccount() {
   return useQuery({
     queryKey: ['execution', 'account'],
     queryFn: async () => {
-      const { data } = await api.execution.get('/api/v1/account');
+      const { data } = await api.execution.get('/api/execution/account');
       return data;
     },
     refetchInterval: adaptiveInterval(5_000),
@@ -36,7 +36,7 @@ export function useExecutionState() {
   return useQuery({
     queryKey: ['execution', 'state'],
     queryFn: async () => {
-      const { data } = await api.execution.get('/api/v1/state');
+      const { data } = await api.execution.get('/api/execution/state');
       return data;
     },
     refetchInterval: adaptiveInterval(3_000),
@@ -51,7 +51,7 @@ export function useExecutionSettings() {
   return useQuery({
     queryKey: ['execution', 'settings'],
     queryFn: async () => {
-      const { data } = await api.execution.get('/api/v1/settings');
+      const { data } = await api.execution.get('/api/execution/settings');
       return data;
     },
     enabled: isAuthenticated,
@@ -62,7 +62,7 @@ export function useUpdateExecutionSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (settings: Record<string, unknown>) => {
-      const { data } = await api.execution.put('/api/v1/settings', settings);
+      const { data } = await api.execution.put('/api/execution/settings', settings);
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['execution', 'settings'] }),
@@ -127,7 +127,7 @@ export function useCancelOrder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { order_id: string; symbol?: string; reason?: string }) => {
-      const { data } = await api.execution.post('/api/v1/orders/cancel', payload);
+      const { data } = await api.execution.post('/api/execution/orders/cancel', payload);
       return data;
     },
     onSuccess: () => {
