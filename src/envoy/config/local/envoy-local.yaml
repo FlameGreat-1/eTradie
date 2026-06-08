@@ -26,6 +26,27 @@ static_resources:
                   virtual_hosts:
                     - name: backend
                       domains: ["*"]
+                      # TIER5 browser-security response headers. See the
+                      # production config for the full rationale; local
+                      # mirrors it so dev sees the same posture. HSTS is
+                      # asserted at the Cloudflare edge, not here.
+                      response_headers_to_add:
+                        - header:
+                            key: "X-Content-Type-Options"
+                            value: "nosniff"
+                          append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                        - header:
+                            key: "X-Frame-Options"
+                            value: "DENY"
+                          append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                        - header:
+                            key: "Referrer-Policy"
+                            value: "strict-origin-when-cross-origin"
+                          append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                        - header:
+                            key: "Content-Security-Policy"
+                            value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+                          append_action: OVERWRITE_IF_EXISTS_OR_ADD
                       routes:
                         # Liveness probe - process is running
                         - match:
