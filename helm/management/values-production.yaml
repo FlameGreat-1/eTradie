@@ -27,6 +27,9 @@ config:
     brokerMode: "mt5"
     logLevel: "INFO"
     logJson: "true"
+    # Distributed tracing ON: export OTLP spans to the in-cluster OTel
+    # Collector (helm/observability-logs tracing.enabled).
+    otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
 
 # Per-service Linkerd authorization (Server + AuthorizationPolicy).
 # Kept disabled until the mesh is confirmed; enable deliberately (set

@@ -20,6 +20,9 @@ config:
     logLevel: "DEBUG"
     logJson: "true"
     logFullContextPayload: "true"
+    # Distributed tracing ON in staging: export OTLP spans to the
+    # in-cluster OTel Collector (helm/observability-logs tracing.enabled).
+    otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
     allowedOrigins: "https://staging.exoper.com,https://staging-app.exoper.com"
     billingServiceUrl: "http://billing-service.etradie-system.svc.cluster.local:8082"
     billingClientTimeoutMs: "15000"
