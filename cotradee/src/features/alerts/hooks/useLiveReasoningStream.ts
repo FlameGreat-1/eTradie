@@ -5,22 +5,28 @@ import { useAuth } from '@/features/auth';
 /**
  * Live-reasoning stream hook.
  *
- * Opens an SSE connection to `${env.engineUrl}/api/analysis/stream-live`.
+ * Opens an SSE connection to `${env.apiUrl}/api/analysis/stream-live`.
+ * Single public entry point (Option B): env.engineUrl is a deprecated
+ * alias of env.apiUrl (the gateway origin), so the SSE handshake goes
+ * to the gateway, which reverse-proxies the request to the engine's
+ * stream-live handler. The browser never talks to the engine origin
+ * directly; the gateway proxy streams the text/event-stream response
+ * through unbuffered (FlushInterval=-1).
  *
  * Cookie-auth (Batch 11 + cookie-auth-engine-and-services):
  *   fetch() is called with credentials:'include' so the browser
- *   attaches the HttpOnly access_token cookie. The engine reads the
- *   cookie via `engine.shared.auth.get_current_user` exactly the
- *   way it reads `Authorization: Bearer <token>` from CLI clients.
- *   No Authorization header is sent from the browser — the cookie
- *   IS the auth channel.
+ *   attaches the HttpOnly access_token cookie to the gateway. The
+ *   gateway forwards the cookie jar verbatim and the engine reads it
+ *   via `engine.shared.auth.get_current_user` exactly the way it
+ *   reads `Authorization: Bearer <token>` from CLI clients. No
+ *   Authorization header is sent from the browser — the cookie IS the
+ *   auth channel. In production the cookie is named
+ *   `__Secure-access_token`; the engine tolerates both the prefixed
+ *   and unprefixed names (engine auth.py::_read_access_token_cookie).
  *
- *   Cross-host topology requirement: the cookie has to actually
- *   reach the engine. On a single-host or cross-subdomain
- *   deployment with AUTH_COOKIE_DOMAIN set to the registrable
- *   domain, this is automatic. See docs/cookie-auth.md §4.4 for
- *   the constraint when the gateway and engine live on different
- *   registrable domains.
+ *   Because everything is one origin now, there is no cross-host
+ *   cookie constraint for this stream: the cookie set by the gateway
+ *   is sent back to the gateway.
  *
  * Contract matching the engine's publish format:
  *   { type: 'status',           message: string, symbol?: string }

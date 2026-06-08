@@ -121,7 +121,12 @@ type Config struct {
 	// NOT the gRPC addresses above which the orchestrator/kill-switch use.
 	// Engine's browser HTTP surface (/api/analysis|broker|llm|usage|
 	// processor/*) is proxied to EngineHTTPURL, already configured above.
-	ExecutionHTTPURL  string `envconfig:"EXECUTION_HTTP_URL" default:"http://localhost:8081"`
+	// Execution HTTP listens on :8080 inside the container/process
+	// (EXECUTION_HTTP_PORT default in src/execution/internal/config).
+	// docker-compose maps host 8081 -> container 8080; the default
+	// below is the LISTEN port so a bare local `go run` of the gateway
+	// (no compose/helm overrides) proxies to a live port.
+	ExecutionHTTPURL  string `envconfig:"EXECUTION_HTTP_URL" default:"http://localhost:8080"`
 	ManagementHTTPURL string `envconfig:"MANAGEMENT_HTTP_URL" default:"http://localhost:8083"`
 
 	// Billing microservice. The gateway calls /internal/checkout on this
