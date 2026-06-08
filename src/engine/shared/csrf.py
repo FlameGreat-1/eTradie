@@ -131,8 +131,21 @@ def _verify_csrf(request: Request, header_name: str, signed: bool, secret: bytes
     # Resolve the authenticated user from the request directly.
     # Middleware runs BEFORE FastAPI dependencies, so request.state.user
     # is not populated yet. We read the JWT from the cookie or header.
+    #
+    # The cookie is tried under the __Secure- prefixed name first then
+    # the unprefixed fallback: in production the gateway sets
+    # `__Secure-access_token` and, under Option B, reverse-proxies the
+    # browser's engine calls forwarding that cookie verbatim. Reading
+    # only the unprefixed name here left user_id empty and 403'd every
+    # mutating engine request in production. Mirrors _read_csrf_cookie
+    # above and src/auth/cookies.go::readCookieValue.
     user_id = ""
-    token = request.cookies.get("access_token")
+    token = ""
+    for _name in ("__Secure-access_token", "access_token"):
+        _val = request.cookies.get(_name, "").strip()
+        if _val:
+            token = _val
+            break
     if not token:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.lower().startswith("bearer "):
