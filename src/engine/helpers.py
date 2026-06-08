@@ -121,7 +121,7 @@ async def _rate_limit(
             "rate_limit_redis_unavailable_using_in_process_fallback",
             extra={
                 "key_prefix": key_prefix,
-                "client_ip": client_ip,
+                "rate_subject": rate_subject,
                 "error": str(exc),
             },
         )
