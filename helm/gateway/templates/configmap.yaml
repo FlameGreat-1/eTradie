@@ -45,6 +45,19 @@ data:
   GATEWAY_MANAGEMENT_ENABLED: {{ .Values.config.gateway.managementEnabled | quote }}
   GATEWAY_MANAGEMENT_ADDR: {{ .Values.config.gateway.managementAddr | quote }}
   GATEWAY_MANAGEMENT_TIMEOUT_MS: {{ .Values.config.gateway.managementTimeoutMs | quote }}
+
+  # Browser-facing reverse-proxy upstreams (Option B — single public
+  # entry point). The gateway proxies the SPA's /api/execution/* and
+  # /api/management/* prefixes to these internal HTTP servers so the
+  # browser only ever talks to the gateway origin. These are the HTTP
+  # surfaces (execution :8080, management :8083), DISTINCT from the gRPC
+  # ADDR values above which the orchestrator/kill-switch use. Engine's
+  # browser HTTP surface is proxied to GATEWAY_ENGINE_HTTP_URL above.
+  #
+  # CRITICAL: src/gateway/internal/config/config.go::validate() refuses
+  # to boot when either is empty / non-http(s) / localhost-in-prod.
+  GATEWAY_EXECUTION_HTTP_URL: {{ .Values.config.gateway.executionHttpUrl | quote }}
+  GATEWAY_MANAGEMENT_HTTP_URL: {{ .Values.config.gateway.managementHttpUrl | quote }}
   GATEWAY_REDIS_MAX_CONNECTIONS: {{ .Values.config.gateway.redisMaxConnections | quote }}
   GATEWAY_ALLOWED_ORIGINS: {{ .Values.config.gateway.allowedOrigins | quote }}
 
