@@ -69,6 +69,29 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 # coordinated change; both services share the same auth contract.
 ACCESS_TOKEN_COOKIE_NAME = "access_token"
 
+# RFC 6265bis __Secure- prefix the Go gateway prepends when
+# CookieSecure=true (always in production). The reader helpers below
+# try the prefixed name first, then the unprefixed fallback, exactly
+# like src/auth/cookies.go::readCookieValue. This MUST be tolerated
+# here because under Option B (single public entry point) the gateway
+# reverse-proxies the browser's engine calls forwarding the cookie jar
+# verbatim, so in production the engine receives `__Secure-access_token`
+# rather than `access_token`.
+_SECURE_COOKIE_PREFIX = "__Secure-"
+
+
+def _read_access_token_cookie(cookies) -> str:
+    """Return the access-token cookie value, trying the __Secure-
+    prefixed name first then the unprefixed fallback. Accepts any
+    mapping with a .get(name) accessor (Request.cookies / the
+    WebSocket cookie jar). Returns "" when neither is present.
+    """
+    for name in (_SECURE_COOKIE_PREFIX + ACCESS_TOKEN_COOKIE_NAME, ACCESS_TOKEN_COOKIE_NAME):
+        val = cookies.get(name)
+        if val and val.strip():
+            return val.strip()
+    return ""
+
 
 class AuthError(Exception):
     """Raised by ``verify_token_from_websocket`` on auth failure.
@@ -223,11 +246,9 @@ def _extract_token_from_request(
         token = (credentials.credentials or "").strip()
         if token:
             return token
-    cookie = request.cookies.get(ACCESS_TOKEN_COOKIE_NAME)
+    cookie = _read_access_token_cookie(request.cookies)
     if cookie:
-        cookie = cookie.strip()
-        if cookie:
-            return cookie
+        return cookie
     return None
 
 
@@ -312,11 +333,11 @@ async def verify_token_from_websocket(
             except HTTPException as exc:
                 raise AuthError(exc.detail) from exc
 
-    # 2. access_token cookie on the upgrade.
-    cookie = websocket.cookies.get(ACCESS_TOKEN_COOKIE_NAME)
-    if cookie and cookie.strip():
+    # 2. access_token cookie on the upgrade (prefixed or unprefixed).
+    cookie = _read_access_token_cookie(websocket.cookies)
+    if cookie:
         try:
-            return _verify_token(cookie.strip())
+            return _verify_token(cookie)
         except HTTPException as exc:
             raise AuthError(exc.detail) from exc
 
