@@ -218,9 +218,11 @@ async def create_broker_connection(
                     "metaapi_provisioning_error_in_api",
                     extra={"error": str(exc)},
                 )
+                # TIER5: do not leak the raw provisioner/SDK exception to
+                # the browser. The detail is logged above for operators.
                 raise HTTPException(
                     status_code=400,
-                    detail=f"MetaAPI provisioning failed: {exc}"
+                    detail="Broker provisioning failed. Check the broker server, login and password and try again."
                 )
 
         elif body.connection_type == "hosted":
@@ -670,20 +672,27 @@ async def test_broker_connection(
             platform_token=platform_token,
         )
     except Exception as exc:
-        # Update status in DB.
+        # TIER5: log the raw cause for operators, but never persist or
+        # return it to the browser (status_message is re-served on every
+        # later connection fetch). Use a stable generic message on both.
+        logger.error(
+            "broker_test_create_client_failed",
+            extra={"connection_id": connection_id, "error": str(exc)},
+        )
+        generic_msg = "Could not establish a broker client. Check the connection's credentials and try again."
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
             await repo.update_status(
                 connection_id,
                 user_id=user.user_id,
                 status=STATUS_ERROR,
-                status_message=f"Failed to create client: {exc}",
+                status_message=generic_msg,
             )
         return {
             "connection_id": connection_id,
             "healthy": False,
             "status": STATUS_ERROR,
-            "message": f"Failed to create client: {exc}",
+            "message": generic_msg,
         }
 
     # Run health check.
