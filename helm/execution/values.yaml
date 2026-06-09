@@ -46,6 +46,12 @@ podAnnotations:
   # postgres/redis/engine.
   linkerd.io/inject: enabled
   config.linkerd.io/proxy-enable-native-sidecar: "true"
+  # OTLP traces egress to the un-meshed OTel Collector
+  # (etradie-observability, no linkerd inject) on 4317. Skip the proxy
+  # on that port so the gRPC export bypasses protocol-detection and is
+  # not disrupted if a collector-side Server/AuthorizationPolicy is ever
+  # added. Matches the engine pod annotations.
+  config.linkerd.io/skip-outbound-ports: "4317"
 
 podSecurityContext:
   runAsNonRoot: true
