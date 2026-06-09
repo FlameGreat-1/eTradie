@@ -41,10 +41,16 @@ const CSRF_HEADER_NAME = 'X-CSRF-Token';
 // shows in Jaeger as a single connected trace rooted at the browser.
 //
 // Format (https://www.w3.org/TR/trace-context/#traceparent-header):
-//   version "00" - trace-id (16 bytes hex) - span-id (8 bytes hex) - flags "01"
-// flags=01 = sampled. We sample every browser request (the backend head-
-// samples at Envoy in production, so over-sending here is harmless: an
-// un-sampled downstream decision still records the browser->edge segment).
+//   version "00" - trace-id (16 bytes hex) - span-id (8 bytes hex) - flags "00"
+// flags=00 = NOT-sampled. This is deliberate in the edge-rooted model:
+// the browser supplies a stable trace-id/span-id (the trace ROOT identity
+// + W3C continuity) but DEFERS the sample/record decision to Envoy, the
+// first instrumented server hop, which head-samples (random_sampling:
+// 20% prod / 100% staging) and propagates ITS decision downstream via the
+// sampled flag. Forcing flags=01 here would make Envoy honour an
+// always-sampled inbound decision and trace 100% of browser requests in
+// production, bypassing the 20% head-sampling and ~5x-ing collector +
+// in-memory-Jaeger load.
 //
 // Dependency-free: random bytes come from the Web Crypto API, with a
 // Math.random fallback for older/embedded webviews. The header is
@@ -71,10 +77,11 @@ function randomHex(byteLen: number): string {
 
 /**
  * Build a fresh W3C traceparent: version 00, 16-byte trace-id, 8-byte
- * span-id, sampled flag 01.
+ * span-id, flags 00 (NOT sampled - Envoy makes the head-sampling
+ * decision; see the block comment above).
  */
 function newTraceparent(): string {
-  return `00-${randomHex(16)}-${randomHex(8)}-01`;
+  return `00-${randomHex(16)}-${randomHex(8)}-00`;
 }
 
 // ---------------------------------------------------------------------------

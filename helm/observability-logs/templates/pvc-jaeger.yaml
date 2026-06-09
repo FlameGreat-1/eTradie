@@ -1,0 +1,29 @@
+{{- if and .Values.tracing.enabled .Values.tracing.jaeger.enabled .Values.tracing.jaeger.persistence.enabled }}
+# Durable Badger store for the all-in-one Jaeger. ReadWriteOnce: a
+# single Jaeger pod owns it (the Deployment is replicas=1 +
+# strategy.type=Recreate so the volume is released before reattach).
+# Rendered only when persistence is enabled; flip
+# tracing.jaeger.persistence.enabled=false to drop back to the
+# ephemeral in-memory store with no PVC and no code change.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "olog.jaeger.fullname" . }}-badger
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.jaeger.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: trace-storage
+  {{- with .Values.tracing.jaeger.persistence.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    - {{ .Values.tracing.jaeger.persistence.accessMode | default "ReadWriteOnce" }}
+  {{- if .Values.tracing.jaeger.persistence.storageClass }}
+  storageClassName: {{ .Values.tracing.jaeger.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.tracing.jaeger.persistence.size | default "10Gi" }}
+{{- end }}

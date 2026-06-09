@@ -174,11 +174,13 @@ promtail:
 # Service name below is fixed at `otel-collector` precisely so those
 # endpoints + the per-service NetworkPolicy egress resolve).
 #
-# Jaeger here is the all-in-one image with an in-memory span store:
-# correct for staging and for a first production rollout. For durable,
-# horizontally-scaled traces, point tracing.jaeger.image at a
-# badger/Elasticsearch-backed Jaeger and add persistence (out of scope
-# for this chart's minimal footprint).
+# Jaeger here is the all-in-one image with a DURABLE Badger store on a
+# PVC by default (tracing.jaeger.persistence.enabled=true), so traces
+# survive pod restarts. Set persistence.enabled=false in an overlay to
+# drop back to the ephemeral in-memory store (cheapest footprint) with
+# no code change. For HA / horizontally-scaled traces, split into
+# jaeger-collector + jaeger-query backed by Cassandra/Elasticsearch
+# (out of scope for this chart's single-pod footprint).
 # ---------------------------------------------------------------------
 tracing:
   enabled: false
@@ -231,10 +233,37 @@ tracing:
       repository: jaegertracing/all-in-one
       tag: "1.62.0"
       pullPolicy: IfNotPresent
-    # In-memory store bound. Raise via the overlay if traces are lost
-    # under load; switch the image for durable storage.
-    spanStorageType: memory
+    # Storage backend selector. "badger" = durable on-disk store (PVC),
+    # "memory" = ephemeral. Driven together with persistence.enabled
+    # below: when persistence is enabled the deployment uses Badger and
+    # mounts the PVC; when disabled it uses the in-memory store and
+    # mounts no PVC. Switching is a pure values flag - no code change.
+    spanStorageType: badger
+    # In-memory bound, ONLY used when persistence.enabled=false.
     memoryMaxTraces: "50000"
+    # Durable trace storage. ENABLED by default so traces survive pod
+    # restarts - an operator can investigate an incident even after the
+    # pod that hit it restarted (the in-memory store would wipe exactly
+    # the evidence being sought). To trade durability for the cheapest
+    # footprint, set enabled=false in an environment overlay: the chart
+    # then renders the ephemeral in-memory store + no PVC + no PDB, with
+    # no code change.
+    persistence:
+      enabled: true
+      # Leave empty to use the cluster default StorageClass.
+      storageClass: ""
+      size: 10Gi
+      accessMode: ReadWriteOnce
+      # Badger span retention TTL. Old spans are GC'd so the PVC stays
+      # bounded. 168h = 7 days; align with the Loki/log retention so
+      # traces and logs for the same incident expire together.
+      spanStoreTTL: "168h"
+      annotations: {}
+    # PodDisruptionBudget for the single Jaeger pod. maxUnavailable so a
+    # 1-replica deployment does not block node drains forever.
+    pdb:
+      enabled: true
+      maxUnavailable: 1
     resources:
       requests:
         cpu: 100m

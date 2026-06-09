@@ -39,7 +39,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 #   every rebuild. Without this, an unreachable PyPI fails the build
 #   even when nothing has changed.
 # --no-deps: runtime deps are already installed by the previous
-#   `requirements/base.txt` + `requirements/test.txt` step.
+#   `requirements/base.txt` step (test deps are intentionally NOT
+#   installed in the runtime image - see the build-stage note above).
 # PYTHONPATH: --no-build-isolation looks for the build backends on
 #   sys.path; we installed them into /install via --prefix above, so
 #   we must point sys.path there for this RUN step. The path matches

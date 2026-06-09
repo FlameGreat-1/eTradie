@@ -332,11 +332,20 @@ Two levers, smallest blast radius first:
 
 * **Span loss under load:** raise `tracing.jaeger.memoryMaxTraces` and
   the collector's `batch` size, or move Jaeger to a durable store.
-* **Durable / HA traces:** the all-in-one in-memory store is ephemeral
-  (lost on restart). For production-grade retention, point
-  `tracing.jaeger.image` at a badger/Elasticsearch-backed Jaeger (or
-  split collector/query) and add persistence — deliberately out of
-  scope for this chart's minimal footprint.
+* **Durable traces (default):** Jaeger stores spans in a **Badger**
+  key/value store on a PVC (`tracing.jaeger.persistence.enabled=true`),
+  so traces survive pod restarts — an operator can investigate an
+  incident even after the pod that hit it restarted. Retention is
+  bounded by `tracing.jaeger.persistence.spanStoreTTL` (336h in prod,
+  aligned with Loki log retention). Switching memory<->badger is a pure
+  values flag (no code change): set `persistence.enabled=false` to drop
+  to the ephemeral in-memory store (cheapest footprint, traces lost on
+  restart). The single Jaeger pod has a `maxUnavailable` PDB
+  (`tracing.jaeger.pdb`) so a node drain does not evict it unsafely.
+* **HA traces:** the single-pod all-in-one (durable but not
+  horizontally scaled) is the ceiling here. For HA, split into
+  jaeger-collector + jaeger-query backed by Cassandra/Elasticsearch —
+  deliberately out of scope for this chart's single-pod footprint.
 * **Collector pipeline metrics:** scraped on `:8888` via the
   collector's ServiceMonitor (`prometheus: kube-prometheus`); watch
   `otelcol_processor_dropped_spans` / `otelcol_exporter_send_failed_spans`.

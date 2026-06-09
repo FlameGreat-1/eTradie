@@ -2,10 +2,12 @@
 
 # Tracing backend (OTel Collector + Jaeger) is ON in production. The
 # four service overlays point their OTEL endpoint at
-# otel-collector.etradie-observability.svc.cluster.local:4317. The
-# all-in-one Jaeger uses an in-memory store sized for a first
-# production rollout; swap the image + add persistence for durable,
-# horizontally-scaled traces.
+# otel-collector.etradie-observability.svc.cluster.local:4317. Jaeger
+# uses a DURABLE Badger store on a PVC (inherited from base
+# tracing.jaeger.persistence.enabled=true) so traces survive pod
+# restarts; the PVC is sized + TTL-aligned with the Loki log retention
+# below. For HA / horizontally-scaled traces, split into
+# jaeger-collector + jaeger-query with an external store (out of scope).
 tracing:
   enabled: true
   collector:
@@ -20,6 +22,14 @@ tracing:
   jaeger:
     enabled: true
     memoryMaxTraces: "100000"
+    # Durable Badger store (base default). Size for projected prod span
+    # volume and align the span TTL with the production Loki log
+    # retention (336h / 14d) so traces + logs for the same incident
+    # window expire together.
+    persistence:
+      enabled: true
+      size: 30Gi
+      spanStoreTTL: "336h"
     resources:
       requests:
         cpu: 200m
