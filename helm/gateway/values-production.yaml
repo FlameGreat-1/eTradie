@@ -39,7 +39,12 @@ config:
     # Collector (helm/observability-logs tracing.enabled). Empty =
     # no-op exporter; this turns it live.
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
-    allowedOrigins: "https://app.exoper.com,https://exoper.com"
+    # All three public SPA hosts (Vercel serves exoper.com,
+    # www.exoper.com, and app.exoper.com). Every browser API call to
+    # api.exoper.com is cross-origin from one of these, so each MUST be
+    # in the CORS allow-list or the preflight is rejected. Cookies span
+    # all three via cookieDomain=.exoper.com below.
+    allowedOrigins: "https://app.exoper.com,https://www.exoper.com,https://exoper.com"
     # Production billing endpoint (in-cluster). Keep default for now;
     # if we ever split billing into its own namespace, update the
     # Service DNS here AND the egress NetworkPolicy in values.yaml.
