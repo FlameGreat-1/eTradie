@@ -1,0 +1,21 @@
+{{- if and .Values.tracing.enabled .Values.tracing.jaeger.enabled .Values.tracing.jaeger.pdb.enabled }}
+# PodDisruptionBudget for the single-replica Jaeger pod. maxUnavailable
+# (NOT minAvailable) is used deliberately: a 1-replica minAvailable>=1
+# PDB would block every voluntary node drain forever because there is
+# no second pod to keep available. maxUnavailable lets a drain proceed;
+# combined with Recreate + the RWO Badger PVC the restart gap is brief
+# and the durable store means no traces are lost across it.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "olog.jaeger.fullname" . }}
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.jaeger.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: trace-backend
+spec:
+  maxUnavailable: {{ .Values.tracing.jaeger.pdb.maxUnavailable | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "olog.jaeger.selectorLabels" . | nindent 6 }}
+{{- end }}
