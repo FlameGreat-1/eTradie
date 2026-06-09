@@ -126,13 +126,16 @@ postgres:
         tag: "v0.15.0"
         pullPolicy: IfNotPresent
       port: 9187
+      # Requests MUST meet the namespace LimitRange min (cpu 50m /
+      # memory 64Mi in namespace.yaml) or the pod is rejected at
+      # admission. postgres-exporter idles well under this.
       resources:
         requests:
-          cpu: 25m
-          memory: 32Mi
+          cpu: 50m
+          memory: 64Mi
         limits:
           cpu: 100m
-          memory: 64Mi
+          memory: 128Mi
 
   # Daily logical backup via pg_dump. Backups land on a separate
   # PVC (`postgres-backups`), retained for backup.retentionDays.
@@ -309,13 +312,16 @@ redis:
         tag: "v1.62.0-alpine"
         pullPolicy: IfNotPresent
       port: 9121
+      # Requests MUST meet the namespace LimitRange min (cpu 50m /
+      # memory 64Mi in namespace.yaml) or the pod is rejected at
+      # admission. redis_exporter idles well under this.
       resources:
         requests:
-          cpu: 25m
-          memory: 32Mi
+          cpu: 50m
+          memory: 64Mi
         limits:
           cpu: 100m
-          memory: 64Mi
+          memory: 128Mi
 
 # ----------------------------------------------------------------------
 # ChromaDB (RAG vector store).
