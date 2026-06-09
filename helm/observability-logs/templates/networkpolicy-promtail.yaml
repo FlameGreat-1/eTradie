@@ -25,6 +25,17 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.promtail.service.port | default 3101 }}
+    # Kubelet readiness probe hits /ready on the http-metrics port.
+    # The probe source is the node IP, which a pod/namespace selector
+    # cannot match, so allow any IPv4 source on the probe port. Pod
+    # IPs are not externally routable, so this only admits the on-node
+    # kubelet beyond the Prometheus scrape already permitted above.
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: {{ .Values.promtail.service.port | default 3101 }}
   egress:
     # Push logs to Loki.
     - to:
@@ -34,7 +45,21 @@ spec:
       ports:
         - protocol: TCP
           port: 3100
-    # K8s API server for pod / node service discovery.
+    # K8s API server for pod / node service discovery. Promtail's
+    # kubernetes_sd_configs (role: pod) calls the apiserver, reached
+    # via the kubernetes.default Service whose endpoints are the
+    # host-network control-plane node IPs - NOT a pod in the default
+    # namespace - so a namespaceSelector egress cannot match it under
+    # a strict CNI and pod discovery (hence all log shipping) stops.
+    # Allow any IPv4 destination on :443 so the apiserver is reachable
+    # regardless of how its endpoints resolve; the namespaceSelector
+    # rule is retained for clusters where it does match.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
     - to:
         - namespaceSelector:
             matchLabels:
