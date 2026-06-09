@@ -9,6 +9,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
@@ -248,8 +251,13 @@ func NewHTTPServer(
 	}
 
 	s.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.HTTPPort),
-		Handler: corsMiddleware(allowedOrigins, authHandler.CSRFHeader())(mux),
+		Addr: fmt.Sprintf(":%d", cfg.HTTPPort),
+		// traceContextMiddleware is OUTERMOST: it extracts the inbound
+		// W3C traceparent (from Envoy / edge-ingress) and starts the
+		// gateway server span before CORS or any route runs, so the
+		// request context carries trace context into the engine HTTP
+		// client and the execution/management gRPC clients.
+		Handler: traceContextMiddleware(corsMiddleware(allowedOrigins, authHandler.CSRFHeader())(mux)),
 		// ReadHeaderTimeout bounds the time to read request headers and
 		// is the slow-loris guard on the read path. ReadTimeout bounds
 		// the full request read (headers + body).
@@ -311,6 +319,31 @@ func buildCORSAllowlist(raw []string) (map[string]bool, error) {
 		return nil, fmt.Errorf("invalid CORS origin(s) %v: each entry must be a full http(s) origin (scheme://host[:port]) with no wildcard, no \"null\", and no path/query/fragment", rejected)
 	}
 	return allowed, nil
+}
+
+// traceContextMiddleware extracts the inbound W3C trace context and
+// starts a gateway server span as a child of it, so every downstream
+// hop (engine HTTP client, execution/management gRPC client handlers)
+// continues the SAME distributed trace. It uses the global propagator
+// set in observability.InitTracing; when tracing is disabled the
+// extract yields an empty context and Tracer() returns a no-op tracer,
+// so this adds negligible overhead and no spans. Dependency-free:
+// core otel only (no otelhttp).
+func traceContextMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := otel.GetTextMapPropagator().Extract(
+			r.Context(),
+			propagation.HeaderCarrier(r.Header),
+		)
+		spanName := "HTTP " + r.Method + " " + r.URL.Path
+		ctx, span := otel.Tracer("etradie-gateway").Start(
+			ctx,
+			spanName,
+			trace.WithSpanKind(trace.SpanKindServer),
+		)
+		defer span.End()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // corsMiddleware adds CORS headers for dashboard cross-origin requests.
