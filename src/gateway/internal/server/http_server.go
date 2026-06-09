@@ -358,6 +358,10 @@ func corsMiddleware(allowedOrigins map[string]bool, csrfHeaderName string) func(
 		"Content-Type",
 		"Authorization",
 		"X-Trace-ID",
+		// W3C Trace Context header the SPA stamps on every request so the
+		// browser is the distributed-trace root. Must be allow-listed or
+		// the browser blocks the request at CORS preflight.
+		"traceparent",
 		csrfHeaderName,
 	}, ", ")
 	return func(next http.Handler) http.Handler {

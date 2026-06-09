@@ -425,6 +425,10 @@ def create_app() -> FastAPI:
             "Authorization",
             "X-CSRF-Token",
             "X-Trace-ID",
+            # W3C Trace Context header the SPA stamps on every request
+            # (browser = distributed-trace root). Must be allow-listed
+            # or the browser blocks the request at CORS preflight.
+            "traceparent",
             "X-Requested-With",
         ],
         max_age=86400,
