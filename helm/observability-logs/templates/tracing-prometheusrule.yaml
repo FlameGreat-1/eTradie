@@ -1,0 +1,113 @@
+{{- if and .Values.tracing.enabled .Values.tracing.prometheusRule.enabled }}
+# Health alerting for the tracing backend (OTel Collector + Jaeger).
+# Renders on the tracing path alongside the collector ServiceMonitor
+# that scrapes the :8888 self-metrics these rules evaluate. Jaeger
+# itself has no ServiceMonitor (ClusterIP, operator-only), so its
+# health is observed indirectly through the collector's exporter
+# send-failure metric: a down/unreachable Jaeger makes
+# otelcol_exporter_send_failed_spans climb.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "olog.collector.fullname" . }}
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.collector.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: alerting
+    {{- with .Values.tracing.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: tracing.collector
+      interval: 30s
+      rules:
+        # Collector unreachable: the ServiceMonitor target's `up` is 0.
+        # No spans can be ingested while this holds.
+        - alert: OTelCollectorDown
+          expr: |
+            up{namespace="{{ include "olog.namespace" . }}",endpoint="metrics",service="otel-collector"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            component: otel-collector
+            team: platform
+          annotations:
+            summary: "OTel Collector unreachable ({{`{{ $labels.pod }}`}})"
+            description: |
+              Prometheus cannot scrape the OTel Collector self-metrics
+              endpoint (up == 0) for 5 minutes. While this holds the
+              collector is almost certainly not ingesting OTLP spans
+              from any eTradie service. Check the collector Deployment
+              in the etradie-observability namespace.
+            runbook_url: "https://docs.etradie.com/runbooks/otel-collector-down"
+
+        # Export failures: the collector cannot deliver spans to Jaeger.
+        # This is the primary Jaeger-health proxy (Jaeger has no
+        # ServiceMonitor). A sustained non-zero rate means Jaeger is
+        # down/unreachable or rejecting, so traces are being lost.
+        - alert: OTelCollectorSpanExportFailures
+          expr: |
+            sum(rate(otelcol_exporter_send_failed_spans{namespace="{{ include "olog.namespace" . }}"}[5m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+            component: otel-collector
+            team: platform
+          annotations:
+            summary: "OTel Collector failing to export spans to Jaeger"
+            description: |
+              otelcol_exporter_send_failed_spans is rising for 10
+              minutes: the collector's otlp/jaeger exporter cannot
+              deliver spans. Likely causes: Jaeger Deployment down or
+              unreachable, or its in-memory store is saturated. Traces
+              are being dropped. Check the Jaeger Deployment + the
+              collector-to-Jaeger NetworkPolicy.
+            runbook_url: "https://docs.etradie.com/runbooks/otel-collector-span-export-failures"
+
+        # Exporter queue saturated: spans are about to be dropped at the
+        # batch exporter because the send queue is at capacity.
+        - alert: OTelCollectorQueueSaturated
+          expr: |
+            (
+              sum(otelcol_exporter_queue_size{namespace="{{ include "olog.namespace" . }}"})
+              /
+              clamp_min(sum(otelcol_exporter_queue_capacity{namespace="{{ include "olog.namespace" . }}"}), 1)
+            ) > 0.9
+          for: 10m
+          labels:
+            severity: warning
+            component: otel-collector
+            team: platform
+          annotations:
+            summary: "OTel Collector exporter queue > 90% full"
+            description: |
+              The collector's exporter send queue has been above 90%
+              of capacity for 10 minutes. The downstream (Jaeger) is
+              slower than the inbound span rate; the next sustained
+              burst will drop spans. Scale the collector or Jaeger, or
+              raise the exporter queue size.
+            runbook_url: "https://docs.etradie.com/runbooks/otel-collector-queue-saturated"
+
+        # Refused spans: the memory_limiter processor is shedding load
+        # because the collector is at its memory ceiling. Spans are
+        # rejected at ingest (the service exporters see export errors).
+        - alert: OTelCollectorRefusedSpans
+          expr: |
+            sum(rate(otelcol_receiver_refused_spans{namespace="{{ include "olog.namespace" . }}"}[5m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+            component: otel-collector
+            team: platform
+          annotations:
+            summary: "OTel Collector refusing spans (memory_limiter shedding)"
+            description: |
+              otelcol_receiver_refused_spans is rising for 10 minutes:
+              the memory_limiter processor is refusing inbound spans
+              because the collector is at its memory ceiling. The
+              collector is under-provisioned for the current span
+              volume. Raise tracing.collector.resources or
+              tracing.collector.replicaCount.
+            runbook_url: "https://docs.etradie.com/runbooks/otel-collector-refused-spans"
+{{- end }}
