@@ -13,6 +13,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+
 	executionv1 "github.com/flamegreat-1/etradie/proto/execution/v1"
 	"github.com/flamegreat-1/etradie/src/alert"
 	alertredis "github.com/flamegreat-1/etradie/src/alert/redis"
@@ -63,8 +65,25 @@ func main() {
 	tokenService := auth.NewTokenService(authCfg)
 	log.Info().Msg("auth_service_initialized")
 
-	// ── Database connection pool ───────────────────────────────────────────
 	ctx := context.Background()
+
+	// ── OpenTelemetry tracing ──────────────────────────────────────────────
+	// Empty EXECUTION_OTEL_ENDPOINT -> clean no-op (tracing opt-in). A
+	// non-empty endpoint that fails to dial is a warning, not fatal:
+	// tracing must never block the order path. InitTracing also sets the
+	// global W3C propagator so the otelgrpc server handler below continues
+	// the gateway's trace rather than starting a disconnected root span.
+	var shutdownTracing func(context.Context) error
+	if cfg.OTELEndpoint != "" {
+		shutdownTracing, err = observability.InitTracing(ctx, cfg.OTELServiceName, cfg.OTELEndpoint)
+		if err != nil {
+			log.Warn().Err(err).Msg("tracing_init_failed_continuing_without_tracing")
+		}
+	} else {
+		log.Info().Msg("tracing_disabled_via_empty_otel_endpoint")
+	}
+
+	// ── Database connection pool ───────────────────────────────────────────
 	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal().Err(err).Msg("database_config_parse_failed")
@@ -538,6 +557,12 @@ func main() {
 		Msg("request_signing_configured")
 
 	grpcServer := grpc.NewServer(
+		// otelgrpc stats handler: extracts the inbound traceparent (set by
+		// the gateway's otelgrpc client handler) and records a server span
+		// as a child of the gateway span, so an order flows as ONE trace
+		// gateway -> execution. No-op when tracing is disabled (the global
+		// provider is then a no-op tracer).
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			server.PanicRecoveryInterceptor(observability.Logger("grpc_panic")),
 			auth.UnaryAuthInterceptor(tokenService, skipAuth),
@@ -597,6 +622,12 @@ func main() {
 	_ = gwClient.Close()
 	alertTransport.Close()
 	pool.Close()
+
+	if shutdownTracing != nil {
+		if err := shutdownTracing(shutdownCtx); err != nil {
+			log.Error().Err(err).Msg("tracing_shutdown_error")
+		}
+	}
 
 	log.Info().Msg("execution_engine_stopped")
 }
