@@ -30,6 +30,26 @@ data:
                     "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
                     stat_prefix: ingress_http
                     codec_type: AUTO
+                    {{- if .Values.config.envoy.tracing.enabled }}
+                    # OpenTelemetry tracing. Envoy is the edge-rooted
+                    # first span: it generates/propagates the W3C
+                    # traceparent the gateway continues, and exports its
+                    # span to the OTel Collector via the
+                    # otel_collector_cluster (OTLP/gRPC). random_sampling
+                    # honours config.envoy.tracing.samplePercent.
+                    tracing:
+                      random_sampling:
+                        value: {{ .Values.config.envoy.tracing.samplePercent | default 100 }}
+                      provider:
+                        name: envoy.tracers.opentelemetry
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.config.trace.v3.OpenTelemetryConfig
+                          grpc_service:
+                            envoy_grpc:
+                              cluster_name: {{ .Values.config.envoy.tracing.collectorCluster | default "otel_collector_cluster" | quote }}
+                            timeout: 0.250s
+                          service_name: {{ .Values.config.envoy.tracing.serviceName | default "etradie-envoy" | quote }}
+                    {{- end }}
                     use_remote_address: {{ .Values.config.envoy.listener.useRemoteAddress | default true }}
                     xff_num_trusted_hops: {{ .Values.config.envoy.listener.xffNumTrustedHops | default 1 }}
                     # TIER4 A2b: header-size backstop on the HCM. The
@@ -335,6 +355,31 @@ data:
                 expected_statuses:
                   - start: 200
                     end: 299
+        {{- if .Values.config.envoy.tracing.enabled }}
+        # OTel Collector cluster for the OpenTelemetry tracer above.
+        # HTTP/2 is required for OTLP/gRPC export. STRICT_DNS resolves
+        # the collector Service VIP; the collector NetworkPolicy already
+        # admits the etradie-system + edge namespaces on :4317.
+        - name: {{ .Values.config.envoy.tracing.collectorCluster | default "otel_collector_cluster" }}
+          connect_timeout: {{ .Values.config.envoy.tracing.connectTimeout | default "5s" }}
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          dns_lookup_family: V4_ONLY
+          typed_extension_protocol_options:
+            envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+              "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+              explicit_http_config:
+                http2_protocol_options: {}
+          load_assignment:
+            cluster_name: {{ .Values.config.envoy.tracing.collectorCluster | default "otel_collector_cluster" }}
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: {{ .Values.config.envoy.tracing.collectorAddress | quote }}
+                          port_value: {{ .Values.config.envoy.tracing.collectorPort | default 4317 }}
+        {{- end }}
 
     overload_manager:
       refresh_interval: 0.25s

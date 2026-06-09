@@ -6,10 +6,14 @@ from urllib.parse import urlparse
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.propagate import set_global_textmap
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace.propagation.tracecontext import (
+    TraceContextTextMapPropagator,
+)
 
 from engine.shared.exceptions import TracingError, TracingValidationError
 from engine.shared.logging import get_logger
@@ -113,6 +117,26 @@ def init_tracing(
 
         _provider.add_span_processor(processor)
         trace.set_tracer_provider(_provider)
+
+        # W3C Trace Context propagator so the FastAPI server
+        # instrumentation (engine.main.create_app) EXTRACTS the inbound
+        # traceparent the gateway's engine HTTP client injects, and the
+        # aiohttp client instrumentation below INJECTS it on every
+        # outbound HTTP call (data providers, gateway metering). Without
+        # a global propagator the engine would start a disconnected root
+        # span per request. Matches the Go services' propagator.
+        set_global_textmap(TraceContextTextMapPropagator())
+
+        # Instrument the outbound aiohttp client so engine->provider and
+        # engine->gateway HTTP calls carry the trace. Imported lazily so
+        # the dependency is only touched on the tracing-enabled path.
+        # ZeroMQ to mt-node is NOT instrumented (non-HTTP, opaque).
+        from opentelemetry.instrumentation.aiohttp_client import (
+            AioHttpClientInstrumentor,
+        )
+
+        AioHttpClientInstrumentor().instrument()
+
         _tracer = trace.get_tracer(service_name)
 
         logger.info(

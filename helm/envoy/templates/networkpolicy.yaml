@@ -70,6 +70,22 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.config.envoy.cluster.upstream.port | default 8080 }}
+    {{- if .Values.config.envoy.tracing.enabled }}
+    # envoy -> OTel Collector (OTLP/gRPC span export). Rendered only
+    # when tracing is enabled. Matches the collector pod selector +
+    # port the app services egress to; the collector NetworkPolicy
+    # admits envoy-system on :4317.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: etradie-observability
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: otel-collector
+      ports:
+        - protocol: TCP
+          port: {{ .Values.config.envoy.tracing.collectorPort | default 4317 }}
+    {{- end }}
     # DNS
     - to:
         - namespaceSelector:

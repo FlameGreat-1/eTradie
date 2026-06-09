@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -37,6 +38,10 @@ func NewClient(addr string, timeoutMs int) (*Client, error) {
 	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(10*1024*1024)),
+		// Inject the W3C traceparent into outbound metadata so the
+		// management server continues the gateway's trace. No-op when
+		// tracing is disabled (global tracer is a no-op).
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("management grpc client: dial %s: %w", addr, err)

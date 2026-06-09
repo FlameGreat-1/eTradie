@@ -41,6 +41,19 @@ spec:
       ports:
         - protocol: TCP
           port: 3100
+    # Kubelet liveness/readiness probes hit /ready on the http port
+    # :3100. The probe source is the node IP, which a pod/namespace
+    # selector cannot match, so allow any IPv4 source on the probe
+    # port. Pod IPs are not externally routable, so this only admits
+    # the on-node kubelet beyond the peers already permitted above.
+    # Without this a strict CNI drops the probes and Loki never goes
+    # Ready.
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 3100
   egress:
     # Cluster DNS only - Loki writes to its local PVC and does not
     # call out.

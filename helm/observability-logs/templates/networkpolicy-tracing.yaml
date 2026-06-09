@@ -39,6 +39,19 @@ spec:
       ports:
         - protocol: TCP
           port: 8888
+    # Kubelet liveness/readiness probes target the collector health
+    # extension on :13133. The kubelet probe source is the node IP,
+    # which a pod/namespace selector cannot match, so allow any IPv4
+    # source on the probe port (pod IPs are not routable from outside
+    # the cluster, so in practice this only admits the on-node kubelet).
+    # Mirrors the helm/mt-node :9100 probe-port rule. Without this a
+    # strict CNI drops the probes and the collector never goes Ready.
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 13133
   egress:
     # Export spans to Jaeger (same namespace) on OTLP :4317.
     - to:
@@ -103,6 +116,18 @@ spec:
           podSelector:
             matchLabels:
               app: prometheus
+      ports:
+        - protocol: TCP
+          port: 14269
+    # Kubelet liveness/readiness probes target Jaeger's admin port
+    # :14269. Same node-IP source problem as the collector above:
+    # allow any IPv4 source on the probe port so a strict CNI does not
+    # drop the probes and prevent Jaeger from going Ready. Pod IPs are
+    # not externally routable, so this only admits the on-node kubelet
+    # in addition to the Prometheus scrape already permitted above.
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
           port: 14269

@@ -54,6 +54,13 @@ config:
       tokensPerFill: 500
       fillIntervalSeconds: 1
       enforcedFraction: 0
+    # Distributed tracing ON at 100% in staging for full trace
+    # visibility during validation. Envoy is the edge-rooted first span
+    # and propagates W3C traceparent to the gateway. collectorAddress/
+    # Port/serviceName come from the base values block.
+    tracing:
+      enabled: true
+      samplePercent: 100
 
 # TIER 5 browser security response headers are inherited UNCHANGED from
 # helm/envoy/values.yaml::securityHeaders (API-origin CSP +

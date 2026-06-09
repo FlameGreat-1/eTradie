@@ -24,16 +24,21 @@ var (
 	initOnce sync.Once
 )
 
-// InitTracing initialises the OpenTelemetry trace pipeline.
-// Must be called once at startup. The returned shutdown function
-// must be called during graceful shutdown to flush pending spans.
+// InitTracing initialises the OpenTelemetry trace pipeline for the
+// management service. Must be called once at startup. The returned
+// shutdown function must be called during graceful shutdown to flush
+// pending spans.
 //
 // When otlpEndpoint is empty, tracing is treated as explicitly
-// disabled: no OTLP dial is attempted, no exporter is constructed,
-// and nil is returned for both values. Callers should treat a nil
-// shutdown function as "tracing is off" and skip shutdown gracefully.
-// This is the canonical opt-in pattern for telemetry: absent
-// configuration means absent telemetry, not best-effort retries.
+// disabled: no OTLP dial is attempted, no exporter is constructed, and
+// nil is returned for both values. This is the canonical opt-in pattern
+// shared with the gateway and execution: absent configuration means
+// absent telemetry, not best-effort retries.
+//
+// The collector's OTLP gRPC receiver is plaintext (intra-cluster
+// transport security is Linkerd mTLS, not the exporter), so the
+// exporter dials with insecure credentials, identical to the gateway,
+// execution, and the engine.
 func InitTracing(ctx context.Context, serviceName, otlpEndpoint string) (func(context.Context) error, error) {
 	if serviceName == "" {
 		return nil, fmt.Errorf("tracing: service name cannot be empty")
@@ -81,13 +86,11 @@ func InitTracing(ctx context.Context, serviceName, otlpEndpoint string) (func(co
 		)
 
 		otel.SetTracerProvider(provider)
-		// W3C Trace Context propagator: lets the gateway EXTRACT the
-		// inbound traceparent (forwarded by Envoy/edge-ingress) so its
-		// spans continue that trace, and INJECT traceparent on every
-		// outbound hop (engine HTTP client, execution/management gRPC
-		// client handlers). Without a global propagator set here, the
-		// otelgrpc/HTTP instrumentation has nothing to carry context with
-		// and each service would start a disconnected root span.
+		// W3C Trace Context propagator: the management gRPC server
+		// extracts the inbound traceparent (set by the gateway's
+		// otelgrpc client handler) and continues the SAME trace. Without
+		// this the otelgrpc server handler would start a new, disconnected
+		// root span per request.
 		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 			propagation.TraceContext{},
 			propagation.Baggage{},
@@ -109,11 +112,11 @@ func InitTracing(ctx context.Context, serviceName, otlpEndpoint string) (func(co
 	return shutdownFn, nil
 }
 
-// Tracer returns the global gateway tracer.
+// Tracer returns the global management tracer.
 // Safe to call before InitTracing; returns a no-op tracer.
 func Tracer() trace.Tracer {
 	if tracer == nil {
-		return otel.Tracer("etradie-gateway")
+		return otel.Tracer("etradie-management")
 	}
 	return tracer
 }

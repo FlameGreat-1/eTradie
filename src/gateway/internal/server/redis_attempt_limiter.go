@@ -99,7 +99,13 @@ func (l *RedisAttemptLimiter) AllowRequest(ctx context.Context, scope, key strin
 	}
 	if count > limit {
 		// Over the limit: report the worst-case remaining window so the
-		// client backs off for the full window.
+		// client backs off for the full window. Emit the gateway
+		// rate-limit counter under route="auth" so the
+		// AuthCredentialStuffingSuspected PrometheusRule
+		// (etradie_gateway_rate_limited_total{route="auth"}) has a
+		// series to fire on. tier="-" because the auth limiter runs
+		// pre-authentication and has no subscription tier in scope.
+		observability.GatewayRateLimitedTotal.WithLabelValues("auth", "-").Inc()
 		return false, l.window
 	}
 	return true, 0

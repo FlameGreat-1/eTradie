@@ -30,10 +30,22 @@ tracing is instrumented in code (engine
 Collector + Jaeger** (enabled in the prod + staging overlays via
 `tracing.enabled=true`). Every service's prod + staging overlay sets
 its OTEL endpoint to
-`otel-collector.etradie-observability.svc.cluster.local:4317`, so spans
-flow Browser → gateway → (engine | execution | management) → Collector
-→ Jaeger. Section 4 covers how the stack is wired and how to verify,
-tune, and roll it back. Tracing stays a clean no-op only where the
+`otel-collector.etradie-observability.svc.cluster.local:4317`.
+
+Distributed tracing is wired **end to end** with W3C Trace Context:
+
+```
+Browser (emits traceparent, root span)
+  → edge-ingress (L4 TCP proxy: forwards traceparent unchanged, no span)
+  → Envoy (OpenTelemetry tracer: first instrumented span, propagates)
+  → gateway (extracts + server span + injects on every outbound hop)
+  → engine | execution | management (extract → continue → inject)
+  → OTel Collector → Jaeger
+```
+
+One browser action is therefore a single connected trace. Section 3.4
+documents how each hop propagates context, and Section 4 covers wiring,
+verify, tune, and rollback. Tracing stays a clean no-op only where the
 endpoint is left empty (a bare `helm template` / dev render with
 `tracing.enabled=false`).
 
@@ -169,6 +181,50 @@ endpoint is left empty (a bare `helm template` / dev render with
 Service-name keys (`*.otelServiceName`) are already set
 (`etradie-engine` / `-gateway` / `-execution` / `-management`).
 
+All four services initialise a real tracer when their endpoint is set:
+engine via `init_tracing` (`shared/tracing/otel.py`), and gateway,
+execution, and management each via `observability.InitTracing`
+(`src/<svc>/internal/observability/tracing.go`). Execution and
+management previously shipped the endpoint config with no tracer code;
+they now bootstrap a TracerProvider + W3C propagator + `otelgrpc` server
+handler identically to the gateway.
+
+### 3.4 Trace context propagation (how it is wired)
+
+Edge-rooted W3C Trace Context. Each hop:
+
+* **Browser (SPA, `cotradee/src/lib/axios.ts`)** — stamps a fresh
+  `traceparent` (`00-<16B trace-id>-<8B span-id>-01`) on every request
+  via the axios request interceptor, using the Web Crypto API. The
+  browser is the trace root. `traceparent` is allow-listed in the
+  gateway + engine CORS preflight.
+* **edge-ingress** — a Layer-4 TLS-terminating TCP proxy
+  (`copy_bidirectional`); it never parses HTTP, so it forwards
+  `traceparent` transparently and emits no span of its own.
+* **Envoy** — `envoy.tracers.opentelemetry` (gated by
+  `config.envoy.tracing.enabled`, on in prod/staging). First
+  instrumented span; honours the inbound sampled `traceparent` and
+  exports to the collector via the `otel_collector_cluster`
+  (OTLP/gRPC). Head-samples at `config.envoy.tracing.samplePercent`
+  (20% prod, 100% staging); the decision is propagated downstream.
+* **gateway** — sets the global W3C propagator in `InitTracing`;
+  `traceContextMiddleware` extracts the inbound context and starts a
+  server span; the engine HTTP client injects `traceparent`
+  (`propagation.HeaderCarrier`) and the execution/management gRPC
+  clients inject via `otelgrpc.NewClientHandler()`.
+* **engine** — `FastAPIInstrumentor` extracts the inbound context;
+  `AioHttpClientInstrumentor` injects on outbound HTTP; the global
+  propagator is set in `init_tracing`. ZeroMQ to mt-node is opaque
+  (non-HTTP) and intentionally not traced.
+* **execution / management** — `otelgrpc.NewServerHandler()` extracts
+  the inbound context and records a child span.
+
+Transport: every OTLP export is plaintext gRPC (`insecure`); the
+intra-cluster hop is secured by Linkerd mTLS, not the exporter. The
+meshed services carry `config.linkerd.io/skip-outbound-ports: "4317"`
+so the export bypasses proxy protocol-detection to the un-meshed
+collector.
+
 ### 3.3 Current state
 
 * **Local docker-compose:** Jaeger runs (`jaegertracing/all-in-one`,
@@ -251,8 +307,10 @@ kubectl -n etradie-system logs deploy/engine  | grep tracing_initialized
 
 # 2. Span-creation metric is climbing:
 #    etradie_tracing_spans_created_total  (engine)
-# 3. A cross-service trace (Browser -> gateway -> engine/execution)
-#    appears in the Jaeger UI for service 'etradie-gateway'.
+# 3. A single connected trace for one browser action appears in the
+#    Jaeger UI: root span on the browser-issued traceparent, then
+#    etradie-envoy -> etradie-gateway -> etradie-engine /
+#    etradie-execution / etradie-management as child spans.
 ```
 
 ### 4.5 Roll back
@@ -316,7 +374,21 @@ This is the authoritative list of what pages and why.
 | `HostedRecoveryServiceStuck` | no sweep completed in > 5m | warning |
 | `HostedRecoveryPodsUnhealthyPersistent` | unhealthy pods > 0 for 30m | warning |
 
-### 5.4 Execution / Management / Gateway
+### 5.4 Tracing backend — `tracing.collector`
+
+Shipped by `helm/observability-logs/templates/tracing-prometheusrule.yaml`
+(rendered when `tracing.enabled` AND `tracing.prometheusRule.enabled`).
+Jaeger has no ServiceMonitor, so its health is observed indirectly via
+the collector's exporter send-failure metric.
+
+| Alert | Expr (summary) | Severity |
+| ----- | -------------- | -------- |
+| `OTelCollectorDown` | collector ServiceMonitor `up == 0` for 5m | critical |
+| `OTelCollectorSpanExportFailures` | `otelcol_exporter_send_failed_spans` rate > 0 for 10m (Jaeger down/unreachable) | warning |
+| `OTelCollectorQueueSaturated` | exporter queue > 90% of capacity for 10m | warning |
+| `OTelCollectorRefusedSpans` | `otelcol_receiver_refused_spans` rate > 0 for 10m (memory_limiter shedding) | warning |
+
+### 5.5 Execution / Management / Gateway
 
 * **Execution** (`helm/execution/templates/prometheusrule.yaml`):
   order failure rate, placement latency, queue drops, latency

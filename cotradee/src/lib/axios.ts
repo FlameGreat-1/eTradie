@@ -32,6 +32,52 @@ const CSRF_COOKIE_NAMES = ['__Secure-csrf_token', 'csrf_token'] as const;
 const CSRF_HEADER_NAME = 'X-CSRF-Token';
 
 // ---------------------------------------------------------------------------
+// Distributed tracing (W3C Trace Context)
+//
+// Every request carries a `traceparent` header so the browser is the ROOT
+// span of the distributed trace. Envoy (the first server-side hop) honours
+// an inbound sampled traceparent and continues it; the gateway extracts it
+// and propagates to engine/execution/management, so one dashboard action
+// shows in Jaeger as a single connected trace rooted at the browser.
+//
+// Format (https://www.w3.org/TR/trace-context/#traceparent-header):
+//   version "00" - trace-id (16 bytes hex) - span-id (8 bytes hex) - flags "01"
+// flags=01 = sampled. We sample every browser request (the backend head-
+// samples at Envoy in production, so over-sending here is harmless: an
+// un-sampled downstream decision still records the browser->edge segment).
+//
+// Dependency-free: random bytes come from the Web Crypto API, with a
+// Math.random fallback for older/embedded webviews. The header is
+// best-effort telemetry and is NEVER used for auth, so a weak fallback
+// is acceptable.
+// ---------------------------------------------------------------------------
+const TRACEPARENT_HEADER = 'traceparent';
+
+function randomHex(byteLen: number): string {
+  const bytes = new Uint8Array(byteLen);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < byteLen; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  let out = '';
+  for (let i = 0; i < byteLen; i++) {
+    out += bytes[i].toString(16).padStart(2, '0');
+  }
+  return out;
+}
+
+/**
+ * Build a fresh W3C traceparent: version 00, 16-byte trace-id, 8-byte
+ * span-id, sampled flag 01.
+ */
+function newTraceparent(): string {
+  return `00-${randomHex(16)}-${randomHex(8)}-01`;
+}
+
+// ---------------------------------------------------------------------------
 // Multi-tab logout sync
 //
 // When one tab calls logout(), the SPA writes a value to localStorage
@@ -244,6 +290,17 @@ export function clearTokens(): void { /* no-op */ }
  * both on first dispatch (request interceptor) and on the 401 retry
  * path (after silent refresh rotated the cookie).
  */
+/**
+ * Attach a fresh W3C traceparent to every request (all methods). Called
+ * from the request interceptor so the browser is the trace root. A new
+ * trace is started per request; correlation across the backend hops is
+ * carried by this single header.
+ */
+function stampTraceparent(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
+  config.headers.set(TRACEPARENT_HEADER, newTraceparent());
+  return config;
+}
+
 function stampCsrfHeader(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
   const method = (config.method ?? 'get').toLowerCase();
   if (!MUTATING_METHODS.has(method)) return config;
@@ -309,8 +366,11 @@ function createClient(baseURL: string): AxiosInstance {
     withCredentials: true,
   });
 
-  // Attach CSRF token on state-changing requests.
-  client.interceptors.request.use((config: InternalAxiosRequestConfig) => stampCsrfHeader(config));
+  // Attach the W3C traceparent on every request (browser = trace root),
+  // then the CSRF token on state-changing requests.
+  client.interceptors.request.use((config: InternalAxiosRequestConfig) =>
+    stampCsrfHeader(stampTraceparent(config)),
+  );
 
   // ---------------------------------------------------------------------------
   // Silent token refresh on 401

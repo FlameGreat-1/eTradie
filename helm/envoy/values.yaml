@@ -324,6 +324,25 @@ config:
     overload:
       maxHeapSizeBytes: 2147483648
       globalMaxConnections: 50000
+    # Distributed tracing. Envoy is the first server-side hop, so when
+    # enabled it generates/propagates the W3C traceparent the gateway
+    # (and everything downstream) continues, and exports its own span to
+    # the OTel Collector over OTLP/gRPC. DISABLED by default so a bare
+    # render or a cluster without the collector is unaffected; the prod
+    # + staging overlays set enabled=true. The collector address is the
+    # same fixed Service the app services export to. Audit ref:
+    # observability end-to-end (Step 10e).
+    tracing:
+      enabled: false
+      collectorCluster: "otel_collector_cluster"
+      collectorAddress: "otel-collector.etradie-observability.svc.cluster.local"
+      collectorPort: 4317
+      serviceName: "etradie-envoy"
+      # Percentage of requests to sample (0..100). 100 in non-prod for
+      # full visibility; the production overlay may lower this to bound
+      # span volume / collector load.
+      samplePercent: 100
+      connectTimeout: "5s"
 
 # ---------------------------------------------------------------------------
 # TIER 5: browser security response headers.

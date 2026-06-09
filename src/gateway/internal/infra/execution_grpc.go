@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -45,6 +46,10 @@ func NewExecutionGRPCAdapter(addr string, timeoutMs int, signKey []byte) (*Execu
 
 	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		// Inject the W3C traceparent into outbound metadata so the
+		// execution server continues the gateway's trace. No-op when
+		// tracing is disabled (global tracer is a no-op).
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("execution adapter: create client for %s: %w", addr, err)
