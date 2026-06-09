@@ -23,17 +23,24 @@ config:
     # Distributed tracing ON in staging: export OTLP spans to the
     # in-cluster OTel Collector (helm/observability-logs tracing.enabled).
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
-    allowedOrigins: "https://staging.exoper.com,https://staging-app.exoper.com"
+    # Cross-origin Vercel SPA -> staging API, same topology as
+    # production. Canonical SPA host is staging-app.exoper.com (the
+    # entry host staging.exoper.com 308-redirects to it at the Vercel
+    # edge), so the canonical host is the only origin that calls the
+    # staging API cross-origin and is the sole CORS origin.
+    allowedOrigins: "https://staging-app.exoper.com"
     billingServiceUrl: "http://billing-service.etradie-system.svc.cluster.local:8082"
     billingClientTimeoutMs: "15000"
   auth:
-    # Staging uses a single-host HTTPS deployment (SPA and gateway on
-    # the same hostname) so Strict + host-only cookies are correct.
-    # If staging ever moves to a cross-subdomain topology, update these
-    # to match the production values.
-    cookieDomain: ""
+    # Staging is a cross-subdomain Vercel deployment (SPA on
+    # staging-app.exoper.com, API on the staging gateway host), so the
+    # cookies MUST be scoped to the registrable domain and be
+    # cross-site-capable - identical posture to production. SameSite None
+    # requires Secure true (the gateway validate refuses the combination
+    # otherwise and fails fast at startup).
+    cookieDomain: ".exoper.com"
     cookieSecure: "true"
-    cookieSameSite: "Strict"
+    cookieSameSite: "None"
     csrfHeader: "X-CSRF-Token"
     csrfSigned: "true"
     returnTokensInBody: "false"
