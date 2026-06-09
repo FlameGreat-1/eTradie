@@ -55,6 +55,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             init_tracing(
                 service_name=settings.otel_service_name,
                 otlp_endpoint=settings.otel_exporter_otlp_endpoint,
+                # Plaintext gRPC: the in-cluster OTel Collector's OTLP
+                # receiver binds 0.0.0.0:4317 with no TLS, and the Go
+                # services dial it with insecure credentials too.
+                # Transport security on this hop is Linkerd mTLS, not
+                # the exporter. Without this the SDK attempts a TLS
+                # handshake against a plaintext receiver and every span
+                # export fails. Matches docker-compose jaeger:4317.
+                insecure=True,
             )
         else:
             logger.info("tracing_disabled_no_otlp_endpoint_configured")
