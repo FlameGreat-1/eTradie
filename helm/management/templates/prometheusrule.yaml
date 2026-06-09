@@ -1,0 +1,137 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "management.appName" . }}
+  namespace: {{ include "management.namespace" . }}
+  labels:
+    {{- include "management.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alerting
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    # Trade-lifecycle service health. management is a SINGLETON
+    # (replicaCount=1, Recreate) that owns SL/TP/break-even/trailing/
+    # EOD/invalidation for every open trade, so its availability and
+    # broker-bridge health are first-class trading concerns.
+    - name: management.health
+      interval: 30s
+      rules:
+        - alert: ManagementDown
+          expr: |
+            up{namespace="{{ include "management.namespace" . }}",service="{{ include "management.appName" . }}"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            component: management
+            team: trading
+          annotations:
+            summary: "Management service is down ({{`{{ $labels.pod }}`}})"
+            description: |
+              The management service /metrics target has been down for
+              5 minutes. management is a singleton; while it is down NO
+              open trade is being managed (break-even, trailing SL, TP
+              partials, EOD closure, and invalidation engines are all
+              halted). Open positions run unmanaged until it recovers.
+            runbook_url: "https://docs.etradie.com/runbooks/management-down"
+
+        - alert: ManagementPodHighRestarts
+          expr: |
+            increase(
+              kube_pod_container_status_restarts_total{
+                namespace="{{ include "management.namespace" . }}",
+                pod=~"{{ include "management.appName" . }}-.*"
+              }[15m]
+            ) > 3
+          for: 1m
+          labels:
+            severity: critical
+            component: management
+            team: platform
+          annotations:
+            summary: "Management pod {{`{{ $labels.pod }}`}} restarted > 3 times in 15m"
+            description: |
+              Container restart loop on the singleton management pod.
+              Each restart re-runs trade-state restoration; a loop
+              means trades are repeatedly re-imported and the EOD /
+              reporter / token-renewal loops never stabilise. Check
+              kubectl logs --previous.
+            runbook_url: "https://docs.etradie.com/runbooks/management-pod-high-restarts"
+
+    # Trade-management correctness signals.
+    - name: management.trades
+      interval: 30s
+      rules:
+        # Journal write failures = trades are managed but the DB audit
+        # row is not written. Compliance incident, not just an SLO.
+        - alert: ManagementJournalWriteFailures
+          expr: |
+            sum(rate(etradie_management_journal_write_failures_total[5m])) > 0
+          for: 2m
+          labels:
+            severity: critical
+            component: management
+            team: trading
+          annotations:
+            summary: "Management journal write failures detected"
+            description: |
+              The management service is failing to write trade-lifecycle
+              events to PostgreSQL (etradie_management_journal_write_failures_total
+              is rising). Trades are being managed without a durable
+              audit trail. Check DB health + connection-pool saturation.
+            runbook_url: "https://docs.etradie.com/runbooks/management-journal-write-failures"
+
+        # Broker-bridge error ratio. management calls the engine
+        # /internal/broker/* bridge to move SL/TP on MT5. A sustained
+        # high error ratio means those moves are NOT reaching the
+        # broker, so risk controls (break-even, trailing, EOD) silently
+        # do not apply. Only fires when there is real traffic
+        # (>= 5 calls in the window) so a quiet period does not page.
+        - alert: ManagementBrokerCallErrors
+          expr: |
+            (
+              sum(rate(etradie_management_broker_call_total{status!="ok"}[5m]))
+              /
+              clamp_min(sum(rate(etradie_management_broker_call_total[5m])), 0.0001)
+            ) > 0.2
+            and
+            sum(increase(etradie_management_broker_call_total[5m])) >= 5
+          for: 5m
+          labels:
+            severity: critical
+            component: management
+            team: trading
+          annotations:
+            summary: "Management broker-bridge error ratio > 20% over 5m"
+            description: |
+              More than 20% of management's broker-bridge calls to the
+              engine are failing over the last 5 minutes (>= 5 calls).
+              SL/TP/break-even/trailing moves are not reaching MT5, so
+              open trades are running without their managed risk
+              controls. Cross-check EngineBrokerInflightGate* and
+              MTNodeBrokerDisconnected.
+            runbook_url: "https://docs.etradie.com/runbooks/management-broker-call-errors"
+
+        # Tick-cache fetch errors = the price feed the monitoring loop
+        # depends on is broken, so SL/TP/invalidation evaluation is
+        # running on stale or missing prices.
+        - alert: ManagementTickCacheFetchErrorsHigh
+          expr: |
+            sum(rate(etradie_management_tick_cache_fetch_errors_total[5m])) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+            component: management
+            team: trading
+          annotations:
+            summary: "Management tick-cache fetch errors sustained"
+            description: |
+              The management tick cache is failing to fetch live prices
+              (> 0.05/s for 10m). The monitoring loop evaluates SL/TP
+              and invalidation on stale/missing prices while this
+              persists. Check the engine broker bridge + the per-user
+              service-token identity the tick cache holds.
+            runbook_url: "https://docs.etradie.com/runbooks/management-tick-cache-fetch-errors"
+{{- end }}
