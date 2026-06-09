@@ -328,6 +328,16 @@ serviceMonitor:
     - process_
     - promhttp_
 
+# PrometheusRule (templates/prometheusrule.yaml): availability +
+# webhook / reconciler / circuit-breaker alerts for the revenue-path
+# billing service. Renders only when the Prometheus Operator
+# (monitoring.coreos.com) is installed. Set enabled=false to skip.
+prometheusRule:
+  enabled: true
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+
 resourceQuota:
   enabled: false
 limitRange:
