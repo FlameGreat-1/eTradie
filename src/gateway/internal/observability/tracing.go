@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -80,6 +81,17 @@ func InitTracing(ctx context.Context, serviceName, otlpEndpoint string) (func(co
 		)
 
 		otel.SetTracerProvider(provider)
+		// W3C Trace Context propagator: lets the gateway EXTRACT the
+		// inbound traceparent (forwarded by Envoy/edge-ingress) so its
+		// spans continue that trace, and INJECT traceparent on every
+		// outbound hop (engine HTTP client, execution/management gRPC
+		// client handlers). Without a global propagator set here, the
+		// otelgrpc/HTTP instrumentation has nothing to carry context with
+		// and each service would start a disconnected root span.
+		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		))
 		tracer = provider.Tracer(serviceName)
 
 		shutdownFn = provider.Shutdown
