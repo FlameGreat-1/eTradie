@@ -60,6 +60,16 @@ endpoint is left empty (a bare `helm template` / dev render with
   * engine `:8000`, gateway `:8080`, execution `:8080`,
     management `:8083`, edge-ingress `:9902`, billing (ops port),
     mt-node node-exporter-style `:9100`.
+* The **data plane** exposes metrics via exporter sidecars in each
+  StatefulSet pod (no app code of our own): postgres-exporter `:9187`,
+  redis-exporter `:9121`. ChromaDB ships no Prometheus exporter in its
+  pinned image, so it is observed via `up` / kube-state + the Linkerd
+  proxy `:4191` RED metrics only. Toggled per datastore by
+  `postgres.metrics.enabled` / `redis.metrics.enabled`
+  (`helm/data-layer/values.yaml`); the exporter port is admitted to
+  Prometheus by the per-datastore NetworkPolicy and, where
+  `linkerdPolicy.enabled=true`, by a dedicated Linkerd `Server` +
+  `AuthorizationPolicy` + `NetworkAuthentication`.
 * Engine metric definitions live in
   `src/engine/shared/metrics/prometheus.py` (RED/USE methodology,
   every series namespaced `etradie_`). Go services expose `promhttp`
@@ -397,6 +407,27 @@ the collector's exporter send-failure metric.
 | `OTelCollectorQueueSaturated` | exporter queue > 90% of capacity for 10m | warning |
 | `OTelCollectorRefusedSpans` | `otelcol_receiver_refused_spans` rate > 0 for 10m (memory_limiter shedding) | warning |
 
+### 5.6 Data layer — `data-layer.{postgres,redis,chromadb}`
+
+Shipped by `helm/data-layer/templates/prometheusrule.yaml` (rendered
+when `prometheusRule.enabled`). Postgres/Redis exprs reference the
+exporter series; ChromaDB has no exporter and is alerted via
+up/kube-state only.
+
+| Alert | Expr (summary) | Severity |
+| ----- | -------------- | -------- |
+| `PostgresDown` | `pg_up == 0` or absent for 5m | critical |
+| `PostgresExporterDown` | postgres `metrics` target `up == 0` for 5m | warning |
+| `PostgresPodHighRestarts` | > 3 restarts in 15m | warning |
+| `PostgresConnectionsNearMax` | open conns > 80% of `max_connections` for 5m | warning |
+| `RedisDown` | `redis_up == 0` or absent for 5m | critical |
+| `RedisExporterDown` | redis `metrics` target `up == 0` for 5m | warning |
+| `RedisPodHighRestarts` | > 3 restarts in 15m | warning |
+| `RedisMemoryNearMaxmemory` | used/maxmemory > 90% for 5m | warning |
+| `RedisRejectingConnections` | `redis_rejected_connections_total` rate > 0 for 5m | warning |
+| `ChromaDBDown` | no Ready chromadb pod for 5m | warning |
+| `ChromaDBPodHighRestarts` | > 3 restarts in 15m | warning |
+
 ### 5.5 Execution / Management / Gateway
 
 * **Execution** (`helm/execution/templates/prometheusrule.yaml`):
@@ -420,7 +451,8 @@ monitoring            Prometheus Operator + Prometheus + Grafana
                       (NOT deployed by these charts; cluster add-on)
 etradie-observability Loki + Promtail   (helm/observability-logs)
                       [+ OTel Collector + Jaeger once Section 4 is done]
-etradie-system        all app services expose /metrics + JSON logs
+etradie-system        all app services expose /metrics + JSON logs;
+                      data-layer exporters (postgres :9187, redis :9121)
 edge-ingress-system   edge-ingress /metrics :9902
 ```
 

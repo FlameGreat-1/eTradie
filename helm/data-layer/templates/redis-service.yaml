@@ -20,6 +20,13 @@ spec:
       targetPort: redis
       protocol: TCP
       appProtocol: redis
+    {{- if .Values.redis.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.redis.metrics.exporter.port | default 9121 }}
+      targetPort: metrics
+      protocol: TCP
+      appProtocol: http
+    {{- end }}
 ---
 apiVersion: v1
 kind: Service

@@ -87,6 +87,59 @@ spec:
     - group: policy.linkerd.io
       kind: NetworkAuthentication
       name: postgres-backup-network
+{{- if .Values.postgres.metrics.enabled }}
+---
+# postgres-exporter :9187 (HTTP) — Prometheus only. The exporter is a
+# separate HTTP port on the meshed postgres pod, so it needs its own
+# Server + authz; the opaque postgres Server above does not cover it.
+# Prometheus is un-meshed, so it is admitted by source network (the
+# same posture as postgres-backup-network), with the NetworkPolicy as
+# the precise per-pod control.
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: postgres-metrics
+  namespace: {{ $ns }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  port: {{ .Values.postgres.metrics.exporter.port | default 9187 }}
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: postgres-metrics-network
+  namespace: {{ $ns }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+spec:
+  networks:
+    - cidr: 10.0.0.0/8
+    - cidr: 172.16.0.0/12
+    - cidr: 192.168.0.0/16
+    - cidr: 100.64.0.0/10
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: postgres-metrics-authz
+  namespace: {{ $ns }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: postgres-metrics
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: NetworkAuthentication
+      name: postgres-metrics-network
+{{- end }}
 {{- end }}
 {{- if .Values.redis.enabled }}
 ---
@@ -134,6 +187,57 @@ spec:
     - group: policy.linkerd.io
       kind: MeshTLSAuthentication
       name: redis-callers
+{{- if .Values.redis.metrics.enabled }}
+---
+# redis-exporter :9121 (HTTP) — Prometheus only. Separate HTTP port on
+# the meshed redis pod; own Server + authz (the opaque redis Server
+# above does not cover it). Un-meshed Prometheus admitted by source
+# network, NetworkPolicy is the precise per-pod control.
+apiVersion: policy.linkerd.io/v1beta3
+kind: Server
+metadata:
+  name: redis-metrics
+  namespace: {{ $ns }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  port: {{ .Values.redis.metrics.exporter.port | default 9121 }}
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: NetworkAuthentication
+metadata:
+  name: redis-metrics-network
+  namespace: {{ $ns }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  networks:
+    - cidr: 10.0.0.0/8
+    - cidr: 172.16.0.0/12
+    - cidr: 192.168.0.0/16
+    - cidr: 100.64.0.0/10
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: redis-metrics-authz
+  namespace: {{ $ns }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: redis-metrics
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: NetworkAuthentication
+      name: redis-metrics-network
+{{- end }}
 {{- end }}
 {{- if .Values.chromadb.enabled }}
 ---

@@ -139,6 +139,79 @@ spec:
               mountPath: /docker-entrypoint-initdb.d
               readOnly: true
             {{- end }}
+        {{- if .Values.postgres.metrics.enabled }}
+        # postgres-exporter sidecar. Scrapes Postgres over the in-pod
+        # loopback (localhost:5432) using the SAME credentials the
+        # server boots with (postgres-credentials Secret). It needs no
+        # superuser: the pg_stat_* / pg_settings views it reads are
+        # world-readable to the owning role. Exposes Prometheus metrics
+        # on :9187 (named `metrics`), scraped by the data-layer
+        # ServiceMonitor. Hardened to match the postgres posture
+        # (non-root uid 70, RO-rootfs, all caps dropped).
+        - name: postgres-exporter
+          image: "{{ .Values.postgres.metrics.exporter.image.repository }}:{{ .Values.postgres.metrics.exporter.image.tag }}"
+          imagePullPolicy: {{ .Values.postgres.metrics.exporter.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 70
+            capabilities:
+              drop:
+                - ALL
+          env:
+            # DATA_SOURCE_URI is host:port/db (no scheme); user + pass
+            # are passed separately so the password never appears in a
+            # DSN on argv. sslmode=disable: the hop is in-pod loopback,
+            # and meshed peers are mTLS'd by Linkerd, not libpq TLS.
+            - name: DATA_SOURCE_URI
+              value: "localhost:{{ .Values.postgres.service.port | default 5432 }}/$(POSTGRES_DB)?sslmode=disable"
+            - name: DATA_SOURCE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postgres.secretName" . }}
+                  key: POSTGRES_USER
+            - name: DATA_SOURCE_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postgres.secretName" . }}
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postgres.secretName" . }}
+                  key: POSTGRES_DB
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.postgres.metrics.exporter.port | default 9187 }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.postgres.metrics.exporter.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /
+              port: metrics
+            initialDelaySeconds: 0
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 4
+          readinessProbe:
+            httpGet:
+              path: /
+              port: metrics
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+        {{- end }}
       volumes:
         {{- if .Values.postgres.initSQL.enabled }}
         - name: init-sql

@@ -1,0 +1,98 @@
+{{- /*
+Data-layer ServiceMonitors. One per datastore that ships an exporter
+(postgres, redis). ChromaDB has no Prometheus exporter in its pinned
+image, so it is observed via up/kube-state in the PrometheusRule rather
+than a ServiceMonitor. Selected by the operator's serviceMonitorSelector
+via the `prometheus: kube-prometheus` label, matching every other chart.
+*/ -}}
+{{- if .Values.serviceMonitor.enabled }}
+{{- if and .Values.postgres.enabled .Values.postgres.metrics.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: postgres
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "postgres.selectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ include "data-layer.namespace" . }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.serviceMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout | default "10s" }}
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_service_name]
+          targetLabel: service
+      {{- with .Values.serviceMonitor.metricRelabelDropPrefixes }}
+      metricRelabelings:
+        {{- range . }}
+        - sourceLabels: [__name__]
+          regex: '{{ . }}.*'
+          action: drop
+        {{- end }}
+      {{- end }}
+{{- end }}
+{{- if and .Values.redis.enabled .Values.redis.metrics.enabled }}
+{{- if and .Values.postgres.enabled .Values.postgres.metrics.enabled }}
+---
+{{- end }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "redis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitoring
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "redis.selectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ include "data-layer.namespace" . }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.serviceMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout | default "10s" }}
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_service_name]
+          targetLabel: service
+      {{- with .Values.serviceMonitor.metricRelabelDropPrefixes }}
+      metricRelabelings:
+        {{- range . }}
+        - sourceLabels: [__name__]
+          regex: '{{ . }}.*'
+          action: drop
+        {{- end }}
+      {{- end }}
+{{- end }}
+{{- end }}

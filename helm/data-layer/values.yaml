@@ -111,6 +111,29 @@ postgres:
     vaultPath: etradie/data-layer/postgres/production
     creationPolicy: Owner
 
+  # Prometheus metrics. When enabled, a postgres-exporter sidecar is
+  # added to the StatefulSet (scrapes the local DB with the same
+  # postgres-credentials Secret over loopback) and exposes :9187 as the
+  # Service `metrics` port. The data-layer ServiceMonitor scrapes it and
+  # the PrometheusRule alerts on it. The NetworkPolicy + Linkerd authz
+  # admit Prometheus to :9187 automatically when this is on. Set
+  # enabled=false to ship Postgres with no metrics surface.
+  metrics:
+    enabled: true
+    exporter:
+      image:
+        repository: quay.io/prometheuscommunity/postgres-exporter
+        tag: "v0.15.0"
+        pullPolicy: IfNotPresent
+      port: 9187
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+
   # Daily logical backup via pg_dump. Backups land on a separate
   # PVC (`postgres-backups`), retained for backup.retentionDays.
   # When backup.offsite.enabled=true an rclone step in the same
@@ -273,6 +296,27 @@ redis:
     vaultPath: etradie/data-layer/redis/production
     creationPolicy: Owner
 
+  # Prometheus metrics. When enabled, a redis-exporter sidecar is added
+  # to the StatefulSet (authenticated with the redis-credentials Secret
+  # over loopback) and exposes :9121 as the Service `metrics` port. The
+  # data-layer ServiceMonitor scrapes it and the PrometheusRule alerts
+  # on it; the NetworkPolicy + Linkerd authz admit Prometheus to :9121.
+  metrics:
+    enabled: true
+    exporter:
+      image:
+        repository: oliver006/redis_exporter
+        tag: "v1.62.0-alpine"
+        pullPolicy: IfNotPresent
+      port: 9121
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+
 # ----------------------------------------------------------------------
 # ChromaDB (RAG vector store).
 # ----------------------------------------------------------------------
@@ -369,6 +413,35 @@ limitRange:
     defaultRequest:
       cpu: "250m"
       memory: "512Mi"
+
+# ----------------------------------------------------------------------
+# Prometheus Operator integration for the data plane.
+#
+# serviceMonitor renders one ServiceMonitor per datastore that ships an
+# exporter (postgres :9187, redis :9121); chromadb has no exporter and
+# is covered by up/kube-state in the rule. prometheusRule renders the
+# data-layer alert groups. Both are selected by the operator via the
+# `prometheus: kube-prometheus` label (mirroring every service chart);
+# the rule additionally carries `role: alert-rules` for the operator
+# ruleSelector. Set enabled=false on a cluster with no Prometheus
+# Operator to skip the CRDs.
+# ----------------------------------------------------------------------
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  labels:
+    prometheus: kube-prometheus
+  metricRelabelDropPrefixes:
+    - go_
+    - process_
+    - promhttp_
+
+prometheusRule:
+  enabled: true
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
 
 # ----------------------------------------------------------------------
 # NetworkPolicy: every datastore here only accepts ingress from the
