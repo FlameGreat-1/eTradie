@@ -76,9 +76,17 @@ const VERCEL_JSON = path.join(SPA_ROOT, 'vercel.json');
 // a deterministic baseline vercel.json. Production overrides these via
 // the Vercel project env (VITE_API_URL=https://api.exoper.com,
 // VITE_API_WS_URL=wss://api.exoper.com) and prebuild bakes them in.
+// Defaults are the PRODUCTION origins so the committed vercel.json is
+// the correct file Vercel serves out of the box. Vercel reads
+// vercel.json as deploy configuration at the START of the build
+// (before the build command / prebuild runs), so the COMMITTED file is
+// authoritative - prebuild cannot mutate deploy config after the fact.
+// Override via the env (e.g. a preview env pointing at a staging API)
+// when regenerating locally; CI's --check compares against this
+// committed production baseline.
 const VITE_ORIGIN_VARS = {
-  VITE_API_URL: 'http://localhost:8080',
-  VITE_API_WS_URL: 'ws://localhost:8080',
+  VITE_API_URL: 'https://api.exoper.com',
+  VITE_API_WS_URL: 'wss://api.exoper.com',
 };
 
 // ---------------------------------------------------------------------------
@@ -164,6 +172,13 @@ function buildCsp(connectSrc) {
 function buildVercelConfig(csp) {
   return {
     $schema: 'https://openapi.vercel.sh/vercel.json',
+    // SPA history-API fallback. The app uses BrowserRouter, so every
+    // client-side route (/login, /dashboard/*, /terms,
+    // /auth/callback/google, provider return URLs) must serve
+    // index.html. Vercel serves a matching static file first, so this
+    // only catches non-asset paths. Without it, deep links / refresh
+    // return a 404.
+    rewrites: [{ source: '/(.*)', destination: '/index.html' }],
     headers: [
       {
         source: '/(.*)',
