@@ -183,6 +183,17 @@ promtail:
 tracing:
   enabled: false
 
+  # Health alerting for the tracing backend (templates/tracing-
+  # prometheusrule.yaml). Renders only when tracing.enabled AND this is
+  # enabled. Labels must match the Prometheus Operator ruleSelector
+  # (kube-prometheus by default), mirroring collector.serviceMonitor.
+  # Set enabled=false on a cluster without the Prometheus Operator.
+  prometheusRule:
+    enabled: true
+    labels:
+      prometheus: kube-prometheus
+      role: alert-rules
+
   collector:
     image:
       repository: otel/opentelemetry-collector-contrib
