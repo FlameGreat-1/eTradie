@@ -12,11 +12,23 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
 	"github.com/flamegreat-1/etradie/src/pkg/resilience"
 )
+
+// injectTraceContext writes the current context's W3C trace headers
+// (traceparent / tracestate) onto the outbound request so the engine's
+// FastAPI instrumentation continues the SAME distributed trace instead
+// of starting a disconnected root span. Uses the global propagator set
+// in observability.InitTracing; a no-op when tracing is disabled or the
+// context carries no recording span. Dependency-free (core otel only).
+func injectTraceContext(ctx context.Context, req *http.Request) {
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+}
 
 // internalAuthHeader is the header name the engine's verify_internal_auth
 // dependency reads. Mirrors engine/shared/internal_auth.py::INTERNAL_AUTH_HEADER
@@ -112,6 +124,7 @@ func (c *EngineHTTPClient) PostJSON(ctx context.Context, path string, body inter
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Idempotency-Key", idempotencyKey)
+		injectTraceContext(ctx, req)
 
 		if isInternalPath(path) {
 			// Internal endpoints authenticate via shared secret + user ID.
@@ -234,6 +247,7 @@ func (c *EngineHTTPClient) PostJSONNoRetry(ctx context.Context, path string, bod
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Idempotency-Key", idempotencyKey)
+		injectTraceContext(ctx, req)
 
 		if isInternalPath(path) {
 			if c.internalSecret != "" {
@@ -324,6 +338,7 @@ func (c *EngineHTTPClient) GetJSON(ctx context.Context, path string) (map[string
 		if err != nil {
 			return fmt.Errorf("engine_http: create request for %s: %w", path, err)
 		}
+		injectTraceContext(ctx, req)
 
 		if isInternalPath(path) {
 			if c.internalSecret != "" {
