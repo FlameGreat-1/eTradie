@@ -32,6 +32,18 @@ serviceMonitor:
     environment: production
     tier: critical
 
+# Distributed tracing ON. Envoy is the edge-rooted first span and
+# propagates W3C traceparent to the gateway. Head-sampling at 20% is
+# made once here at the root and honoured by every downstream hop
+# (sampled flag in the propagated traceparent), bounding collector +
+# Jaeger load while capturing a representative slice of COMPLETE traces.
+# The collectorAddress/Port/serviceName come from the base values block.
+config:
+  envoy:
+    tracing:
+      enabled: true
+      samplePercent: 20
+
 # TIER 5 browser security response headers (CSP / X-Frame-Options /
 # X-Content-Type-Options / Referrer-Policy) are inherited UNCHANGED from
 # helm/envoy/values.yaml::securityHeaders. They are an API-origin policy
