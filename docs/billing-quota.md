@@ -1,7 +1,7 @@
 # Platform LLM Quota — Operator + Developer Runbook
 
 This document captures the end-to-end design of the admin-managed LLM
-token quota system landed by the `feat/admin-managed-quotas` MR. It is
+token quota system. It is
 the single source of truth for:
 
 - what each tier sees,

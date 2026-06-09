@@ -68,23 +68,23 @@ function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps, hideHead
   
   const content = (
     <div className="space-y-4">
-      <Section title="1. Identity" onEdit={() => onEditStep(0)} hideEdit={hideSectionEdits}>
+      <Section title="1. Identity" onEdit={() => onEditStep(0)} hideEdit={hideHeader}>
         <ReviewRow label="Experience" value={identity.experience} />
         <ReviewRow label="Execution" value={identity.automation} />
         <ReviewRow label="Risk appetite" value={identity.risk_appetite} />
         <ReviewRow label="Trader type" value={identity.trader_type} />
         <ReviewRow label="Discipline" value={identity.discipline} />
-      </Section>      <Section title="2. Style" onEdit={() => onEditStep(1)} hideEdit={hideSectionEdits}>
+      </Section>      <Section title="2. Style" onEdit={() => onEditStep(1)} hideEdit={hideHeader}>
         <ReviewRow label="Style" value={profile.style} />
       </Section>
 
-      <Section title="3. Sessions" onEdit={() => onEditStep(2)} hideEdit={hideSectionEdits}>
+      <Section title="3. Sessions" onEdit={() => onEditStep(2)} hideEdit={hideHeader}>
         <ReviewRow label="Preferred" value={joinList(sessions.preferred_sessions)} />
         <ReviewRow label="Avoid low liquidity" value={yesNo(sessions.avoid_low_liquidity)} />
         <ReviewRow label="High-volatility windows only" value={yesNo(sessions.high_volatility_windows_only)} />
       </Section>
 
-      <Section title="4. Risk Personality" onEdit={() => onEditStep(3)} hideEdit={hideSectionEdits}>
+      <Section title="4. Risk Personality" onEdit={() => onEditStep(3)} hideEdit={hideHeader}>
         <ReviewRow label="Risk model" value={risk.risk_model} />
         <ReviewRow label="Per-trade risk" value={`${risk.fixed_risk_percent}%`} />
         <ReviewRow label="Max daily drawdown" value={`${risk.max_daily_drawdown_percent}%`} />
@@ -96,11 +96,11 @@ function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps, hideHead
         <ReviewRow label="Trailing stop" value={yesNo(risk.trailing_stop_enabled)} />
       </Section>
 
-      <Section title="5. Confirmation" onEdit={() => onEditStep(4)} hideEdit={hideSectionEdits}>
+      <Section title="5. Confirmation" onEdit={() => onEditStep(4)} hideEdit={hideHeader}>
         <ReviewRow label="Strictness" value={profile.confirmation} />
       </Section>
 
-      <Section title="6. Structural" onEdit={() => onEditStep(5)} hideEdit={hideSectionEdits}>
+      <Section title="6. Structural" onEdit={() => onEditStep(5)} hideEdit={hideHeader}>
         <ReviewRow label="Frameworks" value={joinList(structural.frameworks)} />
         <ReviewRow label="FVG" value={yesNo(structural.use_fvg)} />
         <ReviewRow label="Order Blocks" value={yesNo(structural.use_order_blocks)} />
@@ -109,7 +109,7 @@ function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps, hideHead
         <ReviewRow label="Emphasis" value={structural.structure_emphasis} />
       </Section>
 
-      <Section title="7. Entry" onEdit={() => onEditStep(6)} hideEdit={hideSectionEdits}>
+      <Section title="7. Entry" onEdit={() => onEditStep(6)} hideEdit={hideHeader}>
         <ReviewRow label="Execution mode" value={entry.execution_mode} />
         <ReviewRow label="Confirmation candle" value={yesNo(entry.require_confirmation_candle)} />
         <ReviewRow label="Retest" value={yesNo(entry.require_retest)} />
@@ -117,7 +117,7 @@ function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps, hideHead
         <ReviewRow label="MTF alignment" value={yesNo(entry.require_mtf_alignment)} />
       </Section>
 
-      <Section title="8. Trade Filtering" onEdit={() => onEditStep(7)} hideEdit={hideSectionEdits}>
+      <Section title="8. Trade Filtering" onEdit={() => onEditStep(7)} hideEdit={hideHeader}>
         <ReviewRow label="Minimum RR" value={`${filtering.minimum_rr}:1`} />
         <ReviewRow label="Avoid counter-trend" value={yesNo(filtering.avoid_counter_trend)} />
         <ReviewRow label="Avoid news" value={yesNo(filtering.avoid_news_volatility)} />
@@ -127,7 +127,7 @@ function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps, hideHead
         <ReviewRow label="Avoid session transitions" value={yesNo(filtering.avoid_session_transitions)} />
       </Section>
 
-      <Section title="9. Psychology" onEdit={() => onEditStep(8)} hideEdit={hideSectionEdits}>
+      <Section title="9. Psychology" onEdit={() => onEditStep(8)} hideEdit={hideHeader}>
         <ReviewRow label="Max losses" value={String(psychology.max_losses_before_cooldown)} />
         <ReviewRow label="Loss-streak cooldown" value={yesNo(psychology.cooldown_after_loss_streak)} />
         <ReviewRow label="Daily lockout" value={yesNo(psychology.daily_lockout_after_target)} />
@@ -136,7 +136,7 @@ function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps, hideHead
         <ReviewRow label="Volatility sensitivity" value={psychology.emotional_volatility_sensitivity} />
       </Section>
 
-      <Section title="10. Confluence Weights" onEdit={() => onEditStep(9)} hideEdit={hideSectionEdits}>
+      <Section title="10. Confluence Weights" onEdit={() => onEditStep(9)} hideEdit={hideHeader}>
         <ReviewRow label="Macro" value={String(confluence.macro_alignment)} />
         <ReviewRow label="DXY" value={String(confluence.dxy)} />
         <ReviewRow label="COT" value={String(confluence.cot)} />
@@ -146,24 +146,24 @@ function ReviewStepInner({ profile, onEditStep, stepNumber, totalSteps, hideHead
         <ReviewRow label="Session timing" value={String(confluence.session_timing)} />
       </Section>
 
-      <Section title="11. Automation" onEdit={() => onEditStep(10)} hideEdit={hideSectionEdits}>
+      <Section title="11. Automation" onEdit={() => onEditStep(10)} hideEdit={hideHeader}>
         <ReviewRow label="Mode" value={automation.mode} />
         <ReviewRow label="Final confirmation" value={yesNo(automation.require_final_confirmation)} />
         <ReviewRow label="Unattended execution" value={yesNo(automation.allow_unattended_execution)} />
       </Section>
 
-      <Section title="12. Assets" onEdit={() => onEditStep(11)} hideEdit={hideSectionEdits}>
+      <Section title="12. Assets" onEdit={() => onEditStep(11)} hideEdit={hideHeader}>
         <ReviewRow label="Classes" value={joinList(assets.asset_classes)} />
         <ReviewRow label="Preferred pairs" value={joinList(assets.preferred_pairs)} />
         <ReviewRow label="Avoid high volatility" value={yesNo(assets.avoid_highly_volatile)} />
         <ReviewRow label="Avoid correlated" value={yesNo(assets.avoid_correlated_instruments)} />
       </Section>
 
-      <Section title="13. Goal" onEdit={() => onEditStep(12)} hideEdit={hideSectionEdits}>
+      <Section title="13. Goal" onEdit={() => onEditStep(12)} hideEdit={hideHeader}>
         <ReviewRow label="Orientation" value={profile.goal} />
       </Section>
 
-      <Section title="14. Trade Management" onEdit={() => onEditStep(13)} hideEdit={hideSectionEdits}>
+      <Section title="14. Trade Management" onEdit={() => onEditStep(13)} hideEdit={hideHeader}>
         <ReviewRow label="Partial TP style" value={management.partial_tp_style} />
         <ReviewRow label="Trailing stop" value={management.trailing_stop} />
         <ReviewRow label="Break-even trigger" value={management.break_even_trigger} />

@@ -92,7 +92,7 @@ export function SymbolsStep({ onComplete }: Props) {
     } catch { /* surface via mutation state if needed */ }
   };
 
-  const isProvisioning = activeBrokerConn?.connection?.status === 'provisioning';
+  const isProvisioning = (activeBrokerConn as any)?.connection?.status === 'provisioning';
 
   if (activeBrokerLoading || isProvisioning) {
     return (
@@ -101,7 +101,7 @@ export function SymbolsStep({ onComplete }: Props) {
         <div>
           <h2 className="text-xl font-bold text-content">Connecting to your broker...</h2>
           <p className="mt-2 text-sm text-content-secondary max-w-sm mx-auto">
-            {activeBrokerConn?.connection?.status_message || 'Please wait while we provision your dedicated MetaTrader terminal. This may take up to 3 minutes.'}
+            {(activeBrokerConn as any)?.connection?.status_message || 'Please wait while we provision your dedicated MetaTrader terminal. This may take up to 3 minutes.'}
           </p>
         </div>
       </div>

@@ -197,7 +197,7 @@ export default function BrokerSection() {
         )}
         {conns.map((c) => {
           const id = String(c.id);
-          const isActive = c.is_active === true || String(active?.id) === id;
+          const isActive = c.is_active === true || String((active as any)?.id) === id;
           const subtitleParts = [String(c.connection_type), String(c.platform || 'mt5').toUpperCase()];
           if (c.mt5_server) subtitleParts.push(String(c.mt5_server));
           if (c.mt5_login) subtitleParts.push(String(c.mt5_login));

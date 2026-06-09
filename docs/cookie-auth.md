@@ -1,8 +1,7 @@
 # Cookie Auth + CSRF — Operator Runbook
 
 This document is the canonical reference for the cookie-auth + CSRF
-model introduced in batches 10a–11 and finalised by
-`fix/cookie-auth-finalize-frontend`. It tells operators what each
+model introduced in batches and finalised. It tells operators what each
 cookie does, how to configure the deployment for the three supported
 topologies (local-dev HTTP, single-host HTTPS, cross-subdomain HTTPS),
 and how to triage every failure mode we have seen in development.

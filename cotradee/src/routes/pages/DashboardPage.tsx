@@ -36,7 +36,7 @@ function normalizeSymbol(s: string | undefined | null): string {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  useAuth();
 
 
   const { data: symbolData } = useSymbols();

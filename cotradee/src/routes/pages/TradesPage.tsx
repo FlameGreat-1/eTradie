@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useManagedTrades, usePerformanceMetrics } from '@/features/journal/api/journal';
 import { useExecutionState, useCancelOrder } from '@/features/execution/api/brokerAccount';
-import { useRealtime } from '@/features/realtime';
 import { formatCurrency, formatPercentage, formatVolume, formatAssetPrice } from '@/utils/formatters';
 import { Activity, Zap, TrendingUp, BarChart3 } from 'lucide-react';
 
@@ -45,7 +44,6 @@ export default function TradesPage() {
   const { data: dailyMetrics } = usePerformanceMetrics('DAILY');
   const { data: allTimeMetrics } = usePerformanceMetrics();
   const cancelOrder = useCancelOrder();
-  const { isConnected } = useRealtime();
 
   const trades = (managedRaw ?? []) as ManagedTrade[];
   const pending = (execState?.pending_orders ?? []) as PendingOrder[];
@@ -70,7 +68,6 @@ export default function TradesPage() {
           icon={<Activity size={18} />}
           label="Open Positions"
           value={String(execState?.open_position_count ?? 0)}
-          accessory={isConnected && trades.length > 0 ? <span className="live-dot" /> : null}
         />
         <MetricCard
           icon={<Zap size={18} />}
