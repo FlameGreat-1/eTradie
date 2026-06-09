@@ -22,6 +22,13 @@ spec:
       targetPort: postgres
       protocol: TCP
       appProtocol: postgresql
+    {{- if .Values.postgres.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.postgres.metrics.exporter.port | default 9187 }}
+      targetPort: metrics
+      protocol: TCP
+      appProtocol: http
+    {{- end }}
 ---
 apiVersion: v1
 kind: Service
