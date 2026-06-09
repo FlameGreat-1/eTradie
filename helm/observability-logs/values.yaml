@@ -200,11 +200,16 @@ tracing:
       tag: "0.103.1"
       pullPolicy: IfNotPresent
     replicaCount: 2
-    # Namespaces whose pods may push OTLP to the collector. All eTradie
-    # services (engine, gateway, execution, management, mt-node) run in
-    # etradie-system, so that one namespace covers the fleet.
+    # Namespaces whose pods may push OTLP to the collector. The eTradie
+    # app services (engine, gateway, execution, management, mt-node) run
+    # in etradie-system; Envoy (edge-rooted first span) runs in
+    # envoy-system; edge-ingress in edge-ingress-system. All three are
+    # admitted so the full edge->app trace producer set can reach the
+    # collector on :4317.
     allowedSourceNamespaces:
       - etradie-system
+      - envoy-system
+      - edge-ingress-system
     resources:
       requests:
         cpu: 100m
