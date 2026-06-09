@@ -174,11 +174,13 @@ promtail:
 # Service name below is fixed at `otel-collector` precisely so those
 # endpoints + the per-service NetworkPolicy egress resolve).
 #
-# Jaeger here is the all-in-one image with an in-memory span store:
-# correct for staging and for a first production rollout. For durable,
-# horizontally-scaled traces, point tracing.jaeger.image at a
-# badger/Elasticsearch-backed Jaeger and add persistence (out of scope
-# for this chart's minimal footprint).
+# Jaeger here is the all-in-one image with a DURABLE Badger store on a
+# PVC by default (tracing.jaeger.persistence.enabled=true), so traces
+# survive pod restarts. Set persistence.enabled=false in an overlay to
+# drop back to the ephemeral in-memory store (cheapest footprint) with
+# no code change. For HA / horizontally-scaled traces, split into
+# jaeger-collector + jaeger-query backed by Cassandra/Elasticsearch
+# (out of scope for this chart's single-pod footprint).
 # ---------------------------------------------------------------------
 tracing:
   enabled: false
