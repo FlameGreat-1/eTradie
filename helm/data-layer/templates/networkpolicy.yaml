@@ -78,6 +78,19 @@ spec:
       ports:
         - protocol: TCP
           port: 4191
+    {{- if .Values.postgres.metrics.enabled }}
+    # postgres-exporter :9187 scraped by Prometheus.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgres.metrics.exporter.port | default 9187 }}
+    {{- end }}
   egress:
     # The injected Linkerd proxy must reach the control plane in the
     # linkerd namespace (identity, destination, policy) or the pod
@@ -161,6 +174,19 @@ spec:
       ports:
         - protocol: TCP
           port: 4191
+    {{- if .Values.redis.metrics.enabled }}
+    # redis-exporter :9121 scraped by Prometheus.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: {{ .Values.redis.metrics.exporter.port | default 9121 }}
+    {{- end }}
   egress:
     # Linkerd control plane.
     - to:
