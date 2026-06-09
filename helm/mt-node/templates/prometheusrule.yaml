@@ -1,4 +1,15 @@
-{{- if and .Values.prometheusRule.enabled .Values.mtConnection.enabled }}
+{{- if and .Values.prometheusRule.enabled (not .Values.mtConnection.enabled) }}
+# Rendered on the PLATFORM render path (mtConnection.enabled=false) so
+# the rule ships alongside the namespace-wide ServiceMonitor
+# (servicemonitor.yaml renders on the same path). Per-tenant mt-node
+# pods are created at runtime by the engine HostedProvisioner via the
+# K8s API, not by Helm, so a per-tenant render path would never deploy
+# these alerts. The platform ServiceMonitor scrapes every tenant pod
+# (selector app.kubernetes.io/name=etradie-mt-node, namespace-wide), so
+# one rule set covers the whole fleet. All alerts are keyed on the real
+# series labels (namespace, pod); there are no per-tenant connection_id/
+# user_id rule labels because on the platform render those values are
+# the "platform" stub.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -31,8 +42,6 @@ spec:
             severity: warning
             component: mt-node
             team: platform
-            connection_id: "{{ .Values.mtConnection.connectionId }}"
-            user_id: "{{ .Values.mtConnection.userId }}"
           annotations:
             summary: "mt-node Pod {{`{{ $labels.pod }}`}} sat in Pending > 60s"
             description: |
@@ -42,46 +51,45 @@ spec:
               cluster capacity before more users sign up.
             runbook_url: "https://docs.etradie.com/runbooks/mt-node-pod-pending"
 
-    # Per-pod watchdog liveness. The watchdog sidecar exposes
-    # /healthz on :9100; a sustained 5xx for 5 min means the EA is
-    # not responding and the in-Pod restart loop has been unable to
-    # recover. Pages the operator to intervene.
+    # Per-pod watchdog liveness. The watchdog sidecar exposes its
+    # /metrics on :9100 (Service port name 'watchdog'); the platform
+    # ServiceMonitor scrapes it, so an `up == 0` for a scraped
+    # mt-node target means the watchdog endpoint is unreachable.
     - name: mt-node.health
       interval: 30s
       rules:
         - alert: MTNodeWatchdogDown
           expr: |
-            up{job="{{ include "mt-node.fullname" . }}",namespace="{{ include "mt-node.namespace" . }}"} == 0
+            up{namespace="{{ include "mt-node.namespace" . }}",endpoint="watchdog"} == 0
           for: 5m
           labels:
             severity: critical
             component: mt-node
             team: platform
-            connection_id: "{{ .Values.mtConnection.connectionId }}"
-            user_id: "{{ .Values.mtConnection.userId }}"
           annotations:
-            summary: "mt-node watchdog unreachable for connection {{ .Values.mtConnection.connectionId }}"
+            summary: "mt-node watchdog unreachable ({{`{{ $labels.pod }}`}})"
             description: |
-              The watchdog sidecar has been unreachable for 5
-              minutes. The Pod's in-Pod restart loop has also failed.
-              Operator must inspect the Pod and decide whether to
-              kubectl delete (forces a fresh PVC mount cycle).
+              The watchdog sidecar metrics endpoint has been
+              unreachable (up == 0) for 5 minutes for an mt-node Pod
+              scraped by the platform ServiceMonitor. The Pod's in-Pod
+              restart loop has likely also failed. Operator must
+              inspect the Pod and decide whether to kubectl delete
+              (forces a fresh PVC mount cycle).
             runbook_url: "https://docs.etradie.com/runbooks/mt-node-watchdog-down"
 
-        # The watchdog exports etradie_mt_node_broker_connected (1/0).
-        # Sustained 0 means the EA is up but cannot reach the broker.
+        # The watchdog exports mt_node_ea_mt5_connected (1/0), set from
+        # the EA HEALTH reply's mt5_connected field. Sustained 0 means
+        # the EA is up but the terminal cannot reach the broker.
         - alert: MTNodeBrokerDisconnected
           expr: |
-            etradie_mt_node_broker_connected{namespace="{{ include "mt-node.namespace" . }}"} == 0
+            mt_node_ea_mt5_connected{namespace="{{ include "mt-node.namespace" . }}"} == 0
           for: 3m
           labels:
             severity: warning
             component: mt-node
             team: platform
-            connection_id: "{{ .Values.mtConnection.connectionId }}"
-            user_id: "{{ .Values.mtConnection.userId }}"
           annotations:
-            summary: "mt-node broker disconnected for connection {{ .Values.mtConnection.connectionId }}"
+            summary: "mt-node broker disconnected ({{`{{ $labels.pod }}`}})"
             description: |
               The EA reports mt5_connected=false for more than 3
               minutes. Likely causes: broker maintenance window,
@@ -108,8 +116,6 @@ spec:
             severity: warning
             component: mt-node
             team: platform
-            connection_id: "{{ .Values.mtConnection.connectionId }}"
-            user_id: "{{ .Values.mtConnection.userId }}"
           annotations:
             summary: "mt-node memory leak detected ({{`{{ $labels.pod }}`}})"
             description: |
@@ -134,8 +140,6 @@ spec:
             severity: critical
             component: mt-node
             team: platform
-            connection_id: "{{ .Values.mtConnection.connectionId }}"
-            user_id: "{{ .Values.mtConnection.userId }}"
           annotations:
             summary: "mt-node memory soft-cap tripping > 1/hour for 2h ({{`{{ $labels.pod }}`}})"
             description: |
@@ -167,8 +171,6 @@ spec:
             severity: warning
             component: mt-node
             team: platform
-            connection_id: "{{ .Values.mtConnection.connectionId }}"
-            user_id: "{{ .Values.mtConnection.userId }}"
           annotations:
             summary: "mt-node CPU throttling sustained ({{`{{ $labels.pod }}`}})"
             description: |
@@ -195,8 +197,6 @@ spec:
             severity: critical
             component: mt-node
             team: platform
-            connection_id: "{{ .Values.mtConnection.connectionId }}"
-            user_id: "{{ .Values.mtConnection.userId }}"
           annotations:
             summary: "mt-node CPU soft-cap tripping > 1/hour for 2h ({{`{{ $labels.pod }}`}})"
             description: |
