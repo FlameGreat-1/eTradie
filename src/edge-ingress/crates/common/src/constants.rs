@@ -53,7 +53,10 @@ pub const LOG_LEVEL_ENV: &str = "EDGE_INGRESS_LOG_LEVEL";
 pub const CONFIG_PATH_ENV: &str = "EDGE_INGRESS_CONFIG_PATH";
 pub const ENVIRONMENT_ENV: &str = "EDGE_INGRESS_ENVIRONMENT";
 pub const OTEL_EXPORTER_ENDPOINT_ENV: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
-pub const DEFAULT_OTEL_ENDPOINT: &str = "http://otel-collector.monitoring.svc.cluster.local:4317";
+// The OTel Collector lives in etradie-observability (NOT monitoring,
+// which hosts Prometheus/Grafana). Matches the fixed Service DNS every
+// other trace producer exports to.
+pub const DEFAULT_OTEL_ENDPOINT: &str = "http://otel-collector.etradie-observability.svc.cluster.local:4317";
 
 pub mod tls {
     pub const MIN_TLS_VERSION: &str = "1.2";
