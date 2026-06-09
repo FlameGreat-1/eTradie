@@ -1,0 +1,256 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: data-layer
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "data-layer.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: alerting
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+  {{- if and .Values.postgres.enabled .Values.postgres.metrics.enabled }}
+    - name: data-layer.postgres
+      interval: 30s
+      rules:
+        - alert: PostgresDown
+          expr: |
+            max(pg_up{namespace="{{ include "data-layer.namespace" . }}"}) == 0
+            or
+            absent(pg_up{namespace="{{ include "data-layer.namespace" . }}"})
+          for: 5m
+          labels:
+            severity: critical
+            component: data-layer
+            team: platform
+          annotations:
+            summary: "Postgres is down or unreachable"
+            description: |
+              postgres-exporter reports pg_up == 0 (cannot open a
+              session to the local Postgres) for 5 minutes, or the
+              series is absent. Postgres is the single money database
+              (audit, journal, analytics, auth, billing, watcher state)
+              - while it is down EVERY service loses its store and
+              writes fail. Inspect the postgres-0 pod and its PVC.
+            runbook_url: "https://docs.etradie.com/runbooks/postgres-down"
+
+        - alert: PostgresExporterDown
+          expr: |
+            up{namespace="{{ include "data-layer.namespace" . }}",service="postgres",endpoint="metrics"} == 0
+          for: 5m
+          labels:
+            severity: warning
+            component: data-layer
+            team: platform
+          annotations:
+            summary: "postgres-exporter metrics target is down"
+            description: |
+              The postgres /metrics target has been down for 5 minutes
+              while the DB may still be serving. Internal DB health
+              (connections, locks, replication) is unobservable until
+              the exporter sidecar recovers. Check the postgres-exporter
+              container in the postgres-0 pod.
+            runbook_url: "https://docs.etradie.com/runbooks/postgres-exporter-down"
+
+        - alert: PostgresPodHighRestarts
+          expr: |
+            increase(
+              kube_pod_container_status_restarts_total{
+                namespace="{{ include "data-layer.namespace" . }}",
+                pod=~"postgres-.*"
+              }[15m]
+            ) > 3
+          for: 1m
+          labels:
+            severity: warning
+            component: data-layer
+            team: platform
+          annotations:
+            summary: "Postgres pod {{`{{ $labels.pod }}`}} restarted > 3 times in 15m"
+            description: |
+              A postgres container is restarting repeatedly. Check
+              kubectl logs --previous for a corruption / OOM / PVC
+              mount failure.
+            runbook_url: "https://docs.etradie.com/runbooks/postgres-pod-high-restarts"
+
+        - alert: PostgresConnectionsNearMax
+          expr: |
+            sum(pg_stat_activity_count{namespace="{{ include "data-layer.namespace" . }}"})
+            /
+            max(pg_settings_max_connections{namespace="{{ include "data-layer.namespace" . }}"})
+            > 0.8
+          for: 5m
+          labels:
+            severity: warning
+            component: data-layer
+            team: platform
+          annotations:
+            summary: "Postgres connections > 80% of max_connections"
+            description: |
+              Open connections have exceeded 80% of max_connections for
+              5 minutes. New connections will start to be refused when
+              the cap is hit, which surfaces as service boot / query
+              failures. Check the per-service pool sizes
+              (databaseMaxConns) against max_connections, or raise the
+              Postgres cap.
+            runbook_url: "https://docs.etradie.com/runbooks/postgres-connections-near-max"
+  {{- end }}
+  {{- if and .Values.redis.enabled .Values.redis.metrics.enabled }}
+    - name: data-layer.redis
+      interval: 30s
+      rules:
+        - alert: RedisDown
+          expr: |
+            max(redis_up{namespace="{{ include "data-layer.namespace" . }}"}) == 0
+            or
+            absent(redis_up{namespace="{{ include "data-layer.namespace" . }}"})
+          for: 5m
+          labels:
+            severity: critical
+            component: data-layer
+            team: platform
+          annotations:
+            summary: "Redis is down or unreachable"
+            description: |
+              redis-exporter reports redis_up == 0 for 5 minutes, or
+              the series is absent. Redis is the shared alert hub and
+              the gateway/engine cache - while it is down the alert hub
+              (execution + management) and cached reads degrade. Inspect
+              the redis-0 pod.
+            runbook_url: "https://docs.etradie.com/runbooks/redis-down"
+
+        - alert: RedisExporterDown
+          expr: |
+            up{namespace="{{ include "data-layer.namespace" . }}",service="redis",endpoint="metrics"} == 0
+          for: 5m
+          labels:
+            severity: warning
+            component: data-layer
+            team: platform
+          annotations:
+            summary: "redis-exporter metrics target is down"
+            description: |
+              The redis /metrics target has been down for 5 minutes
+              while Redis may still be serving. Memory / eviction /
+              client metrics are unobservable until the exporter sidecar
+              recovers. Check the redis-exporter container in the
+              redis-0 pod.
+            runbook_url: "https://docs.etradie.com/runbooks/redis-exporter-down"
+
+        - alert: RedisPodHighRestarts
+          expr: |
+            increase(
+              kube_pod_container_status_restarts_total{
+                namespace="{{ include "data-layer.namespace" . }}",
+                pod=~"redis-.*"
+              }[15m]
+            ) > 3
+          for: 1m
+          labels:
+            severity: warning
+            component: data-layer
+            team: platform
+          annotations:
+            summary: "Redis pod {{`{{ $labels.pod }}`}} restarted > 3 times in 15m"
+            description: |
+              A redis container is restarting repeatedly. Check
+              kubectl logs --previous for an OOM (maxmemory vs cgroup
+              limit) or config render failure.
+            runbook_url: "https://docs.etradie.com/runbooks/redis-pod-high-restarts"
+
+        - alert: RedisMemoryNearMaxmemory
+          expr: |
+            (
+              redis_memory_used_bytes{namespace="{{ include "data-layer.namespace" . }}"}
+              /
+              clamp_min(redis_memory_max_bytes{namespace="{{ include "data-layer.namespace" . }}"}, 1)
+            ) > 0.9
+            and
+            redis_memory_max_bytes{namespace="{{ include "data-layer.namespace" . }}"} > 0
+          for: 5m
+          labels:
+            severity: warning
+            component: data-layer
+            team: platform
+          annotations:
+            summary: "Redis memory > 90% of maxmemory"
+            description: |
+              Used memory has exceeded 90% of the configured maxmemory
+              for 5 minutes. With maxmemory-policy allkeys-lru this
+              means Redis is heavily evicting keys (cache misses rise,
+              and any non-cache key in the alert hub can be evicted).
+              Raise redis.maxmemory or investigate a key-growth leak.
+            runbook_url: "https://docs.etradie.com/runbooks/redis-memory-near-maxmemory"
+
+        - alert: RedisRejectingConnections
+          expr: |
+            sum(rate(redis_rejected_connections_total{namespace="{{ include "data-layer.namespace" . }}"}[5m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+            component: data-layer
+            team: platform
+          annotations:
+            summary: "Redis is rejecting connections (maxclients)"
+            description: |
+              redis_rejected_connections_total is rising: Redis has hit
+              maxclients and is refusing new connections. Callers
+              (gateway/engine/execution/management alert hub) will see
+              connection errors. Check for a client-side connection leak
+              or raise maxclients.
+            runbook_url: "https://docs.etradie.com/runbooks/redis-rejecting-connections"
+  {{- end }}
+  {{- if .Values.chromadb.enabled }}
+    - name: data-layer.chromadb
+      interval: 30s
+      rules:
+        # ChromaDB ships no Prometheus exporter in the pinned image, so
+        # its health is observed via the Linkerd-proxy `up` target and
+        # kube-state restarts rather than internal series. The engine is
+        # its only client (RAG vector store).
+        - alert: ChromaDBDown
+          expr: |
+            sum(
+              kube_pod_status_ready{namespace="{{ include "data-layer.namespace" . }}",condition="true"}
+              * on (namespace, pod) group_left
+              kube_pod_labels{label_app_kubernetes_io_name="chromadb"}
+            ) == 0
+          for: 5m
+          labels:
+            severity: warning
+            component: data-layer
+            team: platform
+          annotations:
+            summary: "ChromaDB has no Ready pod"
+            description: |
+              No chromadb pod has been Ready for 5 minutes. ChromaDB is
+              the RAG vector store; while it is down the engine's
+              retrieval-augmented paths degrade (the engine is its only
+              client). Inspect the chromadb-0 pod and its PVC.
+            runbook_url: "https://docs.etradie.com/runbooks/chromadb-down"
+
+        - alert: ChromaDBPodHighRestarts
+          expr: |
+            increase(
+              kube_pod_container_status_restarts_total{
+                namespace="{{ include "data-layer.namespace" . }}",
+                pod=~"chromadb-.*"
+              }[15m]
+            ) > 3
+          for: 1m
+          labels:
+            severity: warning
+            component: data-layer
+            team: platform
+          annotations:
+            summary: "ChromaDB pod {{`{{ $labels.pod }}`}} restarted > 3 times in 15m"
+            description: |
+              A chromadb container is restarting repeatedly. Check
+              kubectl logs --previous for a SQLite/persist-dir or
+              auth-token failure.
+            runbook_url: "https://docs.etradie.com/runbooks/chromadb-pod-high-restarts"
+  {{- end }}
+{{- end }}
