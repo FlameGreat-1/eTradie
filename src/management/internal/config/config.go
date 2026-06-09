@@ -73,7 +73,11 @@ type Config struct {
 	// Observability.
 	LogLevel        string `envconfig:"LOG_LEVEL" default:"INFO"`
 	LogJSON         bool   `envconfig:"LOG_JSON" default:"true"`
-	OTELEndpoint    string `envconfig:"OTEL_ENDPOINT" default:"localhost:4317"`
+	// Empty = tracing disabled (opt-in no-op), matching the engine,
+	// gateway, and execution. The Helm configmap injects the real
+	// collector endpoint in the prod/staging overlays. A non-empty
+	// default would make a bare run dial localhost:4317 (this pod).
+	OTELEndpoint    string `envconfig:"OTEL_ENDPOINT" default:""`
 	OTELServiceName string `envconfig:"OTEL_SERVICE_NAME" default:"etradie-management"`
 }
 
