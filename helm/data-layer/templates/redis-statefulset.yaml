@@ -167,6 +167,66 @@ spec:
             - name: runtime-conf
               mountPath: /run/redis
               readOnly: true
+        {{- if .Values.redis.metrics.enabled }}
+        # redis-exporter sidecar. Connects to redis over the in-pod
+        # loopback (localhost:6379) authenticated with REDIS_PASSWORD
+        # from the redis-credentials Secret (the same value the init
+        # container writes into requirepass). Exposes Prometheus metrics
+        # on :9121 (named `metrics`), scraped by the data-layer
+        # ServiceMonitor. Hardened to match the redis posture (non-root
+        # uid 999, RO-rootfs, all caps dropped).
+        - name: redis-exporter
+          image: "{{ .Values.redis.metrics.exporter.image.repository }}:{{ .Values.redis.metrics.exporter.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.metrics.exporter.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 999
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: REDIS_ADDR
+              value: "redis://localhost:{{ .Values.redis.service.port | default 6379 }}"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "redis.secretName" . }}
+                  key: REDIS_PASSWORD
+            - name: REDIS_EXPORTER_WEB_LISTEN_ADDRESS
+              value: ":{{ .Values.redis.metrics.exporter.port | default 9121 }}"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.redis.metrics.exporter.port | default 9121 }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.redis.metrics.exporter.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /
+              port: metrics
+            initialDelaySeconds: 0
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 4
+          readinessProbe:
+            httpGet:
+              path: /
+              port: metrics
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+        {{- end }}
       volumes:
         - name: config-template
           configMap:
