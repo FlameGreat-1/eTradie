@@ -7,13 +7,17 @@ metadata:
   labels:
     {{- include "olog.jaeger.selectorLabels" . | nindent 4 }}
 spec:
-  # all-in-one is a single-replica process (collector+query+in-memory/
-  # badger store in one binary). Scaling it horizontally would split
+  # all-in-one is a single-replica process (collector+query+badger/
+  # in-memory store in one binary). Scaling it horizontally would split
   # the trace store, so replicas is pinned to 1. For HA Jaeger, swap
   # this for the distributed jaeger-collector + jaeger-query split with
   # an external store (Cassandra/Elasticsearch) — out of scope here.
   replicas: 1
   revisionHistoryLimit: 10
+  # Recreate is required: a single pod owns the Badger PVC
+  # (ReadWriteOnce), so the old pod must fully terminate and release
+  # the volume before the new pod mounts it. RollingUpdate would
+  # deadlock on the RWO attach.
   strategy:
     type: Recreate
   selector:
@@ -58,14 +62,33 @@ spec:
             # to :4317 here.
             - name: COLLECTOR_OTLP_ENABLED
               value: "true"
-            # Bound the in-memory store so a trace flood cannot OOM the
-            # pod. Operators wanting durable traces set
-            # tracing.jaeger.image to a badger/ES-backed variant and
-            # mount storage; the all-in-one default is ephemeral.
+            {{- if .Values.tracing.jaeger.persistence.enabled }}
+            # Durable storage: Badger key/value store on the mounted
+            # PVC. Traces survive pod restarts so an operator can still
+            # investigate an incident that caused the restart. The pod
+            # is readOnlyRootFilesystem=true, so Badger writes ONLY to
+            # the PVC mount at /badger (fsGroup 10004 owns it).
+            - name: SPAN_STORAGE_TYPE
+              value: {{ .Values.tracing.jaeger.spanStorageType | default "badger" | quote }}
+            - name: BADGER_EPHEMERAL
+              value: "false"
+            - name: BADGER_DIRECTORY_VALUE
+              value: "/badger/data"
+            - name: BADGER_DIRECTORY_KEY
+              value: "/badger/key"
+            # Retention TTL for stored spans. Old spans are GC'd by
+            # Badger so the PVC stays bounded.
+            - name: BADGER_SPAN_STORE_TTL
+              value: {{ .Values.tracing.jaeger.persistence.spanStoreTTL | default "168h" | quote }}
+            {{- else }}
+            # In-memory store (ephemeral; lost on restart). Cheapest
+            # footprint - flip tracing.jaeger.persistence.enabled=true
+            # to switch to durable Badger with no code change.
             - name: SPAN_STORAGE_TYPE
               value: {{ .Values.tracing.jaeger.spanStorageType | default "memory" | quote }}
             - name: MEMORY_MAX_TRACES
               value: {{ .Values.tracing.jaeger.memoryMaxTraces | default "50000" | quote }}
+            {{- end }}
           ports:
             - name: otlp-grpc
               containerPort: 4317
@@ -97,8 +120,20 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if .Values.tracing.jaeger.persistence.enabled }}
+            # Badger data + key dirs live here. ReadWriteOnce PVC; the
+            # Deployment uses strategy.type=Recreate so the volume is
+            # released by the old pod before the new one attaches it.
+            - name: badger-storage
+              mountPath: /badger
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi
+        {{- if .Values.tracing.jaeger.persistence.enabled }}
+        - name: badger-storage
+          persistentVolumeClaim:
+            claimName: {{ include "olog.jaeger.fullname" . }}-badger
+        {{- end }}
 {{- end }}
