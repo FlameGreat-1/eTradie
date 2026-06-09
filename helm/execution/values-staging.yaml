@@ -24,6 +24,9 @@ config:
     brokerMode: "mock"
     logLevel: "DEBUG"
     logJson: "true"
+    # Distributed tracing ON in staging: export OTLP spans to the
+    # in-cluster OTel Collector (helm/observability-logs tracing.enabled).
+    otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
 
 externalSecrets:
   enabled: true

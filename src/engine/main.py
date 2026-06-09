@@ -41,11 +41,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(log_level=settings.app_log_level, json_output=settings.json_logs)
 
+    # Distributed tracing is opt-in: an empty OTLP endpoint means tracing
+    # is explicitly disabled, mirroring the Go services'
+    # observability.InitTracing (which no-ops and logs
+    # tracing_disabled_no_otlp_endpoint_configured on an empty endpoint).
+    # init_tracing() validates the endpoint and RAISES on an empty value,
+    # so it must only be called when an endpoint is actually configured;
+    # calling it unconditionally would crash the engine on boot wherever
+    # the endpoint is unset (base Helm values without the otelEndpoint
+    # overlay, docker-compose dev). Audit ref: SC-H7 / tracing opt-in.
     if not settings.is_testing:
-        init_tracing(
-            service_name=settings.otel_service_name,
-            otlp_endpoint=settings.otel_exporter_otlp_endpoint,
-        )
+        if settings.otel_exporter_otlp_endpoint:
+            init_tracing(
+                service_name=settings.otel_service_name,
+                otlp_endpoint=settings.otel_exporter_otlp_endpoint,
+            )
+        else:
+            logger.info("tracing_disabled_no_otlp_endpoint_configured")
 
     container = Container()
     app.state.container = container

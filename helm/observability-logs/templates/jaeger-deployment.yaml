@@ -1,0 +1,104 @@
+{{- if and .Values.tracing.enabled .Values.tracing.jaeger.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "olog.jaeger.fullname" . }}
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.jaeger.selectorLabels" . | nindent 4 }}
+spec:
+  # all-in-one is a single-replica process (collector+query+in-memory/
+  # badger store in one binary). Scaling it horizontally would split
+  # the trace store, so replicas is pinned to 1. For HA Jaeger, swap
+  # this for the distributed jaeger-collector + jaeger-query split with
+  # an external store (Cassandra/Elasticsearch) — out of scope here.
+  replicas: 1
+  revisionHistoryLimit: 10
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "olog.jaeger.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "olog.jaeger.selectorLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "14269"
+        prometheus.io/path: "/metrics"
+        {{- with .Values.tracing.jaeger.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "olog.jaeger.fullname" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10004
+        runAsGroup: 10004
+        fsGroup: 10004
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: jaeger
+          image: "{{ .Values.tracing.jaeger.image.repository }}:{{ .Values.tracing.jaeger.image.tag }}"
+          imagePullPolicy: {{ .Values.tracing.jaeger.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10004
+            capabilities:
+              drop:
+                - ALL
+          env:
+            # Accept OTLP directly (Jaeger 1.35+). The collector exports
+            # to :4317 here.
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true"
+            # Bound the in-memory store so a trace flood cannot OOM the
+            # pod. Operators wanting durable traces set
+            # tracing.jaeger.image to a badger/ES-backed variant and
+            # mount storage; the all-in-one default is ephemeral.
+            - name: SPAN_STORAGE_TYPE
+              value: {{ .Values.tracing.jaeger.spanStorageType | default "memory" | quote }}
+            - name: MEMORY_MAX_TRACES
+              value: {{ .Values.tracing.jaeger.memoryMaxTraces | default "50000" | quote }}
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: query
+              containerPort: 16686
+              protocol: TCP
+            - name: admin
+              containerPort: 14269
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: admin
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: admin
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.tracing.jaeger.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+{{- end }}

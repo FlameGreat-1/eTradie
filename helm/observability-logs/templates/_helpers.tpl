@@ -50,3 +50,31 @@ app.kubernetes.io/part-of: etradie
 {{- define "olog.promtail.fullname" -}}
 {{ include "olog.fullname" . }}-promtail
 {{- end -}}
+
+{{/*
+  Tracing backend (OpenTelemetry Collector + Jaeger). The Collector
+  Service is named exactly `otel-collector` (NOT the release-prefixed
+  fullname) because every service's NetworkPolicy egress + the engine/
+  mt-node OTEL endpoint resolve
+  otel-collector.etradie-observability.svc.cluster.local:4317. Do not
+  rename the Service without updating those egress rules + overlays.
+*/}}
+{{- define "olog.collector.selectorLabels" -}}
+app.kubernetes.io/name: otel-collector
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/part-of: etradie
+{{- end -}}
+
+{{- define "olog.collector.fullname" -}}
+{{ include "olog.fullname" . }}-otel-collector
+{{- end -}}
+
+{{- define "olog.jaeger.selectorLabels" -}}
+app.kubernetes.io/name: jaeger
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/part-of: etradie
+{{- end -}}
+
+{{- define "olog.jaeger.fullname" -}}
+{{ include "olog.fullname" . }}-jaeger
+{{- end -}}

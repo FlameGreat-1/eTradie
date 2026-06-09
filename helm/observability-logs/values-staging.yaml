@@ -1,4 +1,14 @@
 # Staging overlay for observability-logs.
+
+# Tracing backend ON in staging so the full OTLP -> collector -> Jaeger
+# path is exercised pre-production. Smaller footprint than prod.
+tracing:
+  enabled: true
+  collector:
+    replicaCount: 1
+  jaeger:
+    enabled: true
+    memoryMaxTraces: "50000"
 loki:
   persistence:
     size: 20Gi

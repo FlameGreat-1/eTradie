@@ -128,6 +128,11 @@ config:
     env: "production"
     debug: "false"
     logLevel: "INFO"
+  observability:
+    # Distributed tracing ON: export OTLP spans to the in-cluster OTel
+    # Collector deployed by helm/observability-logs (tracing.enabled).
+    # Empty would make the SDK exporter a no-op; this turns it live.
+    otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
   rag:
     ingestOnStartup: "true"
   processor:

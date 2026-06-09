@@ -1,0 +1,31 @@
+{{- if and .Values.tracing.enabled .Values.tracing.jaeger.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "olog.jaeger.fullname" . }}
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.jaeger.selectorLabels" . | nindent 4 }}
+spec:
+  # ClusterIP ONLY. The Jaeger query UI (:16686) is operator-only and
+  # must NEVER be exposed through the public Cloudflare -> edge-ingress
+  # -> Envoy -> gateway chain. Reach it via `kubectl port-forward` or a
+  # Grafana datasource in the monitoring namespace.
+  type: ClusterIP
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+      appProtocol: grpc
+    - name: query
+      port: 16686
+      targetPort: query
+      protocol: TCP
+    - name: admin
+      port: 14269
+      targetPort: admin
+      protocol: TCP
+  selector:
+    {{- include "olog.jaeger.selectorLabels" . | nindent 4 }}
+{{- end }}

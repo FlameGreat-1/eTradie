@@ -1,4 +1,33 @@
 # Production overlay for observability-logs.
+
+# Tracing backend (OTel Collector + Jaeger) is ON in production. The
+# four service overlays point their OTEL endpoint at
+# otel-collector.etradie-observability.svc.cluster.local:4317. The
+# all-in-one Jaeger uses an in-memory store sized for a first
+# production rollout; swap the image + add persistence for durable,
+# horizontally-scaled traces.
+tracing:
+  enabled: true
+  collector:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  jaeger:
+    enabled: true
+    memoryMaxTraces: "100000"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+
 loki:
   persistence:
     size: 100Gi          # ~14d at the projected production volume

@@ -1,0 +1,58 @@
+{{- if .Values.tracing.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "olog.collector.fullname" . }}-config
+  namespace: {{ include "olog.namespace" . }}
+  labels:
+    {{- include "olog.collector.selectorLabels" . | nindent 4 }}
+data:
+  # OpenTelemetry Collector pipeline. Receives OTLP/gRPC from the
+  # eTradie services, bounds memory, batches, and exports spans to
+  # Jaeger over OTLP. Jaeger 1.35+ accepts OTLP natively on :4317, so
+  # no jaeger-specific exporter is needed.
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      # Hard memory ceiling so a span flood cannot OOM the collector.
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      batch:
+        timeout: 5s
+        send_batch_size: 512
+        send_batch_max_size: 1024
+
+    exporters:
+      # Export to the in-cluster Jaeger over OTLP/gRPC. insecure=true:
+      # the hop is intra-namespace and (when the mesh is enabled)
+      # already mTLS'd by Linkerd.
+      otlp/jaeger:
+        endpoint: {{ include "olog.jaeger.fullname" . }}.{{ include "olog.namespace" . }}.svc.cluster.local:4317
+        tls:
+          insecure: true
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      telemetry:
+        metrics:
+          # Collector self-metrics scraped by Prometheus on :8888.
+          address: 0.0.0.0:8888
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/jaeger]
+{{- end }}
