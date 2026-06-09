@@ -1,0 +1,192 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "billing.appName" . }}
+  namespace: {{ include "billing.namespace" . }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alerting
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: billing.health
+      interval: 30s
+      rules:
+        - alert: BillingDown
+          expr: |
+            up{namespace="{{ include "billing.namespace" . }}",service="{{ include "billing.appName" . }}"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            component: billing
+            team: platform
+          annotations:
+            summary: "Billing service is down ({{`{{ $labels.pod }}`}})"
+            description: |
+              The billing /metrics target has been down for 5 minutes.
+              While billing is down, Paddle / Lemon Squeezy webhooks are
+              not processed (subscription create/upgrade/cancel events
+              are dropped) and the reconciler does not run, so tier
+              entitlements drift from the provider's source of truth.
+            runbook_url: "https://docs.etradie.com/runbooks/billing-down"
+
+        - alert: BillingPodHighRestarts
+          expr: |
+            increase(
+              kube_pod_container_status_restarts_total{
+                namespace="{{ include "billing.namespace" . }}",
+                pod=~"{{ include "billing.appName" . }}-.*"
+              }[15m]
+            ) > 3
+          for: 1m
+          labels:
+            severity: warning
+            component: billing
+            team: platform
+          annotations:
+            summary: "Billing pod {{`{{ $labels.pod }}`}} restarted > 3 times in 15m"
+            description: |
+              A billing container is restarting repeatedly. Check
+              kubectl logs --previous for a config / dependency
+              (postgres, redis, vault secret) failure.
+            runbook_url: "https://docs.etradie.com/runbooks/billing-pod-high-restarts"
+
+    - name: billing.webhooks
+      interval: 30s
+      rules:
+        # Webhook apply failures = provider subscription-state events
+        # are received but not applied, so entitlements go stale.
+        # Gated on real volume so a quiet period does not page.
+        - alert: BillingWebhookFailures
+          expr: |
+            (
+              sum(rate(billing_webhook_received_total{result!="ok"}[5m]))
+              /
+              clamp_min(sum(rate(billing_webhook_received_total[5m])), 0.0001)
+            ) > 0.1
+            and
+            sum(increase(billing_webhook_received_total[5m])) >= 5
+          for: 5m
+          labels:
+            severity: critical
+            component: billing
+            team: platform
+          annotations:
+            summary: "Billing webhook failure ratio > 10% over 5m"
+            description: |
+              More than 10% of provider webhooks are failing
+              (billing_webhook_received_total{result!="ok"}). Subscription
+              create/upgrade/cancel events are not being applied;
+              customer tier entitlements will drift until the reconciler
+              catches up. Inspect result label + provider dashboards.
+            runbook_url: "https://docs.etradie.com/runbooks/billing-webhook-failures"
+
+        - alert: BillingWebhookRateLimited
+          expr: |
+            sum(rate(billing_webhook_rate_limited_total[5m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+            component: billing
+            team: platform
+          annotations:
+            summary: "Billing is rate-limiting inbound webhooks"
+            description: |
+              billing_webhook_rate_limited_total is rising: inbound
+              webhooks are being shed by the per-key limiter. Sustained
+              shedding can mean a provider retry storm or an abusive
+              source; legitimate events may be delayed. Check the
+              reason label.
+            runbook_url: "https://docs.etradie.com/runbooks/billing-webhook-rate-limited"
+
+    - name: billing.reconciler
+      interval: 30s
+      rules:
+        # The reconciler is the safety net that demotes lapsed/cancelled
+        # subscriptions. If it errors, paid entitlements persist past
+        # expiry (revenue + access-control risk).
+        - alert: BillingReconcilerErrors
+          expr: |
+            sum(rate(billing_reconciler_errors_total[10m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+            component: billing
+            team: platform
+          annotations:
+            summary: "Billing reconciler is erroring"
+            description: |
+              billing_reconciler_errors_total is rising over 10m. The
+              reconciler reconciles subscription state with the provider
+              and demotes lapsed tiers; while it errors, entitlements
+              may not be corrected. Inspect the stage label.
+            runbook_url: "https://docs.etradie.com/runbooks/billing-reconciler-errors"
+
+        # No successful reconciler run within 2x its configured interval
+        # (reconcilerIntervalSeconds default 900s) means the loop has
+        # stalled even if the process is up.
+        - alert: BillingReconcilerStalled
+          expr: |
+            sum(increase(billing_reconciler_runs_total{outcome="ok"}[30m])) == 0
+            and on()
+            sum(up{namespace="{{ include "billing.namespace" . }}",service="{{ include "billing.appName" . }}"}) > 0
+          for: 5m
+          labels:
+            severity: critical
+            component: billing
+            team: platform
+          annotations:
+            summary: "Billing reconciler has not completed a run in 30m"
+            description: |
+              No successful billing_reconciler_runs_total{outcome="ok"}
+              increment in 30 minutes while the service is up. The
+              reconciler loop has stalled; lapsed subscriptions are no
+              longer being demoted. Default reconcile interval is 900s,
+              so 30m without a run is well past threshold.
+            runbook_url: "https://docs.etradie.com/runbooks/billing-reconciler-stalled"
+
+    - name: billing.resilience
+      interval: 30s
+      rules:
+        # breaker_state: 0=closed, 1=half_open, 2=open. An open breaker
+        # means calls to that named provider dependency are being
+        # short-circuited (checkout creation / API sync degraded).
+        - alert: BillingCircuitBreakerOpen
+          expr: |
+            max by (name) (billing_breaker_state) == 2
+          for: 2m
+          labels:
+            severity: critical
+            component: billing
+            team: platform
+          annotations:
+            summary: "Billing circuit breaker '{{`{{ $labels.name }}`}}' is OPEN"
+            description: |
+              billing_breaker_state{name="{{`{{ $labels.name }}`}}"} == 2
+              (open). Calls through this breaker are short-circuited;
+              checkout creation and/or provider reconciliation against
+              this dependency are degraded. Cross-check provider status
+              + BillingWebhookFailures.
+            runbook_url: "https://docs.etradie.com/runbooks/billing-circuit-breaker-open"
+
+        - alert: BillingSemaphoreRejections
+          expr: |
+            sum by (name) (rate(billing_semaphore_rejected_total[5m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+            component: billing
+            team: platform
+          annotations:
+            summary: "Billing concurrency semaphore '{{`{{ $labels.name }}`}}' rejecting work"
+            description: |
+              billing_semaphore_rejected_total{name="{{`{{ $labels.name }}`}}"}
+              is rising: the bounded-concurrency guard is shedding work
+              because in-flight load exceeds capacity for 10m. Provider
+              calls / webhooks are being rejected under load. Review
+              semaphore capacity vs. offered load.
+            runbook_url: "https://docs.etradie.com/runbooks/billing-semaphore-rejections"
+{{- end }}

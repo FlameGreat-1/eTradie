@@ -356,6 +356,16 @@ serviceMonitor:
     - process_
     - promhttp_
 
+# PrometheusRule (templates/prometheusrule.yaml): trade-lifecycle health
+# + correctness alerts for the singleton management service. Renders
+# only when monitoring.coreos.com is installed (Prometheus Operator).
+# Set enabled=false on a cluster without the operator to skip rendering.
+prometheusRule:
+  enabled: true
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+
 affinity:
   podAntiAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
