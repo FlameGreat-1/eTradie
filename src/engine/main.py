@@ -350,6 +350,20 @@ def create_app() -> FastAPI:
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
 
+    # Distributed-tracing server instrumentation. Attached only when
+    # tracing is actually enabled (same guard as init_tracing in the
+    # lifespan: a configured OTLP endpoint and not under test) so a
+    # bare / local / test render attaches no middleware. The
+    # instrumentor extracts the inbound W3C traceparent the gateway's
+    # engine HTTP client injects and records a server span under the
+    # gateway span, using the global provider + propagator that the
+    # lifespan's init_tracing sets before the first request is served.
+    # The /metrics mount is excluded so Prometheus scrapes do not
+    # generate spans. Audit ref: observability end-to-end (Step 10d).
+    if settings.otel_exporter_otlp_endpoint and not settings.is_testing:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        FastAPIInstrumentor.instrument_app(app, excluded_urls="/metrics")
+
     # -- Global last-resort exception handler -----------------------------
     # Catches any exception that escapes a route or middleware without a
     # more specific handler, logs it with full structured context, and
