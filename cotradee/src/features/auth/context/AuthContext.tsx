@@ -23,10 +23,25 @@ import { AUTH_LOGOUT_BROADCAST_KEY } from '@/lib/axios';
 // already set the cookies on the same response.
 // ---------------------------------------------------------------------------
 
+/**
+ * Explicit tri-state of the session, derived from (user, isLoading):
+ *   'loading'       - the boot /auth/me probe has not resolved yet.
+ *   'authenticated' - probe resolved and a user is present.
+ *   'guest'         - probe resolved (or failed) and no user.
+ *
+ * Route guards read this single value instead of combining the two
+ * booleans below, which removes the ambiguous "isLoading && isAuthenticated"
+ * states each call site previously had to reason about. The booleans are
+ * retained unchanged for existing consumers.
+ */
+export type AuthStatus = 'loading' | 'authenticated' | 'guest';
+
 interface AuthState {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  /** Derived tri-state; preferred over isAuthenticated/isLoading for routing. */
+  status: AuthStatus;
   login: (payload: LoginRequest) => Promise<void>;
   register: (payload: RegisterRequest) => Promise<void>;
   /**
@@ -130,12 +145,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Single source of truth for routing decisions. While the boot probe
+  // is in flight we are 'loading'; once it settles we are either
+  // 'authenticated' (user present) or 'guest' (no user). Derived here so
+  // every guard reads the same resolved value.
+  const status: AuthStatus = isLoading ? 'loading' : user ? 'authenticated' : 'guest';
+
   return (
     <AuthContext.Provider
       value={{
         user,
         isAuthenticated: !!user,
         isLoading,
+        status,
         login,
         register,
         loginWithTokenPair,

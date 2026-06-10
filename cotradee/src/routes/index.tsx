@@ -70,12 +70,19 @@ function SmartSuspenseLoader() {
   return <BlankLoader />;
 }
 
+// Route guards read the explicit auth `status` (see AuthContext) rather
+// than combining isLoading + isAuthenticated. Each guard's three cases
+// are spelled out so the intent is unambiguous to the next reader.
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { status } = useAuth();
   const location = useLocation();
 
-  if (isLoading) return <DashboardLoader />;
-  if (!isAuthenticated) {
+  // An authenticated surface genuinely needs to know WHO the user is
+  // before it can render protected data, so it is the only place that
+  // shows a loader while the probe is in flight.
+  if (status === 'loading') return <DashboardLoader />;
+  if (status === 'guest') {
     const returnTo = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/login?returnTo=${returnTo}`} replace />;
   }
@@ -83,20 +90,32 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function GuestRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { status } = useAuth();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const returnTo = searchParams.get('returnTo') || '/dashboard';
 
-  if (isLoading) return <BlankLoader />;
-  if (isAuthenticated) return <Navigate to={returnTo} replace />;
+  // Public surface: render content for BOTH 'loading' and 'guest'. These
+  // pages (landing, pricing, login, ...) never depend on auth state to
+  // display, so they must paint instantly even when the backend is slow
+  // or undeployed — no spinner, no blank. Only a resolved authenticated
+  // session redirects a returning user on to their destination.
+  if (status === 'authenticated') return <Navigate to={returnTo} replace />;
   return <>{children}</>;
 }
 
 function RootRedirect() {
-  const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <BlankLoader />;
-  return <Navigate to={isAuthenticated ? '/dashboard' : '/landing'} replace />;
+  const { status } = useAuth();
+  // "/" renders the public landing page DIRECTLY for 'loading' and
+  // 'guest' (single hop — no redirect-to-a-redirect, no blank loader).
+  // The landing page is the same component served at /landing. Only a
+  // resolved authenticated session navigates to the dashboard.
+  if (status === 'authenticated') return <Navigate to="/dashboard" replace />;
+  return (
+    <GuestRoute>
+      <LandingPage />
+    </GuestRoute>
+  );
 }
 
 export default function AppRoutes() {
