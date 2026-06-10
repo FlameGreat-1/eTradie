@@ -1,0 +1,94 @@
+# Linkerd Viz extension (CHECKLIST Tier 9). Provides `linkerd viz
+# edges`/`stat`, the tap API, and the proxy-metrics Prometheus that the
+# phased rollout uses to CONFIRM 100% mTLS on every edge BEFORE
+# per-service authorization (linkerdPolicy.enabled) is turned on. The
+# rollout runbook (docs/runbooks/tier9-linkerd-mesh-rollout.md step 3)
+# and `make mesh-check` both depend on this extension being installed.
+#
+# STATE: OFF in the TABLE 2B profile (BUDGET.md). This file lives in
+# deployments/argocd/optional/ (NOT children/) so it is not deployed by
+# the root app-of-apps. See optional/README.md for the ON procedure.
+#
+# Sync-wave -3: AFTER the control plane (-4) so the proxy injector +
+# identity exist, and BEFORE the workloads (data-layer -2 / engine -1 /
+# gateway 0) so the operator can inspect edges as soon as workloads
+# mesh.
+#
+# Version: linkerd-viz 30.12.11 pairs with linkerd-control-plane
+# 1.16.11 (Linkerd 2.15 release train). Confirm the pairing against the
+# Linkerd compatibility matrix on any mesh upgrade; CI render-checks the
+# chart (helm template) before this Application can sync.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: linkerd-viz-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    exoper.com/component: linkerd-viz
+    exoper.com/environment: production
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: linkerd
+
+  source:
+    repoURL: https://helm.linkerd.io
+    chart: linkerd-viz
+    targetRevision: 30.12.11
+    helm:
+      releaseName: linkerd-viz
+      # The chart deploys its own scoped Prometheus by default, which is
+      # self-contained and always correct. To instead point viz at the
+      # platform's kube-prometheus, an operator sets prometheusUrl here
+      # (and disables the bundled Prometheus); left on the safe default
+      # so the verification gate works without cross-stack coupling.
+      values: |
+        # High-availability viz components for the production posture,
+        # matching the control plane's highAvailability.
+        tap:
+          replicas: 2
+        web:
+          replicas: 2
+        metricsAPI:
+          replicas: 2
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: linkerd-viz
+
+  ignoreDifferences:
+    # The tap + tap-injector webhooks carry caBundle fields the
+    # extension rotates; do not fight them.
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
+    - group: apiregistration.k8s.io
+      kind: APIService
+      jqPathExpressions:
+        - .spec.caBundle
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+
+  revisionHistoryLimit: 20
