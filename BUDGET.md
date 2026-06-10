@@ -74,6 +74,87 @@ Production at 5 users ≈ **6.25 CPU / 10.8Gi reserved** → fits in 8/24 with h
 
 **Verdict for Contabo:** ✅ Both staging and production FIT with everything-off + single-node lean, for ~5 users. Production CPU burst is the limiter beyond ~5–6 users.
 
+#### TABLE 2B — EVERYTHING ON (observability + monitoring + mesh + Jaeger), tuned to FIT the current Contabo (8 vCPU / 24GB / 200GB)
+
+The complete stack — nothing removed: app + data layer, Loki/Promtail/OTel/Jaeger, kube-prometheus + Grafana, Linkerd control plane + viz + proxy sidecars — shrunk to a single-node profile (1 replica each, mesh HA off, viz at 1 replica instead of the ArgoCD-pinned HA 2s, monitoring single-replica). Rows marked (est) are external installs or upstream charts whose sizing is not in this repo; everything else is read from the repo's values files (lean-tuned) or templates.
+
+**Dual-form storage (verified in templates):**
+- **Jaeger is genuinely dual-mode** (`tracing.jaeger.persistence.enabled`): **Form A in-memory** — 0 disk, `MEMORY_MAX_TRACES`-bounded, traces lost on pod restart; **Form B Badger PVC** — +10Gi disk, spans GC'd by `BADGER_SPAN_STORE_TTL` (168h), traces survive restarts. CPU/RAM identical in both forms; the operator picks purely on disk cost vs incident-forensics durability.
+- **Loki is persistent-only as shipped**: the StatefulSet always renders a `volumeClaimTemplates` PVC regardless of the `loki.persistence.enabled` flag (the template ignores it). Loki's cost knobs are PVC size + retention only.
+- **Redis** runs cache-mode (no AOF, no RDB schedule) but always mounts its PVC. **Postgres backup** CronJob is transient (runs 02:00 UTC only; its requests are not part of the steady-state floor).
+
+**STAGING on Contabo, everything ON (target ~4–5 test users):**
+
+| Component | Req CPU | Req Mem | Limit CPU | Limit Mem | Replicas | Reserved CPU | Reserved Mem |
+|---|---|---|---|---|---|---|---|
+| edge-ingress | 150m | 256Mi | 750m | 512Mi | 1 | 0.15 | 0.25Gi |
+| cloudflared | 100m | 64Mi | 500m | 256Mi | 1 | 0.1 | 0.06Gi |
+| envoy | 250m | 256Mi | 1 | 512Mi | 1 | 0.25 | 0.25Gi |
+| gateway | 250m | 256Mi | 1 | 512Mi | 1 | 0.25 | 0.25Gi |
+| engine | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
+| execution | 150m | 256Mi | 500m | 512Mi | 1 | 0.15 | 0.25Gi |
+| management | 150m | 256Mi | 500m | 512Mi | 1 | 0.15 | 0.25Gi |
+| billing | 150m | 256Mi | 500m | 512Mi | 1 | 0.15 | 0.25Gi |
+| postgres | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
+| redis | 100m | 256Mi | 500m | 512Mi | 1 | 0.1 | 0.25Gi |
+| chromadb | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
+| Loki (PVC 20Gi, 7d retention) | 100m | 192Mi | 500m | 512Mi | 1 | 0.1 | 0.19Gi |
+| Promtail (per node) | 25m | 64Mi | 150m | 192Mi | 1 | 0.03 | 0.06Gi |
+| OTel collector | 100m | 192Mi | 500m | 512Mi | 1 | 0.1 | 0.19Gi |
+| Jaeger (Form A in-memory recommended) | 100m | 192Mi | 500m | 512Mi | 1 | 0.1 | 0.19Gi |
+| Prometheus (kube-prometheus, 7d, 20Gi PVC) (est) | 200m | 768Mi | 1 | 1.5Gi | 1 | 0.2 | 0.75Gi |
+| Grafana (est) | 100m | 128Mi | 500m | 256Mi | 1 | 0.1 | 0.13Gi |
+| kube-state-metrics (est) | 50m | 64Mi | 200m | 128Mi | 1 | 0.05 | 0.06Gi |
+| node-exporter (per node) (est) | 50m | 64Mi | 200m | 128Mi | 1 | 0.05 | 0.06Gi |
+| prometheus-operator (est) | 50m | 96Mi | 200m | 256Mi | 1 | 0.05 | 0.09Gi |
+| Linkerd control plane, HA OFF (est) | — | — | — | — | 3 pods | ~0.3 | ~0.45Gi |
+| Linkerd viz @1 replica + viz Prometheus (est) | — | — | — | — | ~5 pods | ~0.4 | ~1.0Gi |
+| Linkerd proxy sidecars (verified 50m/64Mi each) | 50m | 64Mi | 200m | 256Mi | ~10 meshed pods | 0.5 | 0.64Gi |
+| **Staging floor (0 users)** | | | | | | **≈ 4.0 CPU** | **≈ 7.2Gi** |
+| each MT user (+ proxy sidecar) | 300m+50m | 512Mi+64Mi | 1 | 768Mi+ | 1/user | +0.35 | +0.56Gi |
+
+Staging at 5 users ≈ **5.8 CPU / ~10Gi reserved**, plus the platform-infra allowance below → fits 8/24, with bounded burst headroom.
+
+**PRODUCTION on Contabo, everything ON:**
+
+| Component | Req CPU | Req Mem | Limit CPU | Limit Mem | Replicas | Reserved CPU | Reserved Mem |
+|---|---|---|---|---|---|---|---|
+| edge-ingress | 300m | 384Mi | 1 | 768Mi | 1 | 0.3 | 0.38Gi |
+| cloudflared | 100m | 64Mi | 500m | 256Mi | 1 | 0.1 | 0.06Gi |
+| envoy | 500m | 512Mi | 1.5 | 1Gi | 1 | 0.5 | 0.5Gi |
+| gateway | 500m | 512Mi | 1.5 | 1Gi | 1 | 0.5 | 0.5Gi |
+| engine | 500m | 1Gi | 2 | 2Gi | 1 | 0.5 | 1Gi |
+| execution | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
+| management | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
+| billing | 200m | 384Mi | 1 | 768Mi | 1 | 0.2 | 0.38Gi |
+| postgres | 500m | 1Gi | 2 | 2Gi | 1 | 0.5 | 1Gi |
+| postgres backup (CronJob 02:00, transient) | 250m | 256Mi | 1 | 512Mi | 1 | (transient) | (transient) |
+| redis | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
+| chromadb | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
+| Loki (PVC 20Gi, 7d retention) | 200m | 256Mi | 1 | 1Gi | 1 | 0.2 | 0.25Gi |
+| Promtail (per node) | 50m | 96Mi | 250m | 256Mi | 1 | 0.05 | 0.09Gi |
+| OTel collector | 100m | 192Mi | 500m | 512Mi | 1 | 0.1 | 0.19Gi |
+| Jaeger (Form A in-memory: 0 disk / Form B Badger: +10Gi PVC, 168h TTL) | 150m | 256Mi | 1 | 1Gi | 1 | 0.15 | 0.25Gi |
+| Prometheus (kube-prometheus, 7d, 20Gi PVC) (est) | 300m | 1Gi | 1 | 2Gi | 1 | 0.3 | 1Gi |
+| Grafana (est) | 100m | 128Mi | 500m | 256Mi | 1 | 0.1 | 0.13Gi |
+| kube-state-metrics (est) | 50m | 64Mi | 200m | 128Mi | 1 | 0.05 | 0.06Gi |
+| node-exporter (per node) (est) | 50m | 64Mi | 200m | 128Mi | 1 | 0.05 | 0.06Gi |
+| prometheus-operator (est) | 50m | 96Mi | 200m | 256Mi | 1 | 0.05 | 0.09Gi |
+| Linkerd control plane, HA OFF (est) | — | — | — | — | 3 pods | ~0.3 | ~0.45Gi |
+| Linkerd viz @1 replica + viz Prometheus (est) | — | — | — | — | ~5 pods | ~0.4 | ~1.0Gi |
+| Linkerd proxy sidecars (verified 50m/64Mi each) | 50m | 64Mi | 200m | 256Mi | ~10 meshed pods | 0.5 | 0.64Gi |
+| **Production floor (0 users)** | | | | | | **≈ 6.0 CPU** | **≈ 10Gi** |
+| + Vault + ESO + ArgoCD + K3s system (est allowance) | — | — | — | — | — | ~1.0 | ~2.5Gi |
+| each MT user (+ proxy sidecar) | 500m+50m | 1Gi+64Mi | 1.5+ | 2Gi+ | 1/user | +0.55 | +1.07Gi |
+
+**Disk budget (200GB, production):** postgres 16Gi + backup staging PVC 8–16Gi (offsite B2 stays primary) + chromadb 16Gi + redis 8Gi + Loki 20Gi + Jaeger 0 (Form A) or 10Gi (Form B) + Prometheus 20Gi + Vault 10Gi + MT 4Gi/user + OS/images ~30Gi ≈ **130–150GB at 5 users** → fits.
+
+**Config deltas vs shipped (required to realise this table):** Linkerd `highAvailability: false`; `linkerd-viz-production.yaml` tap/web/metricsAPI 2→1; all replicas 1 + HPAs pinned; required pod anti-affinity relaxed (single node); Loki 20Gi/7d in both envs; Jaeger form per operator choice; mt-node + engine `config.mtNode` in lockstep at the Table 2 per-user sizing.
+
+**Verdict for Contabo, everything ON:** ✅ **Staging fits with ~4–5 test users.** ⚠️ **Production fits but supports only ~1–2 MT users**: ~7.8 allocatable CPU − ~6.0 floor − ~1.0 platform infra leaves ~0.8 CPU of schedulable requests (≈1 user at 0.55, 2 with further trimming). The full stack costs ~3–4 users of capacity vs Table 2. Memory (24GB) and disk (200GB) are not the limiter — CPU requests are.
+
+**Honest caveats for this table:** Linkerd control-plane/viz and the kube-prometheus stack rows are informed estimates (their sizing lives in upstream/external charts, not this repo); proxy sidecar 50m/64Mi is verified from `deployments/linkerd/control-plane-values.yaml`; all app/data/observability rows are lean-tuned values of numbers verified in this repo's values files. Confirm with a soak before treating the floor as measured truth.
+
 #### TABLE 3 — FULL BALANCED OPERATION (everything ON, normal/healthy) on a properly-sized future VPS
 
 This is the shipped production posture (Table 1) running normally with room to burst and serve a real user base (target ~30–50 MT users).
