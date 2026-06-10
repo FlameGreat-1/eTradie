@@ -1,64 +1,71 @@
 # Production overlay for observability-logs.
+#
+# TABLE 2B profile (BUDGET.md): full observability stack ON, tuned for
+# the single-node Contabo 8 vCPU / 24GB / 200GB box.
+#   - Loki:   ON, PVC 20Gi, 7d retention (persistent-only by template;
+#     retention aligned with the 7d span/log correlation window).
+#   - Jaeger: ON (in-memory, Form A): zero disk, traces lost on pod
+#     restart. Operator switch to Form B (durable Badger, +10Gi PVC,
+#     168h TTL): set tracing.jaeger.persistence.enabled=true AND
+#     tracing.jaeger.spanStorageType=badger.
+#   - OTel collector: 1 replica (single node; a second replica adds
+#     no availability on one host and costs 100m/192Mi).
+#
+# The four service overlays keep their OTEL endpoint at
+# otel-collector.etradie-observability.svc.cluster.local:4317.
 
-# Tracing backend (OTel Collector + Jaeger) is ON in production. The
-# four service overlays point their OTEL endpoint at
-# otel-collector.etradie-observability.svc.cluster.local:4317. Jaeger
-# uses a DURABLE Badger store on a PVC (inherited from base
-# tracing.jaeger.persistence.enabled=true) so traces survive pod
-# restarts; the PVC is sized + TTL-aligned with the Loki log retention
-# below. For HA / horizontally-scaled traces, split into
-# jaeger-collector + jaeger-query with an external store (out of scope).
 tracing:
   enabled: true
   collector:
-    replicaCount: 2
+    replicaCount: 1
     resources:
       requests:
-        cpu: 200m
+        cpu: 100m
+        memory: 192Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  jaeger:
+    enabled: true
+    # Form A (in-memory). BOTH keys are required: with persistence
+    # disabled the deployment template renders SPAN_STORAGE_TYPE from
+    # spanStorageType, and the base value is 'badger' - which would
+    # start Badger with no /badger volume mounted and crash. 'memory'
+    # is the correct in-memory engine. 50k traces bounds RSS well
+    # inside the 1Gi limit.
+    spanStorageType: memory
+    memoryMaxTraces: "50000"
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 150m
         memory: 256Mi
       limits:
         cpu: 1000m
         memory: 1Gi
-  jaeger:
-    enabled: true
-    memoryMaxTraces: "100000"
-    # Durable Badger store (base default). Size for projected prod span
-    # volume and align the span TTL with the production Loki log
-    # retention (336h / 14d) so traces + logs for the same incident
-    # window expire together.
-    persistence:
-      enabled: true
-      size: 30Gi
-      spanStoreTTL: "336h"
-    resources:
-      requests:
-        cpu: 200m
-        memory: 512Mi
-      limits:
-        cpu: 2000m
-        memory: 2Gi
 
 loki:
   persistence:
-    size: 100Gi          # ~14d at the projected production volume
-  retentionPeriod: "336h"  # 14 days
+    size: 20Gi          # ~7d at the Contabo single-node volume
+  retentionPeriod: "168h"  # 7 days
   resources:
     requests:
-      cpu: 250m
-      memory: 512Mi
+      cpu: 200m
+      memory: 256Mi
     limits:
-      cpu: 2000m
-      memory: 2Gi
+      cpu: 1000m
+      memory: 1Gi
   limits:
-    ingestionRateMB: 16
-    ingestionBurstSizeMB: 32
-    maxStreamsPerUser: 50000
+    ingestionRateMB: 8
+    ingestionBurstSizeMB: 16
+    maxStreamsPerUser: 10000
 
 promtail:
   resources:
     requests:
-      cpu: 100m
-      memory: 128Mi
+      cpu: 50m
+      memory: 96Mi
     limits:
-      cpu: 500m
-      memory: 384Mi
+      cpu: 250m
+      memory: 256Mi
