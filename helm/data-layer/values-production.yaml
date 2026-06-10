@@ -1,45 +1,34 @@
 # Production overlay for the etradie-data-layer chart.
-# Cloud-agnostic: relies only on the cluster's default StorageClass.
 #
-# To use a specific StorageClass (e.g. Longhorn on Contabo K3s,
-# OCI Block Volume on OKE, or Local Path Provisioner) override
-# postgres.storage.storageClassName / redis.storage.storageClassName /
-# chromadb.storage.storageClassName here.
+# TABLE 2B profile (BUDGET.md): single-node Contabo 8 vCPU / 24GB /
+# 200GB, full stack ON. Cloud-agnostic: relies only on the cluster's
+# default StorageClass.
 #
-# Production schedules every data-layer pod on the dedicated
-# etradie-system node pool (taint workload=etradie-system:NoSchedule,
-# applied by the platform node pool in
-# infrastructure/cluster/oci/main.tf via the kubelet
-# --register-with-taints arg). Without the per-datastore toleration
-# below, pods land on the untainted add-on pool which is sized for
-# cluster controllers only and cannot fit the data-plane.
+# Encryption at rest (production requirement): every datastore MUST
+# bind to a StorageClass whose volumes are encrypted at rest. The class
+# NAME is provider-specific (Contabo K3s: a LUKS-backed class or an
+# encryption-enabled Longhorn class). Left empty it falls back to the
+# cluster default class; verify that default is encrypted using the
+# per-provider step in the restore-drill runbook.
 #
-# Cloud-agnostic: a toleration without a matching taint is a no-op, so
-# this is safe on Contabo K3s, OCI OKE, Talos, or any cluster that does
-# not taint nodes.
+# Disk budget (BUDGET.md TABLE 2B): postgres 16Gi + backup 16Gi +
+# chromadb 16Gi + redis 8Gi fits the 200GB box alongside Loki 20Gi,
+# Prometheus ~20Gi, Vault 10Gi and per-user MT PVCs.
+#
+# The workload=etradie-system tolerations are retained: a toleration
+# without a matching taint is a no-op on the untainted single-node K3s
+# box, and they become effective again on a future tainted multi-node
+# cluster without another edit.
 
-# Per-datastore Linkerd authorization (Server + AuthorizationPolicy).
-# Kept disabled until the mesh is confirmed; enable deliberately (set
-# true + re-sync) once `linkerd viz edges` shows SECURED on every
-# data-layer edge (docs/runbooks/tier9-linkerd-mesh-rollout.md step 4).
+# Per-datastore Linkerd authorization stays disabled until the mesh is
+# confirmed (docs/runbooks/linkerd-mesh-rollout.md step 4). The mesh
+# itself is ON; this is only the per-service authz layer.
 linkerdPolicy:
   enabled: false
 
-# Encryption at rest (production requirement).
-#
-# Every datastore below MUST bind to a StorageClass whose underlying
-# volumes are encrypted at rest. The class NAME is provider-specific, so
-# it is an operator decision rather than a chart hard-pin:
-#   - OCI OKE: the default oci-bv class is encrypted at rest by default.
-#   - Contabo / bare-metal K3s: an encryption-enabled Longhorn class
-#     (LUKS) or a LUKS-backed local class.
-#   - Any cloud: that provider's encrypted block class.
-# Set storageClassName per datastore to the encrypted class. Left empty
-# it falls back to the cluster default class; verify that default is
-# encrypted using the per-provider step in the restore-drill runbook.
 postgres:
   storage:
-    size: 32Gi
+    size: 16Gi
     # storageClassName: "<encrypted-class>"  # operator-set; see note above
   resources:
     requests:
@@ -54,12 +43,16 @@ postgres:
   backup:
     enabled: true
     schedule: "0 2 * * *"
-    retentionDays: 30
+    retentionDays: 7
     storage:
-      size: 64Gi
+      # Local staging area only: dumps are uploaded offsite (B2) by the
+      # same pod before the retention prune. 16Gi holds 7 days of dumps
+      # for a 16Gi database with compression headroom; the durable copy
+      # lives offsite, NOT on this PVC.
+      size: 16Gi
       # storageClassName: "<encrypted-class>"  # operator-set; the local
       # dump holds the same data as the live volume and must be
-      # encrypted at rest. See the encryption-at-rest note above.
+      # encrypted at rest.
     resources:
       requests:
         cpu: 250m
@@ -67,13 +60,10 @@ postgres:
       limits:
         cpu: "1"
         memory: 512Mi
-    # Off-cluster backup copy (Audit ref: D-H3). Operator MUST
-    # populate etradie/data-layer/postgres-backup/production in
-    # Vault with rclone_remote_name / rclone_config / remote_bucket
-    # / remote_path_prefix BEFORE the next 02:00 UTC run, otherwise
-    # the ExternalSecret will fail to materialise and the CronJob
-    # pod will refuse to start. See helm/data-layer/values.yaml
-    # postgres.backup.offsite for the full operator runbook.
+    # Off-cluster backup copy (Audit ref: D-H3). Operator MUST populate
+    # etradie/data-layer/postgres-backup/production in Vault with
+    # rclone_remote_name / rclone_config / remote_bucket /
+    # remote_path_prefix BEFORE the next 02:00 UTC run.
     offsite:
       enabled: true
       provider: "b2"
@@ -91,14 +81,17 @@ redis:
   storage:
     size: 8Gi
     # storageClassName: "<encrypted-class>"  # operator-set; see note above
-  maxmemory: "1gb"
+  # ~50% of the 1Gi container limit so RESP buffers + fork overhead
+  # never push the process past the cgroup ceiling (the previous 1gb
+  # maxmemory only made sense against the old 1536Mi limit).
+  maxmemory: "512mb"
   resources:
     requests:
       cpu: 250m
-      memory: 768Mi
+      memory: 512Mi
     limits:
       cpu: "1"
-      memory: 1536Mi
+      memory: 1Gi
   externalSecret:
     vaultPath: etradie/data-layer/redis/production
     refreshInterval: 1h
@@ -110,15 +103,15 @@ redis:
 
 chromadb:
   storage:
-    size: 32Gi
+    size: 16Gi
     # storageClassName: "<encrypted-class>"  # operator-set; see note above
   resources:
     requests:
-      cpu: 500m
-      memory: 1Gi
+      cpu: 300m
+      memory: 512Mi
     limits:
-      cpu: "2"
-      memory: 2Gi
+      cpu: "1"
+      memory: 1Gi
   externalSecret:
     vaultPath: etradie/data-layer/chromadb/production
     refreshInterval: 1h
@@ -128,16 +121,19 @@ chromadb:
       value: etradie-system
       effect: NoSchedule
 
-# Namespace-wide ResourceQuota + LimitRange sizing for production.
-# Sum across data-layer (postgres + redis + chromadb) + 5 services at
-# their production replicaCount * resources.limits.
+# Namespace-wide ResourceQuota for the TABLE 2B single-node profile.
+# Envelope: data-layer (pg + redis + chroma + 2 exporter sidecars) +
+# 5 services at 1 replica + Linkerd proxy sidecars + per-tenant mt-node
+# pods (0.70 CPU / 1.19Gi each, Burstable). Requests headroom covers
+# ~3 MT tenants plus rollout surge; raise requestsCpu/requestsMemory in
+# lockstep with real tenant growth (and with BUDGET.md TABLE 2B).
 resourceQuota:
   enabled: true
   hard:
-    requestsCpu: "32"
-    requestsMemory: "64Gi"
-    limitsCpu: "64"
-    limitsMemory: "128Gi"
+    requestsCpu: "8"
+    requestsMemory: "16Gi"
+    limitsCpu: "24"
+    limitsMemory: "40Gi"
     persistentvolumeclaims: "20"
     servicesLoadbalancers: "0"
     servicesNodeports: "0"
