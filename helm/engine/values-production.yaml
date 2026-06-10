@@ -1,27 +1,24 @@
 # Production overlay for the etradie-engine chart.
-# Applied AFTER values.yaml by the ArgoCD child Application.
+# Applied AFTER values.yaml + values-image.yaml by the ArgoCD child
+# Application. TABLE 2B profile (BUDGET.md): single-node Contabo, full
+# stack ON, 1 replica. Cloud-agnostic (no instance-type pins; the
+# etradie-system tolerations are no-ops on untainted nodes).
 #
-# IMPORTANT: this file is intentionally cloud-agnostic. It does NOT
-# pin any AWS-specific instance type via nodeSelector; the same chart
-# renders correctly on Contabo K3s, OCI OKE, Talos, or any vanilla
-# Kubernetes cluster. Cluster-specific scheduling hints (taints, GPU
-# pools, etc.) belong on the cluster, not in the chart.
+# Required hostname anti-affinity is intentionally NOT set here (the
+# base chart's preferred term applies): required + maxSurge:1 deadlocks
+# every rollout on a single node.
 #
 # Image references (etradie-engine + mt-node) live in
-# helm/engine/values-image.yaml. This overlay may pin a
-# production-specific tag below by re-declaring image.tag; the
-# registry path stays in the shared values-image.yaml file.
+# helm/engine/values-image.yaml.
 
-replicaCount: 3
+replicaCount: 1
 
 image:
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
-# Per-service Linkerd authorization (Server + AuthorizationPolicy).
-# Kept disabled until the mesh is confirmed; enable deliberately (set
-# true + re-sync) once `linkerd viz edges` shows SECURED on every engine
-# edge (docs/runbooks/tier9-linkerd-mesh-rollout.md step 4).
+# Per-service Linkerd authorization stays disabled until the mesh is
+# confirmed (runbook step 4). The mesh itself is ON.
 linkerdPolicy:
   enabled: false
 
@@ -33,19 +30,25 @@ podAnnotations:
   tier: production
 
 config:
-  # mt-node image: defined in helm/engine/values-image.yaml. Only
-  # production-specific tuning lives here.
+  # mt-node runtime tunables (image: values-image.yaml). LOCKSTEP
+  # INVARIANT: every value below MUST mirror
+  # helm/mt-node/values-production.yaml so engine-runtime-provisioned
+  # tenant pods are wire-identical to chart-rendered ones.
   mtNode:
-    # Production PVC size: 8Gi matches helm/mt-node/values-production.yaml
-    # persistence.size. The base values.yaml defaults to 4Gi (staging).
-    # Both paths (chart-rendered and engine-provisioned) must use the
-    # same size so an operator can flip a tenant between paths without
-    # losing the Wine prefix or hitting a PVC resize.
-    pvcSize: "8Gi"
-    # Mirrors helm/mt-node/values-production.yaml so the chart-
-    # rendered and engine-runtime paths produce wire-identical pod
-    # specs. The toleration is required to land on the dedicated
-    # node pool tainted workload=etradie-system:NoSchedule.
+    # TABLE 2B: Burstable QoS (requests < limits) instead of the old
+    # Guaranteed 2 CPU / 2Gi pinning. Soak-observed steady state is
+    # ~520Mi RSS / sub-core CPU with recalc bursts to ~1.4 cores and
+    # ~680Mi; 500m/1Gi requests reserve the steady state and the
+    # 1500m/2Gi limits absorb the bursts.
+    cpuRequest: "500m"
+    cpuLimit: "1500m"
+    memRequest: "1Gi"
+    memLimit: "2Gi"
+    ephemeralRequest: "512Mi"
+    ephemeralLimit: "1Gi"
+    # TABLE 2B disk budget: 4Gi per tenant (matches
+    # helm/mt-node/values-production.yaml persistence.size).
+    pvcSize: "4Gi"
     scheduling:
       priorityClassName: "etradie-mt-node-priority"
       tolerations:
@@ -54,20 +57,18 @@ config:
           value: etradie-system
           effect: NoSchedule
       nodeSelector: {}
+      # PREFERRED anti-affinity (was REQUIRED): required one-tenant-
+      # per-node makes any second MT user unschedulable on the
+      # single-node box. Preferred still spreads on multi-node.
       affinity:
         podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  app.kubernetes.io/name: etradie-mt-node
-              topologyKey: kubernetes.io/hostname
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
               podAffinityTerm:
                 labelSelector:
                   matchLabels:
                     app.kubernetes.io/name: etradie-mt-node
-                topologyKey: topology.kubernetes.io/zone
+                topologyKey: kubernetes.io/hostname
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
@@ -87,40 +88,30 @@ config:
         prometheus.io/path: "/metrics"
         cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
         tier: production
-        # Tier 9 (CHECKLIST microservice security): every runtime-
-        # provisioned mt-node StatefulSet joins the mesh. HostedProvisioner
-        # merges these onto the pod template (MT_NODE_POD_ANNOTATIONS_JSON
-        # -> merged_annotations), so the engine<->mt-node ZeroMQ :5555 hop
-        # is mTLS'd. Opaque because ZMQ is a non-HTTP server-first framing
-        # (matches the engine pod's own opaque-ports 5555). The Linkerd
-        # proxy coexists with the Vault Agent + watchdog sidecars. Audit
-        # ref: Tier 9 G9-1.
+        # Tier 9: every runtime-provisioned mt-node StatefulSet joins
+        # the mesh; ZeroMQ :5555 is opaque (server-first framing).
         linkerd.io/inject: enabled
-        # Native sidecar is required: runtime mt-node pods carry the
-        # Vault Agent init container (agent-init-first), which must
-        # reach Vault through an already-running proxy. Merged onto
-        # every runtime StatefulSet by HostedProvisioner.
         config.linkerd.io/proxy-enable-native-sidecar: "true"
         config.linkerd.io/opaque-ports: "5555"
-  # Vault address. Production runs an in-cluster Vault on the
-  # 'vault' namespace. Operators on HCP Vault or an external
-  # Vault override this in their own overlay.
+        # TABLE 2B: Vault Agent sidecar tuning. The injector's upstream
+        # default request is 250m CPU per tenant pod; on the single-node
+        # CPU budget that is most of a user's entire allowance. The
+        # agent is a persistent sidecar (agent-pre-populate-only=false)
+        # and idles far below 50m.
+        vault.hashicorp.com/agent-requests-cpu: "50m"
+        vault.hashicorp.com/agent-limits-cpu: "250m"
+        vault.hashicorp.com/agent-requests-mem: "64Mi"
+        vault.hashicorp.com/agent-limits-mem: "128Mi"
+  # Vault address. Production runs an in-cluster Vault on the 'vault'
+  # namespace.
   vault:
     address: "https://vault.vault.svc.cluster.local:8200"
   connectivity:
-    # Production: same defaults but enforce a minimum EA build so a
-    # stale terminal cannot trade. Bumped to 3.0.0 because EA v3.0.0
-    # removes the local risk enforcement (CheckRiskLimits) that
-    # conflicted with the platform's execution + management services.
-    # Any Pod still running EA v2.x will be rejected at the engine's
-    # EAIdentityVerifier and the watchdog will force an in-pod restart
-    # to load the new binary.
+    # Enforce a minimum EA build so a stale terminal cannot trade.
     eaIdentityVerifyEnabled: "true"
     eaMaxClockSkewSecs: "5"
     eaMinVersion: "3.0.0"
-    # Section 5: tighter production throughput envelope. Bigger node
-    # pool + bigger HPA ceiling means we can afford 20/s per tenant
-    # with 8 in-flight and a 40-burst.
+    # Section 5: production throughput envelope.
     outboundRatePerSecond: "20"
     outboundBurstSize: "40"
     zmqInflightLimit: "8"
@@ -131,7 +122,6 @@ config:
   observability:
     # Distributed tracing ON: export OTLP spans to the in-cluster OTel
     # Collector deployed by helm/observability-logs (tracing.enabled).
-    # Empty would make the SDK exporter a no-op; this turns it live.
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
   rag:
     ingestOnStartup: "true"
@@ -150,87 +140,32 @@ externalSecrets:
 
 resources:
   requests:
-    cpu: "1"
-    memory: 2Gi
-    ephemeral-storage: 1Gi
+    cpu: 500m
+    memory: 1Gi
+    ephemeral-storage: 512Mi
   limits:
     cpu: "2"
-    memory: 4Gi
-    ephemeral-storage: 4Gi
+    memory: 2Gi
+    ephemeral-storage: 2Gi
 
+# Single node: HPA pinned OFF (TABLE 2B). Revert with the base values
+# when the platform moves to the multi-node cluster (BUDGET.md Table 5).
 autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 6
-  targetCPUUtilizationPercentage: 65
-  targetMemoryUtilizationPercentage: 75
-  behavior:
-    scaleDown:
-      stabilizationWindowSeconds: 600
-      policies:
-        - type: Percent
-          value: 25
-          periodSeconds: 120
-        - type: Pods
-          value: 1
-          periodSeconds: 120
-      selectPolicy: Min
-    scaleUp:
-      stabilizationWindowSeconds: 30
-      policies:
-        - type: Percent
-          value: 100
-          periodSeconds: 30
-        - type: Pods
-          value: 2
-          periodSeconds: 30
-      selectPolicy: Max
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
 
+# A 1-replica PDB with minAvailable>=1 blocks every node drain forever.
 podDisruptionBudget:
-  enabled: true
-  minAvailable: 2
-  unhealthyPodEvictionPolicy: IfHealthyBudget
+  enabled: false
 
 serviceMonitor:
   enabled: true
   interval: 15s
   scrapeTimeout: 10s
 
-affinity:
-  podAntiAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: etradie-engine
-        topologyKey: kubernetes.io/hostname
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: etradie-engine
-          topologyKey: topology.kubernetes.io/zone
-
-topologySpreadConstraints:
-  - maxSkew: 1
-    topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app.kubernetes.io/name: etradie-engine
-  - maxSkew: 2
-    topologyKey: kubernetes.io/hostname
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app.kubernetes.io/name: etradie-engine
-
 nodeSelector: {}
 
-# Toleration for the dedicated etradie-system node group taint applied
-# by infrastructure/cluster/main.tf. A toleration without a matching
-# taint is a no-op, so this stays cloud-agnostic: clusters that do
-# not taint their nodes are unaffected.
 tolerations:
   - key: workload
     operator: Equal

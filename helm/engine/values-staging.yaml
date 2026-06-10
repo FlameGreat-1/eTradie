@@ -1,10 +1,10 @@
 # Staging overlay for the etradie-engine chart.
-# Applied AFTER values.yaml by the ArgoCD child Application.
+# Applied AFTER values.yaml + values-image.yaml by the ArgoCD child
+# Application. TABLE 2B profile (BUDGET.md): single-node Contabo, full
+# stack ON, 1 replica.
 #
 # Image references (etradie-engine + mt-node) live in
-# helm/engine/values-image.yaml. This overlay may pin a
-# staging-specific tag below by re-declaring image.tag; the
-# registry path stays in the shared values-image.yaml file.
+# helm/engine/values-image.yaml.
 
 replicaCount: 1
 
@@ -27,13 +27,45 @@ config:
     # Distributed tracing ON in staging: export OTLP spans to the
     # in-cluster OTel Collector (helm/observability-logs tracing.enabled).
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
-  # mt-node image: defined in helm/engine/values-image.yaml.
   vault:
     address: "https://vault.vault.svc.cluster.local:8200"
   rag:
     ingestOnStartup: "true"
   processor:
     strictSchemaValidation: "true"
+  # mt-node runtime tunables (image: values-image.yaml). LOCKSTEP
+  # INVARIANT: every value below MUST mirror
+  # helm/mt-node/values-staging.yaml so engine-runtime-provisioned
+  # tenant pods are wire-identical to chart-rendered ones. The base
+  # values (1Gi/1536Mi, pvc 4Gi) are the PRODUCTION-leaning defaults
+  # and previously leaked into staging runtime pods.
+  mtNode:
+    cpuRequest: "300m"
+    cpuLimit: "750m"
+    memRequest: "512Mi"
+    memLimit: "768Mi"
+    ephemeralRequest: "256Mi"
+    ephemeralLimit: "512Mi"
+    pvcSize: "2Gi"
+    scheduling:
+      # Mirrors helm/mt-node base podAnnotations (mesh + scrape) plus
+      # the Vault Agent sidecar tuning (TABLE 2B): the injector's
+      # upstream default request is 250m CPU per tenant pod, which the
+      # single-node CPU budget cannot afford. agent-pre-populate-only
+      # stays false (chart-side), so the agent runs as a persistent
+      # sidecar at the tuned size.
+      podAnnotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        prometheus.io/path: "/metrics"
+        tier: staging
+        linkerd.io/inject: enabled
+        config.linkerd.io/proxy-enable-native-sidecar: "true"
+        config.linkerd.io/opaque-ports: "5555"
+        vault.hashicorp.com/agent-requests-cpu: "50m"
+        vault.hashicorp.com/agent-limits-cpu: "250m"
+        vault.hashicorp.com/agent-requests-mem: "64Mi"
+        vault.hashicorp.com/agent-limits-mem: "128Mi"
 
 externalSecrets:
   enabled: true
@@ -44,29 +76,26 @@ externalSecrets:
     # data-layer staging path). Audit ref: IV-C2.
     chromadbAuthVaultPath: etradie/data-layer/chromadb/staging
     # Staging mt-node platform path. Matches
-    # helm/mt-node/values-staging.yaml::externalSecrets.platform.vaultPath
-    # so the ExternalSecret targets the correct Vault location.
+    # helm/mt-node/values-staging.yaml::externalSecrets.platform.vaultPath.
     mtNodeVaultPath: etradie/services/mt-node/staging
 
 resources:
   requests:
     cpu: 250m
-    memory: 768Mi
+    memory: 512Mi
     ephemeral-storage: 256Mi
   limits:
     cpu: "1"
-    memory: 1536Mi
+    memory: 1Gi
     ephemeral-storage: 1Gi
 
 autoscaling:
   enabled: false
   minReplicas: 1
-  maxReplicas: 2
+  maxReplicas: 1
 
-# A single-replica staging deployment cannot satisfy minAvailable=1
-# while a rolling update is in progress, so the PDB would block
-# every roll. Drop minAvailable to 0 here; staging accepts the
-# downtime trade-off in exchange for being able to deploy.
+# A single-replica deployment cannot satisfy minAvailable=1 during a
+# roll; minAvailable 0 keeps drains and deploys unblocked.
 podDisruptionBudget:
   enabled: true
   minAvailable: 0
