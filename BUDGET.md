@@ -98,6 +98,8 @@ The complete stack — nothing removed: app + data layer, Loki/Promtail/OTel/Jae
 | postgres | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
 | redis | 100m | 256Mi | 500m | 512Mi | 1 | 0.1 | 0.25Gi |
 | chromadb | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
+| postgres-exporter sidecar (verified; metrics.enabled default ON) | 50m | 64Mi | 100m | 128Mi | 1 | 0.05 | 0.06Gi |
+| redis-exporter sidecar (verified; metrics.enabled default ON) | 50m | 64Mi | 100m | 128Mi | 1 | 0.05 | 0.06Gi |
 | Loki (PVC 20Gi, 7d retention) | 100m | 192Mi | 500m | 512Mi | 1 | 0.1 | 0.19Gi |
 | Promtail (per node) | 25m | 64Mi | 150m | 192Mi | 1 | 0.03 | 0.06Gi |
 | OTel collector | 100m | 192Mi | 500m | 512Mi | 1 | 0.1 | 0.19Gi |
@@ -110,10 +112,10 @@ The complete stack — nothing removed: app + data layer, Loki/Promtail/OTel/Jae
 | Linkerd control plane, HA OFF (est) | — | — | — | — | 3 pods | ~0.3 | ~0.45Gi |
 | Linkerd viz @1 replica + viz Prometheus (est) | — | — | — | — | ~5 pods | ~0.4 | ~1.0Gi |
 | Linkerd proxy sidecars (verified 50m/64Mi each) | 50m | 64Mi | 200m | 256Mi | ~10 meshed pods | 0.5 | 0.64Gi |
-| **Staging floor (0 users)** | | | | | | **≈ 4.0 CPU** | **≈ 7.2Gi** |
-| each MT user (+ proxy sidecar) | 300m+50m | 512Mi+64Mi | 1 | 768Mi+ | 1/user | +0.35 | +0.56Gi |
+| **Staging floor (0 users)** | | | | | | **≈ 4.1 CPU** | **≈ 7.3Gi** |
+| each MT user = mt-node 300m/512Mi + watchdog 20m/32Mi (verified) + Linkerd proxy 50m/64Mi (verified) + Vault Agent sidecar ~250m/64Mi (est, upstream injector default; tunable to 50m via vault.hashicorp.com/agent-requests-cpu) | — | — | — | — | 1/user | +0.62 (+0.42 tuned) | +0.66Gi |
 
-Staging at 5 users ≈ **5.8 CPU / ~10Gi reserved**, plus the platform-infra allowance below → fits 8/24, with bounded burst headroom.
+Staging at 5 users ≈ **7.2 CPU reserved at injector defaults** (over budget once platform infra is added) or ≈ **6.2 CPU with the Vault-agent CPU annotation tuned to 50m** → realistic staging capacity: **~3–4 users at defaults, ~5 users with the agent tuned**.
 
 **PRODUCTION on Contabo, everything ON:**
 
