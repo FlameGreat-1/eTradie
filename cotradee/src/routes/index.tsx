@@ -88,14 +88,29 @@ function GuestRoute({ children }: { children: React.ReactNode }) {
   const searchParams = new URLSearchParams(location.search);
   const returnTo = searchParams.get('returnTo') || '/dashboard';
 
-  if (isLoading) return <BlankLoader />;
-  if (isAuthenticated) return <Navigate to={returnTo} replace />;
+  // Public/guest surface must paint immediately and must NEVER block on
+  // the boot auth probe (GET /auth/me). The probe is mounted at the app
+  // root (AuthProvider) and fires on every route, but these pages
+  // (landing, pricing, login, ...) do not depend on auth state to
+  // render their content. We therefore render children right away while
+  // the probe is in flight, and only redirect an ALREADY-authenticated
+  // returning user away ONCE the probe has resolved. A guest sees the
+  // page instantly even when the backend is slow or undeployed; a
+  // logged-in user sees it briefly then is bounced to returnTo when
+  // /auth/me returns 200.
+  if (!isLoading && isAuthenticated) return <Navigate to={returnTo} replace />;
   return <>{children}</>;
 }
 
 function RootRedirect() {
   const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <BlankLoader />;
+  // While the probe is in flight, optimistically route to the public
+  // landing page so "/" paints instantly instead of holding a blank
+  // loader for the duration of the /auth/me round-trip. /landing is a
+  // GuestRoute, so if the probe later resolves to authenticated the
+  // user is redirected on to /dashboard from there. Once the probe has
+  // resolved here we route authoritatively.
+  if (isLoading) return <Navigate to="/landing" replace />;
   return <Navigate to={isAuthenticated ? '/dashboard' : '/landing'} replace />;
 }
 
