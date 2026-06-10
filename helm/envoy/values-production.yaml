@@ -1,23 +1,85 @@
 # helm/envoy values-production.yaml
-# Layered on top of values.yaml. Production already drives the base
-# values, so this file only adds production-only annotations and node
-# scheduling that should NOT bleed into staging or future environments.
+# Layered on top of values.yaml. TABLE 2B profile (BUDGET.md): the base
+# values carry the multi-node HA posture; this overlay tunes envoy down
+# to the single-node Contabo box (1 replica, lean resources) with the
+# full stack (mesh + tracing + monitoring) ON.
+
+replicaCount: 1
 
 podAnnotations:
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: "production"
 
-# Cloud-agnostic: do NOT pin AWS-specific instance types here. Envoy
-# tolerates the etradie-system taint (set by
-# infrastructure/cluster/main.tf::eks_managed_node_groups.etradie_system)
-# so it lands on the dedicated internal-data-plane node group with
-# gateway/engine/execution/management. The previous overlay tolerated
-# the `edge` taint, which is reserved for edge-ingress; that was wrong
-# and caused envoy to compete with edge-ingress for capacity on the
-# public-facing pool.
-#
-# A toleration without a matching taint is a no-op, so this stays
-# cloud-agnostic.
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+    ephemeral-storage: 256Mi
+  limits:
+    cpu: "1500m"
+    memory: 1Gi
+    ephemeral-storage: 512Mi
+
+# Single node: HPA pinned OFF (a scale-up cannot land anywhere useful
+# and steals CPU from MT tenants). Revert to the base values when the
+# platform moves to the multi-node cluster (BUDGET.md Table 5).
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
+
+# A 1-replica PDB with minAvailable>=1 blocks every node drain forever.
+podDisruptionBudget:
+  enabled: false
+
+# Single-node scheduling: the base chart's REQUIRED hostname
+# anti-affinity + strategy maxSurge:1/maxUnavailable:0 deadlocks every
+# rollout on one node. Drop the required term (null deletes the base
+# key); keep a preferred term for future multi-node spread.
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution: null
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-envoy
+          topologyKey: kubernetes.io/hostname
+
+resourceQuota:
+  hard:
+    requestsCpu: "2"
+    requestsMemory: "4Gi"
+    limitsCpu: "4"
+    limitsMemory: "8Gi"
+    persistentvolumeclaims: "0"
+    servicesLoadbalancers: "0"
+    servicesNodeports: "0"
+
+# LimitRange retuned for the lean profile. min MUST admit the Linkerd
+# proxy sidecar (50m/64Mi requests, verified in
+# deployments/linkerd/control-plane-values.yaml); the base min of
+# 100m/128Mi would reject every meshed pod in this namespace at
+# admission.
+limitRange:
+  container:
+    max:
+      cpu: "2"
+      memory: "2Gi"
+    min:
+      cpu: "50m"
+      memory: "64Mi"
+    default:
+      cpu: "1500m"
+      memory: "1Gi"
+    defaultRequest:
+      cpu: "500m"
+      memory: "512Mi"
+
+# Cloud-agnostic: a toleration without a matching taint is a no-op on
+# the untainted single-node K3s box and becomes effective again on a
+# future tainted node pool.
 nodeSelector: {}
 
 tolerations:
@@ -33,20 +95,14 @@ serviceMonitor:
     tier: critical
 
 # Distributed tracing ON. Envoy is the edge-rooted first span and
-# propagates W3C traceparent to the gateway. Head-sampling at 20% is
-# made once here at the root and honoured by every downstream hop
-# (sampled flag in the propagated traceparent), bounding collector +
-# Jaeger load while capturing a representative slice of COMPLETE traces.
-# The collectorAddress/Port/serviceName come from the base values block.
+# propagates W3C traceparent downstream. Head-sampling at 20% bounds
+# collector + Jaeger (in-memory) load while capturing a representative
+# slice of COMPLETE traces.
 config:
   envoy:
     tracing:
       enabled: true
       samplePercent: 20
 
-# TIER 5 browser security response headers (CSP / X-Frame-Options /
-# X-Content-Type-Options / Referrer-Policy) are inherited UNCHANGED from
-# helm/envoy/values.yaml::securityHeaders. They are an API-origin policy
-# (default-src 'none'; frame-ancestors 'none') that is identical in every
-# environment, so there is deliberately no production override here.
-# Override a single header only if a production-specific need arises.
+# TIER 5 browser security response headers are inherited UNCHANGED from
+# helm/envoy/values.yaml::securityHeaders.
