@@ -1,9 +1,13 @@
 # Production overlay for the etradie-management chart.
-# Cloud-agnostic: no AWS instance-type nodeSelector.
+# TABLE 2B profile (BUDGET.md): single-node Contabo. Cloud-agnostic.
 #
-# SINGLETON CONSTRAINT (see helm/management/values.yaml). replicaCount
+# SINGLETON CONSTRAINT (see helm/management/values.yaml): replicaCount
 # stays 1 in production; the four background loops do not coordinate
 # and the in-memory state is per-pod. Audit ref: MG-C1.
+#
+# Required hostname anti-affinity intentionally NOT set (base preferred
+# applies; required deadlocks single-node rollouts).
+
 replicaCount: 1
 
 image:
@@ -18,23 +22,18 @@ podAnnotations:
   tier: production
 
 config:
-  # Arms the management prod fail-closed guards
-  # (JWT-secret-required, ENGINE_INTERNAL_SHARED_SECRET under mt5).
-  # Audit ref: A2.
+  # Arms the management prod fail-closed guards. Audit ref: A2.
   app:
     env: "production"
   management:
     brokerMode: "mt5"
     logLevel: "INFO"
     logJson: "true"
-    # Distributed tracing ON: export OTLP spans to the in-cluster OTel
-    # Collector (helm/observability-logs tracing.enabled).
+    # Distributed tracing ON.
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
 
-# Per-service Linkerd authorization (Server + AuthorizationPolicy).
-# Kept disabled until the mesh is confirmed; enable deliberately (set
-# true + re-sync) once `linkerd viz edges` shows SECURED on every
-# management edge (docs/runbooks/tier9-linkerd-mesh-rollout.md step 4).
+# Per-service Linkerd authorization stays disabled until the mesh is
+# confirmed (runbook step 4). The mesh itself is ON.
 linkerdPolicy:
   enabled: false
 
@@ -46,26 +45,22 @@ externalSecrets:
 
 resources:
   requests:
-    cpu: 500m
+    cpu: 300m
     memory: 512Mi
     ephemeral-storage: 256Mi
   limits:
-    cpu: "2"
+    cpu: "1"
     memory: 1Gi
     ephemeral-storage: 512Mi
 
-# HPA is intentionally OFF. Scaling above 1 replica would re-introduce
-# the duplicate-firing problem the singleton constraint exists to
-# prevent. Audit ref: MG-C1.
+# HPA intentionally OFF (singleton constraint). Audit ref: MG-C1.
 autoscaling:
   enabled: false
   minReplicas: 1
   maxReplicas: 1
 
-# With replicaCount=1 a minAvailable: >=1 PDB would block every node
-# drain forever. Disable the PDB so cluster operators can drain the
-# node holding the management pod normally; the ~30s recreate gap is
-# tolerated by every upstream caller's retry path. Audit ref: MG-C1.
+# With replicaCount=1 a minAvailable >=1 PDB would block every node
+# drain forever. Audit ref: MG-C1.
 podDisruptionBudget:
   enabled: false
 
@@ -74,41 +69,8 @@ serviceMonitor:
   interval: 15s
   scrapeTimeout: 10s
 
-affinity:
-  podAntiAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: etradie-management
-        topologyKey: kubernetes.io/hostname
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: etradie-management
-          topologyKey: topology.kubernetes.io/zone
-
-topologySpreadConstraints:
-  - maxSkew: 1
-    topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app.kubernetes.io/name: etradie-management
-  - maxSkew: 2
-    topologyKey: kubernetes.io/hostname
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app.kubernetes.io/name: etradie-management
-
 nodeSelector: {}
 
-# Toleration for the dedicated etradie-system node group taint applied
-# by infrastructure/cluster/main.tf. A toleration without a matching
-# taint is a no-op, so this stays cloud-agnostic: clusters that do
-# not taint their nodes are unaffected.
 tolerations:
   - key: workload
     operator: Equal

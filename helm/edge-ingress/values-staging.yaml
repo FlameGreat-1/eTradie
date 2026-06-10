@@ -1,31 +1,50 @@
 # helm/edge-ingress values-staging.yaml
 # Overrides the production-default base values for staging.
+#
+# TABLE 2B profile (BUDGET.md): single-node Contabo, full stack ON,
+# 1 replica.
 
-replicaCount: 5
+replicaCount: 1
 
 image:
   tag: "staging-v0.1.0"
 
-# Staging mirrors production's 2:1 limits-to-requests ratio so
-# load tests in staging produce the same scheduler behaviour as
-# production. Smaller absolute numbers because staging traffic is
-# bounded.
 resources:
   requests:
-    cpu: 500m
-    memory: 512Mi
+    cpu: 150m
+    memory: 256Mi
   limits:
-    cpu: 1000m
-    memory: 1Gi
+    cpu: 750m
+    memory: 512Mi
 
+# Single node: HPA pinned OFF (a scale-up cannot add availability on
+# one host). Revert with the base values on a multi-node cluster.
 autoscaling:
-  minReplicas: 5
-  maxReplicas: 15
-  targetCPUUtilizationPercentage: 65
-  targetMemoryUtilizationPercentage: 75
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
 
+# A 1-replica PDB with minAvailable>=1 blocks every node drain forever.
 podDisruptionBudget:
-  minAvailable: 3
+  enabled: false
+
+# Single-node scheduling: the base chart's REQUIRED hostname
+# anti-affinity + strategy maxSurge:1/maxUnavailable:0 deadlocks every
+# rollout on one node. Drop the required term (null deletes the base
+# key); the base preferred zone-affinity term still applies.
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution: null
+
+cloudflareTunnel:
+  # One tunnel replica on the single-node box (the second replica only
+  # buys node-level redundancy, which one node cannot provide).
+  replicaCount: 1
+  externalSecret:
+    # Staging-segmented Vault path. The base value points at the
+    # production path; without this override staging cloudflared would
+    # authenticate with the PRODUCTION tunnel token.
+    vaultPath: "etradie/services/edge-ingress/staging/cloudflare/tunnel"
 
 logging:
   rustLog: "info,edge_ingress=debug"
@@ -33,10 +52,10 @@ logging:
 
 resourceQuota:
   hard:
-    requestsCpu: "30"
-    requestsMemory: "30Gi"
-    limitsCpu: "120"
-    limitsMemory: "120Gi"
+    requestsCpu: "2"
+    requestsMemory: "4Gi"
+    limitsCpu: "4"
+    limitsMemory: "8Gi"
     servicesLoadbalancers: "1"
     servicesNodeports: "0"
 
@@ -76,9 +95,7 @@ config:
     connectTimeoutSecs: 4
     requestTimeoutSecs: 45
     # Single envoy release in staging; do not list non-existent
-    # us-west-2 FQDN here (it produces NXDOMAIN noise with no
-    # functional benefit; geo-router's region fallback already
-    # tolerates an unreachable secondary).
+    # secondary-region FQDNs here (NXDOMAIN noise, no benefit).
     endpoints:
       - region: "us-east-1"
         address: "etradie-envoy.envoy-system.svc.cluster.local:8080"

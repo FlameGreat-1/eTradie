@@ -18,9 +18,12 @@
 #     Vault). identity.issuer.scheme=kubernetes.io/tls tells Linkerd to
 #     read that Secret rather than generate its own.
 
-# High-availability control plane (production posture): 3 replicas of
-# each control-plane component + anti-affinity + PodDisruptionBudgets.
-highAvailability: true
+# TABLE 2B profile (BUDGET.md): single-node Contabo. HA mode (3
+# replicas of each control-plane component + anti-affinity + PDBs)
+# cannot schedule on one node and triples the mesh control-plane floor.
+# mTLS and injection behave identically in non-HA mode. Flip back to
+# true when the platform moves to the multi-node cluster (Table 5).
+highAvailability: false
 
 # Trust anchor (root CA, PUBLIC cert). Operator populates at promote
 # time from Vault; left empty here so a bare `helm template` does not

@@ -1,7 +1,8 @@
 # helm/billing values-staging.yaml
 # Layered on top of values.yaml for the staging environment.
+# TABLE 2B profile (BUDGET.md): single-node Contabo, 1 replica.
 
-replicaCount: 2
+replicaCount: 1
 
 image:
   repository: ghcr.io/flamegreat-1/etradie/billing
@@ -18,17 +19,12 @@ config:
   billing:
     logLevel: "DEBUG"
     logJson: "true"
-    # Staging hosts the SPA and webhooks under the same domain as the
-    # rest of the staging stack. The provider dashboards (Paddle
-    # sandbox + Lemon Squeezy test-mode) MUST be configured with
-    # https://staging.exoper.com/webhooks/paddle and
-    # https://staging.exoper.com/webhooks/lemonsqueezy respectively.
+    # Provider dashboards (Paddle sandbox + Lemon Squeezy test-mode)
+    # MUST be configured with https://staging.exoper.com/webhooks/paddle
+    # and https://staging.exoper.com/webhooks/lemonsqueezy respectively.
     publicBaseUrl: "https://staging.exoper.com"
     checkoutSuccessUrl: "https://staging.exoper.com/billing/success"
     checkoutCancelUrl: "https://staging.exoper.com/billing/cancel"
-    # Lemon Squeezy publishes a separate sandbox host; Paddle uses a
-    # different base URL for sandbox transactions. Operators set the
-    # appropriate sandbox base URL here per environment.
     paddleApiBaseUrl: "https://sandbox-api.paddle.com"
     lemonsqueezyApiBaseUrl: "https://api.lemonsqueezy.com"
 
@@ -40,20 +36,20 @@ externalSecrets:
 
 resources:
   requests:
-    cpu: 100m
+    cpu: 150m
     memory: 256Mi
   limits:
-    cpu: "500m"
+    cpu: 500m
     memory: 512Mi
 
 autoscaling:
-  enabled: true
-  minReplicas: 2
-  maxReplicas: 3
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
 
+# A 1-replica PDB with minAvailable>=1 blocks every node drain forever.
 podDisruptionBudget:
-  enabled: true
-  minAvailable: 1
+  enabled: false
 
 serviceMonitor:
   enabled: true

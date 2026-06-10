@@ -1,8 +1,8 @@
 # helm/envoy values-staging.yaml
-# Layered on top of values.yaml. Only fields that genuinely differ in
-# staging are listed.
+# Layered on top of values.yaml. TABLE 2B profile (BUDGET.md):
+# single-node Contabo, full stack ON, 1 replica.
 
-replicaCount: 3
+replicaCount: 1
 environment: "staging"
 
 image:
@@ -10,29 +10,71 @@ image:
 
 resources:
   requests:
-    cpu: "1"
-    memory: 2Gi
-    ephemeral-storage: 512Mi
+    cpu: 250m
+    memory: 256Mi
+    ephemeral-storage: 256Mi
   limits:
-    cpu: "2"
-    memory: 4Gi
-    ephemeral-storage: 1Gi
+    cpu: "1"
+    memory: 512Mi
+    ephemeral-storage: 512Mi
 
+# Single node: an HPA scale-up adds no availability and competes for
+# the same CPU the MT tenants need. Pinned OFF; revert with the base
+# values on a multi-node cluster.
 autoscaling:
-  minReplicas: 3
-  maxReplicas: 6
-  targetCPUUtilizationPercentage: 65
-  targetMemoryUtilizationPercentage: 75
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
 
+# A 1-replica PDB with minAvailable>=1 blocks every node drain forever.
 podDisruptionBudget:
-  minAvailable: 2
+  enabled: false
+
+# Single-node scheduling: the base chart's REQUIRED hostname
+# anti-affinity + strategy maxSurge:1/maxUnavailable:0 deadlocks every
+# rollout on one node (the surge pod can never schedule beside the old
+# pod). Drop the required term (null deletes the base key) and keep a
+# preferred term so multi-node clusters still spread.
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution: null
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-envoy
+          topologyKey: kubernetes.io/hostname
 
 resourceQuota:
   hard:
-    requestsCpu: "10"
-    requestsMemory: "20Gi"
-    limitsCpu: "20"
-    limitsMemory: "40Gi"
+    requestsCpu: "2"
+    requestsMemory: "4Gi"
+    limitsCpu: "4"
+    limitsMemory: "8Gi"
+    persistentvolumeclaims: "0"
+    servicesLoadbalancers: "0"
+    servicesNodeports: "0"
+
+# LimitRange retuned for the lean profile. min MUST admit the Linkerd
+# proxy sidecar (50m/64Mi requests, verified in
+# deployments/linkerd/control-plane-values.yaml); the base min of
+# 100m/128Mi would reject every meshed pod in this namespace at
+# admission.
+limitRange:
+  container:
+    max:
+      cpu: "2"
+      memory: "2Gi"
+    min:
+      cpu: "50m"
+      memory: "64Mi"
+    default:
+      cpu: "1"
+      memory: "512Mi"
+    defaultRequest:
+      cpu: "250m"
+      memory: "256Mi"
 
 serviceMonitor:
   interval: 15s
@@ -41,11 +83,10 @@ serviceMonitor:
     prometheus: kube-prometheus
     environment: staging
 
-# TIER4 A2a: in staging keep the filter ENABLED but ENFORCED at 0% so
-# the 429 path is exercised in metrics/logs without actually rejecting
-# traffic, and trip it at a lower token ceiling for load testing. Flip
-# enforcedFraction to 100 in a staging soak before trusting the prod
-# value. (config block is layered over values.yaml.)
+# TIER4 A2a: keep the filter ENABLED but ENFORCED at 0% in staging so
+# the 429 path is exercised in metrics/logs without rejecting traffic.
+# Flip enforcedFraction to 100 in a staging soak before trusting the
+# prod value.
 config:
   envoy:
     localRateLimit:
@@ -55,17 +96,14 @@ config:
       fillIntervalSeconds: 1
       enforcedFraction: 0
     # Distributed tracing ON at 100% in staging for full trace
-    # visibility during validation. Envoy is the edge-rooted first span
-    # and propagates W3C traceparent to the gateway. collectorAddress/
-    # Port/serviceName come from the base values block.
+    # visibility during validation. collectorAddress/Port/serviceName
+    # come from the base values block.
     tracing:
       enabled: true
       samplePercent: 100
 
 # TIER 5 browser security response headers are inherited UNCHANGED from
-# helm/envoy/values.yaml::securityHeaders (API-origin CSP +
-# X-Frame-Options + X-Content-Type-Options + Referrer-Policy). The policy
-# is environment-independent, so staging deliberately adds no override.
+# helm/envoy/values.yaml::securityHeaders.
 
 terminationGracePeriodSeconds: 45
 

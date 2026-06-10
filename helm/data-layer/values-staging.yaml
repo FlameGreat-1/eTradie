@@ -1,17 +1,20 @@
 # Staging overlay for the etradie-data-layer chart.
-# Smaller storage; backups disabled (staging is rebuildable from
-# alembic + RAG ingest).
+#
+# TABLE 2B profile (BUDGET.md): single-node Contabo, full stack ON.
+# Backups disabled in staging (rebuildable from alembic + RAG ingest);
+# exporters stay ON (metrics.enabled base default) because monitoring
+# is ON in this profile.
 
 postgres:
   storage:
     size: 4Gi
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: 500m
+      cpu: 250m
       memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
   externalSecret:
     vaultPath: etradie/data-layer/postgres/staging
     refreshInterval: 5m
@@ -21,14 +24,16 @@ postgres:
 redis:
   storage:
     size: 1Gi
-  maxmemory: "128mb"
+  # ~50% of the 512Mi container limit so RESP buffers + fork overhead
+  # never push the process past the cgroup ceiling.
+  maxmemory: "256mb"
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
-    limits:
-      cpu: 250m
+      cpu: 100m
       memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
   externalSecret:
     vaultPath: etradie/data-layer/redis/staging
     refreshInterval: 5m
@@ -38,11 +43,11 @@ chromadb:
     size: 4Gi
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: 500m
+      cpu: 250m
       memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
   externalSecret:
     vaultPath: etradie/data-layer/chromadb/staging
     refreshInterval: 5m

@@ -1,22 +1,52 @@
 # Staging overlay for observability-logs.
+#
+# TABLE 2B profile (BUDGET.md): full observability stack ON, tuned for
+# the single-node Contabo 8 vCPU / 24GB / 200GB box.
+#   - Loki:   ON, PVC 20Gi, 7d retention (persistent-only by template).
+#   - Jaeger: ON (in-memory). Form A: zero disk, traces lost on pod
+#     restart. To switch to Form B (durable Badger PVC): set
+#     tracing.jaeger.persistence.enabled=true AND
+#     tracing.jaeger.spanStorageType=badger.
+#   - OTel collector: 1 replica (single node; 2 adds no availability).
 
-# Tracing backend ON in staging so the full OTLP -> collector -> Jaeger
-# path is exercised pre-production. Smaller footprint than prod.
 tracing:
   enabled: true
   collector:
     replicaCount: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 192Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
   jaeger:
     enabled: true
+    # Form A (in-memory). BOTH keys are required: with persistence
+    # disabled the deployment template renders SPAN_STORAGE_TYPE from
+    # spanStorageType, and the base value is 'badger' - which would
+    # start Badger with no /badger volume mounted and crash. 'memory'
+    # is the correct in-memory engine.
+    spanStorageType: memory
     memoryMaxTraces: "50000"
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 192Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
 loki:
   persistence:
     size: 20Gi
-  retentionPeriod: "168h"  # 7 days in staging
+  retentionPeriod: "168h"  # 7 days
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
+      cpu: 100m
+      memory: 192Mi
     limits:
       cpu: 500m
       memory: 512Mi

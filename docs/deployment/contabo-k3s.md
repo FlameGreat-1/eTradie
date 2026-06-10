@@ -69,6 +69,46 @@ traffic via an outbound persistent connection.
   embedding model + Postgres + Redis + four Go services will exhaust
   4 vCPU / 8 GB.
 
+### Resource profile: BUDGET.md TABLE 2B (single-node, full stack ON)
+
+The committed values overlays implement the **TABLE 2B** profile from
+`BUDGET.md` - the complete stack (observability + monitoring + mesh +
+tracing) tuned to fit one Contabo 8 vCPU / 24 GB / 200 GB box. The
+**State column in BUDGET.md TABLE 2B is the source of truth** for what
+is ON/OFF; do not re-enable components ad hoc. Summary:
+
+* **Every service runs 1 replica** with HPAs pinned OFF and required
+  pod anti-affinity relaxed (a single node cannot satisfy either).
+  Revert to the base values when moving to the multi-node cluster
+  (BUDGET.md Table 5).
+* **Jaeger runs IN-MEMORY (Form A)**: zero disk, traces lost on pod
+  restart. To switch to the durable Badger form set
+  `tracing.jaeger.persistence.enabled=true` AND
+  `tracing.jaeger.spanStorageType=badger` in the observability-logs
+  overlay (both keys; see the overlay comment).
+* **mt-node is Burstable** (500m/1Gi requests, 1500m/2Gi limits in
+  production): the CPU-pinning runbook
+  (`docs/runbooks/mt-node-cpu-pinning.md`) does NOT apply to this
+  profile.
+* **OFF in staging**: postgres backup, restore drill, snapshotter.
+* **OFF in production**: Linkerd viz (the mesh + mTLS itself is ON;
+  install viz on demand before mesh-verification work:
+  `helm install linkerd-viz linkerd/linkerd-viz -n linkerd-viz
+  --create-namespace --version 30.12.11` and uninstall after), and the
+  wine-prefix snapshotter.
+* **Snapshotter restriction**: K3s `local-path` storage has NO CSI
+  VolumeSnapshot support. Do not enable `snapshotter.*` on this box;
+  it requires Longhorn (or another snapshot-capable CSI) plus a
+  `VolumeSnapshotClass` first.
+* **Stakater Reloader is a required platform install** (the mt-node
+  StatefulSet's `secret.reloader.stakater.com/reload` annotation
+  depends on it): `helm install reloader stakater/reloader -n
+  reloader --create-namespace`.
+* **Capacity expectation (from BUDGET.md TABLE 2B)**: staging holds
+  ~3-5 test users; production holds ~1 MT user with the Vault-agent
+  sidecar tuning that the overlays apply, ~2 only with further floor
+  trimming. CPU requests are the limiter, not RAM or disk.
+
 * A registered domain on Cloudflare with the zone in **Active**
   state (Free plan is sufficient).
 

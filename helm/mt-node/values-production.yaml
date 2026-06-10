@@ -1,13 +1,11 @@
 # Production overlay for the etradie-mt-node chart.
 #
-# Hardens defaults: larger resource ceiling, priority class enabled,
-# tighter PDB, more frequent scrape interval, and tolerations for the
-# dedicated etradie-system node taint.
+# TABLE 2B profile (BUDGET.md): Burstable QoS on the single-node
+# Contabo box. LOCKSTEP INVARIANT: resources + persistence MUST mirror
+# helm/engine/values-production.yaml::config.mtNode so chart-rendered
+# and engine-runtime-provisioned tenant pods are wire-identical.
 #
-# Image reference: see helm/mt-node/values-image.yaml. This overlay
-# may pin a production-specific tag or digest by re-declaring
-# image.tag / image.digest below; the registry path stays in the
-# shared values-image.yaml file.
+# Image reference: see helm/mt-node/values-image.yaml.
 
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -15,38 +13,43 @@ podAnnotations:
   prometheus.io/path: "/metrics"
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: production
+  # TABLE 2B: Vault Agent sidecar tuning. The injector's upstream
+  # default request is 250m CPU per tenant pod - most of a user's
+  # entire CPU allowance on this box. The agent is a persistent sidecar
+  # (agent-pre-populate-only=false) and idles far below 50m.
+  vault.hashicorp.com/agent-requests-cpu: "50m"
+  vault.hashicorp.com/agent-limits-cpu: "250m"
+  vault.hashicorp.com/agent-requests-mem: "64Mi"
+  vault.hashicorp.com/agent-limits-mem: "128Mi"
 
-# CHECKLIST hardening: Guaranteed QoS class for mt-node Pods.
-# requests == limits for CPU AND memory on every container.
-# Integer CPU on the mt-node container so the kubelet's static CPU
-# manager (when enabled cluster-side via --cpu-manager-policy=static)
-# assigns exclusive cores. See docs/runbooks/mt-node-cpu-pinning.md
-# for the operator-side enablement procedure.
-#
-# Why 2 cores: the production soak-test 95p indicator-recalc burst
-# observed in the audit hits ~1.4 cores. 2 gives 40% headroom and
-# is the next integer up.
-# Why 2Gi memory: matches the existing memory ceiling with ~30%
-# headroom over the soak-test's observed 680Mi peak.
-# ephemeral-storage stays burstable because static-CPU-manager does
-# not require it to match limits.
+# TABLE 2B: Burstable QoS (requests < limits), replacing the previous
+# Guaranteed 2 CPU / 2Gi with static CPU pinning. Rationale: the
+# soak-observed steady state is ~520Mi RSS / sub-core CPU with
+# indicator-recalc bursts to ~1.4 cores and ~680Mi. 500m/1Gi requests
+# reserve the steady state; 1500m/2Gi limits absorb the bursts. CPU
+# pinning (integer cores + static CPU manager) does not apply to the
+# Burstable class - docs/runbooks/mt-node-cpu-pinning.md applies only
+# if an operator reverts to Guaranteed sizing on a bigger node pool.
 resources:
   requests:
-    cpu: "2"
-    memory: 2Gi
+    cpu: 500m
+    memory: 1Gi
     ephemeral-storage: 512Mi
   limits:
-    cpu: "2"
+    cpu: 1500m
     memory: 2Gi
     ephemeral-storage: 1Gi
 
+# TABLE 2B disk budget: 4Gi per tenant (Wine prefix + MT data). MUST
+# match helm/engine/values-production.yaml::config.mtNode.pvcSize.
 persistence:
-  size: 8Gi
+  size: 4Gi
 
+# A per-tenant 1-replica PDB with minAvailable=1 blocks every node
+# drain forever; on the single-node box a drain is a full outage
+# regardless, so the PDB buys nothing and costs drain operability.
 podDisruptionBudget:
-  enabled: true
-  minAvailable: 1
-  unhealthyPodEvictionPolicy: IfHealthyBudget
+  enabled: false
 
 priorityClass:
   create: true
@@ -60,34 +63,10 @@ serviceMonitor:
   interval: 15s
   scrapeTimeout: 10s
 
-affinity:
-  podAntiAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: etradie-mt-node
-        topologyKey: kubernetes.io/hostname
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: etradie-mt-node
-          topologyKey: topology.kubernetes.io/zone
-
-topologySpreadConstraints:
-  - maxSkew: 1
-    topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app.kubernetes.io/name: etradie-mt-node
-  - maxSkew: 2
-    topologyKey: kubernetes.io/hostname
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app.kubernetes.io/name: etradie-mt-node
+# Required hostname anti-affinity intentionally NOT set here (the base
+# chart's preferred term applies): one-tenant-per-node would make any
+# second MT user unschedulable on the single-node box. Preferred still
+# spreads tenants on a future multi-node cluster.
 
 tolerations:
   - key: workload
@@ -95,11 +74,8 @@ tolerations:
     value: etradie-system
     effect: NoSchedule
 
-# Watchdog sidecar pinning (CHECKLIST CPU hardening).
-# Equal requests/limits = Pod QoS Guaranteed; sub-core CPU value
-# means the watchdog stays in the shared pool while the mt-node
-# container above gets exclusive cores. Memory is also equalised
-# so the Pod-level QoS classification is consistent.
+# Watchdog sidecar: equal requests/limits keeps its envelope
+# deterministic; the Pod is Burstable overall via the mt container.
 sidecar:
   watchdog:
     resources:
@@ -109,6 +85,13 @@ sidecar:
       limits:
         cpu: 100m
         memory: 64Mi
+
+# OFF (TABLE 2B): K3s local-path storage has no CSI VolumeSnapshot
+# support, so the snapshotter CronJob cannot run on this box. Re-enable
+# only after installing Longhorn (or another snapshot-capable CSI) and
+# setting snapshotter.volumeSnapshotClassName + image.repository.
+snapshotter:
+  enabled: false
 
 externalSecrets:
   enabled: true

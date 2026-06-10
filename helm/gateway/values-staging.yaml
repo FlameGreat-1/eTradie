@@ -1,4 +1,8 @@
-replicaCount: 3
+# Staging overlay for the etradie-gateway chart.
+# TABLE 2B profile (BUDGET.md): single-node Contabo, full stack ON,
+# 1 replica.
+
+replicaCount: 1
 
 image:
   repository: ghcr.io/flamegreat-1/etradie/gateway
@@ -24,20 +28,14 @@ config:
     # in-cluster OTel Collector (helm/observability-logs tracing.enabled).
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
     # Cross-origin Vercel SPA -> staging API, same topology as
-    # production. Canonical SPA host is staging-app.exoper.com (the
-    # entry host staging.exoper.com 308-redirects to it at the Vercel
-    # edge), so the canonical host is the only origin that calls the
-    # staging API cross-origin and is the sole CORS origin.
+    # production. Canonical SPA host is staging-app.exoper.com.
     allowedOrigins: "https://staging-app.exoper.com"
     billingServiceUrl: "http://billing-service.etradie-system.svc.cluster.local:8082"
     billingClientTimeoutMs: "15000"
   auth:
-    # Staging is a cross-subdomain Vercel deployment (SPA on
-    # staging-app.exoper.com, API on the staging gateway host), so the
-    # cookies MUST be scoped to the registrable domain and be
-    # cross-site-capable - identical posture to production. SameSite None
-    # requires Secure true (the gateway validate refuses the combination
-    # otherwise and fails fast at startup).
+    # Cross-subdomain Vercel deployment: cookies scoped to the
+    # registrable domain, cross-site-capable. SameSite None requires
+    # Secure true (gateway validate() fails fast otherwise).
     cookieDomain: ".exoper.com"
     cookieSecure: "true"
     cookieSameSite: "None"
@@ -60,38 +58,42 @@ externalSecrets:
 
 resources:
   requests:
-    cpu: 500m
-    memory: 768Mi
+    cpu: 250m
+    memory: 256Mi
     ephemeral-storage: 256Mi
   limits:
-    cpu: "1500m"
-    memory: 1536Mi
+    cpu: "1"
+    memory: 512Mi
     ephemeral-storage: 512Mi
 
+# Single node: HPA pinned OFF (TABLE 2B). Revert with the base values
+# on a multi-node cluster.
 autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 6
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
 
+# A 1-replica PDB with minAvailable>=1 blocks every node drain forever.
 podDisruptionBudget:
-  enabled: true
-  minAvailable: 2
+  enabled: false
 
 serviceMonitor:
   enabled: true
   interval: 15s
   scrapeTimeout: 10s
 
+# NOTE: the gateway chart ships no ResourceQuota template; namespace
+# governance (ResourceQuota + LimitRange for etradie-system) is owned
+# solely by the data-layer chart. Values here are kept aligned with
+# helm/data-layer for documentation only.
 resourceQuota:
   enabled: true
   hard:
     requestsCpu: "8"
     requestsMemory: "16Gi"
-    limitsCpu: "16"
-    limitsMemory: "32Gi"
-    persistentvolumeclaims: "0"
+    limitsCpu: "24"
+    limitsMemory: "40Gi"
+    persistentvolumeclaims: "20"
     servicesLoadbalancers: "0"
     servicesNodeports: "0"
 

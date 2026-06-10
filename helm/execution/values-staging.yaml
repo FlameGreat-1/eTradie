@@ -1,4 +1,5 @@
 # Staging overlay for the etradie-execution chart.
+# TABLE 2B profile (BUDGET.md): single-node Contabo, 1 replica.
 
 replicaCount: 1
 
@@ -13,10 +14,7 @@ podAnnotations:
   tier: staging
 
 config:
-  # Staging is prod-like for the auth/security posture: arm the same
-  # fail-closed guards as production. Broker behaviour stays mock
-  # (see brokerMode below); APP_ENV only governs the security guards.
-  # Audit ref: A2.
+  # Staging is prod-like for the auth/security posture. Audit ref: A2.
   app:
     env: "staging"
   execution:
@@ -24,8 +22,7 @@ config:
     brokerMode: "mock"
     logLevel: "DEBUG"
     logJson: "true"
-    # Distributed tracing ON in staging: export OTLP spans to the
-    # in-cluster OTel Collector (helm/observability-logs tracing.enabled).
+    # Distributed tracing ON in staging.
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
 
 externalSecrets:
@@ -36,12 +33,12 @@ externalSecrets:
 
 resources:
   requests:
-    cpu: 100m
-    memory: 192Mi
+    cpu: 150m
+    memory: 256Mi
     ephemeral-storage: 64Mi
   limits:
     cpu: 500m
-    memory: 384Mi
+    memory: 512Mi
     ephemeral-storage: 128Mi
 
 autoscaling:

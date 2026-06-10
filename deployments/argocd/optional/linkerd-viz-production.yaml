@@ -5,6 +5,10 @@
 # rollout runbook (docs/runbooks/tier9-linkerd-mesh-rollout.md step 3)
 # and `make mesh-check` both depend on this extension being installed.
 #
+# STATE: OFF in the TABLE 2B profile (BUDGET.md). This file lives in
+# deployments/argocd/optional/ (NOT children/) so it is not deployed by
+# the root app-of-apps. See optional/README.md for the ON procedure.
+#
 # Sync-wave -3: AFTER the control plane (-4) so the proxy injector +
 # identity exist, and BEFORE the workloads (data-layer -2 / engine -1 /
 # gateway 0) so the operator can inspect edges as soon as workloads

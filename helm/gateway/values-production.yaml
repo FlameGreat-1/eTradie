@@ -1,9 +1,13 @@
-replicaCount: 5
+# Production overlay for the etradie-gateway chart.
+# TABLE 2B profile (BUDGET.md): single-node Contabo, full stack ON,
+# 1 replica. Required hostname anti-affinity is intentionally NOT set
+# here (the base chart's preferred term applies): required + the
+# deployment's maxSurge:1/maxUnavailable:0 strategy deadlocks every
+# rollout on a single node.
+
+replicaCount: 1
 
 image:
-  # CI publishes to GHCR. Path is duplicated here (vs values.yaml)
-  # only because the production overlay historically pinned the same
-  # value; keep them in lockstep.
   repository: ghcr.io/flamegreat-1/etradie/gateway
   pullPolicy: IfNotPresent
   tag: "0.1.0"
@@ -15,20 +19,14 @@ podAnnotations:
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: production
 
-# Per-service Linkerd authorization (Server + AuthorizationPolicy).
-# Kept disabled until the mesh is confirmed: enabling it on the same
-# sync that first injects the proxies would enforce deny-by-default
-# before 100% mTLS is verified. Enable deliberately (set true + re-sync)
-# once `linkerd viz edges` shows SECURED on every gateway edge
-# (docs/runbooks/tier9-linkerd-mesh-rollout.md step 4).
+# Per-service Linkerd authorization stays disabled until `linkerd viz
+# edges` confirms SECURED on every gateway edge (runbook step 4). The
+# mesh itself is ON; this is only the per-service authz layer.
 linkerdPolicy:
   enabled: false
 
 config:
-  # Arms every Go-service prod fail-closed guard: HIBP breach check
-  # (Tier 1 item 7), mandatory Redis attempt limiter, cookie-Secure
-  # enforcement, and the JWT/DB/admin-secret-required checks.
-  # Audit ref: A2.
+  # Arms every Go-service prod fail-closed guard. Audit ref: A2.
   app:
     env: "production"
   gateway:
@@ -36,38 +34,17 @@ config:
     logJson: "true"
     logFullContextPayload: "false"
     # Distributed tracing ON: export OTLP spans to the in-cluster OTel
-    # Collector (helm/observability-logs tracing.enabled). Empty =
-    # no-op exporter; this turns it live.
+    # Collector (helm/observability-logs tracing.enabled).
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
-    # Canonical-host model. The SPA is reachable on exoper.com,
-    # www.exoper.com, and app.exoper.com, but exoper.com + www
-    # 308-redirect to the canonical host (app.exoper.com) at the Vercel
-    # edge BEFORE the SPA boots, so the ONLY origin that ever issues a
-    # cross-origin API call to api.exoper.com is the canonical host.
-    # The CORS allow-list is therefore exactly that one origin
-    # (least-privilege; no redundant origins that never call the API).
-    # Cookies still span every exoper.com host via cookieDomain below.
+    # Canonical-host model: app.exoper.com is the only origin that
+    # issues cross-origin API calls (exoper.com + www 308-redirect at
+    # the Vercel edge before the SPA boots).
     allowedOrigins: "https://app.exoper.com"
-    # Production billing endpoint (in-cluster). Keep default for now;
-    # if we ever split billing into its own namespace, update the
-    # Service DNS here AND the egress NetworkPolicy in values.yaml.
     billingServiceUrl: "http://billing-service.etradie-system.svc.cluster.local:8082"
     billingClientTimeoutMs: "15000"
   auth:
-    # Production cross-subdomain cookie policy.
-    # The SPA lives at https://app.exoper.com; the gateway lives at
-    # https://api.exoper.com (or behind the same Cloudflare zone).
-    # Cookies must be scoped to the registrable domain so the browser
-    # sends them on requests from app.exoper.com to api.exoper.com.
-    #
-    # SameSite=None is required for cross-site cookies. It MUST be
-    # paired with Secure=true (browsers reject the combination otherwise
-    # and the gateway validate() call refuses it at startup).
-    #
-    # AUTH_COOKIE_DOMAIN, AUTH_COOKIE_SAMESITE, AUTH_COOKIE_SECURE,
-    # AUTH_CSRF_SIGNED, and AUTH_RETURN_TOKENS_IN_BODY are emitted by
-    # the configmap template from these values. They are NOT in the
-    # ExternalSecret because they are not secrets; they are policy.
+    # Production cross-subdomain cookie policy (SPA app.exoper.com,
+    # API api.exoper.com). SameSite=None requires Secure=true.
     cookieDomain: ".exoper.com"
     cookieSecure: "true"
     cookieSameSite: "None"
@@ -88,112 +65,50 @@ externalSecrets:
 
 resources:
   requests:
-    cpu: "1"
-    memory: 1Gi
+    cpu: 500m
+    memory: 512Mi
     ephemeral-storage: 512Mi
   limits:
-    cpu: "2"
-    memory: 2Gi
+    cpu: "1500m"
+    memory: 1Gi
     ephemeral-storage: 1Gi
 
+# Single node: HPA pinned OFF (TABLE 2B). Revert with the base values
+# when the platform moves to the multi-node cluster (BUDGET.md Table 5).
 autoscaling:
-  enabled: true
-  minReplicas: 5
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 65
-  targetMemoryUtilizationPercentage: 75
-  behavior:
-    scaleDown:
-      stabilizationWindowSeconds: 600
-      policies:
-        - type: Percent
-          value: 25
-          periodSeconds: 120
-        - type: Pods
-          value: 1
-          periodSeconds: 120
-      selectPolicy: Min
-    scaleUp:
-      stabilizationWindowSeconds: 30
-      policies:
-        - type: Percent
-          value: 100
-          periodSeconds: 30
-        - type: Pods
-          value: 2
-          periodSeconds: 30
-      selectPolicy: Max
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
 
+# A 1-replica PDB with minAvailable>=1 blocks every node drain forever.
 podDisruptionBudget:
-  enabled: true
-  minAvailable: 3
-  unhealthyPodEvictionPolicy: IfHealthyBudget
+  enabled: false
 
 serviceMonitor:
   enabled: true
   interval: 10s
   scrapeTimeout: 8s
 
+# NOTE: the gateway chart ships no ResourceQuota template; namespace
+# governance (ResourceQuota + LimitRange for etradie-system) is owned
+# solely by the data-layer chart. Values here are kept aligned with
+# helm/data-layer for documentation only.
 resourceQuota:
   enabled: true
   hard:
-    requestsCpu: "24"
-    requestsMemory: "48Gi"
-    limitsCpu: "48"
-    limitsMemory: "96Gi"
-    persistentvolumeclaims: "0"
+    requestsCpu: "8"
+    requestsMemory: "16Gi"
+    limitsCpu: "24"
+    limitsMemory: "40Gi"
+    persistentvolumeclaims: "20"
     servicesLoadbalancers: "0"
     servicesNodeports: "0"
 
-affinity:
-  podAntiAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: etradie-gateway
-        topologyKey: kubernetes.io/hostname
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: etradie-gateway
-          topologyKey: topology.kubernetes.io/zone
-
-# Topology spread constraints: prefer balanced zone distribution
-# but DO schedule when the cluster has only 2 AZs or when an AZ is
-# degraded. The hostname-level pod anti-affinity
-# (requiredDuringSchedulingIgnoredDuringExecution above) already
-# guarantees no two pods land on the same node, which is the
-# blast-radius property we actually need; the zone constraint here
-# is best-effort balance, not a hard requirement.
-topologySpreadConstraints:
-  - maxSkew: 1
-    topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app.kubernetes.io/name: etradie-gateway
-  - maxSkew: 2
-    topologyKey: kubernetes.io/hostname
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app.kubernetes.io/name: etradie-gateway
-
-# Cloud-agnostic: do NOT pin AWS-specific instance types here.
-# Cluster-specific scheduling hints (instance types, GPU pools,
-# spot/on-demand) belong on the cluster (taints, custom labels), not
-# in the chart. The chart now deploys identically on Contabo K3s,
-# OCI OKE, Talos, EKS, GKE, AKS, or kubeadm.
+# Cloud-agnostic: do NOT pin instance types here. The etradie-system
+# toleration is a no-op on the untainted single-node K3s box and
+# becomes effective again on a future tainted node pool.
 nodeSelector: {}
 
-# Toleration for the dedicated etradie-system node group taint applied
-# by infrastructure/cluster/main.tf. A toleration without a matching
-# taint is a no-op, so this stays cloud-agnostic: clusters that do
-# not taint their nodes are unaffected. Without this, gateway pods
-# cannot schedule onto the etradie-system pool and would compete with
-# cluster add-ons on the untainted system pool.
 tolerations:
   - key: workload
     operator: Equal
