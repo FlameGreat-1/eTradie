@@ -1,416 +1,193 @@
 
-# 🔴 VERDICT: 4 vCPU / 8 GB RAM / 75 GB NVMe is **NOT enough** to run everything on one machine
+#### TABLE 1 — EVERYTHING ON (observability + monitoring + mesh + Jaeger), shipped production replica counts
 
-This is a candid "won't fit" verdict, not a soft "tight squeeze".
+Reserved = request × min replicas. All app/data/observability numbers verified from values files; Linkerd marked (est).
 
-## The actual resource budget your codebase declares
+| Component | Req CPU/pod | Req Mem/pod | Replicas | Reserved CPU | Reserved Mem |
+|---|---|---|---|---|---|
+| edge-ingress | 1 | 1Gi | 5 | 5.0 | 5Gi |
+| cloudflared (in edge) | 100m | 64Mi | 2 | 0.2 | 0.13Gi |
+| envoy | 2 | 4Gi | 5 | **10.0** | **20Gi** |
+| gateway | 1 | 1Gi | 5 | 5.0 | 5Gi |
+| engine | 1 | 2Gi | 3 | 3.0 | 6Gi |
+| execution | 500m | 512Mi | 3 | 1.5 | 1.5Gi |
+| management | 500m | 512Mi | 1 | 0.5 | 0.5Gi |
+| billing | 200m | 384Mi | 3 | 0.6 | 1.15Gi |
+| postgres | 500m | 1Gi | 1 | 0.5 | 1Gi |
+| postgres backup | 250m | 256Mi | 1 | 0.25 | 0.25Gi |
+| redis | 250m | 768Mi | 1 | 0.25 | 0.75Gi |
+| chromadb | 500m | 1Gi | 1 | 0.5 | 1Gi |
+| Loki | 250m | 512Mi | 1 | 0.25 | 0.5Gi |
+| Promtail (per node) | 100m | 128Mi | 1+ | 0.1 | 0.13Gi |
+| OTel collector | 200m | 256Mi | 2 | 0.4 | 0.5Gi |
+| Jaeger | 200m | 512Mi | 1 | 0.2 | 0.5Gi |
+| Linkerd control-plane (est) | — | — | ~3 HA | ~1.5 | ~1.5Gi |
+| Linkerd viz + its Prometheus (est) | — | — | ~7 | ~1.5 | ~2Gi |
+| Linkerd proxy sidecars (est, ~28 app pods) | 100m | 20Mi | 28 | ~2.8 | ~0.6Gi |
+| **TOTAL (0 users)** | | | | **≈ 34.8 CPU** | **≈ 48Gi** |
+| **+ each MT user** (+ proxy + watchdog) | | | | +2.6 | +2.1Gi |
 
-I read the actual memory + CPU limits from your `docker-compose.yml`. These are what the application asks for, not guesses:
+**Verdict for Contabo 8 vCPU / 24GB:** Impossible. ~35 CPU / 48GB reserved before one user. **Does not fit on staging or production on this box.** This profile needs a multi-node cluster.
 
-### Core stack (always-on services)
+#### TABLE 2 — EVERYTHING OFF (no observability, no monitoring, no mesh, no Jaeger), tuned to FIT the current Contabo (8 vCPU / 24GB / 200GB)
 
-| Service | Memory (declared limit) | CPU (declared) | Notes |
+This is a deliberately reduced **single-node** profile: replicas cut to 1, envoy/edge-ingress shrunk hard (they don't need 2 CPU/4Gi for a handful of users), mesh + observability not deployed.
+
+**STAGING on Contabo (target ~3–5 test users):**
+
+| Component | Req CPU | Req Mem | Limit CPU | Limit Mem | Replicas | Reserved CPU | Reserved Mem |
+|---|---|---|---|---|---|---|---|
+| edge-ingress | 150m | 256Mi | 750m | 512Mi | 1 | 0.15 | 0.25Gi |
+| envoy | 250m | 256Mi | 1 | 512Mi | 1 | 0.25 | 0.25Gi |
+| gateway | 250m | 256Mi | 1 | 512Mi | 1 | 0.25 | 0.25Gi |
+| engine | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
+| execution | 150m | 256Mi | 500m | 512Mi | 1 | 0.15 | 0.25Gi |
+| management | 150m | 256Mi | 500m | 512Mi | 1 | 0.15 | 0.25Gi |
+| billing | 150m | 256Mi | 500m | 512Mi | 1 | 0.15 | 0.25Gi |
+| postgres | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
+| redis | 100m | 256Mi | 500m | 512Mi | 1 | 0.1 | 0.25Gi |
+| chromadb | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
+| **Staging floor** | | | | | | **≈ 2.0 CPU** | **≈ 3.25Gi** |
+| each MT user | 300m | 512Mi | 1 | 768Mi | 1/user | +0.3 | +0.5Gi |
+
+Staging at 5 users ≈ **3.5 CPU / 5.75Gi reserved** → fits easily in 8/24.
+
+**PRODUCTION on Contabo (target ~5 real users):**
+
+| Component | Req CPU | Req Mem | Limit CPU | Limit Mem | Replicas | Reserved CPU | Reserved Mem |
+|---|---|---|---|---|---|---|---|
+| edge-ingress | 300m | 384Mi | 1 | 768Mi | 1 | 0.3 | 0.38Gi |
+| cloudflared | 100m | 64Mi | 500m | 256Mi | 1 | 0.1 | 0.06Gi |
+| envoy | 500m | 512Mi | 1.5 | 1Gi | 1 | 0.5 | 0.5Gi |
+| gateway | 500m | 512Mi | 1.5 | 1Gi | 1 | 0.5 | 0.5Gi |
+| engine | 500m | 1Gi | 2 | 2Gi | 1 | 0.5 | 1Gi |
+| execution | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
+| management | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
+| billing | 200m | 384Mi | 1 | 768Mi | 1 | 0.2 | 0.38Gi |
+| postgres | 500m | 1Gi | 2 | 2Gi | 1 | 0.5 | 1Gi |
+| redis | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
+| chromadb | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
+| **Production floor** | | | | | | **≈ 3.75 CPU** | **≈ 5.8Gi** |
+| each MT user | 500m | 1Gi | 1.5 | 2Gi | 1/user | +0.5 | +1Gi |
+
+Production at 5 users ≈ **6.25 CPU / 10.8Gi reserved** → fits in 8/24 with headroom for burst. **Disk**: trim postgres/chromadb PVCs to 16Gi, drop the on-cluster 64Gi backup (use offsite B2), MT PVCs at 4Gi → fits 200GB.
+
+**Verdict for Contabo:** ✅ Both staging and production FIT with everything-off + single-node lean, for ~5 users. Production CPU burst is the limiter beyond ~5–6 users.
+
+#### TABLE 3 — FULL BALANCED OPERATION (everything ON, normal/healthy) on a properly-sized future VPS
+
+This is the shipped production posture (Table 1) running normally with room to burst and serve a real user base (target ~30–50 MT users).
+
+| Layer | Reserved CPU | Reserved Mem | Notes |
 |---|---|---|---|
-| postgres | 256 MB | (shared) | Will need more under real load — see below |
-| redis | 128 MB | (shared) | OK |
-| chromadb | (no limit!) | (no limit!) | **Vector DB — typically 500MB-2GB depending on knowledge corpus** |
-| engine (Python) | **2 GB** | **2.0 vCPU** | Heaviest service. Has torch, transformers, RAG |
-| gateway (Go) | 256 MB | (shared) | |
-| execution (Go) | 256 MB | (shared) | |
-| management (Go) | 256 MB | (shared) | |
-| prometheus | 128 MB | (shared) | |
-| jaeger | 256 MB | (shared) | |
-| grafana | 256 MB | (shared) | |
-| **Core subtotal** | **~4.5 GB declared + ~1 GB chromadb + OS overhead** | **2+ vCPU dedicated to engine alone** | |
-
-### MT trading containers (one per active user — read carefully)
-
-Your `docker/mt-node/Dockerfile` builds a **per-user MetaTrader container** with:
-- Ubuntu 24.04 base
-- Wine64 + Wine32 (32-bit i386 architecture added)
-- Xvfb virtual framebuffer
-- MetaTrader 4 AND MetaTrader 5 both installed via Wine
-- ZeroMQ EA running on port 5555
-
-**Each MT container realistic footprint (Wine + Xvfb + terminal64.exe + EA):**
-- RAM: **400-800 MB per active MT instance** (Wine + Xvfb headless MT is famously heavy)
-- CPU: 0.2-0.5 vCPU steady-state, spikes higher on indicator recalc
-- Disk: ~2 GB per MT container image + per-user terminal data
-- Network: per-tick stream from broker
-
-### Frontend (cotradee)
-
-The SPA is **NOT in docker-compose**. It's a Vite/React build that produces static files. Two deployment options based on what I see in `deployments/cloudflare/`:
-
-- **Option A (recommended, free):** Build with `npm run build`, host on Cloudflare Pages / Vercel / Netlify. Zero VPS cost.
-- **Option B:** Add nginx container to serve `dist/` → ~30 MB RAM.
-
-Your edge-ingress/envoy chain (the `--profile edge` services) adds another **~3 GB RAM** if you enable it — but that's optional and meant for cluster deployments.
-
-## Hard math against your 4 vCPU / 8 GB / 75 GB resource
-
-### RAM budget
-```
-OS + Docker daemon ........................  ~800 MB
-postgres (under real load, not 256 MB limit)  ~512 MB
-redis ......................................  ~128 MB
-chromadb (knowledge embeddings loaded) .....  ~800 MB to 1.5 GB
-engine (LLM client + torch + RAG + 5 cycles)  ~2 GB (the declared limit)
-gateway ....................................  ~256 MB
-execution ..................................  ~256 MB
-management .................................  ~256 MB
-prometheus + jaeger + grafana ..............  ~640 MB
-─────────────────────────────────────────────────────
-CORE STACK SUBTOTAL ........................  ~5.6 GB to 6.4 GB
+| Full platform floor (Table 1 total) | ~35 | ~48Gi | all services + data + observability + mesh |
+| Burst headroom (HPAs scale up) | +~20 | +~30Gi | engine→6, gateway→10, envoy→10, edge→ up |
+| 30 MT users (×2.6 CPU / 2.1Gi) | +78 | +63Gi | per-user, can't co-locate >1/node |
+| **Approx total at 30 users, balanced** | **≈ 113 CPU** | **≈ 111Gi** | + ~500Gi disk |
 
-That leaves ~1.6 GB to ~2.4 GB for MT containers.
+**Recommended future infrastructure for full balanced operation:** This is explicitly a **multi-node cluster**, the shipped config's anti-affinity *forbids* stacking replicas on one node. Realistic shape:
+- **3–4 nodes** of roughly **8 vCPU / 32GB each** for the platform/control plane + observability + mesh (~32 vCPU / 128GB aggregate), **plus**
+- **a scalable MT node pool**: since each production MT user wants ~1.5 CPU/2Gi burst and can't share a node with another MT pod under the current `required` anti-affinity, you either relax that to `preferred` (recommended, lets ~4 MT pods share an 8-core node) or provision ~1 small node per few users.
+- With anti-affinity relaxed to `preferred` + the leaner MT sizing, ~30 users fit on roughly **a 32 vCPU / 96GB pool** for MT, on top of the platform pool.
 
-Per MT container ........................... ~500 MB
-Max MT containers fittable ................. 3-4 USERS MAX
-```
+So **full balanced = ~5–7 VPS nodes of 8 vCPU/32GB, or a couple of large 16–32 core boxes**, not one Contabo VPS 30.
 
-### CPU budget
-```
-4 vCPU total
-engine alone reserves 2.0 vCPU (50% of host)
-Each MT instance: 0.2-0.5 vCPU
-Postgres + everything else: ~1 vCPU under load
-─────────────────────────────────────────────
-Realistic concurrent MT containers: 2-4 before CPU saturates
-```
+#### Honest caveats (where I'm certain vs estimating)
 
-### Disk budget (75 GB)
-```
-Docker base images .......................... ~5 GB
-  - python:3.12-slim (engine) ~150 MB
-  - golang base ~300 MB × 3 services ~900 MB
-  - postgres:16-alpine ~250 MB
-  - chromadb ~600 MB
-  - prometheus + jaeger + grafana ~800 MB
-  - ubuntu:24.04 + Wine + MT installers ~2 GB
+- **Certain (read from repo):** edge-ingress, envoy, gateway, engine, execution, management, billing, postgres, redis, chromadb, Loki, Promtail, OTel, Jaeger, cloudflared. envoy's 2 CPU/4Gi × 5 is the single biggest line and is verified.
+- **Estimated:** Linkerd control-plane + viz resource requests (live in upstream Helm charts not in your repo; your files only set replica counts and HA mode). The ~5–6 CPU / ~4Gi I attributed to the full mesh is an informed industry estimate. Since you'd run mesh OFF on Contabo, it doesn't affect Tables 2.
+- **cert-manager / ESO / ArgoCD / Prometheus-Operator:** the repo references ESO (`vault-backend` ClusterSecretStore), ArgoCD, and a `monitoring` namespace Prometheus+Grafana, but their sizing is **not in your repo** (they're external platform installs). For Table 1/3 add a rough **+2–4 CPU / +4–8GB** for these. I flag this rather than invent exact numbers.
+- All app numbers are **declared requests, not measured.** Your soak still sets the real MT/engine values, which could lower Tables 2/3 further.
 
-Postgres data volume ........................ Grows with users.
-                                              Per user: ~5-20 MB/month
-                                              Webhook events, audit logs,
-                                              analysis records, reservations.
+#### Bottom line
 
-ChromaDB embeddings ......................... ~500 MB for current knowledge corpus
-                                              Can grow to 2-5 GB at scale
+1. **Everything ON: needs a multi-node cluster (~35 CPU/48GB floor). Will NOT run on one Contabo VPS 30.**
+2. **Everything OFF + single-node lean: FITS the Contabo VPS 30 for ~5 users**, both staging and production (Table 2).
+3. **Full balanced (everything on, real users): ~5–7× 8-core/32GB nodes or equivalent**, with MT anti-affinity relaxed.
 
-Prometheus retention (default 15 days) ...... ~2-5 GB
-Grafana dashboards .......................... <100 MB
-Model cache (~/.cache for engine) ........... 500 MB - 2 GB
-  - Sentence-transformers / tokenizer / embedding models
 
-Per MT container persistent volume .......... ~500 MB per user (terminal data,
-                                              charts, history, EA logs)
 
-OS + swap + breathing room .................. ~10 GB
 
-EFFECTIVE FREE FOR MT USERS: ~30-40 GB
-At 500 MB per MT user: ~60-80 users max disk-wise
-```
 
-## What this means in practice
 
-| Scenario | Will it work on 4/8/75? |
-|---|---|
-| **Development / staging with 1-2 test users** | ✅ Yes, easily |
-| **Production with 1-3 paying users** | ⚠️ Yes but tight; engine OOM risk during big LLM responses |
-| **Production with 4-10 active users** | ❌ No. MT containers will OOM-kill or swap-thrash |
-| **Production with 10+ users** | ❌ Hard no |
 
-## My honest recommendation
 
-**For the architecture you've built (multi-tenant, per-user MT instances on the same machine), you need at minimum:**
+#### TABLE 4 — BALANCED STAGING (everything reasonable for staging, on a right-sized VPS)
 
-### Option 1: Realistic single-VPS sizing
-- **8 vCPU / 16 GB RAM / 160 GB NVMe**
-- Comfortable for 10-15 active MT users
-- Cost: ~€25-40/month on Hetzner, ~$60-80/month elsewhere
+Staging doesn't need the mesh or full HA. Recommended single box: **Contabo Cloud VPS (or similar) 16 vCPU / 32GB / 400GB**. Replicas kept low (1–2), observability light (Loki+Promtail+OTel+Jaeger ON, mesh OFF).
 
-### Option 2: Production-grade single-VPS sizing
-- **8-12 vCPU / 24-32 GB RAM / 240 GB NVMe**
-- Comfortable for 30-50 active MT users
-- Cost: ~€50-80/month on Hetzner
+| Component | Req CPU | Req Mem | Limit CPU | Limit Mem | Replicas | Reserved CPU | Reserved Mem |
+|---|---|---|---|---|---|---|---|
+| edge-ingress | 250m | 384Mi | 1 | 768Mi | 1 | 0.25 | 0.38Gi |
+| envoy | 500m | 512Mi | 1.5 | 1Gi | 1 | 0.5 | 0.5Gi |
+| gateway | 500m | 512Mi | 1.5 | 1Gi | 2 | 1.0 | 1Gi |
+| engine | 500m | 1Gi | 2 | 2Gi | 2 | 1.0 | 2Gi |
+| execution | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
+| management | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
+| billing | 200m | 384Mi | 1 | 768Mi | 1 | 0.2 | 0.38Gi |
+| postgres | 500m | 1Gi | 2 | 2Gi | 1 | 0.5 | 1Gi |
+| redis | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
+| chromadb | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
+| Loki | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
+| Promtail | 100m | 128Mi | 500m | 384Mi | 1 | 0.1 | 0.13Gi |
+| OTel collector | 200m | 256Mi | 500m | 512Mi | 1 | 0.2 | 0.25Gi |
+| Jaeger (in-memory, no PVC) | 200m | 256Mi | 1 | 1Gi | 1 | 0.2 | 0.25Gi |
+| **Staging floor** | | | | | | **≈ 5.65 CPU** | **≈ 9.9Gi** |
+| each MT user | 300m | 512Mi | 1 | 768Mi | 1/user | +0.3 | +0.5Gi |
 
-### Option 3: Architecturally correct split (best long-term)
-- **Backend VPS:** 4 vCPU / 8 GB / 75 GB (your current spec) — runs everything EXCEPT MT containers
-- **MT VPS pool:** separate machines that scale horizontally as users grow — one machine can host 10-20 MT instances comfortably with 8 GB RAM
-- **Frontend:** Cloudflare Pages (free)
+At ~10 staging users: ~8.65 CPU / ~14.9Gi reserved → **fits 16 vCPU / 32GB comfortably** with burst room. Disk: small PVCs (postgres 16Gi, chromadb 16Gi, Loki 20Gi, MT 4Gi) fit 400GB. Mesh OFF (staging doesn't need mTLS verification load).
 
-This is what your `helm/` charts are clearly designed for — separate deployments per service, horizontal scaling.
+#### TABLE 5 — BALANCED PRODUCTION (everything ON: observability + monitoring + mesh + Jaeger, healthy HA)
 
-## What's specifically going to break on 4/8/75
+This is the shipped production posture running **normally with burst headroom and HA**, the config an operator switches to on real infrastructure. This is **multi-node** (the anti-affinity requires it). Recommended: **a Kubernetes cluster of 4 worker nodes, each 16 vCPU / 32GB / 200GB NVMe** (≈ 64 vCPU / 128GB aggregate) for platform+observability+mesh, **plus a scalable MT node pool** sized to user count.
 
-1. **OOM kills on engine during LLM responses** — engine declares 2 GB limit; under sustained LLM streaming + RAG retrieval + per-user processor caches, real-world usage hits 2.5-3 GB and Docker will SIGKILL it.
+| Component | Req CPU | Req Mem | Limit CPU | Limit Mem | Min replicas | Reserved CPU | Reserved Mem |
+|---|---|---|---|---|---|---|---|
+| edge-ingress | 1 | 1Gi | 2 | 2Gi | 3 | 3.0 | 3Gi |
+| cloudflared | 100m | 64Mi | 500m | 256Mi | 2 | 0.2 | 0.13Gi |
+| envoy | 1 | 2Gi | 4 | 8Gi | 3 | 3.0 | 6Gi |
+| gateway | 1 | 1Gi | 2 | 2Gi | 3 | 3.0 | 3Gi |
+| engine | 1 | 2Gi | 2 | 4Gi | 3 | 3.0 | 6Gi |
+| execution | 500m | 512Mi | 2 | 1Gi | 3 | 1.5 | 1.5Gi |
+| management | 500m | 512Mi | 2 | 1Gi | 1 | 0.5 | 0.5Gi |
+| billing | 200m | 384Mi | 1 | 768Mi | 3 | 0.6 | 1.15Gi |
+| postgres | 1 | 2Gi | 2 | 4Gi | 1 | 1.0 | 2Gi |
+| postgres backup | 250m | 256Mi | 1 | 512Mi | 1 | 0.25 | 0.25Gi |
+| redis | 250m | 768Mi | 1 | 1.5Gi | 1 | 0.25 | 0.75Gi |
+| chromadb | 500m | 1Gi | 2 | 2Gi | 1 | 0.5 | 1Gi |
+| Loki | 250m | 512Mi | 2 | 2Gi | 1 | 0.25 | 0.5Gi |
+| Promtail (per node, ~4) | 100m | 128Mi | 500m | 384Mi | 4 | 0.4 | 0.5Gi |
+| OTel collector | 200m | 256Mi | 1 | 1Gi | 2 | 0.4 | 0.5Gi |
+| Jaeger (durable Badger) | 200m | 512Mi | 2 | 2Gi | 1 | 0.2 | 0.5Gi |
+| Linkerd control-plane (est) | — | — | — | — | 3 HA | ~1.5 | ~1.5Gi |
+| Linkerd viz + Prometheus (est) | — | — | — | — | ~7 | ~1.5 | ~2Gi |
+| Linkerd proxy sidecars (est, ~28 pods) | 100m | 20Mi | — | — | 28 | ~2.8 | ~0.6Gi |
+| **Production floor (0 users)** | | | | | | **≈ 24 CPU** | **≈ 32Gi** |
+| each MT user (proxy+watchdog incl.) | ~700m | ~1.1Gi | 1.5+ | 2Gi+ | 1/user | +0.7 | +1.1Gi |
 
-2. **MT containers will fight for RAM** — once you have 3+ active users, Wine processes will swap-thrash on disk, latency explodes, EA disconnects from broker, trade signals miss their windows.
+Floor ~24 CPU / 32GB reserved. With burst (HPAs to max) the platform can demand ~50+ CPU. At 30 MT users add ~21 CPU / ~33GB. So a **64 vCPU / 128GB aggregate cluster (4× 16/32 nodes) holds the platform + observability + mesh + ~30 users at healthy reserved levels with burst headroom.** Scale the MT node pool linearly beyond that (~10 users per extra 16/32 node with anti-affinity relaxed to `preferred`).
 
-3. **ChromaDB has NO memory limit** — at scale it will eat into engine's budget and trigger cascading OOMs.
+**Add for external platform installs not in your repo** (cert-manager, ESO, ArgoCD, kube-prometheus+Grafana): budget **+3–5 CPU / +6–10GB** on the platform pool.
 
-4. **Prometheus retention will fill disk** — 15-day default retention with 6+ services scraping every 15s consumes ~5-8 GB over 2 weeks; combined with growing postgres + MT data, you'll hit 75 GB within 60-90 days.
+#### Summary of what runs where
 
-5. **Single-machine = single point of failure** — one MT container crash from a bad EA can cgroup-throttle the whole machine.
+| Profile | Mesh | Observability | Replicas | VPS / cluster | Fits? |
+|---|---|---|---|---|---|
+| **Table 1** (shipped prod, everything on) | ON | ON | shipped (3/5/5...) | multi-node only | ❌ not on 1 VPS |
+| **Table 2** (contabo lean, all off) | OFF | OFF | 1 each | 1× Contabo 8/24 | ✅ ~5 users |
+| **Table 4** (balanced staging) | OFF | light ON | 1–2 | 1× 16 vCPU/32GB | ✅ ~10 users |
+| **Table 5** (balanced production) | ON | ON | HA (3 each) | 4× 16 vCPU/32GB cluster | ✅ ~30 users, scale MT pool |
 
-## TL;DR
+#### Exact VPS recommendations for the operator to target
 
-**For development / staging / first paying customer:** 4/8/75 works.
-
-**For real multi-tenant production with per-user MT on the same machine:** you need 16 GB RAM minimum, ideally 32 GB. The MT-per-user architecture is the dominant cost driver — each Wine container is 500MB+ RAM and that adds up fast.
+- **Staging:** one **16 vCPU / 32GB / 400GB** VPS (e.g. Contabo Cloud VPS L/XL tier). Run Table 4.
+- **Production (balanced, full stack):** a **4-node K8s cluster, each 16 vCPU / 32GB / 200GB NVMe** (≈ 64 vCPU / 128GB / 800GB total), plus a **scalable MT worker pool** (add 16/32 nodes as users grow, ~10 users/node with `preferred` anti-affinity). Run Table 5.
 
-The cleanest path forward is to **deploy the backend stack on the 4/8/75 box and put MT containers on a separate horizontally-scalable pool**, which is exactly what your `helm/` charts are built for.
-
-
-
-
-_________________________________________________________________________________
-
-
-
-
-# Honest sizing breakdown for both VPS tiers
-
-## VPS 20: 6 vCPU / 12 GB RAM / 100 GB NVMe
-
-### RAM budget
-```
-OS + Docker daemon ........................  ~800 MB
-postgres (real load, not 256 MB limit) ....  ~600 MB
-redis .....................................  ~128 MB
-chromadb (knowledge embeddings loaded) ....  ~1.0 GB
-engine (Python: torch + LLM + RAG + caches)  ~2.5 GB (peaks above the 2GB limit on
-                                              concurrent multi-user LLM streams)
-gateway ...................................  ~256 MB
-execution .................................  ~256 MB
-management ................................  ~256 MB
-prometheus + jaeger + grafana .............  ~640 MB
-─────────────────────────────────────────────────────
-CORE STACK SUBTOTAL .......................  ~6.4 GB
-
-Free for MT containers: ~5.6 GB
-Per MT container: ~500-700 MB (Wine + Xvfb + terminal64.exe + EA)
-─────────────────────────────────────────────────────
-COMFORTABLE MT CONTAINERS: 6-8 users
-ABSOLUTE MAX (with swap risk): 10-11 users
-```
-
-### CPU budget
-```
-6 vCPU total
-engine reserves 2.0 vCPU                     ~33% of host
-postgres + chromadb + go services .........  ~1.5 vCPU sustained
-prometheus scraping overhead ..............  ~0.2 vCPU
-Reserved for MT containers .................  ~2.3 vCPU
-Per active MT trading: 0.2-0.4 vCPU (peaks on indicator recalc)
-─────────────────────────────────────────────
-CPU-comfortable concurrent MT users: 5-10
-```
-
-### Disk budget (100 GB NVMe)
-```
-Docker base images ......................... ~5 GB
-Postgres data (grows ~10-15 MB/user/month) . starts at ~500 MB
-ChromaDB embeddings ........................ ~1 GB now, growing to ~3 GB
-Model cache (sentence-transformers, etc.) .. ~1-2 GB
-Prometheus 15-day retention ................ ~5-8 GB
-Grafana ..................................... <200 MB
-MT containers persistent volumes ........... ~500 MB × N users
-Logs + journal + system .................... ~5 GB
-OS + swap + breathing room ................. ~10 GB
-─────────────────────────────────────────────
-USABLE FREE FOR GROWTH: ~60-65 GB
-At 500 MB/MT user persistent data: ~100+ users disk-wise
-Postgres growth: ~150 users for 12 months before approaching limit
-```
-
-### Verdict: VPS 20
-
-| Scenario | Will it work on 6/12/100? |
-|---|---|
-| **Development + staging combined** | ✅ Yes, easily |
-| **Beta launch with 1-5 paying users** | ✅ Yes, comfortable |
-| **Early production with 5-10 active users** | ✅ Yes, healthy margins |
-| **Scaling to 10-15 active users** | ⚠️ Tight; monitor closely |
-| **Scaling beyond 15 active users** | ❌ Upgrade time |
-
-**Upgrade trigger signals to watch:**
-- `docker stats` consistently shows engine container at 90%+ memory
-- Prometheus reports postgres connection pool saturation
-- Average system load > 4.5 (75% of 6 vCPU)
-- Active MT containers ≥ 10
-
----
-
-## VPS 30: 8 vCPU / 24 GB RAM / 200 GB NVMe
-
-### RAM budget
-```
-OS + Docker daemon ........................  ~1 GB
-postgres (room to grow, real load) ........  ~1.5 GB (raise shared_buffers)
-redis .....................................  ~256 MB (raise maxmemory)
-chromadb (large knowledge corpus) .........  ~2 GB
-engine (Python, comfortable for 20+ users)  ~3.5 GB (raise limit from 2GB to 4GB)
-gateway ...................................  ~512 MB (raise limit)
-execution .................................  ~512 MB
-management ................................  ~512 MB
-prometheus + jaeger + grafana .............  ~1 GB (longer retention)
-─────────────────────────────────────────────────────
-CORE STACK SUBTOTAL .......................  ~10.8 GB
+#### Honest caveats
 
-Free for MT containers: ~13.2 GB
-Per MT container: ~500-700 MB
-─────────────────────────────────────────────────────
-COMFORTABLE MT CONTAINERS: 18-25 users
-ABSOLUTE MAX (with disciplined limits): 30 users
-```
-
-### CPU budget
-```
-8 vCPU total
-engine reserves 2-4 vCPU (raise from 2.0 limit)
-postgres + chromadb + go services .........  ~2 vCPU sustained
-prometheus scraping overhead ..............  ~0.3 vCPU
-Reserved for MT containers .................  ~3.5 vCPU
-Per active MT trading: 0.2-0.4 vCPU
-─────────────────────────────────────────────
-CPU-comfortable concurrent MT users: 15-25
-```
-
-### Disk budget (200 GB NVMe)
-```
-Docker base images ......................... ~5 GB
-Postgres data (~20-30 users, 12 months) .... ~3-5 GB
-ChromaDB embeddings (full corpus) .......... ~3-5 GB
-Model cache ................................ ~2 GB
-Prometheus 30-day retention (recommended) .. ~15-20 GB
-Grafana .................................... ~500 MB
-MT containers persistent (~25 users) ....... ~15 GB
-Logs + journal + system .................... ~10 GB
-Backup snapshots (Hetzner-managed) ......... handled separately
-OS + swap + breathing room ................. ~15 GB
-─────────────────────────────────────────────
-USABLE FREE FOR GROWTH: ~125-135 GB
-Comfortable for 50+ users / 18+ months of growth before resize
-```
-
-### Verdict: VPS 30
-
-| Scenario | Will it work on 8/24/200? |
-|---|---|
-| **Production with 10-25 active users** | ✅ Comfortable, healthy margins |
-| **Production with 25-30 active users** | ✅ Yes, monitor disk + RAM |
-| **Production with 30-40 active users** | ⚠️ Approaching limits; plan horizontal split |
-| **Production beyond 40 active users** | ❌ Time for architectural split |
-
----
-
-## Recommended migration path
-
-### Phase 1: Launch on VPS 20 (now)
-**You can run the entire stack — backend + MT containers + observability — on this box.**
-
-What to do at install:
-1. Deploy with `docker compose up -d --build`
-2. Frontend goes on **Cloudflare Pages** (free, separate from VPS) — your `cotradee` builds with `npm run build` and the `dist/` folder uploads to Cloudflare
-3. Enable swap (4 GB) as a safety net: `fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile`
-4. Configure Prometheus retention to 7 days initially to save disk
-
-Set up monitoring alerts at:
-- RAM > 80% sustained for 10 min → time to plan upgrade
-- Active MT containers ≥ 8 → time to plan upgrade
-- Disk usage > 70 GB → time to plan upgrade
-
-### Phase 2: Upgrade to VPS 30 (when you hit ~8-10 active users)
-Hetzner / Contabo / most providers let you **resize in place** without re-deploying — VPS shutdowns for ~15 minutes during resize, your docker volumes preserve, everything comes back up automatically.
-
-What changes operationally:
-1. Raise engine container limit from 2 GB to 4 GB in `docker-compose.yml`
-2. Raise postgres shared_buffers (envvar `POSTGRES_INITDB_ARGS` or postgresql.conf via mount)
-3. Raise redis maxmemory from 128 MB to 256 MB
-4. Bump Prometheus retention from 7 days to 30 days
-5. No code changes; pure config
-
-### Phase 3: When VPS 30 runs out (40+ active users)
-**At this scale you split horizontally** — exactly what your `helm/` charts are built for:
-- Backend services (engine + gateway + execution + management + postgres + redis + chromadb) on one machine
-- MT container pool on a second machine that scales horizontally (10-20 MT per box)
-- Frontend stays on Cloudflare
-- Database eventually moves to managed Postgres (DigitalOcean / Hetzner Managed DB)
-
----
-
-## TL;DR
-
-**VPS 20 (6/12/100) at £6.80/month** — perfect to start. Handles your full stack for **5-10 active users comfortably**, up to ~15 stretched.
-
-**VPS 30 (8/24/200) at £13.70/month** — your second milestone. Handles **20-30 active users comfortably**, up to ~40 stretched.
-
-Both pricing options are excellent for the scale of platform you're building. Start on VPS 20, upgrade in-place to VPS 30 the moment you hit consistent 10+ concurrent active users.
-
-**Cost-to-revenue check:** at £13.70/month for VPS 30, if your pro_managed tier sells at even £15/month, **one paying user covers your entire infrastructure**. Margins look healthy.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Short answer: **yes, with that VPS you get ~10 hosted users max, and that's only if you do nothing else on the box.**
-
-#### The math
-
-Each hosted user gets a dedicated K8s Pod running Wine + Xvfb + MT5 + the watchdog sidecar. In production we pin **2 CPU cores + 2 GiB RAM per Pod** (configured in `helm/mt-node/values-production.yaml::resources`). That's not arbitrary — Wine running a Windows GUI app (MT5) under Xvfb genuinely needs that. MT5 alone idles at ~400-600 MiB and spikes when downloading history; Wine adds overhead; the watchdog adds ~50 MiB.
-
-For your VPS (8 vCPU / 24 GiB RAM):
-- Raw ceiling: `8 / 2 = 4 users` by CPU, `24 / 2 = 12 users` by RAM → **CPU is the binding constraint, not RAM**.
-- You actually get **~3 hosted users**, not 10, because you also need to run engine + gateway + execution + management + Postgres + Redis + ChromaDB + Kubernetes itself on the same box. Those eat ~3-4 cores and ~6-8 GiB before a single user logs in.
-
-#### Why this VPS is wrong for the architecture
-
-This is not a sizing tweak — it's a category mismatch. The hosted-MT5 model is **inherently expensive per user** because every user runs a full Windows desktop trading terminal in a container. It's how prop firms and copy-trading platforms work, and they price accordingly ($20-50/user/month minimum).
-
-A single 8-core VPS is a **dev/staging box**, not a production multi-tenant host.
-
-#### Your real options
-
-**1. Accept the architecture and size correctly.** For 100 hosted users in production you need roughly 200 cores + 200 GiB RAM across a cluster — typically 6-10 dedicated nodes (e.g., Hetzner CCX33: 8 cores/32 GiB at ~£50/mo each, or bare metal AX52: 16 cores/64 GiB at ~£55/mo each). With AX52s you'd serve ~25-30 hosted users per node = **3-4 nodes for 100 users**, ~£200/mo. That's the real economics.
-
-**2. Push users to MetaAPI (cloud) instead of hosted.** MetaAPI runs MT5 on **their** infrastructure and charges per account (~$5-15/user/month). Your VPS only runs the engine, which is light (~2 cores, 4 GiB for hundreds of users). The dashboard already supports this — `connection_type='metaapi'` is fully wired. **This is the cheapest path to scale.**
-
-**3. Reduce per-Pod resources.** You can drop to 1 CPU + 1.5 GiB per user in `values-production.yaml` if you accept slower history downloads and occasional CPU throttling. That doubles density to ~6-7 users on your VPS. Not recommended for paying customers.
-
-**4. Tighten the quota with the change I just shipped.** `MT_NODE_MAX_HOSTED_PER_USER=1` (the new default in [!39](https://gitlab.com/exoper2/exoper/-/merge_requests/39)) means each *user* can have only 1 hosted account, so the cap is users-not-Pods. Combined with sizing, this is your billing/protection lever.
-
-#### My recommendation
-
-For the £13.70/mo VPS: **disable hosted entirely on that environment** and only offer MetaAPI + ZeroMQ-local. That box can comfortably run the engine + 200+ MetaAPI users. Reserve "hosted" for a later production deployment on real hardware where the per-user cost is justified by your pricing model.
-
-Want me to wire a feature flag (`MT_NODE_HOSTED_ENABLED=false`) that hides the "Exoper (hosted)" option from the dashboard and rejects hosted creates at the router, so this VPS only serves MetaAPI users? It's a 10-line change.
-
-
-
-
-
-
-
-
-
-
-
+- Tables 4 and 5 are **starting allocations to confirm with your soak**, not measured truth. envoy especially: I lowered it from the shipped 2 CPU/4Gi to 1 CPU/2Gi request in Table 5 because 2/4 × 5 was sized for very high TLS throughput you won't have early; verify under load.
+- Linkerd control-plane/viz rows remain **estimates** (upstream chart sizing).
+- cert-manager/ESO/ArgoCD/kube-prometheus are **not in your repo**; their footprint is added as a flagged allowance, not a verified number.
 
 
 
@@ -461,25 +238,3 @@ Six concrete things, in plain English:
 K8s is **overkill for a 10-user MVP** running on one VPS. For that stage, `docker-compose` + a single Go supervisor program would genuinely be simpler and run on cheaper hardware. The complexity tax of K8s is real — operators, control plane RAM (~1-2 GB), and the learning curve.
 
 **But:** you already paid that tax. The chart is written, the provisioner works, the watchdog is in place, the audit is done. Ripping it out to save £20/month on infrastructure would cost you 2-3 months of rewrite and lose everything in points 1-6 above.
-
-#### The honest tradeoff matrix
-
-| Scale | Best choice |
-|---|---|
-| 1-5 hosted users, single server, no HA needed | docker-compose + a Go supervisor. Simpler, cheaper. |
-| 10-100 users across 1-3 servers, need uptime | **K8s + Helm (what you have).** Sweet spot. |
-| 1000+ users, multiple regions | K8s + service mesh + multi-cluster. Inevitable. |
-
-You're in the middle band. **What you built is correct for that band.** The £13.70 VPS just isn't.
-
-#### So what should you actually do?
-
-Pick one of these, not both:
-
-**Path A — keep K8s, fix the hardware.** Buy a Hetzner AX52 (16 cores / 64 GiB / £55/mo bare metal). Run K8s on it. Serve ~25 hosted users plus all platform services. Honest production setup.
-
-**Path B — kill hosted on cheap hardware.** Keep the £13.70 VPS, disable the "hosted" connection type, push everyone to MetaAPI (their cloud, your cost = $0). Serve 200+ MetaAPI users from that box. Re-enable hosted when revenue justifies real hardware.
-
-K8s doesn't punish you. **MT5 on Linux punishes you.** No orchestrator changes that.
-
-Which path do you want to take? I'll execute either one cleanly.
