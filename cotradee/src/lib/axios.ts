@@ -368,7 +368,17 @@ async function performRefresh(): Promise<boolean> {
 function createClient(baseURL: string): AxiosInstance {
   const client = axios.create({
     baseURL,
-    timeout: 300_000,
+    // A web SPA must never hold a request open for minutes. 20s is a
+    // generous ceiling for any single gateway call; anything slower is
+    // treated as a failure the calling layer can recover from (retry,
+    // toast, or — for the boot auth probe — a fall-through to the guest
+    // surface). The previous 300_000 (5 min) value caused the entire
+    // app, INCLUDING public guest pages, to render blank for up to five
+    // minutes whenever the gateway was slow or undeployed, because the
+    // boot-time GET /auth/me probe could hang for the full timeout. The
+    // boot probe additionally overrides this with a shorter per-request
+    // timeout (see cotradee/src/features/auth/api/profile.ts).
+    timeout: 20_000,
     headers: { 'Content-Type': 'application/json' },
     withCredentials: true,
   });

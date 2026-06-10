@@ -23,8 +23,25 @@ import type { AuthUser, ChangePasswordRequest } from '../types';
  * earlier on UpgradeModal. This module relies on that skip path; do
  * not reintroduce auth-state-dependent logic here.
  */
+// The boot-time auth probe runs on EVERY app mount and gates the very
+// first paint of the SPA (AuthContext stays isLoading=true until it
+// settles, and every route guard renders a blank loader while that is
+// true). It must therefore fail fast: a slow, unreachable, or not-yet-
+// deployed gateway must never keep the public/guest surface blank.
+//
+// 8s is well above a healthy round-trip yet short enough that the worst
+// case for a guest on a dead backend is a brief loader, not a multi-
+// minute blank screen. AuthContext.loadUser() maps any throw here
+// (timeout, network, CORS, 5xx) to setUser(null), i.e. the guest
+// surface — so a timeout degrades gracefully to the public app.
+const AUTH_PROBE_TIMEOUT_MS = 8_000;
+
 export async function fetchProfile(): Promise<AuthUser> {
   const { status, data } = await api.gateway.get<AuthUser>('/auth/me', {
+    // Fail fast so the public surface is never blocked on a slow or
+    // undeployed gateway. Overrides the client-wide default timeout for
+    // this boot probe only; all other calls keep the 20s ceiling.
+    timeout: AUTH_PROBE_TIMEOUT_MS,
     // Accept both 200 (authenticated) and 401 (guest) as non-throwing
     // outcomes. Any other status is treated by axios as an error and
     // throws, preserving the genuine-failure path (5xx, network, CORS).
