@@ -1,8 +1,9 @@
 # Production overlay for the etradie-execution chart.
-# Cloud-agnostic: deploys identically on Contabo K3s, OCI OKE, or any
-# vanilla Kubernetes cluster.
+# TABLE 2B profile (BUDGET.md): single-node Contabo, 1 replica.
+# Cloud-agnostic. Required hostname anti-affinity intentionally NOT set
+# (base preferred applies; required deadlocks single-node rollouts).
 
-replicaCount: 3
+replicaCount: 1
 
 image:
   tag: "0.1.0"
@@ -16,30 +17,23 @@ podAnnotations:
   tier: production
 
 config:
-  # Arms the execution prod fail-closed guards
-  # (ENGINE_INTERNAL_SHARED_SECRET required under brokerMode=mt5,
-  # JWT-secret-required). Audit ref: A2.
+  # Arms the execution prod fail-closed guards. Audit ref: A2.
   app:
     env: "production"
   execution:
     # Real broker. The Python engine's broker bridge does the actual
-    # MT5 socket work; this service just dispatches via HTTP.
+    # MT5 socket work; this service dispatches via HTTP.
     brokerMode: "mt5"
     logLevel: "INFO"
     logJson: "true"
     maxOrderLatencyMs: "5000"
     orderIdempotencyTtlSecs: "86400"
     reconcileIntervalSecs: "60"
-    # Distributed tracing ON: export OTLP spans to the in-cluster OTel
-    # Collector (helm/observability-logs tracing.enabled).
+    # Distributed tracing ON.
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
 
-# Per-service Linkerd authorization (Server + AuthorizationPolicy).
-# Kept disabled until the mesh is confirmed; enable deliberately (set
-# true + re-sync) once `linkerd viz edges` shows SECURED on every
-# execution edge (docs/runbooks/tier9-linkerd-mesh-rollout.md step 4). Until
-# then the control-plane defaultAllowPolicy still encrypts every
-# meshed<->meshed hop.
+# Per-service Linkerd authorization stays disabled until the mesh is
+# confirmed (runbook step 4). The mesh itself is ON.
 linkerdPolicy:
   enabled: false
 
@@ -51,87 +45,31 @@ externalSecrets:
 
 resources:
   requests:
-    cpu: 500m
+    cpu: 300m
     memory: 512Mi
     ephemeral-storage: 256Mi
   limits:
-    cpu: "2"
+    cpu: "1"
     memory: 1Gi
     ephemeral-storage: 512Mi
 
+# Single node: HPA pinned OFF (TABLE 2B).
 autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 6
-  targetCPUUtilizationPercentage: 65
-  targetMemoryUtilizationPercentage: 75
-  behavior:
-    scaleDown:
-      stabilizationWindowSeconds: 600
-      policies:
-        - type: Percent
-          value: 25
-          periodSeconds: 120
-        - type: Pods
-          value: 1
-          periodSeconds: 120
-      selectPolicy: Min
-    scaleUp:
-      stabilizationWindowSeconds: 30
-      policies:
-        - type: Percent
-          value: 100
-          periodSeconds: 30
-        - type: Pods
-          value: 2
-          periodSeconds: 30
-      selectPolicy: Max
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
 
+# A 1-replica PDB with minAvailable>=1 blocks every node drain forever.
 podDisruptionBudget:
-  enabled: true
-  minAvailable: 2
-  unhealthyPodEvictionPolicy: IfHealthyBudget
+  enabled: false
 
 serviceMonitor:
   enabled: true
   interval: 15s
   scrapeTimeout: 10s
 
-affinity:
-  podAntiAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchLabels:
-            app.kubernetes.io/name: etradie-execution
-        topologyKey: kubernetes.io/hostname
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: etradie-execution
-          topologyKey: topology.kubernetes.io/zone
-
-topologySpreadConstraints:
-  - maxSkew: 1
-    topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app.kubernetes.io/name: etradie-execution
-  - maxSkew: 2
-    topologyKey: kubernetes.io/hostname
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels:
-        app.kubernetes.io/name: etradie-execution
-
 nodeSelector: {}
 
-# Toleration for the dedicated etradie-system node group taint applied
-# by infrastructure/cluster/main.tf. A toleration without a matching
-# taint is a no-op, so this stays cloud-agnostic: clusters that do
-# not taint their nodes are unaffected.
 tolerations:
   - key: workload
     operator: Equal
