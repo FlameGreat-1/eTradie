@@ -133,6 +133,8 @@ Staging at 5 users ≈ **7.2 CPU reserved at injector defaults** (over budget on
 | postgres backup (CronJob 02:00, transient) | 250m | 256Mi | 1 | 512Mi | 1 | (transient) | (transient) |
 | redis | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
 | chromadb | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
+| postgres-exporter sidecar (verified; metrics.enabled default ON) | 50m | 64Mi | 100m | 128Mi | 1 | 0.05 | 0.06Gi |
+| redis-exporter sidecar (verified; metrics.enabled default ON) | 50m | 64Mi | 100m | 128Mi | 1 | 0.05 | 0.06Gi |
 | Loki (PVC 20Gi, 7d retention) | 200m | 256Mi | 1 | 1Gi | 1 | 0.2 | 0.25Gi |
 | Promtail (per node) | 50m | 96Mi | 250m | 256Mi | 1 | 0.05 | 0.09Gi |
 | OTel collector | 100m | 192Mi | 500m | 512Mi | 1 | 0.1 | 0.19Gi |
@@ -145,17 +147,19 @@ Staging at 5 users ≈ **7.2 CPU reserved at injector defaults** (over budget on
 | Linkerd control plane, HA OFF (est) | — | — | — | — | 3 pods | ~0.3 | ~0.45Gi |
 | Linkerd viz @1 replica + viz Prometheus (est) | — | — | — | — | ~5 pods | ~0.4 | ~1.0Gi |
 | Linkerd proxy sidecars (verified 50m/64Mi each) | 50m | 64Mi | 200m | 256Mi | ~10 meshed pods | 0.5 | 0.64Gi |
-| **Production floor (0 users)** | | | | | | **≈ 6.0 CPU** | **≈ 10Gi** |
-| + Vault + ESO + ArgoCD + K3s system (est allowance) | — | — | — | — | — | ~1.0 | ~2.5Gi |
-| each MT user (+ proxy sidecar) | 500m+50m | 1Gi+64Mi | 1.5+ | 2Gi+ | 1/user | +0.55 | +1.07Gi |
+| **Production floor (0 users)** | | | | | | **≈ 6.1 CPU** | **≈ 10.1Gi** |
+| + Vault + ESO + ArgoCD + Stakater Reloader + K3s system (est allowance) | — | — | — | — | — | ~1.0 | ~2.6Gi |
+| each MT user = mt-node 500m/1Gi + watchdog 100m/64Mi (verified) + Linkerd proxy 50m/64Mi (verified) + Vault Agent sidecar ~250m/64Mi (est, upstream injector default; tunable to 50m via vault.hashicorp.com/agent-requests-cpu) | — | — | — | — | 1/user | +0.90 (+0.70 tuned) | +1.19Gi |
+
+**Transient workloads (excluded from the steady-state floor, scheduled headroom still required when they fire):** postgres backup CronJob 02:00 UTC (250m/256Mi), weekly restore drill (100m/128Mi), wine-prefix snapshotter CronJob (50m/96Mi), and the per-pod init containers (busybox wait-for-deps 10m/16Mi, engine alembic migrate, edge-ingress geoipupdate + AOP-CA preflight, Vault agent-init).
 
 **Disk budget (200GB, production):** postgres 16Gi + backup staging PVC 8–16Gi (offsite B2 stays primary) + chromadb 16Gi + redis 8Gi + Loki 20Gi + Jaeger 0 (Form A) or 10Gi (Form B) + Prometheus 20Gi + Vault 10Gi + MT 4Gi/user + OS/images ~30Gi ≈ **130–150GB at 5 users** → fits.
 
-**Config deltas vs shipped (required to realise this table):** Linkerd `highAvailability: false`; `linkerd-viz-production.yaml` tap/web/metricsAPI 2→1; all replicas 1 + HPAs pinned; required pod anti-affinity relaxed (single node); Loki 20Gi/7d in both envs; Jaeger form per operator choice; mt-node + engine `config.mtNode` in lockstep at the Table 2 per-user sizing.
+**Config deltas vs shipped (required to realise this table):** Linkerd `highAvailability: false`; `linkerd-viz-production.yaml` tap/web/metricsAPI 2→1; all replicas 1 + HPAs pinned; required pod anti-affinity relaxed (single node); Loki 20Gi/7d in both envs; Jaeger form per operator choice; mt-node + engine `config.mtNode` in lockstep at the Table 2 per-user sizing; Vault Agent sidecar resources tuned via `vault.hashicorp.com/agent-requests-cpu/-mem` annotations on the mt-node StatefulSet (verified persistent: `agent-pre-populate-only: "false"`); Stakater Reloader installed (required by the mt-node `secret.reloader.stakater.com/reload` annotation); snapshotter either disabled or backed by a real CSI driver — **K3s default local-path storage does NOT support VolumeSnapshots**, so `snapshotter.volumeSnapshotClassName` cannot be satisfied without installing Longhorn (or another snapshot-capable CSI).
 
-**Verdict for Contabo, everything ON:** ✅ **Staging fits with ~4–5 test users.** ⚠️ **Production fits but supports only ~1–2 MT users**: ~7.8 allocatable CPU − ~6.0 floor − ~1.0 platform infra leaves ~0.8 CPU of schedulable requests (≈1 user at 0.55, 2 with further trimming). The full stack costs ~3–4 users of capacity vs Table 2. Memory (24GB) and disk (200GB) are not the limiter — CPU requests are.
+**Verdict for Contabo, everything ON:** ✅ **Staging fits: ~3–4 test users at injector defaults, ~5 with the Vault-agent annotation tuned.** ⚠️ **Production fits the stack but barely hosts users**: ~7.8 allocatable CPU − ~6.1 floor − ~1.0 platform infra leaves ~0.7 CPU of schedulable requests → **0 users at the 0.90 default per-user cost, exactly 1 user with the Vault agent tuned (0.70), 2 users only with further floor trimming** (e.g. Prometheus/Loki/Jaeger or envoy/engine reductions). The full stack costs ~4 users of capacity vs Table 2. Memory (24GB) and disk (200GB) are not the limiter — CPU requests are.
 
-**Honest caveats for this table:** Linkerd control-plane/viz and the kube-prometheus stack rows are informed estimates (their sizing lives in upstream/external charts, not this repo); proxy sidecar 50m/64Mi is verified from `deployments/linkerd/control-plane-values.yaml`; all app/data/observability rows are lean-tuned values of numbers verified in this repo's values files. Confirm with a soak before treating the floor as measured truth.
+**Honest caveats for this table:** Linkerd control-plane/viz, the kube-prometheus stack rows, and the Vault Agent sidecar are informed estimates (their sizing lives in upstream/external charts, not this repo; the agent's PRESENCE as a persistent sidecar is verified in helm/mt-node/templates/statefulset.yaml, only its default sizing is upstream); proxy sidecar 50m/64Mi is verified from `deployments/linkerd/control-plane-values.yaml`; postgres/redis exporter sidecars and the watchdog are verified from this repo's values files; all app/data/observability rows are lean-tuned values of numbers verified in this repo. Confirm with a soak before treating the floor as measured truth.
 
 #### TABLE 3 — FULL BALANCED OPERATION (everything ON, normal/healthy) on a properly-sized future VPS
 
