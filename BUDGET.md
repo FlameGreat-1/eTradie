@@ -121,39 +121,39 @@ Staging at 5 users ≈ **7.2 CPU reserved at injector defaults** (over budget on
 
 **PRODUCTION on Contabo, everything ON:**
 
-| Component | Req CPU | Req Mem | Limit CPU | Limit Mem | Replicas | Reserved CPU | Reserved Mem |
-|---|---|---|---|---|---|---|---|
-| edge-ingress | 300m | 384Mi | 1 | 768Mi | 1 | 0.3 | 0.38Gi |
-| cloudflared | 100m | 64Mi | 500m | 256Mi | 1 | 0.1 | 0.06Gi |
-| envoy | 500m | 512Mi | 1.5 | 1Gi | 1 | 0.5 | 0.5Gi |
-| gateway | 500m | 512Mi | 1.5 | 1Gi | 1 | 0.5 | 0.5Gi |
-| engine | 500m | 1Gi | 2 | 2Gi | 1 | 0.5 | 1Gi |
-| execution | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
-| management | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
-| billing | 200m | 384Mi | 1 | 768Mi | 1 | 0.2 | 0.38Gi |
-| postgres | 500m | 1Gi | 2 | 2Gi | 1 | 0.5 | 1Gi |
-| postgres backup (CronJob 02:00, transient) | 250m | 256Mi | 1 | 512Mi | 1 | (transient) | (transient) |
-| redis | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi |
-| chromadb | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi |
-| postgres-exporter sidecar (verified; metrics.enabled default ON) | 50m | 64Mi | 100m | 128Mi | 1 | 0.05 | 0.06Gi |
-| redis-exporter sidecar (verified; metrics.enabled default ON) | 50m | 64Mi | 100m | 128Mi | 1 | 0.05 | 0.06Gi |
-| Loki (PVC 20Gi, 7d retention) | 200m | 256Mi | 1 | 1Gi | 1 | 0.2 | 0.25Gi |
-| Promtail (per node) | 50m | 96Mi | 250m | 256Mi | 1 | 0.05 | 0.09Gi |
-| OTel collector | 100m | 192Mi | 500m | 512Mi | 1 | 0.1 | 0.19Gi |
-| Jaeger (Form A in-memory: 0 disk / Form B Badger: +10Gi PVC, 168h TTL) | 150m | 256Mi | 1 | 1Gi | 1 | 0.15 | 0.25Gi |
-| Prometheus (kube-prometheus, 7d, 20Gi PVC) (est) | 300m | 1Gi | 1 | 2Gi | 1 | 0.3 | 1Gi |
-| Grafana (est) | 100m | 128Mi | 500m | 256Mi | 1 | 0.1 | 0.13Gi |
-| kube-state-metrics (est) | 50m | 64Mi | 200m | 128Mi | 1 | 0.05 | 0.06Gi |
-| node-exporter (per node) (est) | 50m | 64Mi | 200m | 128Mi | 1 | 0.05 | 0.06Gi |
-| prometheus-operator (est) | 50m | 96Mi | 200m | 256Mi | 1 | 0.05 | 0.09Gi |
-| Linkerd control plane, HA OFF (est) | — | — | — | — | 3 pods | ~0.3 | ~0.45Gi |
-| Linkerd viz @1 replica + viz Prometheus (est) | — | — | — | — | ~5 pods | ~0.4 | ~1.0Gi |
-| Linkerd proxy sidecars (verified 50m/64Mi each) | 50m | 64Mi | 200m | 256Mi | ~10 meshed pods | 0.5 | 0.64Gi |
-| **Production floor (0 users)** | | | | | | **≈ 6.1 CPU** | **≈ 10.1Gi** |
-| + Vault + ESO + ArgoCD + Stakater Reloader + K3s system (est allowance) | — | — | — | — | — | ~1.0 | ~2.6Gi |
-| each MT user = mt-node 500m/1Gi + watchdog 100m/64Mi (verified) + Linkerd proxy 50m/64Mi (verified) + Vault Agent sidecar ~250m/64Mi (est, upstream injector default; tunable to 50m via vault.hashicorp.com/agent-requests-cpu) | — | — | — | — | 1/user | +0.90 (+0.70 tuned) | +1.19Gi |
+| Component | Req CPU | Req Mem | Limit CPU | Limit Mem | Replicas | Reserved CPU | Reserved Mem | State |
+|---|---|---|---|---|---|---|---|---|
+| edge-ingress | 300m | 384Mi | 1 | 768Mi | 1 | 0.3 | 0.38Gi | ON |
+| cloudflared | 100m | 64Mi | 500m | 256Mi | 1 | 0.1 | 0.06Gi | ON |
+| envoy | 500m | 512Mi | 1.5 | 1Gi | 1 | 0.5 | 0.5Gi | ON |
+| gateway | 500m | 512Mi | 1.5 | 1Gi | 1 | 0.5 | 0.5Gi | ON |
+| engine | 500m | 1Gi | 2 | 2Gi | 1 | 0.5 | 1Gi | ON |
+| execution | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi | ON |
+| management | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi | ON |
+| billing | 200m | 384Mi | 1 | 768Mi | 1 | 0.2 | 0.38Gi | ON |
+| postgres | 500m | 1Gi | 2 | 2Gi | 1 | 0.5 | 1Gi | ON |
+| postgres backup (CronJob 02:00, transient; 16Gi PVC + offsite B2) | 250m | 256Mi | 1 | 512Mi | 1 | (transient) | (transient) | ON (transient) |
+| redis | 250m | 512Mi | 1 | 1Gi | 1 | 0.25 | 0.5Gi | ON |
+| chromadb | 300m | 512Mi | 1 | 1Gi | 1 | 0.3 | 0.5Gi | ON |
+| postgres-exporter sidecar (verified; metrics.enabled default ON) | 50m | 64Mi | 100m | 128Mi | 1 | 0.05 | 0.06Gi | ON |
+| redis-exporter sidecar (verified; metrics.enabled default ON) | 50m | 64Mi | 100m | 128Mi | 1 | 0.05 | 0.06Gi | ON |
+| Loki (PVC 20Gi, 7d retention) | 200m | 256Mi | 1 | 1Gi | 1 | 0.2 | 0.25Gi | ON |
+| Promtail (per node) | 50m | 96Mi | 250m | 256Mi | 1 | 0.05 | 0.09Gi | ON |
+| OTel collector | 100m | 192Mi | 500m | 512Mi | 1 | 0.1 | 0.19Gi | ON |
+| Jaeger (Form A in-memory: 0 disk / Form B Badger: +10Gi PVC, 168h TTL) | 150m | 256Mi | 1 | 1Gi | 1 | 0.15 | 0.25Gi | ON (in-memory) |
+| Prometheus (kube-prometheus, 7d, 20Gi PVC) (est) | 300m | 1Gi | 1 | 2Gi | 1 | 0.3 | 1Gi | ON |
+| Grafana (est) | 100m | 128Mi | 500m | 256Mi | 1 | 0.1 | 0.13Gi | ON |
+| kube-state-metrics (est) | 50m | 64Mi | 200m | 128Mi | 1 | 0.05 | 0.06Gi | ON |
+| node-exporter (per node) (est) | 50m | 64Mi | 200m | 128Mi | 1 | 0.05 | 0.06Gi | ON |
+| prometheus-operator (est) | 50m | 96Mi | 200m | 256Mi | 1 | 0.05 | 0.09Gi | ON |
+| Linkerd control plane, HA OFF (est) | — | — | — | — | 3 pods | ~0.3 | ~0.45Gi | ON |
+| Linkerd viz @1 replica + viz Prometheus (est) | — | — | — | — | ~5 pods | ~0.4 | ~1.0Gi | OFF (non-critical; install on demand for mesh verification, e.g. before enabling linkerdPolicy) |
+| Linkerd proxy sidecars (verified 50m/64Mi each) | 50m | 64Mi | 200m | 256Mi | ~10 meshed pods | 0.5 | 0.64Gi | ON |
+| **Production floor (0 users, viz OFF: −0.4 CPU / −1.0Gi)** | | | | | | **≈ 5.7 CPU** | **≈ 9.1Gi** | — |
+| + Vault + ESO + ArgoCD + Stakater Reloader + K3s system (est allowance) | — | — | — | — | — | ~1.0 | ~2.6Gi | ON (external installs) |
+| each MT user = mt-node 500m/1Gi + watchdog 100m/64Mi (verified) + Linkerd proxy 50m/64Mi (verified) + Vault Agent sidecar tuned to 50m/64Mi via vault.hashicorp.com annotations | — | — | — | — | 1/user | +0.70 | +1.19Gi | ON (Burstable) |
 
-**Transient workloads (excluded from the steady-state floor, scheduled headroom still required when they fire):** postgres backup CronJob 02:00 UTC (250m/256Mi), weekly restore drill (100m/128Mi), wine-prefix snapshotter CronJob (50m/96Mi), and the per-pod init containers (busybox wait-for-deps 10m/16Mi, engine alembic migrate, edge-ingress geoipupdate + AOP-CA preflight, Vault agent-init).
+**Transient workloads (excluded from the steady-state floor, scheduled headroom still required when they fire):** postgres backup CronJob 02:00 UTC (250m/256Mi) — OFF in staging (existing posture, rebuildable env), ON in production; weekly restore drill (100m/128Mi) — OFF in staging, ON in production; wine-prefix snapshotter CronJob (50m/96Mi) — **OFF in BOTH envs** (K3s local-path has no CSI VolumeSnapshot support; re-enable only after installing Longhorn or another snapshot-capable CSI and setting snapshotter.volumeSnapshotClassName); per-pod init containers (busybox wait-for-deps 10m/16Mi, engine alembic migrate, edge-ingress geoipupdate + AOP-CA preflight, Vault agent-init) — ON (inherent).
 
 **Disk budget (200GB, production):** postgres 16Gi + backup staging PVC 8–16Gi (offsite B2 stays primary) + chromadb 16Gi + redis 8Gi + Loki 20Gi + Jaeger 0 (Form A) or 10Gi (Form B) + Prometheus 20Gi + Vault 10Gi + MT 4Gi/user + OS/images ~30Gi ≈ **130–150GB at 5 users** → fits.
 
