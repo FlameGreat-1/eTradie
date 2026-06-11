@@ -301,6 +301,45 @@ Floor ~24 CPU / 32GB reserved. With burst (HPAs to max) the platform can demand 
 
 
 
+
+Straight from the implemented Table 2B numbers (everything ON: observability + monitoring + mesh + Jaeger), with the Vault-agent tuning that's now in the repo. One important framing first: **this box runs ONE environment at a time** — staging and production are alternative postures for it, not roommates.
+
+#### If this VPS runs STAGING
+
+| Item | CPU (requests) |
+|---|---|
+| Allocatable (8 vCPU minus system reserve) | ~7.8 |
+| Platform floor (viz OFF) | ~3.7 |
+| External installs (K3s, ArgoCD, Vault, ESO, Reloader) | ~1.0 |
+| **Left for users** | **~3.1** |
+| Per test user (mt-node 300m + watchdog 20m + proxy 50m + Vault agent tuned 50m) | ~0.42 |
+
+→ **~4–5 test users comfortably** (the ledger technically allows ~7, but you want rollout-surge headroom and the budget's own verdict is ~5). RAM and the 200GB disk are nowhere near the limit in staging.
+
+#### If this VPS runs PRODUCTION
+
+| Item | CPU (requests) |
+|---|---|
+| Allocatable | ~7.8 |
+| Platform floor (viz OFF) | ~5.7 |
+| External installs | ~1.0 |
+| **Left for users** | **~1.1** |
+| Per real user (mt-node 500m + watchdog 100m + proxy 50m + Vault agent tuned 50m) | ~0.70 |
+
+→ **Exactly 1 real user** as shipped. A 2nd user only fits if you trim the floor further (e.g. shave Prometheus/Loki/Jaeger or envoy/engine requests). This is BUDGET.md's own honest verdict: with the full stack ON, production on this box "fits the stack but barely hosts users."
+
+#### The raw truth and your options
+
+- **The limiter is CPU requests (the ledger), not RAM or disk.** Memory at 1 prod user ≈ 12–13Gi reserved of 24GB; disk ≈ 130–150GB of 200GB at even 5 users. Both fine.
+- **Want ~5 production users on this same box?** That's **Table 2** (everything OFF: no mesh, no observability, no monitoring) — production floor drops to ~3.75 CPU and ~5 users fit. You trade away tracing, logs, metrics, and mTLS to get them.
+- **Want ~5 production users WITH the full stack?** That's not this box — per the budget that needs the bigger hardware (Table 4 staging: 16 vCPU/32GB → ~10 users; Table 5 production: 4×16/32 cluster → ~30 users).
+
+So the design intent of the current Contabo VPS 30 is: **a full-stack staging box for ~4–5 testers, or a full-stack production box for a single pilot user** — and growth beyond that is a hardware decision, not a config one.
+
+
+
+
+
 # Straight answer: No, the cost is NOT because of K8s/Helm
 
 The cost is because **MetaTrader 5 is a Windows desktop app**. To run it on Linux servers, you need Wine + Xvfb (a fake screen) + a full Windows graphics stack — per user. **That's the 2 CPU + 2 GB minimum, and it doesn't matter what orchestrates it.**

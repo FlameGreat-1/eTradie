@@ -1,4 +1,4 @@
-# Linkerd Viz extension (CHECKLIST Tier 9). Provides `linkerd viz
+# Linkerd Viz extension. Provides `linkerd viz
 # edges`/`stat`, the tap API, and the proxy-metrics Prometheus that the
 # phased rollout uses to CONFIRM 100% mTLS on every edge BEFORE
 # per-service authorization (linkerdPolicy.enabled) is turned on. The
