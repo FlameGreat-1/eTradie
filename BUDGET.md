@@ -85,6 +85,20 @@ The complete stack — nothing removed: app + data layer, Loki/Promtail/OTel/Jae
 
 **State column legend:** ON = deployed in this profile. OFF = not deployed (re-enable by reverting the flagged values/ArgoCD change). ON (in-memory) = Jaeger Form A. ON (Burstable) = requests < limits, no Guaranteed QoS / CPU pinning. ON (transient) = scheduled CronJob, not steady-state. States reflect the Table 2B rollout implementation; each row is ticked as the corresponding code change lands.
 
+**Every disabled / OFF switch in this profile (operator re-enable index).** The resource grids below only carry an OFF row for workloads that cost budget (Linkerd viz). The switches in this table are zero-budget toggles or scheduling settings that are also turned OFF/down for the single-node profile; they are collected here so an operator has ONE place that lists everything that is OFF and exactly how to turn it back ON. None of these add to the floor; flipping them ON is what changes capacity/behaviour.
+
+| Switch | Staging | Production | Where (values key / file) | Re-enable action |
+|---|---|---|---|---|
+| HPAs (all app services) | OFF | OFF | `autoscaling.enabled` in each `helm/<svc>/values-{staging,production}.yaml` | Set `autoscaling.enabled: true` (revert to base values) on the multi-node cluster (Table 5). |
+| PodDisruptionBudgets (1-replica services) | OFF | OFF | `podDisruptionBudget.enabled` per chart overlay | Set `enabled: true` once `replicaCount > 1` (Table 5). |
+| Linkerd control-plane HA | OFF | OFF | `highAvailability: false` in `deployments/linkerd/control-plane-values.yaml` | Set `highAvailability: true` on the multi-node cluster (Table 5). |
+| Linkerd viz (verification tooling) | OFF | OFF | `deployments/argocd/optional/linkerd-viz-production.yaml` (in `optional/`, not `children/`) | `git mv` the manifest into `deployments/argocd/children/` (or `kubectl apply` it temporarily). Already pinned to 1 replica. |
+| Per-service Linkerd authorization | OFF | OFF | `linkerdPolicy.enabled` in each service chart's values | Set `linkerdPolicy.enabled: true` AFTER `linkerd viz edges` confirms 100% mTLS (runbook step 4). |
+| Wine-prefix snapshotter CronJob | OFF | OFF | `snapshotter.enabled: false` in `helm/mt-node/values-{staging,production}.yaml` | Install Longhorn/another snapshot-capable CSI, set `snapshotter.volumeSnapshotClassName` + `image.repository`, then `enabled: true`. |
+| Postgres backup CronJob | OFF | ON (transient) | `postgres.backup.enabled` in `helm/data-layer/values-{staging,production}.yaml` | Staging: set `postgres.backup.enabled: true` if staging needs durable dumps. |
+| Postgres restore drill | OFF | ON | `postgres.restoreDrill.enabled` in `helm/data-layer/values-{staging,production}.yaml` | Staging: set `restoreDrill.enabled: true` to exercise restores. |
+| Postgres offsite (B2) copy | OFF | ON | `postgres.backup.offsite.enabled` (`helm/data-layer/values-production.yaml`) | Populate the offsite Vault path, then `offsite.enabled: true` (base default OFF for dev). |
+
 **STAGING on Contabo, everything ON (target ~4–5 test users):**
 
 | Component | Req CPU | Req Mem | Limit CPU | Limit Mem | Replicas | Reserved CPU | Reserved Mem | State |
