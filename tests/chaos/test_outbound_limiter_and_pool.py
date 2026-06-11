@@ -5,14 +5,26 @@ All tests are pure in-process (no broker, no DB, no Redis).
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from datetime import datetime
+from typing import Any, Optional
 
 import pytest
 
 from engine.shared.exceptions import OutboundRateLimitExceededError
-from engine.ta.broker.base import BrokerBase, BrokerCapabilities
+from engine.ta.broker.base import (
+    AccountInfo,
+    BrokerBase,
+    BrokerCapabilities,
+    HistoryDealInfo,
+    OrderResult,
+    PendingOrderInfo,
+    PositionInfo,
+    TickPrice,
+)
 from engine.ta.broker.connectivity.outbound_limiter import OutboundRateLimiter
 from engine.ta.broker.mt5.client_pool import BrokerClientPool
+from engine.ta.constants import Timeframe
+from engine.ta.models.candle import Candle, CandleSequence
 
 
 # ---------------------------------------------------------------------
@@ -79,6 +91,14 @@ async def test_limiter_concurrent_one_token():
 # BrokerClientPool
 # ---------------------------------------------------------------------
 class _FakeBroker(BrokerBase):
+    """Concrete BrokerBase used only to exercise BrokerClientPool wiring.
+
+    The pool closes clients via a duck-typed ``close()`` and never calls
+    any data/trading method, so those raise NotImplementedError. Every
+    BrokerBase abstract member is implemented so the class is concrete
+    and can be instantiated by the factory under test.
+    """
+
     def __init__(self, tag: str) -> None:
         super().__init__(broker_id="fake")
         self.tag = tag
@@ -95,9 +115,83 @@ class _FakeBroker(BrokerBase):
     async def close(self) -> None:
         self.closed = True
 
-    # The remaining BrokerBase abstract methods are not exercised here.
-    async def capabilities(self) -> BrokerCapabilities:  # type: ignore[override]
+    async def get_capabilities(self) -> BrokerCapabilities:
         return BrokerCapabilities()
+
+    async def get_all_symbol_names(self) -> list[str]:
+        raise NotImplementedError
+
+    async def get_all_symbols(self) -> list[dict]:
+        raise NotImplementedError
+
+    async def fetch_candles(
+        self,
+        symbol: str,
+        timeframe: Timeframe,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        count: Optional[int] = None,
+    ) -> CandleSequence:
+        raise NotImplementedError
+
+    async def fetch_latest_candle(self, symbol: str, timeframe: Timeframe) -> Candle:
+        raise NotImplementedError
+
+    async def get_symbol_info(self, symbol: str) -> dict:
+        raise NotImplementedError
+
+    async def validate_symbol(self, symbol: str) -> bool:
+        raise NotImplementedError
+
+    async def health_check(self) -> bool:
+        raise NotImplementedError
+
+    async def get_account_info(self) -> AccountInfo:
+        raise NotImplementedError
+
+    async def get_positions(self) -> list[PositionInfo]:
+        raise NotImplementedError
+
+    async def get_history(self, days: int = 30) -> list[HistoryDealInfo]:
+        raise NotImplementedError
+
+    async def get_pending_orders(self) -> list[PendingOrderInfo]:
+        raise NotImplementedError
+
+    async def get_position(self, ticket: str) -> PositionInfo:
+        raise NotImplementedError
+
+    async def get_tick_price(self, symbol: str) -> TickPrice:
+        raise NotImplementedError
+
+    async def place_order(
+        self,
+        *,
+        symbol: str,
+        direction: str,
+        order_type: str,
+        price: float,
+        stop_loss: float,
+        take_profit: float,
+        lot_size: float,
+        comment: str = "",
+    ) -> OrderResult:
+        raise NotImplementedError
+
+    async def cancel_order(self, order_id: str) -> bool:
+        raise NotImplementedError
+
+    async def modify_position(self, *, ticket: str, stop_loss: float, take_profit: float) -> bool:
+        raise NotImplementedError
+
+    async def close_partial(self, *, ticket: str, volume: float) -> dict[str, Any]:
+        raise NotImplementedError
+
+    async def close_position(self, ticket: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    async def shutdown(self) -> None:
+        raise NotImplementedError
 
 
 @pytest.mark.asyncio
