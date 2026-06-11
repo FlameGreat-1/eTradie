@@ -43,7 +43,6 @@ def ta_config() -> TAConfig:
         fallback_broker="twelve_data",
         htf_timeframes=[Timeframe.W1, Timeframe.D1, Timeframe.H4, Timeframe.H1],
         ltf_timeframes=[Timeframe.M30, Timeframe.M15, Timeframe.M5, Timeframe.M1],
-        candle_lookback_periods=500,
         backfill_on_startup=False,
     )
 

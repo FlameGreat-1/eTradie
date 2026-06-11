@@ -41,7 +41,6 @@ class TestTAConfig:
         assert Timeframe.H4 in cfg.htf_timeframes
         assert Timeframe.M15 in cfg.ltf_timeframes
         assert Timeframe.M1 in cfg.ltf_timeframes
-        assert cfg.candle_lookback_periods == 500
 
     def test_invalid_broker_rejected(self):
         with pytest.raises(ValidationError):
