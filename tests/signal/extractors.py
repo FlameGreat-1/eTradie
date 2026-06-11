@@ -33,7 +33,7 @@ class TestDeriveMacroSignalsPopulated:
         signals = derive_macro_signals(macro)
         assert signals["has_macro_data"] is True
         assert signals["fed_tone"] == "HAWKISH"
-        assert signals["has_rate_decision"] is True
+        assert signals["has_rate_change"] is True
 
     def test_cot_data(self):
         macro = {
