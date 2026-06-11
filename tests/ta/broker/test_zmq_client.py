@@ -160,8 +160,21 @@ class TestZmqAsyncConnections:
         
         assert reply == {"status": "ok"}
         
-        # Verify it serialized the request and sent it via the async mock
-        mock_socket.send.assert_called_once()
-        sent_bytes = mock_socket.send.call_args[0][0]
-        assert json.loads(sent_bytes.decode("utf-8")) == req
+        # On the first request of a freshly connected trading socket the
+        # client performs a one-shot auth handshake: it sends
+        # {"command": "PING", "auth_token": ...} BEFORE the business
+        # request (the business request keys on "action", not "command",
+        # so it does not short-circuit the handshake). That is two sends.
+        assert mock_socket.send.call_count == 2
+
+        # First send is the auth handshake PING.
+        first_sent = mock_socket.send.call_args_list[0][0][0]
+        assert json.loads(first_sent.decode("utf-8")) == {
+            "command": "PING",
+            "auth_token": "",
+        }
+
+        # Last send is the serialized business request, unchanged.
+        last_sent = mock_socket.send.call_args_list[-1][0][0]
+        assert json.loads(last_sent.decode("utf-8")) == req
 

@@ -110,21 +110,23 @@ class TestCalculateLevelPrice:
         """Bullish retracement: levels measured up from swing low."""
         high, low = 2.0000, 1.0000
 
-        assert analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_0, True) == 1.0000
+        # SMC convention: bullish level = swing_high - range*fib.
+        assert analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_0, True) == 2.0000
         assert analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_50, True) == 1.5000
-        assert round(analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_618, True), 4) == 1.6180
-        assert round(analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_786, True), 4) == 1.7860
-        assert analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_100, True) == 2.0000
+        assert round(analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_618, True), 4) == 1.3820
+        assert round(analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_786, True), 4) == 1.2140
+        assert analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_100, True) == 1.0000
 
     def test_bearish_levels(self, analyzer):
         """Bearish retracement: levels measured down from swing high."""
         high, low = 2.0000, 1.0000
 
-        assert analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_0, False) == 2.0000
+        # SMC convention: bearish level = swing_low + range*fib.
+        assert analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_0, False) == 1.0000
         assert analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_50, False) == 1.5000
-        assert round(analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_618, False), 4) == 1.3820
-        assert round(analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_786, False), 4) == 1.2140
-        assert analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_100, False) == 1.0000
+        assert round(analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_618, False), 4) == 1.6180
+        assert round(analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_786, False), 4) == 1.7860
+        assert analyzer.calculate_level_price(high, low, FibonacciLevel.LEVEL_100, False) == 2.0000
 
 
 # ---------------------------------------------------------------------------
@@ -138,18 +140,20 @@ class TestGetOTEZone:
         zone = analyzer.get_ote_zone(bullish_retracement)
         assert isinstance(zone, PremiumDiscountZone)
         assert zone.zone_type == PriceZone.DISCOUNT
-        # For bullish: lower=61.8% level, upper=78.6% level
-        assert round(zone.lower_bound, 4) == 1.6180
-        assert round(zone.upper_bound, 4) == 1.7860
+        # SMC bullish: 0.786 level (1.214) is the lower bound, 0.618
+        # level (1.382) is the upper bound (price retraced DOWN from 2.0).
+        assert round(zone.lower_bound, 4) == 1.2140
+        assert round(zone.upper_bound, 4) == 1.3820
 
     def test_bearish_ote_zone(self, analyzer, bearish_retracement):
         """Bearish OTE zone is between 61.8% and 78.6% retracement (premium)."""
         zone = analyzer.get_ote_zone(bearish_retracement)
         assert isinstance(zone, PremiumDiscountZone)
         assert zone.zone_type == PriceZone.PREMIUM
-        # For bearish: lower=78.6% level, upper=61.8% level
-        assert round(zone.lower_bound, 4) == 1.2140
-        assert round(zone.upper_bound, 4) == 1.3820
+        # SMC bearish: 0.618 level (1.618) is the lower bound, 0.786
+        # level (1.786) is the upper bound (price retraced UP from 1.0).
+        assert round(zone.lower_bound, 4) == 1.6180
+        assert round(zone.upper_bound, 4) == 1.7860
 
 
 # ---------------------------------------------------------------------------
@@ -159,17 +163,18 @@ class TestGetOTEZone:
 
 class TestIsAtOTE:
     def test_price_inside_ote(self, analyzer, bullish_retracement):
-        """Price within OTE zone returns True."""
-        assert analyzer.is_at_ote(1.7000, bullish_retracement) is True
+        """Price within the bullish OTE band [1.214, 1.382] returns True."""
+        assert analyzer.is_at_ote(1.3000, bullish_retracement) is True
 
     def test_price_outside_ote(self, analyzer, bullish_retracement):
-        """Price far from OTE zone returns False."""
-        assert analyzer.is_at_ote(1.2000, bullish_retracement) is False
+        """Price far above the bullish OTE band returns False."""
+        assert analyzer.is_at_ote(1.7000, bullish_retracement) is False
 
     def test_price_at_ote_boundary_with_tolerance(self, analyzer, bullish_retracement):
-        """Price just outside OTE but within pip tolerance returns True."""
-        # OTE lower is ~1.6180, tolerance 5 pips = 0.0005 for EURUSD
-        assert analyzer.is_at_ote(1.6176, bullish_retracement, tolerance_pips=5.0) is True
+        """Price just outside the OTE lower bound but within pip tolerance."""
+        # Bullish OTE lower bound is ~1.2140; tolerance 5 pips = 0.0005
+        # for EURUSD, so 1.2136 (4 pips below) is still inside.
+        assert analyzer.is_at_ote(1.2136, bullish_retracement, tolerance_pips=5.0) is True
 
 
 # ---------------------------------------------------------------------------
@@ -205,13 +210,13 @@ class TestGetNearestFibLevel:
         assert level == FibonacciLevel.LEVEL_50
 
     def test_nearest_to_618(self, analyzer, bullish_retracement):
-        """Price at 1.6200 is nearest to 61.8% level."""
-        level = analyzer.get_nearest_fib_level(1.6200, bullish_retracement)
+        """SMC bullish 61.8% level sits at 1.382; price 1.3800 is nearest it."""
+        level = analyzer.get_nearest_fib_level(1.3800, bullish_retracement)
         assert level == FibonacciLevel.LEVEL_618
 
     def test_nearest_to_0(self, analyzer, bullish_retracement):
-        """Price at 1.0100 is nearest to 0% level (swing low)."""
-        level = analyzer.get_nearest_fib_level(1.0100, bullish_retracement)
+        """SMC bullish 0.0 level is the swing high (2.0); 1.9900 is nearest it."""
+        level = analyzer.get_nearest_fib_level(1.9900, bullish_retracement)
         assert level == FibonacciLevel.LEVEL_0
 
 
@@ -244,10 +249,13 @@ class TestRetracementPercentage:
 
 
 class TestOTELevels:
-    def test_returns_four_levels(self, analyzer):
+    def test_returns_three_ote_levels(self, analyzer):
+        # OTE_LEVELS = [0.618, 0.705, 0.786]. 50% is equilibrium (not OTE)
+        # and 78.6% is the level (not 79%).
         levels = analyzer.get_all_ote_levels()
-        assert len(levels) == 4
-        assert FibonacciLevel.LEVEL_50 in levels
+        assert len(levels) == 3
         assert FibonacciLevel.LEVEL_618 in levels
         assert FibonacciLevel.LEVEL_705 in levels
-        assert FibonacciLevel.LEVEL_79 in levels
+        assert FibonacciLevel.LEVEL_786 in levels
+        assert FibonacciLevel.LEVEL_50 not in levels
+        assert FibonacciLevel.LEVEL_79 not in levels

@@ -89,6 +89,7 @@ markers = [
     "unit: Unit tests (no external dependencies)",
     "integration: Integration tests (require DB/Redis)",
     "slow: Tests that take >5s to run",
+    "chaos: Chaos / resilience tests (require a staging cluster or container runtime)",
 ]
 filterwarnings = [
     "error",

@@ -39,6 +39,7 @@ from engine.ta.broker.base import (
     AccountInfo,
     BrokerBase,
     BrokerCapabilities,
+    HistoryDealInfo,
     OrderResult,
     PendingOrderInfo,
     PositionInfo,
@@ -78,8 +79,25 @@ class MockBroker(BrokerBase):
         ]
         self._next_order_id = 99999
 
+    @property
+    def provider_name(self) -> str:
+        return "mock"
+
+    @property
+    def account_id(self) -> str:
+        return "mock-account-0001"
+
     async def get_capabilities(self) -> BrokerCapabilities:
         return BrokerCapabilities()
+
+    async def get_all_symbol_names(self) -> list[str]:
+        return ["EURUSD", "GBPUSD"]
+
+    async def get_all_symbols(self) -> list[dict]:
+        return [
+            {"name": "EURUSD", "description": "Euro vs US Dollar", "path": "Forex\\Majors"},
+            {"name": "GBPUSD", "description": "Great Britain Pound vs US Dollar", "path": "Forex\\Majors"},
+        ]
 
     async def fetch_candles(self, symbol, timeframe, start_time=None, end_time=None, count=None):
         raise NotImplementedError
@@ -113,6 +131,15 @@ class MockBroker(BrokerBase):
 
     async def get_positions(self) -> list[PositionInfo]:
         return list(self._positions)
+
+    async def get_history(self, days: int = 30) -> list[HistoryDealInfo]:
+        return [
+            HistoryDealInfo(
+                ticket="55501", position_id="12345", symbol="EURUSD",
+                direction="BUY", volume=0.10, price=1.1000, profit=50.0,
+                commission=-0.7, swap=0.0, time=1699990000, comment="closed-deal",
+            ),
+        ]
 
     async def get_pending_orders(self) -> list[PendingOrderInfo]:
         return list(self._orders)

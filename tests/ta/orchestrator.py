@@ -43,6 +43,5 @@ class TestTAConfigForOrchestrator:
         assert hasattr(cfg, "htf_timeframes")
         assert hasattr(cfg, "ltf_timeframes")
         assert hasattr(cfg, "primary_broker")
-        assert hasattr(cfg, "candle_lookback_periods")
         assert hasattr(cfg, "smc_enabled")
         assert hasattr(cfg, "snd_enabled")

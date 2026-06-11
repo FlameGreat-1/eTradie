@@ -7,7 +7,7 @@ validate -> map -> ProcessorOutput.
 from __future__ import annotations
 
 import json
-from typing import Optional
+from typing import AsyncGenerator, Optional
 
 import pytest
 
@@ -48,16 +48,59 @@ def _valid_json(direction="LONG", grade="A", proceed="YES") -> str:
 
 
 class MockLLM(LLMClient):
+    # The processor reads self._llm.PROVIDER (class attribute) on the
+    # BYOK metering-skip path, mirroring the real provider clients.
+    PROVIDER = "mock"
+
     def __init__(self, text="", fail=False):
         self._text = text
         self._fail = fail
         self.call_count = 0
 
-    async def call(self, *, system_prompt, user_message, trace_id=None) -> LLMResponse:
+    async def call(
+        self,
+        *,
+        system_prompt,
+        user_message,
+        trace_id=None,
+        use_structured_output=True,
+    ) -> LLMResponse:
         self.call_count += 1
         if self._fail:
             raise Exception("LLM unavailable")
-        return LLMResponse(text=self._text, model="mock", provider="mock", input_tokens=500, output_tokens=200, duration_ms=100.0)
+        return LLMResponse(
+            text=self._text,
+            model="mock",
+            provider=self.PROVIDER,
+            input_tokens=500,
+            output_tokens=200,
+            duration_ms=100.0,
+            stop_reason="STOP",
+        )
+
+    async def stream_call(
+        self,
+        *,
+        system_prompt,
+        user_message,
+        trace_id=None,
+        usage_out: Optional[dict] = None,
+        use_structured_output=True,
+    ) -> AsyncGenerator[str, None]:
+        # AnalysisProcessor._execute consumes the analysis path through
+        # stream_call only; call() is retained purely for interface
+        # completeness. Counting here keeps `llm.call_count == 1`
+        # meaningful for the success assertions.
+        self.call_count += 1
+        if self._fail:
+            raise Exception("LLM unavailable")
+        if usage_out is not None:
+            usage_out["input_tokens"] = 500
+            usage_out["output_tokens"] = 200
+            usage_out["finish_reason"] = "STOP"
+        # Single-chunk emission is sufficient: the processor accumulates
+        # chunks into full_text before parsing.
+        yield self._text
 
     async def close(self):
         pass
