@@ -164,7 +164,12 @@ Staging at 5 users ≈ **7.2 CPU reserved at injector defaults** (over budget on
 | Linkerd viz @1 replica + viz Prometheus (est) | — | — | — | — | ~5 pods | ~0.4 | ~1.0Gi | OFF (non-critical; install on demand for mesh verification, e.g. before enabling linkerdPolicy) |
 | Linkerd proxy sidecars (verified 50m/64Mi each) | 50m | 64Mi | 200m | 256Mi | ~10 meshed pods | 0.5 | 0.64Gi | ON |
 | **Production floor (0 users, viz OFF: −0.4 CPU / −1.0Gi)** | | | | | | **≈ 5.7 CPU** | **≈ 9.1Gi** | — |
-| + Vault + ESO + ArgoCD + Stakater Reloader + K3s system (est allowance) | — | — | — | — | — | ~1.0 | ~2.6Gi | ON (external installs) |
+| K3s system (kube-apiserver, controller-manager, scheduler, embedded datastore, kubelet, containerd, CoreDNS, kube-proxy) (est) | — | — | — | — | — | ~0.4 | ~1.0Gi | ON (external install) |
+| ArgoCD (application-controller + repo-server + api-server + Redis + applicationset/notifications) (est) | — | — | — | — | ~5–7 pods | ~0.35 | ~0.9Gi | ON (external install) |
+| Vault (server + agent-injector webhook) (est) | — | — | — | — | 2 pods | ~0.2 | ~0.4Gi | ON (external install) |
+| External Secrets Operator (controller + webhook + cert-controller) (est) | — | — | — | — | ~3 pods | ~0.05 | ~0.2Gi | ON (external install) |
+| Stakater Reloader (est) | — | — | — | — | 1 pod | ~0.01 | ~0.1Gi | ON (external install) |
+| **External-installs subtotal (est allowance; replace with `kubectl top -A` soak data)** | | | | | | **~1.0** | **~2.6Gi** | — |
 | each MT user = mt-node 500m/1Gi + watchdog 100m/64Mi (verified) + Linkerd proxy 50m/64Mi (verified) + Vault Agent sidecar tuned to 50m/64Mi via vault.hashicorp.com annotations | — | — | — | — | 1/user | +0.70 | +1.19Gi | ON (Burstable) |
 
 **Transient workloads (excluded from the steady-state floor, scheduled headroom still required when they fire):** postgres backup CronJob 02:00 UTC (250m/256Mi) — OFF in staging (existing posture, rebuildable env), ON in production; weekly restore drill (100m/128Mi) — OFF in staging, ON in production; wine-prefix snapshotter CronJob (50m/96Mi) — **OFF in BOTH envs** (K3s local-path has no CSI VolumeSnapshot support; re-enable only after installing Longhorn or another snapshot-capable CSI and setting snapshotter.volumeSnapshotClassName); per-pod init containers (busybox wait-for-deps 10m/16Mi, engine alembic migrate, edge-ingress geoipupdate + AOP-CA preflight, Vault agent-init) — ON (inherent).
