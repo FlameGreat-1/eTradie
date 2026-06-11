@@ -632,44 +632,76 @@ EOF
 
 ---
 
+> AUTHORITATIVE SOURCE: the complete, verified, strictly-ordered
+> deployment procedure now lives at **`runbook/README.md`**. It additionally
+> covers the Linkerd service mesh (CRDs/identity/control-plane), the
+> Stakater Reloader + ESO + Vault-injector prerequisites, the mt-node Wine
+> image BUILD + PUSH, and the per-user hosted-MT provisioning flow — none
+> of which this older single-doc guide covers. Where the two disagree, the
+> runbook is correct. This file is retained for its architecture diagram,
+> multi-node HA join, and disaster-recovery sections.
+
 ## 6.5 Verify container images exist in GHCR
 
-The charts pin the production image tag to **`0.2.0`** (set in
-`.github/workflows/ci.yml::env.RELEASE_TAG`):
+The CI `build` job (`.github/workflows/ci.yml::env.RELEASE_TAG`) pins
+**`RELEASE_TAG: "0.1.0"`**. The app-service charts pin image tag **`0.1.0`**;
+edge-ingress pins **`0.2.0`** (a chart-local override in
+`helm/edge-ingress/values.yaml`); the mt-node Wine image pins **`0.1.0`**
+(`helm/mt-node/values-image.yaml`). The four app services live under the
+`etradie/<svc>` (slash) path; mt-node lives under `etradie-mt-node` (hyphen):
 
-* `ghcr.io/flamegreat-1/etradie/engine:0.2.0`
-* `ghcr.io/flamegreat-1/etradie/gateway:0.2.0`
-* `ghcr.io/flamegreat-1/etradie/execution:0.2.0`
-* `ghcr.io/flamegreat-1/etradie/management:0.2.0`
+* `ghcr.io/flamegreat-1/etradie/engine:0.1.0`
+* `ghcr.io/flamegreat-1/etradie/gateway:0.1.0`
+* `ghcr.io/flamegreat-1/etradie/execution:0.1.0`
+* `ghcr.io/flamegreat-1/etradie/management:0.1.0`
+* `ghcr.io/flamegreat-1/etradie/billing:0.1.0`
+* `ghcr.io/flamegreat-1/etradie/edge-ingress:0.2.0`
+* `ghcr.io/flamegreat-1/etradie-mt-node:0.1.0`  (build per runbook/README.md Phase 2.5)
 
 These are pushed by the GitHub Actions `build` job on every push to
 `main`. Verify they exist before syncing ArgoCD or pods will
 `ImagePullBackOff`:
 
 ```bash
-for svc in engine gateway execution management; do
-  curl -fsS "https://ghcr.io/v2/flamegreat-1/etradie/$svc/manifests/0.2.0" \
+for svc in engine gateway execution management billing; do
+  curl -fsS "https://ghcr.io/v2/flamegreat-1/etradie/$svc/manifests/0.1.0" \
     -H "Accept: application/vnd.oci.image.manifest.v1+json" \
     -H "Authorization: Bearer $(echo -n null | base64)" \
     -o /dev/null -w "$svc: HTTP %{http_code}\n"
 done
+# edge-ingress is pinned to 0.2.0; mt-node (Wine) to 0.1.0 under a hyphen path.
+curl -fsS "https://ghcr.io/v2/flamegreat-1/etradie/edge-ingress/manifests/0.2.0" \
+  -H "Authorization: Bearer $(echo -n null | base64)" -o /dev/null -w "edge-ingress: HTTP %{http_code}\n"
+curl -fsS "https://ghcr.io/v2/flamegreat-1/etradie-mt-node/manifests/0.1.0" \
+  -H "Authorization: Bearer $(echo -n null | base64)" -o /dev/null -w "mt-node: HTTP %{http_code}\n"
 # Expected: HTTP 200 for each (or HTTP 401 if your token isn't anonymous-readable;
 # in that case check the GitHub Packages UI directly).
 ```
 
 If any tag is missing, push a commit to `main` to trigger CI, or
-build + push manually:
+build + push manually (note: the four app services + billing use tag
+`0.1.0` under `etradie/<svc>`; edge-ingress uses `0.2.0`; the mt-node
+Wine image uses `0.1.0` under `etradie-mt-node` and needs supply-chain
+build args — see runbook/README.md Phase 2.5):
 
 ```bash
 git clone https://github.com/FlameGreat-1/eTradie.git && cd eTradie
 echo "$GHCR_PAT" | docker login ghcr.io -u flamegreat-1 --password-stdin
-docker build -t ghcr.io/flamegreat-1/etradie/engine:0.2.0 -f Dockerfile .
-docker build -t ghcr.io/flamegreat-1/etradie/gateway:0.2.0 -f src/gateway/Dockerfile .
-docker build -t ghcr.io/flamegreat-1/etradie/execution:0.2.0 -f src/execution/Dockerfile .
-docker build -t ghcr.io/flamegreat-1/etradie/management:0.2.0 -f src/management/Dockerfile .
-for svc in engine gateway execution management; do
-  docker push ghcr.io/flamegreat-1/etradie/$svc:0.2.0
+docker build -t ghcr.io/flamegreat-1/etradie/engine:0.1.0     -f Dockerfile .
+docker build -t ghcr.io/flamegreat-1/etradie/gateway:0.1.0    -f src/gateway/Dockerfile .
+docker build -t ghcr.io/flamegreat-1/etradie/execution:0.1.0  -f src/execution/Dockerfile .
+docker build -t ghcr.io/flamegreat-1/etradie/management:0.1.0 -f src/management/Dockerfile .
+docker build -t ghcr.io/flamegreat-1/etradie/billing:0.1.0    -f src/billing/Dockerfile .
+for svc in engine gateway execution management billing; do
+  docker push ghcr.io/flamegreat-1/etradie/$svc:0.1.0
 done
+# edge-ingress (tag 0.2.0):
+docker build -t ghcr.io/flamegreat-1/etradie/edge-ingress:0.2.0 \
+  -f deployments/edge-ingress/docker/Dockerfile.edge-ingress .
+docker push ghcr.io/flamegreat-1/etradie/edge-ingress:0.2.0
+# mt-node Wine image (tag 0.1.0) — see runbook/README.md Phase 2.5 for the
+# WINEHQ_VERSION + installer/EA SHA build args:
+MT_NODE_TAG=0.1.0 make push-mt-node
 ```
 
 ## 6.6 Build and inject the envoy WASM filter
