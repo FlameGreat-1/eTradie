@@ -632,15 +632,31 @@ EOF
 
 ---
 
+> AUTHORITATIVE SOURCE: the complete, verified, strictly-ordered
+> deployment procedure now lives at **`runbook/README.md`**. It additionally
+> covers the Linkerd service mesh (CRDs/identity/control-plane), the
+> Stakater Reloader + ESO + Vault-injector prerequisites, the mt-node Wine
+> image BUILD + PUSH, and the per-user hosted-MT provisioning flow — none
+> of which this older single-doc guide covers. Where the two disagree, the
+> runbook is correct. This file is retained for its architecture diagram,
+> multi-node HA join, and disaster-recovery sections.
+
 ## 6.5 Verify container images exist in GHCR
 
-The charts pin the production image tag to **`0.2.0`** (set in
-`.github/workflows/ci.yml::env.RELEASE_TAG`):
+The CI `build` job (`.github/workflows/ci.yml::env.RELEASE_TAG`) pins
+**`RELEASE_TAG: "0.1.0"`**. The app-service charts pin image tag **`0.1.0`**;
+edge-ingress pins **`0.2.0`** (a chart-local override in
+`helm/edge-ingress/values.yaml`); the mt-node Wine image pins **`0.1.0`**
+(`helm/mt-node/values-image.yaml`). The four app services live under the
+`etradie/<svc>` (slash) path; mt-node lives under `etradie-mt-node` (hyphen):
 
-* `ghcr.io/flamegreat-1/etradie/engine:0.2.0`
-* `ghcr.io/flamegreat-1/etradie/gateway:0.2.0`
-* `ghcr.io/flamegreat-1/etradie/execution:0.2.0`
-* `ghcr.io/flamegreat-1/etradie/management:0.2.0`
+* `ghcr.io/flamegreat-1/etradie/engine:0.1.0`
+* `ghcr.io/flamegreat-1/etradie/gateway:0.1.0`
+* `ghcr.io/flamegreat-1/etradie/execution:0.1.0`
+* `ghcr.io/flamegreat-1/etradie/management:0.1.0`
+* `ghcr.io/flamegreat-1/etradie/billing:0.1.0`
+* `ghcr.io/flamegreat-1/etradie/edge-ingress:0.2.0`
+* `ghcr.io/flamegreat-1/etradie-mt-node:0.1.0`  (build per runbook/README.md Phase 2.5)
 
 These are pushed by the GitHub Actions `build` job on every push to
 `main`. Verify they exist before syncing ArgoCD or pods will

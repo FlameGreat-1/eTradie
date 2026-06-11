@@ -93,6 +93,81 @@ Everything below runs from your workstation.
 
 ---
 
+## Phase 2.5 — Build + push the mt-node Wine image (do this BEFORE you rely on Phase 0.4)
+
+The app images (engine/gateway/execution/management/billing/edge-ingress)
+are published automatically by the CI `build` job on every push to `main`.
+The **mt-node Wine image is different**: a production build is gated on
+supply-chain build args and is normally produced only when CI has the
+`WINEHQ_VERSION` + installer-SHA secrets set (see `ci.yml` "Production
+build guard - mt-node"). If those CI secrets are NOT set, the
+`mt-node:0.1.0` tag will be MISSING from GHCR and every hosted-MT
+provision will `ImagePullBackOff`. Build + push it explicitly here.
+
+> The mt-node image bakes Wine + the MT5 AND MT4 terminals + the ZeroMQ EA
+> into one image. It is large and slow to build (Wine prefix init + two
+> installers). Build it on a machine with Docker and good bandwidth, not on
+> the Contabo box.
+
+2.5.1 Discover the exact WineHQ apt version to pin (reproducible builds):
+```bash
+docker run --rm ubuntu:24.04 bash -c '
+  apt-get update -qq && apt-get install -y -qq wget gnupg ca-certificates >/dev/null
+  install -d -m 0755 /etc/apt/keyrings
+  wget -qO- https://dl.winehq.org/wine-builds/winehq.key | gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key
+  . /etc/os-release
+  echo "deb [signed-by=/etc/apt/keyrings/winehq-archive.key] https://dl.winehq.org/wine-builds/ubuntu/ ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/winehq.list
+  apt-get update -qq
+  apt-cache policy winehq-stable | sed -n "1,4p"'
+# Note the "Candidate:" version string, e.g. 9.0.0.0~noble-1 -> use as WINEHQ_VERSION
+```
+
+2.5.2 Compute the committed EA binary SHAs (so CI/build can pin them):
+```bash
+make mt-node-ea-sha
+# Prints EA_EX5_SHA256=<...> and EA_EX4_SHA256=<...> if the .ex4/.ex5 are present.
+```
+
+2.5.3 Get the MT5 + MT4 installer SHA256s. Either download once from
+MetaQuotes and hash them, OR (recommended for regulated/air-gapped
+environments) mirror the installers to your own artifact store and hash
+the mirrored blobs:
+```bash
+curl -fsSL -o /tmp/mt5setup.exe https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe
+curl -fsSL -o /tmp/mt4setup.exe https://download.mql5.com/cdn/web/metaquotes.software.corp/mt4/mt4setup.exe
+sha256sum /tmp/mt5setup.exe /tmp/mt4setup.exe
+```
+
+2.5.4 Build (full supply-chain pinning) and push. `make build-mt-node`
+wraps `docker build docker/mt-node/` with the build args; `push-mt-node`
+builds then pushes:
+```bash
+echo "$GHCR_PAT" | docker login ghcr.io -u flamegreat-1 --password-stdin
+export WINEHQ_VERSION='<from 2.5.1, e.g. 9.0.0.0~noble-1>'
+export MT5_INSTALLER_SHA256='<from 2.5.3>'
+export MT4_INSTALLER_SHA256='<from 2.5.3>'
+export EA_EX5_SHA256='<from 2.5.2>'
+export EA_EX4_SHA256='<from 2.5.2 or skip>'
+export MT_NODE_TAG='0.1.0'      # MUST equal helm/mt-node/values-image.yaml tag
+make push-mt-node
+```
+Air-gapped variant (own installer mirror) — call docker build directly with
+`--build-arg MT5_INSTALLER_URL=` / `MT4_INSTALLER_URL=` pointing at your
+mirror (see `docker/mt-node/README.md` "Air-gapped CI").
+
+2.5.5 **Verify the tag now exists** (Phase 0.4's mt-node check must pass):
+```bash
+docker manifest inspect ghcr.io/flamegreat-1/etradie-mt-node:0.1.0 >/dev/null \
+  && echo "mt-node:0.1.0 present" || echo "MISSING - rebuild"
+```
+> NOTE the registry path difference: the four app services are under
+> `ghcr.io/flamegreat-1/etradie/<svc>` (slash), but mt-node is
+> `ghcr.io/flamegreat-1/etradie-mt-node` (hyphen), per
+> `helm/mt-node/values-image.yaml` and `helm/engine/values-image.yaml`.
+> The engine reads this exact string from `MT_NODE_IMAGE` to build tenant pods.
+
+---
+
 ## Phase 3 — Vault + Vault Agent Injector
 
 Injector is MANDATORY (per-tenant mt-node credentials are rendered to tmpfs, never a plaintext Secret).
@@ -502,6 +577,112 @@ curl -fsS https://api.exoper.com/api/v1/state/account -H "Authorization: Bearer 
 # Expect 200 account JSON (gateway -> execution -> mock broker chain)
 ```
 14.6 Frontend (`cotradee/` on Vercel) reaches `https://api.exoper.com`. The gateway CORS origin is `https://app.exoper.com` (`helm/gateway/values-production.yaml`). If your SPA host differs, update `config.gateway.allowedOrigins` and re-sync gateway.
+
+---
+
+## Phase 14.5 — Hosted-MT (Wine) per-user provisioning + verification
+
+Up to here the **platform** mt-node release is installed (PriorityClass +
+platform ExternalSecret + watchdog ConfigMap, from `mt-node-production` in
+Phase 12), the Wine image is in GHCR (Phase 2.5), and the per-tenant Vault
+auth roles exist (Phase 11). No per-user MT pod exists yet — they are
+created **at runtime, on demand**, NOT by ArgoCD.
+
+### 14.5.1 How a tenant pod is created (engine HostedProvisioner)
+
+There is no manual step to create a user's MT terminal in normal operation.
+The flow (verified in `src/engine/ta/broker/mt5/hosted/provisioner.py` +
+`docker/mt-node/README.md`):
+
+1. A dashboard user adds a broker connection with `connection_type=hosted`.
+2. The engine stores `mt5_login` / `mt5_password` / a generated
+   `ea_auth_token` (column-encrypted with `broker_encryption_key`) in the
+   `broker_connections` row.
+3. `HostedProvisioner.provision_account()` then:
+   - writes the per-tenant credentials to Vault KV at
+     `etradie/data/tenants/mt-node/<connection_id>`
+     (keys `mt5_login`, `mt5_password`, `mt5_zmq_auth_token`),
+   - creates a per-tenant ServiceAccount `etradie-mt-<id12>` (matches the
+     `mt-node-tenant` Vault role's bound-SA glob from Phase 11),
+   - creates a `StatefulSet` + ClusterIP `Service` + headless `Service`
+     whose labels/selectors/PVC/security context are wire-identical to
+     `helm/mt-node/templates/statefulset.yaml`, carrying the Vault Agent
+     Injector annotations.
+4. The Vault Agent Injector webhook injects `vault-agent-init` (renders
+   `/vault/secrets/mt-credentials.env` to tmpfs, exits 0) + `vault-agent`
+   (sidecar for rotation). `entrypoint.sh` sources that file; credentials
+   never exist as a K8s Secret.
+5. `entrypoint.sh` launches Wine + the MT terminal (auto-login from
+   `startup.ini`) and loads the ZeroMQ EA with the per-tenant AUTH_TOKEN.
+6. `engine.ZmqClient` then dials `<release>.etradie-system.svc:5555`.
+
+**Pre-flight before letting a user pick Hosted MT** (catch the 5xx early):
+```bash
+# engine SA can create the per-tenant workloads
+kubectl auth can-i create statefulsets \
+  --as=system:serviceaccount:etradie-system:etradie-engine -n etradie-system
+kubectl auth can-i create services \
+  --as=system:serviceaccount:etradie-system:etradie-engine -n etradie-system
+# platform fallback Secret materialised
+kubectl -n etradie-system get externalsecret etradie-mt-node-platform-platform
+# engine sees the mt-node image + Vault address
+kubectl -n etradie-system get cm etradie-engine-config -o jsonpath='{.data.MT_NODE_IMAGE}{"\n"}{.data.VAULT_ADDR}{"\n"}'
+# expect: ghcr.io/flamegreat-1/etradie-mt-node:0.1.0  and  https://vault.vault.svc.cluster.local:8200
+```
+
+### 14.5.2 The symbol-resolution two-boot dance (expected, not a fault)
+
+New tenant pods often boot TWICE on purpose. `entrypoint.sh` treats
+`MT_SYMBOL=__pending__` as a sentinel:
+
+- **Boot 1 (symbol unresolved):** the entrypoint skips writing the chart
+  template / `[Charts]` section and lets MT attach its default chart. The
+  EA comes up, the engine queries `GET_ALL_SYMBOLS` against that default
+  chart, resolves the broker's actual symbol name (broker symbol names vary,
+  e.g. `EURUSD` vs `EURUSD.m`), patches `MT_SYMBOL` on the StatefulSet, and
+  K8s rolls the pod once.
+- **Boot 2 (symbol resolved):** the entrypoint writes the chart template
+  with the real symbol; the EA attaches the intended chart.
+
+So a brand-new hosted connection showing ONE rolling restart shortly after
+creation is correct behaviour. A pod stuck rolling repeatedly is not —
+see verification below.
+
+### 14.5.3 Verify a hosted-MT tenant (after a user provisions one, or a test connection)
+```bash
+CONN=<connection-id-prefix>   # first 12 chars of the connection_id; release is etradie-mt-<CONN>
+# 1. Pod Ready (mt-node + watchdog + injected vault-agent containers)
+kubectl -n etradie-system get pod etradie-mt-${CONN}-0 -o wide
+kubectl -n etradie-system get pod etradie-mt-${CONN}-0 \
+  -o jsonpath='{range .spec.containers[*]}{.name}{"\n"}{end}'
+  # expect: mt-node, watchdog, linkerd-proxy (+ vault-agent as init/sidecar)
+# 2. Vault rendered the per-tenant creds onto tmpfs (no plaintext Secret exists)
+kubectl -n etradie-system exec etradie-mt-${CONN}-0 -c mt-node -- \
+  sh -c 'test -s /vault/secrets/mt-credentials.env && echo creds-present'
+# 3. EA health via the watchdog (200 only when mt5_connected=true AND authenticated)
+kubectl -n etradie-system port-forward etradie-mt-${CONN}-0 9100:9100 &
+curl -fsS http://localhost:9100/healthz && echo OK
+curl -s http://localhost:9100/metrics | grep -E 'mt_node_ea_(mt5_connected|authenticated) '
+  # both gauges should read 1
+# 4. Wine prefix PVC bound (carries the broker 'trusted device' registration)
+kubectl -n etradie-system get pvc wine-prefix-etradie-mt-${CONN}-0
+# 5. ZMQ bridge reachable from the engine (the engine dials :5555)
+kubectl -n etradie-system logs deploy/etradie-engine | grep -i "hosted_" | tail -20
+```
+De-provision (when a user removes the connection) is also engine-driven
+(`HostedProvisioner.delete_account()` deletes the StatefulSet, Services,
+Vault path, AND the PVC — StatefulSet GC does not cascade to the PVC).
+
+### 14.5.4 mt-node troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| tenant pod `ImagePullBackOff` | `etradie-mt-node:0.1.0` not in GHCR | complete Phase 2.5 (build+push) |
+| pod `Init` on `vault-agent-init` forever | per-tenant Vault role/path missing | re-run Phase 11; confirm SA name matches `etradie-mt-*` glob |
+| `/healthz` 503, `mt5_connected=0` | wrong broker creds / server | check `broker_connections` row; broker may need device approval |
+| pod rolls repeatedly (not once) | symbol never resolves / EA crash loop | check entrypoint log; broker symbol catalog unreachable |
+| dashboard "Hosted MT" returns 5xx | engine SA cannot create workloads | re-run the 14.5.1 `kubectl auth can-i` checks |
+| capacity: pod `Pending` | per-user 0.70 CPU exceeds the box (Table 2B ~1 user) | this box hosts ~1 prod MT user; scale hardware for more |
 
 ---
 
