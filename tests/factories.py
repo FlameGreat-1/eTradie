@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Optional
 
-from engine.ta.constants import Direction, Timeframe
+from engine.ta.constants import Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
 
 
