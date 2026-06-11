@@ -91,8 +91,10 @@ serviceMonitor:
 
 # NOTE: the gateway chart ships no ResourceQuota template; namespace
 # governance (ResourceQuota + LimitRange for etradie-system) is owned
-# solely by the data-layer chart. Values here are kept aligned with
-# helm/data-layer for documentation only.
+# solely by the data-layer chart. Values here are documentation-only
+# and mirror the production data-layer overlay
+# (helm/data-layer/values-production.yaml resourceQuota: requestsCpu 8,
+# requestsMemory 16Gi, limitsCpu 24, limitsMemory 40Gi).
 resourceQuota:
   enabled: true
   hard:

@@ -270,7 +270,8 @@ config:
     # PVC size for the Wine prefix volume. MUST stay in sync with
     # helm/mt-node/values{,-production,-staging}.yaml::persistence.size
     # so a Pod the engine creates lands within the same storage envelope
-    # as a chart-rendered Pod. Production overlay sets this to 8Gi.
+    # as a chart-rendered Pod. TABLE 2B (BUDGET.md): production overlay
+    # sets this to 4Gi, staging to 2Gi.
     pvcSize: "4Gi"
     readinessTimeoutSecs: "300"
     readinessPollSecs: "3"

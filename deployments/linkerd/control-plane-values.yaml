@@ -80,12 +80,16 @@ proxyInit:
       limit: 64Mi
 
 # NOTE on ResourceQuota: the production etradie-system ResourceQuota
-# (helm/data-layer/values-production.yaml: requestsCpu=32,
-# requestsMemory=64Gi) has ample headroom for ~19 proxy sidecars across
-# prod replica counts (~0.95 CPU + ~1.2Gi extra requests). Do NOT
-# tighten the quota below that envelope without re-accounting for the
-# per-pod proxy overhead, or pods will fail admission with
-# 'exceeded quota'.
+# (helm/data-layer/values-production.yaml: requestsCpu=8,
+# requestsMemory=16Gi under the TABLE 2B single-node profile) must hold
+# the single-replica service floor + data layer + the meshed pods'
+# proxy sidecars (50m/64Mi each) + per-tenant mt-node pods. At 1 replica
+# per service the proxy overhead is ~0.5 CPU / ~0.64Gi across the meshed
+# set (BUDGET.md TABLE 2B). Do NOT tighten the quota below that envelope
+# without re-accounting for the per-pod proxy overhead, or pods will
+# fail admission with 'exceeded quota'. Raise requestsCpu/requestsMemory
+# in lockstep with tenant growth (and BUDGET.md TABLE 2B) and restore
+# the HA envelope when moving to the multi-node cluster (Table 5).
 
 # Control-plane components inherit the cluster's restricted PSS; the
 # Linkerd chart already sets non-root + read-only-root + drop-ALL, so
