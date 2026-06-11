@@ -33,9 +33,14 @@ git clone https://github.com/FlameGreat-1/eTradie.git
 cd eTradie
 ```
 
-0.4 Confirm images exist in GHCR (else `ImagePullBackOff`):
+0.4 Confirm the CI-built images exist in GHCR (else `ImagePullBackOff`).
+These five app services + edge-ingress are published automatically by the
+CI `build` job on every push to `main`. The mt-node Wine image is NOT in
+this check — it is built by hand in Phase 2.5 (the CI secrets are unset) and
+verified there (2.5.5). Note mt-node also lives under a DIFFERENT path
+(`etradie-mt-node`, hyphen), not `etradie/<svc>` (slash):
 ```bash
-for svc in engine gateway execution management billing mt-node; do
+for svc in engine gateway execution management billing; do
   echo -n "$svc:0.1.0 -> "
   curl -fsS -o /dev/null -w "%{http_code}\n" \
     "https://ghcr.io/v2/flamegreat-1/etradie/$svc/manifests/0.1.0" \
@@ -46,7 +51,9 @@ curl -fsS -o /dev/null -w "%{http_code}\n" \
   "https://ghcr.io/v2/flamegreat-1/etradie/edge-ingress/manifests/0.2.0" \
   -H "Authorization: Bearer $(echo -n null | base64)" || true
 ```
-If missing, push to `main` to trigger CI, or build+push manually (see `docs/deployment/contabo-k3s.md` section 6.5).
+If any are missing, push to `main` to trigger CI, or build+push manually
+(see `docs/deployment/contabo-k3s.md` section 6.5). The mt-node image is
+built + verified in Phase 2.5 below — do NOT expect it in GHCR yet.
 
 ---
 
@@ -471,6 +478,14 @@ kubectl -n argocd wait --for=condition=Available deployment/argocd-server --time
 ```bash
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
 kubectl -n argocd port-forward svc/argocd-server 8080:443 &   # https://localhost:8080
+```
+10.2.1 **Log in with the ArgoCD CLI (REQUIRED).** The `argocd app set` in
+10.4 and every `argocd app sync` in Phase 12 fail with `not logged in`
+without this. Use the port-forward from 10.2 and the password from it:
+```bash
+ADMIN_ARGO_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
+argocd login 127.0.0.1:8080 --username admin --password "$ADMIN_ARGO_PWD" --insecure
+argocd account list   # confirms the session works
 ```
 10.3 Apply BOTH AppProjects + root app-of-apps:
 ```bash
