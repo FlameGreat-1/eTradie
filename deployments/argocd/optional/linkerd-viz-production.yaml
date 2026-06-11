@@ -46,14 +46,19 @@ spec:
       # (and disables the bundled Prometheus); left on the safe default
       # so the verification gate works without cross-stack coupling.
       values: |
-        # High-availability viz components for the production posture,
-        # matching the control plane's highAvailability.
+        # TABLE 2B (BUDGET.md): single-node Contabo. viz components are
+        # pinned to 1 replica (NOT the HA 2s) so this Application can be
+        # turned on for mesh verification without a manual replica edit
+        # and without exceeding the single-node CPU budget. Flip these
+        # back to 2 in lockstep with the control plane's
+        # highAvailability when moving to the multi-node cluster
+        # (BUDGET.md Table 5).
         tap:
-          replicas: 2
+          replicas: 1
         web:
-          replicas: 2
+          replicas: 1
         metricsAPI:
-          replicas: 2
+          replicas: 1
 
   destination:
     server: https://kubernetes.default.svc

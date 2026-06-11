@@ -39,6 +39,8 @@ one operator confirmation).
 |---|---|---|
 | linkerd-viz-production.yaml | Non-critical verification tooling; the mesh + mTLS itself stays ON | ~0.4 CPU / ~1Gi (tap+web+metrics-api + bundled Prometheus) |
 
-NOTE: this manifest pins the HA posture (tap/web/metricsAPI x2). On the
-single-node box, reduce the inline `values:` replicas to 1 each when
-turning it on temporarily.
+NOTE: this manifest is already pinned to the TABLE 2B single-node
+posture (tap/web/metricsAPI x1), so it can be turned on as-is for mesh
+verification. Flip the inline `values:` replicas back to 2 in lockstep
+with the control plane's `highAvailability` when moving to the
+multi-node cluster (BUDGET.md Table 5).

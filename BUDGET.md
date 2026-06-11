@@ -85,6 +85,20 @@ The complete stack — nothing removed: app + data layer, Loki/Promtail/OTel/Jae
 
 **State column legend:** ON = deployed in this profile. OFF = not deployed (re-enable by reverting the flagged values/ArgoCD change). ON (in-memory) = Jaeger Form A. ON (Burstable) = requests < limits, no Guaranteed QoS / CPU pinning. ON (transient) = scheduled CronJob, not steady-state. States reflect the Table 2B rollout implementation; each row is ticked as the corresponding code change lands.
 
+**Every disabled / OFF switch in this profile (operator re-enable index).** The resource grids below only carry an OFF row for workloads that cost budget (Linkerd viz). The switches in this table are zero-budget toggles or scheduling settings that are also turned OFF/down for the single-node profile; they are collected here so an operator has ONE place that lists everything that is OFF and exactly how to turn it back ON. None of these add to the floor; flipping them ON is what changes capacity/behaviour.
+
+| Switch | Staging | Production | Where (values key / file) | Re-enable action |
+|---|---|---|---|---|
+| HPAs (all app services) | OFF | OFF | `autoscaling.enabled` in each `helm/<svc>/values-{staging,production}.yaml` | Set `autoscaling.enabled: true` (revert to base values) on the multi-node cluster (Table 5). |
+| PodDisruptionBudgets (1-replica services) | OFF | OFF | `podDisruptionBudget.enabled` per chart overlay | Set `enabled: true` once `replicaCount > 1` (Table 5). |
+| Linkerd control-plane HA | OFF | OFF | `highAvailability: false` in `deployments/linkerd/control-plane-values.yaml` | Set `highAvailability: true` on the multi-node cluster (Table 5). |
+| Linkerd viz (verification tooling) | OFF | OFF | `deployments/argocd/optional/linkerd-viz-production.yaml` (in `optional/`, not `children/`) | `git mv` the manifest into `deployments/argocd/children/` (or `kubectl apply` it temporarily). Already pinned to 1 replica. |
+| Per-service Linkerd authorization | OFF | OFF | `linkerdPolicy.enabled` in each service chart's values | Set `linkerdPolicy.enabled: true` AFTER `linkerd viz edges` confirms 100% mTLS (runbook step 4). |
+| Wine-prefix snapshotter CronJob | OFF | OFF | `snapshotter.enabled: false` in `helm/mt-node/values-{staging,production}.yaml` | Install Longhorn/another snapshot-capable CSI, set `snapshotter.volumeSnapshotClassName` + `image.repository`, then `enabled: true`. |
+| Postgres backup CronJob | OFF | ON (transient) | `postgres.backup.enabled` in `helm/data-layer/values-{staging,production}.yaml` | Staging: set `postgres.backup.enabled: true` if staging needs durable dumps. |
+| Postgres restore drill | OFF | ON | `postgres.restoreDrill.enabled` in `helm/data-layer/values-{staging,production}.yaml` | Staging: set `restoreDrill.enabled: true` to exercise restores. |
+| Postgres offsite (B2) copy | OFF | ON | `postgres.backup.offsite.enabled` (`helm/data-layer/values-production.yaml`) | Populate the offsite Vault path, then `offsite.enabled: true` (base default OFF for dev). |
+
 **STAGING on Contabo, everything ON (target ~4–5 test users):**
 
 | Component | Req CPU | Req Mem | Limit CPU | Limit Mem | Replicas | Reserved CPU | Reserved Mem | State |
@@ -150,7 +164,12 @@ Staging at 5 users ≈ **7.2 CPU reserved at injector defaults** (over budget on
 | Linkerd viz @1 replica + viz Prometheus (est) | — | — | — | — | ~5 pods | ~0.4 | ~1.0Gi | OFF (non-critical; install on demand for mesh verification, e.g. before enabling linkerdPolicy) |
 | Linkerd proxy sidecars (verified 50m/64Mi each) | 50m | 64Mi | 200m | 256Mi | ~10 meshed pods | 0.5 | 0.64Gi | ON |
 | **Production floor (0 users, viz OFF: −0.4 CPU / −1.0Gi)** | | | | | | **≈ 5.7 CPU** | **≈ 9.1Gi** | — |
-| + Vault + ESO + ArgoCD + Stakater Reloader + K3s system (est allowance) | — | — | — | — | — | ~1.0 | ~2.6Gi | ON (external installs) |
+| K3s system (kube-apiserver, controller-manager, scheduler, embedded datastore, kubelet, containerd, CoreDNS, kube-proxy) (est) | — | — | — | — | — | ~0.4 | ~1.0Gi | ON (external install) |
+| ArgoCD (application-controller + repo-server + api-server + Redis + applicationset/notifications) (est) | — | — | — | — | ~5–7 pods | ~0.35 | ~0.9Gi | ON (external install) |
+| Vault (server + agent-injector webhook) (est) | — | — | — | — | 2 pods | ~0.2 | ~0.4Gi | ON (external install) |
+| External Secrets Operator (controller + webhook + cert-controller) (est) | — | — | — | — | ~3 pods | ~0.05 | ~0.2Gi | ON (external install) |
+| Stakater Reloader (est) | — | — | — | — | 1 pod | ~0.01 | ~0.1Gi | ON (external install) |
+| **External-installs subtotal (est allowance; replace with `kubectl top -A` soak data)** | | | | | | **~1.0** | **~2.6Gi** | — |
 | each MT user = mt-node 500m/1Gi + watchdog 100m/64Mi (verified) + Linkerd proxy 50m/64Mi (verified) + Vault Agent sidecar tuned to 50m/64Mi via vault.hashicorp.com annotations | — | — | — | — | 1/user | +0.70 | +1.19Gi | ON (Burstable) |
 
 **Transient workloads (excluded from the steady-state floor, scheduled headroom still required when they fire):** postgres backup CronJob 02:00 UTC (250m/256Mi) — OFF in staging (existing posture, rebuildable env), ON in production; weekly restore drill (100m/128Mi) — OFF in staging, ON in production; wine-prefix snapshotter CronJob (50m/96Mi) — **OFF in BOTH envs** (K3s local-path has no CSI VolumeSnapshot support; re-enable only after installing Longhorn or another snapshot-capable CSI and setting snapshotter.volumeSnapshotClassName); per-pod init containers (busybox wait-for-deps 10m/16Mi, engine alembic migrate, edge-ingress geoipupdate + AOP-CA preflight, Vault agent-init) — ON (inherent).
