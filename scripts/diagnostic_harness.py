@@ -6,9 +6,9 @@
 ═══════════════════════════════════════════════════════════════════════════
 
 Usage (inside Docker):
-    python3 src/diagnostic_harness.py BTCUSDm
-    python3 src/diagnostic_harness.py BTCUSDm --tf D1,H4
-    python3 src/diagnostic_harness.py EURUSDm --tf W1,D1,H4,H1,M30,M15
+    python3 scripts/diagnostic_harness.py BTCUSDm
+    python3 scripts/diagnostic_harness.py BTCUSDm --tf D1,H4
+    python3 scripts/diagnostic_harness.py EURUSDm --tf W1,D1,H4,H1,M30,M15
 
 Tests (in dependency order):
     1. Swing Detection
