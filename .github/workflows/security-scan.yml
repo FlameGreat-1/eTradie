@@ -28,7 +28,7 @@ jobs:
       - name: Set up Go (for gosec)
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
       - name: gosec — Go static analysis
@@ -56,7 +56,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25"
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
       - name: govulncheck — Go dependency CVEs
@@ -82,12 +82,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Trivy — filesystem vulnerability + misconfig scan
-        # Scans dependency manifests (go.sum, requirements/*, Cargo.lock)
-        # for known CVEs and the Dockerfiles/Helm/Kubernetes manifests
-        # for misconfigurations. Fails only on fixable HIGH/CRITICAL so
-        # the gate is actionable.
-        uses: aquasecurity/trivy-action@0.24.0
+      - name: Run Trivy vulnerability scanner on Docker image
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: fs
           scan-ref: .
@@ -145,11 +141,8 @@ jobs:
           load: true
           tags: etradie/${{ matrix.service }}:scan
           cache-from: type=gha,scope=${{ matrix.service }}
-      - name: Trivy — image layer vulnerability scan
-        # Scans the assembled image layers (OS packages + the Go binary)
-        # for known CVEs. Fails only on fixable HIGH/CRITICAL so the
-        # gate is actionable, matching the fs-scan posture above.
-        uses: aquasecurity/trivy-action@0.24.0
+      - name: Run Trivy vulnerability scanner on Edge Ingress code
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: image
           image-ref: etradie/${{ matrix.service }}:scan

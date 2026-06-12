@@ -5,7 +5,7 @@ use edge_ingress_common::{
     types::Region,
     EdgeError, Result,
 };
-use maxminddb::{geoip2, MaxMindDBError, Reader};
+use maxminddb::{geoip2, MaxMindDbError, Reader};
 use std::net::IpAddr;
 use std::path::Path;
 use std::sync::Arc;
@@ -47,19 +47,29 @@ impl GeoIpLookup {
     pub fn lookup(&self, ip: IpAddr) -> Result<RegionInfo> {
         let start = Instant::now();
 
-        let city_result: std::result::Result<geoip2::City, _> = self.reader.lookup(ip);
+        let lookup_result = self.reader.lookup(ip);
 
-        let city = match city_result {
-            Ok(c) => {
-                record_geoip_lookup("hit");
-                record_geoip_lookup_duration(start.elapsed().as_secs_f64());
-                c
-            }
-            Err(MaxMindDBError::AddressNotFoundError(_)) => {
-                record_geoip_lookup("miss");
-                record_geoip_lookup_duration(start.elapsed().as_secs_f64());
-                debug!(ip = %ip, "IP address not found in GeoIP database, using default region");
-                return Err(EdgeError::GeoIpLookupFailed(format!("IP {} not found in database", ip)));
+        let city = match lookup_result {
+            Ok(result) => {
+                match result.decode::<geoip2::City>() {
+                    Ok(Some(c)) => {
+                        record_geoip_lookup("hit");
+                        record_geoip_lookup_duration(start.elapsed().as_secs_f64());
+                        c
+                    }
+                    Ok(None) => {
+                        // The record exists but cannot be decoded as City
+                        record_geoip_lookup("miss");
+                        record_geoip_lookup_duration(start.elapsed().as_secs_f64());
+                        debug!(ip = %ip, "Record found but could not be decoded as City, using default region");
+                        return Err(EdgeError::GeoIpLookupFailed(format!("IP {} record not a City", ip)));
+                    }
+                    Err(e) => {
+                        record_geoip_lookup("error");
+                        record_geoip_lookup_duration(start.elapsed().as_secs_f64());
+                        return Err(EdgeError::GeoIpLookupFailed(format!("GeoIP decode failed for {}: {}", ip, e)));
+                    }
+                }
             }
             Err(e) => {
                 record_geoip_lookup("error");
@@ -68,22 +78,11 @@ impl GeoIpLookup {
             }
         };
 
-        let country_code = city
-            .country
-            .as_ref()
-            .and_then(|c| c.iso_code)
-            .map(|s| s.to_string());
+        let country_code = city.country.iso_code.map(|s| s.to_string());
+        let city_name = city.city.names.english.map(|s| s.to_string());
 
-        let city_name = city
-            .city
-            .as_ref()
-            .and_then(|c| c.names.as_ref())
-            .and_then(|names| names.get("en"))
-            .map(|s| s.to_string());
-
-        let location = city.location.as_ref();
-        let latitude = location.and_then(|l| l.latitude);
-        let longitude = location.and_then(|l| l.longitude);
+        let latitude = city.location.latitude;
+        let longitude = city.location.longitude;
 
         let region = self.determine_region(&country_code, latitude, longitude);
 

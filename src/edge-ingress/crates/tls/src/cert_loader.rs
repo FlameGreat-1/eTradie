@@ -4,11 +4,10 @@ use edge_ingress_common::{
     EdgeError, Result,
 };
 use rustls::{pki_types::PrivateKeyDer, sign::CertifiedKey};
-use rustls_pemfile::{certs, private_key};
+use rustls::pki_types::pem::PemObject;
 use std::{
     collections::HashMap,
     fs::File,
-    io::BufReader,
     path::Path,
     sync::Arc,
 };
@@ -65,7 +64,7 @@ impl CertificateLoader {
 
         self.validate_certificate_chain(&cert_chain, &cert_config.hostname)?;
 
-        let signing_key = rustls::crypto::ring::sign::any_supported_type(&private_key)
+        let signing_key = rustls::crypto::aws_lc_rs::sign::any_supported_type(&private_key)
             .map_err(|e| {
                 EdgeError::CertificateLoadFailed(format!(
                     "Invalid private key for {}: {}",
@@ -77,16 +76,14 @@ impl CertificateLoader {
     }
 
     fn load_cert_chain(&self, path: &Path) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>> {
-        let file = File::open(path).map_err(|e| {
-            EdgeError::CertificateLoadFailed(format!(
-                "Cannot open certificate file {}: {}",
-                path.display(),
-                e
-            ))
-        })?;
-
-        let mut reader = BufReader::new(file);
-        let cert_chain = certs(&mut reader)
+        let cert_chain = rustls::pki_types::CertificateDer::pem_file_iter(path)
+            .map_err(|e| {
+                EdgeError::CertificateLoadFailed(format!(
+                    "Cannot open or parse certificate file {}: {}",
+                    path.display(),
+                    e
+                ))
+            })?
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(|e| {
                 EdgeError::CertificateLoadFailed(format!(
@@ -107,27 +104,12 @@ impl CertificateLoader {
     }
 
     fn load_private_key(&self, path: &Path) -> Result<PrivateKeyDer<'static>> {
-        let file = File::open(path).map_err(|e| {
-            EdgeError::CertificateLoadFailed(format!(
-                "Cannot open private key file {}: {}",
-                path.display(),
-                e
-            ))
-        })?;
-
-        let mut reader = BufReader::new(file);
-        private_key(&mut reader)
+        rustls::pki_types::PrivateKeyDer::from_pem_file(path)
             .map_err(|e| {
                 EdgeError::CertificateLoadFailed(format!(
                     "Invalid private key format in {}: {}",
                     path.display(),
                     e
-                ))
-            })?
-            .ok_or_else(|| {
-                EdgeError::CertificateLoadFailed(format!(
-                    "No valid private key found in {}",
-                    path.display()
                 ))
             })
     }
