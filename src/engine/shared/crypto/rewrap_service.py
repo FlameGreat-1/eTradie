@@ -184,7 +184,7 @@ class CredentialRewrapService:
         """Read one keyset page ordered by id (stable, memory-bounded)."""
         where = "" if cursor is None else f"WHERE {target.id_column} > :cursor"
         sql = (
-            f"SELECT {col_list} FROM {target.table} "  # noqa: S608 - table/cols are module constants, not user input
+            f"SELECT {col_list} FROM {target.table} "  # nosec B608
             f"{where} ORDER BY {target.id_column} ASC LIMIT :limit"
         )
         params: dict = {"limit": self._batch_size}
@@ -291,7 +291,7 @@ class CredentialRewrapService:
         set_clauses = [f"{col} = :{col}" for col in updates]
         set_clauses.append(f"{target.key_version_column} = :__key_version")
         sql = (
-            f"UPDATE {target.table} SET {', '.join(set_clauses)} "  # noqa: S608 - identifiers are module constants nosec B608
+            f"UPDATE {target.table} SET {', '.join(set_clauses)} "  # nosec B608
             f"WHERE {target.id_column} = :__row_id"
         )
         params: dict = dict(updates)

@@ -344,8 +344,8 @@ class HostedProvisioner:
     async def _close(api) -> None:
         try:
             await api.api_client.close()
-        except Exception:  # noqa: BLE001 nosec B110
-            pass
+        except Exception:  # noqa: BLE001
+            pass  # nosec B110
 
     # -- Naming + label helpers ---------------------------------------------
 
@@ -1745,8 +1745,8 @@ class HostedProvisioner:
         finally:
             try:
                 sock.close(linger=0)
-            except Exception:  # noqa: BLE001 nosec B110
-                pass
+            except Exception:  # noqa: BLE001
+                pass  # nosec B110
 
     # -- Internal: deletion helpers -----------------------------------------
 

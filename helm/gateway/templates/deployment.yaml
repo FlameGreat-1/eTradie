@@ -25,9 +25,6 @@ spec:
         app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
         app.kubernetes.io/part-of: etradie
       annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: {{ .Values.service.ports.http.port | default 8080 | quote }}
-        prometheus.io/path: "/metrics"
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secrets: {{ include (print $.Template.BasePath "/externalsecret.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}

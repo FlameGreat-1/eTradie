@@ -92,8 +92,8 @@ _OUTPUT_SCHEMA = """{
   }
 }"""
 
-_SYSTEM_PROMPT = (
-    """You are the Analysis Processor for an AI-powered trading system. You are the ultimate judge.  # nosec B608
+_SYSTEM_PROMPT = (  # nosec B608
+    """You are the Analysis Processor for an AI-powered trading system. You are the ultimate judge.
 
 You are trading the LIVE MARKET. Your sole function is to deeply and thoroughly examine EVERY piece of provided data — technical analysis snapshots, SMC/SnD candidates, macroeconomic analysis, retrieved knowledge base rules, and metadata — then produce a single structured JSON trade analysis.
 

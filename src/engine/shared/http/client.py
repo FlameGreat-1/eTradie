@@ -266,7 +266,7 @@ class HttpClient:
             Delay in seconds
         """
         delay = min(self._backoff_base * (2**attempt), self._backoff_max)
-        jitter = random.uniform(0, delay * 0.5)  # noqa: S311 nosec B311
+        jitter = random.uniform(0, delay * 0.5)  # nosec B311
         return delay + jitter
 
     async def request(

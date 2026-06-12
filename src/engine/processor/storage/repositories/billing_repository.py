@@ -157,7 +157,8 @@ class BillingRepository:
         if column not in allowed:
             return
 
-        stmt = text(f"""  # nosec B608
+        stmt = text(  # nosec B608
+            f"""
             UPDATE billing_usage
             SET {column} = {column} + :amount
             WHERE user_id = :user_id

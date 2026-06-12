@@ -773,8 +773,8 @@ class Container:
             finally:
                 try:
                     await client.shutdown()
-                except Exception:  # noqa: BLE001 nosec B110
-                    pass
+                except Exception:  # noqa: BLE001
+                    pass  # nosec B110
 
         async def _catalog_sync_runner(
             *,
@@ -802,8 +802,8 @@ class Container:
             finally:
                 try:
                     await client.shutdown()
-                except Exception:  # noqa: BLE001 nosec B110
-                    pass
+                except Exception:  # noqa: BLE001
+                    pass  # nosec B110
 
             if not names:
                 return None

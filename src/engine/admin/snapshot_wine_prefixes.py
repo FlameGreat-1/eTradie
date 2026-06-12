@@ -232,12 +232,12 @@ async def main_async() -> int:
     finally:
         try:
             await core_api.api_client.close()
-        except Exception:  # noqa: BLE001 nosec B110
-            pass
+        except Exception:  # noqa: BLE001
+            pass  # nosec B110
         try:
             await custom_api.api_client.close()
-        except Exception:  # noqa: BLE001 nosec B110
-            pass
+        except Exception:  # noqa: BLE001
+            pass  # nosec B110
 
     return 1 if failures else 0
 
