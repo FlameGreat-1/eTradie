@@ -31,10 +31,19 @@ pub fn init_logging() {
     );
 }
 
-pub fn init_logging_with_otel() {
+/// Initialise structured JSON logging with an OpenTelemetry tracing layer.
+///
+/// `tracer` is the concrete SDK tracer produced by
+/// `opentelemetry_otlp ...install_batch()` in `init_otel_tracer`. It is
+/// passed in (rather than fetched via `global::tracer`, which returns a
+/// type-erased `BoxedTracer` that does not implement `PreSampledTracer`)
+/// so `OpenTelemetryLayer::new` accepts it. When `None` (the exporter
+/// failed to initialise) the OTel layer is omitted and only the JSON
+/// stdout subscriber is installed, so logging still works without trace
+/// export.
+pub fn init_logging_with_otel(tracer: Option<opentelemetry_sdk::trace::Tracer>) {
     use tracing_subscriber::{fmt, EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
     use tracing_opentelemetry::OpenTelemetryLayer;
-    use opentelemetry::global;
 
     let environment = env::var(ENVIRONMENT_ENV).unwrap_or_else(|_| "unknown".to_string());
 
@@ -47,21 +56,34 @@ pub fn init_logging_with_otel() {
         .with_current_span(true)
         .with_span_list(false);
 
-    let tracer = global::tracer(SERVICE_NAME);
-    let otel_layer = OpenTelemetryLayer::new(tracer);
-
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(fmt_layer)
-        .with(otel_layer)
-        .init();
-
-    info!(
-        service = SERVICE_NAME,
-        version = SERVICE_VERSION,
-        environment = %environment,
-        "logging initialized with OpenTelemetry"
-    );
+    match tracer {
+        Some(tracer) => {
+            let otel_layer = OpenTelemetryLayer::new(tracer);
+            tracing_subscriber::registry()
+                .with(filter)
+                .with(fmt_layer)
+                .with(otel_layer)
+                .init();
+            info!(
+                service = SERVICE_NAME,
+                version = SERVICE_VERSION,
+                environment = %environment,
+                "logging initialized with OpenTelemetry"
+            );
+        }
+        None => {
+            tracing_subscriber::registry()
+                .with(filter)
+                .with(fmt_layer)
+                .init();
+            info!(
+                service = SERVICE_NAME,
+                version = SERVICE_VERSION,
+                environment = %environment,
+                "logging initialized (OpenTelemetry export unavailable)"
+            );
+        }
+    }
 }
 
 pub fn log_connection_accepted(conn_info: &ConnectionInfo) {
