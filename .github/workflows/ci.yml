@@ -224,11 +224,12 @@ jobs:
             exit 1
           fi
       - name: helm lint - engine
-        run: helm lint helm/engine
+        run: helm lint helm/engine --set config.mtNode.image=ghcr.io/ci-stub/mt-node
       - name: helm template + kubeconform - engine staging
         run: |
           helm template etradie-engine helm/engine \
             -f helm/engine/values.yaml \
+            -f helm/engine/values-image.yaml \
             -f helm/engine/values-staging.yaml \
             > /tmp/engine-staging.yaml
           kubeconform -strict -kubernetes-version 1.30.0 \
@@ -239,6 +240,7 @@ jobs:
         run: |
           helm template etradie-engine helm/engine \
             -f helm/engine/values.yaml \
+            -f helm/engine/values-image.yaml \
             -f helm/engine/values-production.yaml \
             > /tmp/engine-production.yaml
           kubeconform -strict -kubernetes-version 1.30.0 \

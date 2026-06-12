@@ -752,7 +752,9 @@ async def stream_positions(websocket: WebSocket):
                     for p in positions
                 ]
 
-                current_hash = hashlib.md5(json.dumps(result, sort_keys=True).encode(), usedforsecurity=False).hexdigest()
+                current_hash = hashlib.md5(
+                    json.dumps(result, sort_keys=True).encode(), usedforsecurity=False
+                ).hexdigest()
                 if current_hash != last_state_hash:
                     await websocket.send_json(result)
                     last_state_hash = current_hash

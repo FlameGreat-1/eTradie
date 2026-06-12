@@ -14,7 +14,6 @@
 
 replicaCount: 2
 
-# Audit ref: X-3.
 revisionHistoryLimit: 10
 
 image:
