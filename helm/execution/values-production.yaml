@@ -10,9 +10,6 @@ image:
   pullPolicy: IfNotPresent
 
 podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "8080"
-  prometheus.io/path: "/metrics"
   cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
   tier: production
 

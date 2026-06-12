@@ -38,9 +38,6 @@ serviceAccount:
   automountServiceAccountToken: false
 
 podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "8080"
-  prometheus.io/path: "/metrics"
   # Join the Linkerd mesh in every environment. Native sidecar so the
   # proxy is Ready before the wait-for-deps init container dials meshed
   # postgres/redis/engine.
