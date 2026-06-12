@@ -166,6 +166,11 @@ pub enum RequestStatus {
     ClientError,
     Timeout,
     ConnectionFailed,
+    // Generic catch-all for a connection that failed before it could be
+    // classified into one of the specific variants above (e.g. it is the
+    // initial value in handler.rs::handle_connection, recorded on the
+    // connection-limit / TLS-handshake / routing early-return paths).
+    Error,
 }
 
 impl RequestStatus {
@@ -176,6 +181,7 @@ impl RequestStatus {
             RequestStatus::ClientError => "client_error",
             RequestStatus::Timeout => "timeout",
             RequestStatus::ConnectionFailed => "connection_failed",
+            RequestStatus::Error => "error",
         }
     }
 }
