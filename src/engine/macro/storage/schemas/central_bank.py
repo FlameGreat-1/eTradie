@@ -44,7 +44,9 @@ class CentralBankEventRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "bank", "title", "event_timestamp",
+            "bank",
+            "title",
+            "event_timestamp",
             name="uq_cb_bank_title_ts",
         ),
         Index("ix_cb_events_bank_timestamp", "bank", "event_timestamp"),
@@ -52,6 +54,7 @@ class CentralBankEventRow(Base):
         Index("ix_cb_events_created_at", "created_at"),
         Index(
             "ix_cb_events_policy_action",
-            "policy_action", "event_timestamp",
+            "policy_action",
+            "event_timestamp",
         ),
     )

@@ -71,22 +71,36 @@ impl ResponseBuilder {
             status,
             headers: vec![
                 ("content-type".to_string(), "application/json".to_string()),
-                (HEADER_X_CONTENT_TYPE_OPTIONS.to_string(), VALUE_X_CONTENT_TYPE_OPTIONS.to_string()),
-                (HEADER_X_FRAME_OPTIONS.to_string(), VALUE_X_FRAME_OPTIONS.to_string()),
-                (HEADER_REFERRER_POLICY.to_string(), VALUE_REFERRER_POLICY.to_string()),
-                (HEADER_CONTENT_SECURITY_POLICY.to_string(), VALUE_CONTENT_SECURITY_POLICY.to_string()),
+                (
+                    HEADER_X_CONTENT_TYPE_OPTIONS.to_string(),
+                    VALUE_X_CONTENT_TYPE_OPTIONS.to_string(),
+                ),
+                (
+                    HEADER_X_FRAME_OPTIONS.to_string(),
+                    VALUE_X_FRAME_OPTIONS.to_string(),
+                ),
+                (
+                    HEADER_REFERRER_POLICY.to_string(),
+                    VALUE_REFERRER_POLICY.to_string(),
+                ),
+                (
+                    HEADER_CONTENT_SECURITY_POLICY.to_string(),
+                    VALUE_CONTENT_SECURITY_POLICY.to_string(),
+                ),
             ],
             body: None,
         }
     }
 
     pub fn with_trace_id(mut self, trace_id: &str) -> Self {
-        self.headers.push((HEADER_X_TRACE_ID.to_string(), trace_id.to_string()));
+        self.headers
+            .push((HEADER_X_TRACE_ID.to_string(), trace_id.to_string()));
         self
     }
 
     pub fn with_retry_after(mut self, seconds: u64) -> Self {
-        self.headers.push((HEADER_RETRY_AFTER.to_string(), seconds.to_string()));
+        self.headers
+            .push((HEADER_RETRY_AFTER.to_string(), seconds.to_string()));
         self
     }
 
@@ -116,12 +130,15 @@ pub fn build_error_response(
 ) -> (u32, Vec<(String, String)>, String) {
     let status = error.http_status();
     let error_response = ErrorResponse::from_filter_error(error, trace_id);
-    
+
     let mut builder = ResponseBuilder::new(status)
         .with_trace_id(trace_id)
         .with_error_response(&error_response);
 
-    if let FilterError::RateLimitExceeded { retry_after_secs, .. } = error {
+    if let FilterError::RateLimitExceeded {
+        retry_after_secs, ..
+    } = error
+    {
         builder = builder.with_retry_after(*retry_after_secs);
     }
 
@@ -134,7 +151,7 @@ pub fn build_security_event_response(
     status: u32,
 ) -> (u32, Vec<(String, String)>, String) {
     let error_response = ErrorResponse::from_security_event(event);
-    
+
     let builder = ResponseBuilder::new(status)
         .with_trace_id(&event.trace_id)
         .with_error_response(&error_response);

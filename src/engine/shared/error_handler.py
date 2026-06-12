@@ -30,7 +30,9 @@ logger = get_logger(__name__)
 _GENERIC_500_BODY = {"detail": "internal server error"}
 
 
-async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+async def _unhandled_exception_handler(
+    request: Request, exc: Exception
+) -> JSONResponse:
     """Log the unhandled exception and return a sanitized 500."""
     log_panic_recovery(
         logger,

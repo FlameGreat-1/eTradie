@@ -83,22 +83,87 @@ _OLD_INDEXES_TO_DROP = [
 
 # New indexes with user_id prefix.
 _NEW_INDEXES = [
-    ("calendar_events", "ix_cal_user_currency_time", ["user_id", "currency", "event_time"], False),
+    (
+        "calendar_events",
+        "ix_cal_user_currency_time",
+        ["user_id", "currency", "event_time"],
+        False,
+    ),
     ("calendar_events", "ix_cal_user_event_time", ["user_id", "event_time"], False),
-    ("calendar_events", "ix_cal_user_impact_time", ["user_id", "impact", "event_time"], False),
-    ("central_bank_events", "ix_cb_events_user_bank_timestamp", ["user_id", "bank", "event_timestamp"], False),
-    ("central_bank_events", "ix_cb_events_user_event_type", ["user_id", "event_type"], False),
-    ("central_bank_events", "ix_cb_events_user_created_at", ["user_id", "created_at"], False),
-    ("central_bank_events", "ix_cb_events_user_policy_action", ["user_id", "policy_action", "event_timestamp"], False),
-    ("cot_reports", "ix_cot_user_currency_date", ["user_id", "currency", "report_date"], False),
+    (
+        "calendar_events",
+        "ix_cal_user_impact_time",
+        ["user_id", "impact", "event_time"],
+        False,
+    ),
+    (
+        "central_bank_events",
+        "ix_cb_events_user_bank_timestamp",
+        ["user_id", "bank", "event_timestamp"],
+        False,
+    ),
+    (
+        "central_bank_events",
+        "ix_cb_events_user_event_type",
+        ["user_id", "event_type"],
+        False,
+    ),
+    (
+        "central_bank_events",
+        "ix_cb_events_user_created_at",
+        ["user_id", "created_at"],
+        False,
+    ),
+    (
+        "central_bank_events",
+        "ix_cb_events_user_policy_action",
+        ["user_id", "policy_action", "event_timestamp"],
+        False,
+    ),
+    (
+        "cot_reports",
+        "ix_cot_user_currency_date",
+        ["user_id", "currency", "report_date"],
+        False,
+    ),
     ("cot_reports", "ix_cot_user_report_date", ["user_id", "report_date"], False),
-    ("cot_reports", "ix_cot_user_extreme_flag", ["user_id", "extreme_flag", "report_date"], False),
+    (
+        "cot_reports",
+        "ix_cot_user_extreme_flag",
+        ["user_id", "extreme_flag", "report_date"],
+        False,
+    ),
     ("dxy_snapshots", "ix_dxy_user_analyzed_at", ["user_id", "analyzed_at"], False),
-    ("economic_releases", "ix_econ_user_currency_indicator", ["user_id", "currency", "indicator"], False),
-    ("economic_releases", "ix_econ_user_release_time", ["user_id", "release_time"], False),
-    ("economic_releases", "ix_econ_user_currency_release", ["user_id", "currency", "release_time"], False),
-    ("economic_releases", "ix_econ_user_inflation_type", ["user_id", "inflation_type", "release_time"], False),
-    ("intermarket_snapshots", "ix_intermarket_user_snapshot_at", ["user_id", "snapshot_at"], False),
+    (
+        "economic_releases",
+        "ix_econ_user_currency_indicator",
+        ["user_id", "currency", "indicator"],
+        False,
+    ),
+    (
+        "economic_releases",
+        "ix_econ_user_release_time",
+        ["user_id", "release_time"],
+        False,
+    ),
+    (
+        "economic_releases",
+        "ix_econ_user_currency_release",
+        ["user_id", "currency", "release_time"],
+        False,
+    ),
+    (
+        "economic_releases",
+        "ix_econ_user_inflation_type",
+        ["user_id", "inflation_type", "release_time"],
+        False,
+    ),
+    (
+        "intermarket_snapshots",
+        "ix_intermarket_user_snapshot_at",
+        ["user_id", "snapshot_at"],
+        False,
+    ),
     ("news_items", "ix_news_user_published_at", ["user_id", "published_at"], False),
     ("news_items", "ix_news_user_impact", ["user_id", "impact"], False),
 ]
@@ -111,10 +176,26 @@ _OLD_CONSTRAINTS_TO_DROP = [
 
 # New unique constraints with user_id.
 _NEW_CONSTRAINTS = [
-    ("calendar_events", "uq_cal_user_event", ["user_id", "event_name", "currency", "event_time"]),
-    ("central_bank_events", "uq_cb_user_bank_title_ts", ["user_id", "bank", "title", "event_timestamp"]),
-    ("cot_reports", "uq_cot_user_currency_date", ["user_id", "currency", "report_date"]),
-    ("economic_releases", "uq_econ_user_currency_indicator_time", ["user_id", "currency", "indicator", "release_time"]),
+    (
+        "calendar_events",
+        "uq_cal_user_event",
+        ["user_id", "event_name", "currency", "event_time"],
+    ),
+    (
+        "central_bank_events",
+        "uq_cb_user_bank_title_ts",
+        ["user_id", "bank", "title", "event_timestamp"],
+    ),
+    (
+        "cot_reports",
+        "uq_cot_user_currency_date",
+        ["user_id", "currency", "report_date"],
+    ),
+    (
+        "economic_releases",
+        "uq_econ_user_currency_indicator_time",
+        ["user_id", "currency", "indicator", "release_time"],
+    ),
     ("news_items", "uq_news_user_dedupe_hash", ["user_id", "dedupe_hash"]),
 ]
 
@@ -125,9 +206,7 @@ def _get_existing_indexes(insp, table_name: str) -> set[str]:
 
 def _get_existing_constraints(insp, table_name: str) -> set[str]:
     return {
-        uc["name"]
-        for uc in insp.get_unique_constraints(table_name)
-        if uc.get("name")
+        uc["name"] for uc in insp.get_unique_constraints(table_name) if uc.get("name")
     }
 
 
@@ -147,7 +226,9 @@ def upgrade() -> None:
 
         op.add_column(
             table_name,
-            sa.Column("user_id", sa.String(64), nullable=False, server_default="system"),
+            sa.Column(
+                "user_id", sa.String(64), nullable=False, server_default="system"
+            ),
         )
 
         index_name = _USER_ID_INDEXES[table_name]
@@ -230,10 +311,18 @@ def downgrade() -> None:
         ("calendar_events", "ix_cal_currency_time", ["currency", "event_time"]),
         ("calendar_events", "ix_cal_event_time", ["event_time"]),
         ("calendar_events", "ix_cal_impact_time", ["impact", "event_time"]),
-        ("central_bank_events", "ix_cb_events_bank_timestamp", ["bank", "event_timestamp"]),
+        (
+            "central_bank_events",
+            "ix_cb_events_bank_timestamp",
+            ["bank", "event_timestamp"],
+        ),
         ("central_bank_events", "ix_cb_events_event_type", ["event_type"]),
         ("central_bank_events", "ix_cb_events_created_at", ["created_at"]),
-        ("central_bank_events", "ix_cb_events_policy_action", ["policy_action", "event_timestamp"]),
+        (
+            "central_bank_events",
+            "ix_cb_events_policy_action",
+            ["policy_action", "event_timestamp"],
+        ),
         ("cot_reports", "ix_cot_currency_date", ["currency", "report_date"]),
         ("cot_reports", "ix_cot_report_date", ["report_date"]),
         ("cot_reports", "ix_cot_extreme_flag", ["extreme_flag", "report_date"]),
@@ -241,7 +330,11 @@ def downgrade() -> None:
         ("economic_releases", "ix_econ_currency_indicator", ["currency", "indicator"]),
         ("economic_releases", "ix_econ_release_time", ["release_time"]),
         ("economic_releases", "ix_econ_currency_release", ["currency", "release_time"]),
-        ("economic_releases", "ix_econ_inflation_type", ["inflation_type", "release_time"]),
+        (
+            "economic_releases",
+            "ix_econ_inflation_type",
+            ["inflation_type", "release_time"],
+        ),
         ("intermarket_snapshots", "ix_intermarket_snapshot_at", ["snapshot_at"]),
         ("news_items", "ix_news_published_at", ["published_at"]),
         ("news_items", "ix_news_impact", ["impact"]),

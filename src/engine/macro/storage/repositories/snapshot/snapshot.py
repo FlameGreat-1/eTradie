@@ -25,9 +25,7 @@ class MacroSnapshotRepository(BaseRepository[MacroSnapshotRow]):
     async def get_payload(self, namespace: str) -> dict[str, Any] | None:
         """Return the last persisted dataset JSON for a namespace, or None."""
         stmt = (
-            select(self.model.payload)
-            .where(self.model.namespace == namespace)
-            .limit(1)
+            select(self.model.payload).where(self.model.namespace == namespace).limit(1)
         )
         result = await self._session.execute(stmt)
         row = result.scalar_one_or_none()

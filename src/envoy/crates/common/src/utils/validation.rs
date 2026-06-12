@@ -1,6 +1,4 @@
-use crate::constants::{
-    MAX_HEADER_COUNT, MAX_HEADER_SIZE, MAX_USER_AGENT_SIZE,
-};
+use crate::constants::{MAX_HEADER_COUNT, MAX_HEADER_SIZE, MAX_USER_AGENT_SIZE};
 use crate::error::{FilterError, FilterResult};
 
 pub fn validate_ascii(value: &str, field_name: &str) -> FilterResult<()> {
@@ -58,7 +56,10 @@ pub fn validate_user_agent(user_agent: &str) -> FilterResult<()> {
     if user_agent.len() > MAX_USER_AGENT_SIZE {
         return Err(FilterError::InvalidHeader {
             header: "User-Agent".to_string(),
-            reason: format!("Exceeds maximum length of {} characters", MAX_USER_AGENT_SIZE),
+            reason: format!(
+                "Exceeds maximum length of {} characters",
+                MAX_USER_AGENT_SIZE
+            ),
         });
     }
 
@@ -68,9 +69,17 @@ pub fn validate_user_agent(user_agent: &str) -> FilterResult<()> {
 }
 
 pub fn validate_content_type(content_type: &str, allowed_types: &[&str]) -> FilterResult<()> {
-    let normalized = content_type.split(';').next().unwrap_or("").trim().to_lowercase();
+    let normalized = content_type
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_lowercase();
 
-    if !allowed_types.iter().any(|&allowed| normalized == allowed.to_lowercase()) {
+    if !allowed_types
+        .iter()
+        .any(|&allowed| normalized == allowed.to_lowercase())
+    {
         return Err(FilterError::InvalidContentType {
             content_type: content_type.to_string(),
         });
@@ -99,7 +108,7 @@ pub fn sanitize_header_value(value: &str) -> String {
 pub fn is_valid_header_name(name: &str) -> bool {
     !name.is_empty()
         && name.is_ascii()
-        && name.chars().all(|c| {
-            c.is_ascii_alphanumeric() || c == '-' || c == '_'
-        })
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }

@@ -30,6 +30,14 @@ func (m *mockExecutionPort) CancelOrder(_ context.Context, _, _, _, _ string) er
 	return nil
 }
 
+func (m *mockExecutionPort) HaltState(ctx context.Context, targetUserID string) (global bool, user bool, err error) {
+	return false, false, nil
+}
+
+func (m *mockExecutionPort) SetHaltState(ctx context.Context, scope, targetUserID string, halted bool) (global bool, user bool, err error) {
+	return false, false, nil
+}
+
 // ── Router Tests ────────────────────────────────────────────────────────────
 
 func TestRouter_NoSetup_ProcessorRejects(t *testing.T) {

@@ -86,10 +86,19 @@ impl FilterError {
                 format!("HTTP method '{}' not allowed", method)
             }
             Self::PayloadTooLarge { size, max_size } => {
-                format!("Request payload too large: {} bytes (max: {} bytes)", size, max_size)
+                format!(
+                    "Request payload too large: {} bytes (max: {} bytes)",
+                    size, max_size
+                )
             }
-            Self::RateLimitExceeded { limit_type, retry_after_secs } => {
-                format!("{} rate limit exceeded. Retry after {} seconds", limit_type, retry_after_secs)
+            Self::RateLimitExceeded {
+                limit_type,
+                retry_after_secs,
+            } => {
+                format!(
+                    "{} rate limit exceeded. Retry after {} seconds",
+                    limit_type, retry_after_secs
+                )
             }
             Self::InvalidContentType { content_type } => {
                 format!("Content-Type '{}' not allowed", content_type)
@@ -98,7 +107,10 @@ impl FilterError {
                 format!("Required header '{}' is missing", header)
             }
             Self::HeaderSizeLimitExceeded { size, max_size } => {
-                format!("Header size {} bytes exceeds maximum {} bytes", size, max_size)
+                format!(
+                    "Header size {} bytes exceeds maximum {} bytes",
+                    size, max_size
+                )
             }
             Self::HeaderCountLimitExceeded { count, max_count } => {
                 format!("Header count {} exceeds maximum {}", count, max_count)

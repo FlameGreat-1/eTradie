@@ -76,7 +76,9 @@ class MetaApiClient(BrokerBase):
     """Cloud-based MT5 data provider via MetaApi.cloud REST API."""
 
     _BASE_URL_TEMPLATE = "https://mt-client-api-v1.{region}.agiliumtrade.ai"
-    _MARKET_DATA_URL_TEMPLATE = "https://mt-market-data-client-api-v1.{region}.agiliumtrade.ai"
+    _MARKET_DATA_URL_TEMPLATE = (
+        "https://mt-market-data-client-api-v1.{region}.agiliumtrade.ai"
+    )
 
     def __init__(
         self,
@@ -99,12 +101,18 @@ class MetaApiClient(BrokerBase):
         self._base_url = (
             config.metaapi_base_url
             if config.metaapi_base_url
-            else self._BASE_URL_TEMPLATE.format(region=config.metaapi_region or "new-york")
+            else self._BASE_URL_TEMPLATE.format(
+                region=config.metaapi_region or "new-york"
+            )
         )
         self._market_data_base_url = (
-            config.metaapi_base_url.replace("mt-client-api-v1", "mt-market-data-client-api-v1")
+            config.metaapi_base_url.replace(
+                "mt-client-api-v1", "mt-market-data-client-api-v1"
+            )
             if config.metaapi_base_url
-            else self._MARKET_DATA_URL_TEMPLATE.format(region=config.metaapi_region or "new-york")
+            else self._MARKET_DATA_URL_TEMPLATE.format(
+                region=config.metaapi_region or "new-york"
+            )
         )
         self._auth_headers = {
             "auth-token": config.metaapi_token,
@@ -238,9 +246,7 @@ class MetaApiClient(BrokerBase):
             else:
                 params["limit"] = 500
 
-            path = (
-                f"/historical-market-data/symbols/{urllib.parse.quote(symbol)}/timeframes/{ma_tf}/candles"
-            )
+            path = f"/historical-market-data/symbols/{urllib.parse.quote(symbol)}/timeframes/{ma_tf}/candles"
             # Acquire the right semaphore tier for this request. Foreground
             # work (default) takes one foreground slot AND one global slot;
             # background work (pre-warm, revalidate) takes one background
@@ -493,9 +499,7 @@ class MetaApiClient(BrokerBase):
                 raw={"state": state, "connectionStatus": connection_status},
                 error_type="" if ok else "DisconnectedFromBroker",
                 error_message=(
-                    ""
-                    if ok
-                    else f"state={state} connectionStatus={connection_status}"
+                    "" if ok else f"state={state} connectionStatus={connection_status}"
                 ),
             )
         except Exception as exc:  # noqa: BLE001
@@ -580,6 +584,7 @@ class MetaApiClient(BrokerBase):
 
     async def get_history(self, days: int = 30) -> list[HistoryDealInfo]:
         from datetime import timedelta
+
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(days=days)
         start_str = start_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
@@ -587,7 +592,7 @@ class MetaApiClient(BrokerBase):
 
         # MetaApi endpoint for historical deals
         path = f"/history-deals/time/{start_str}/{end_str}"
-        
+
         try:
             raw = await self._api_get(path, category="history")
         except Exception as e:
@@ -609,7 +614,7 @@ class MetaApiClient(BrokerBase):
                 continue
 
             direction = "BUY" if deal_type == "DEAL_TYPE_SELL" else "SELL"
-            
+
             # Parse time
             time_str = h.get("time", "")
             deal_time = 0

@@ -22,6 +22,7 @@ versions; the generator's _fetch_profile resolves the authoritative
 version from the gateway at job execution time and overrides this
 sentinel. See engine.processor.performance_review.generator.
 """
+
 from __future__ import annotations
 
 import os
@@ -54,9 +55,7 @@ def _compute_weekly_window(now: datetime) -> tuple[datetime, datetime]:
 def _compute_monthly_window(now: datetime) -> tuple[datetime, datetime]:
     """Last full calendar month (UTC)."""
     now = now.astimezone(timezone.utc)
-    first_of_this_month = now.replace(
-        day=1, hour=0, minute=0, second=0, microsecond=0
-    )
+    first_of_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     # Last day of previous month at 23:59:59.999999.
     last_day_prev = first_of_this_month - timedelta(microseconds=1)
     first_of_prev_month = last_day_prev.replace(
@@ -151,9 +150,7 @@ async def _run_period_cron(app: FastAPI, period: str) -> None:
     self-URL is required.
     """
     gateway_url = (
-        os.environ.get("ENGINE_GATEWAY_URL")
-        or os.environ.get("GATEWAY_HTTP_URL")
-        or ""
+        os.environ.get("ENGINE_GATEWAY_URL") or os.environ.get("GATEWAY_HTTP_URL") or ""
     ).strip()
     secret = (
         os.environ.get("ENGINE_INTERNAL_SHARED_SECRET")

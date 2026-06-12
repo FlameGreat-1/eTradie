@@ -147,9 +147,7 @@ def compute_trade_levels(
             risk_reward = 3.0
     if not _is_positive_finite(risk_reward):
         return None
-    if structural_extreme is not None and not _is_positive_finite(
-        structural_extreme
-    ):
+    if structural_extreme is not None and not _is_positive_finite(structural_extreme):
         return None
 
     if direction not in (Direction.BEARISH, Direction.BULLISH):
@@ -175,7 +173,9 @@ def compute_trade_levels(
 
     if direction == Direction.BEARISH:
         # SL sits ABOVE the structural extreme (or entry if absent).
-        sl_anchor = structural_extreme if structural_extreme is not None else entry_price
+        sl_anchor = (
+            structural_extreme if structural_extreme is not None else entry_price
+        )
         stop_loss = calculate_price_from_pips(
             base_price=sl_anchor,
             pips=sl_buffer_pips,
@@ -192,7 +192,9 @@ def compute_trade_levels(
         take_profit = entry_price - (risk * risk_reward)
     else:  # BULLISH
         # SL sits BELOW the structural extreme (or entry if absent).
-        sl_anchor = structural_extreme if structural_extreme is not None else entry_price
+        sl_anchor = (
+            structural_extreme if structural_extreme is not None else entry_price
+        )
         stop_loss = calculate_price_from_pips(
             base_price=sl_anchor,
             pips=sl_buffer_pips,

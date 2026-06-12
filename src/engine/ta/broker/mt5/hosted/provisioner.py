@@ -91,7 +91,9 @@ ChartSymbolWriter = Callable[[str, str], Awaitable[None]]
 # helm/engine/values.yaml::config.mtNode.image). The constructor
 # enforces this contract via _resolve_image() below.
 MT_NODE_IMAGE_DEV_FALLBACK = "etradie-mt-node:dev"
-CONTAINER_PREFIX = "etradie-mt-"  # release-name prefix; first 12 chars of connection_id appended
+CONTAINER_PREFIX = (
+    "etradie-mt-"  # release-name prefix; first 12 chars of connection_id appended
+)
 DEFAULT_ZMQ_PORT = 5555
 DEFAULT_WATCHDOG_PORT = 9100
 NAMESPACE_DEFAULT = "etradie-system"
@@ -140,6 +142,7 @@ def service_dns_for(release: str, namespace: str) -> str:
 
 def namespace_default() -> str:
     return os.environ.get("MT_NODE_NAMESPACE", NAMESPACE_DEFAULT)
+
 
 # Environment-bound resource sizing (overridable via env, with chart-aligned defaults).
 _MEM_LIMIT = os.environ.get("MT_NODE_MEM_LIMIT", "1536Mi")
@@ -198,6 +201,7 @@ def _parse_json_envelope(env_name: str, raw: str, expected: type):
         return None
     return parsed
 
+
 # Readiness gate.
 _READINESS_TIMEOUT_SECS = float(os.environ.get("MT_NODE_READINESS_TIMEOUT_SECS", "300"))
 _READINESS_POLL_SECS = float(os.environ.get("MT_NODE_READINESS_POLL_SECS", "3"))
@@ -207,7 +211,10 @@ _ZMQ_PROBE_TIMEOUT_SECS = float(os.environ.get("MT_NODE_ZMQ_PROBE_TIMEOUT_SECS",
 _VAULT_TENANT_PATH_PREFIX = "tenants/mt-node"
 # Vault role the per-tenant Pod's Vault Agent uses (matches
 # infrastructure/cluster/vault-paths/mt_node_tenant_secrets.tf).
-_VAULT_TENANT_ROLE = os.environ.get("MT_NODE_VAULT_TENANT_ROLE", "mt-node-tenant").strip() or "mt-node-tenant"
+_VAULT_TENANT_ROLE = (
+    os.environ.get("MT_NODE_VAULT_TENANT_ROLE", "mt-node-tenant").strip()
+    or "mt-node-tenant"
+)
 # File the Vault Agent Injector renders the credentials into; the
 # mt-node entrypoint sources it.
 _VAULT_SECRETS_FILE = "mt-credentials.env"
@@ -254,7 +261,9 @@ class HostedProvisioner:
         self._image = image or self._resolve_image()
         # Platform Secret name the chart provisions. Defaults to the
         # release-scoped name helm/mt-node renders for a release.
-        self._platform_secret_template = platform_default_token_secret_name or "{release}-platform"
+        self._platform_secret_template = (
+            platform_default_token_secret_name or "{release}-platform"
+        )
         self._vault = vault_client
         # Injected by Container: keeps DB + broker-client coupling out
         # of the K8s module. Both are required for hosted provisioning;
@@ -572,7 +581,11 @@ class HostedProvisioner:
             # only ApiException) and re-raises so the router still
             # surfaces the original error to the dashboard.
             try:
-                timeout = readiness_timeout_secs if readiness_timeout_secs is not None else _READINESS_TIMEOUT_SECS
+                timeout = (
+                    readiness_timeout_secs
+                    if readiness_timeout_secs is not None
+                    else _READINESS_TIMEOUT_SECS
+                )
                 await self._wait_ready(
                     core_api=core_api,
                     apps_api=apps_api,
@@ -656,7 +669,8 @@ class HostedProvisioner:
         try:
             try:
                 sts = await apps_api.read_namespaced_stateful_set(
-                    name=container_id, namespace=self._namespace,
+                    name=container_id,
+                    namespace=self._namespace,
                 )
             except ApiException as exc:
                 if exc.status == 404:
@@ -675,7 +689,11 @@ class HostedProvisioner:
 
             ready = int(sts.status.ready_replicas or 0)
             replicas = int(sts.status.replicas or 0)
-            current = int(sts.status.current_replicas or 0) if hasattr(sts.status, "current_replicas") else replicas
+            current = (
+                int(sts.status.current_replicas or 0)
+                if hasattr(sts.status, "current_replicas")
+                else replicas
+            )
             running = ready >= 1
             return {
                 "container_id": container_id,
@@ -684,7 +702,11 @@ class HostedProvisioner:
                 "ready_replicas": ready,
                 "replicas": replicas,
                 "current_replicas": current,
-                "started_at": str(sts.metadata.creation_timestamp) if sts.metadata.creation_timestamp else None,
+                "started_at": (
+                    str(sts.metadata.creation_timestamp)
+                    if sts.metadata.creation_timestamp
+                    else None
+                ),
                 "exit_code": 0 if running else -1,
             }
         finally:
@@ -712,10 +734,14 @@ class HostedProvisioner:
         ok = True
         try:
             ok &= await self._safe_delete(
-                apps_api.delete_namespaced_stateful_set, container_id, "StatefulSet",
+                apps_api.delete_namespaced_stateful_set,
+                container_id,
+                "StatefulSet",
             )
             ok &= await self._safe_delete(
-                core_api.delete_namespaced_service, container_id, "Service",
+                core_api.delete_namespaced_service,
+                container_id,
+                "Service",
             )
             ok &= await self._safe_delete(
                 core_api.delete_namespaced_service,
@@ -795,10 +821,14 @@ class HostedProvisioner:
                         extra={"statefulset": name, "connection_id": lbl},
                     )
                     await self._safe_delete(
-                        apps_api.delete_namespaced_stateful_set, name, "StatefulSet",
+                        apps_api.delete_namespaced_stateful_set,
+                        name,
+                        "StatefulSet",
                     )
                     await self._safe_delete(
-                        core_api.delete_namespaced_service, name, "Service",
+                        core_api.delete_namespaced_service,
+                        name,
+                        "Service",
                     )
                     await self._safe_delete(
                         core_api.delete_namespaced_service,
@@ -807,11 +837,13 @@ class HostedProvisioner:
                     )
                     await self._safe_delete(
                         core_api.delete_namespaced_service_account,
-                        name, "ServiceAccount",
+                        name,
+                        "ServiceAccount",
                     )
                     await self._safe_delete(
                         core_api.delete_namespaced_secret,
-                        f"{name}-creds", "Secret(legacy-creds)",
+                        f"{name}-creds",
+                        "Secret(legacy-creds)",
                     )
                     await self._safe_delete(
                         core_api.delete_namespaced_config_map,
@@ -820,7 +852,8 @@ class HostedProvisioner:
                     )
                     await self._safe_delete(
                         core_api.delete_namespaced_persistent_volume_claim,
-                        _pvc_name_for(name), "PVC",
+                        _pvc_name_for(name),
+                        "PVC",
                     )
                     await self._destroy_vault_path(self._vault_path_for(name))
                     deleted.append(name)
@@ -899,7 +932,9 @@ class HostedProvisioner:
         }
         body = client.V1ConfigMap(
             metadata=client.V1ObjectMeta(
-                name=name, namespace=self._namespace, labels=labels,
+                name=name,
+                namespace=self._namespace,
+                labels=labels,
             ),
             data=data,
         )
@@ -907,19 +942,23 @@ class HostedProvisioner:
             with attempt:
                 try:
                     await core_api.create_namespaced_config_map(
-                        namespace=self._namespace, body=body,
+                        namespace=self._namespace,
+                        body=body,
                     )
                     return
                 except ApiException as exc:
                     if exc.status == 409:
                         existing = await core_api.read_namespaced_config_map(
-                            name=name, namespace=self._namespace,
+                            name=name,
+                            namespace=self._namespace,
                         )
                         body.metadata.resource_version = (
                             existing.metadata.resource_version
                         )
                         await core_api.replace_namespaced_config_map(
-                            name=name, namespace=self._namespace, body=body,
+                            name=name,
+                            namespace=self._namespace,
+                            body=body,
                         )
                         return
                     raise
@@ -942,7 +981,9 @@ class HostedProvisioner:
         """
         body = client.V1ServiceAccount(
             metadata=client.V1ObjectMeta(
-                name=name, namespace=self._namespace, labels=labels,
+                name=name,
+                namespace=self._namespace,
+                labels=labels,
             ),
             automount_service_account_token=True,
         )
@@ -950,19 +991,23 @@ class HostedProvisioner:
             with attempt:
                 try:
                     await core_api.create_namespaced_service_account(
-                        namespace=self._namespace, body=body,
+                        namespace=self._namespace,
+                        body=body,
                     )
                     return
                 except ApiException as exc:
                     if exc.status == 409:
                         existing = await core_api.read_namespaced_service_account(
-                            name=name, namespace=self._namespace,
+                            name=name,
+                            namespace=self._namespace,
                         )
                         body.metadata.resource_version = (
                             existing.metadata.resource_version
                         )
                         await core_api.replace_namespaced_service_account(
-                            name=name, namespace=self._namespace, body=body,
+                            name=name,
+                            namespace=self._namespace,
+                            body=body,
                         )
                         return
                     raise
@@ -1010,7 +1055,9 @@ class HostedProvisioner:
             client.V1EnvVar(
                 name="POD_NAMESPACE",
                 value_from=client.V1EnvVarSource(
-                    field_ref=client.V1ObjectFieldSelector(field_path="metadata.namespace"),
+                    field_ref=client.V1ObjectFieldSelector(
+                        field_path="metadata.namespace"
+                    ),
                 ),
             ),
         ]
@@ -1069,7 +1116,9 @@ class HostedProvisioner:
             env=env,
             env_from=env_from,
             ports=[
-                client.V1ContainerPort(name="zmq", container_port=zmq_port, protocol="TCP"),
+                client.V1ContainerPort(
+                    name="zmq", container_port=zmq_port, protocol="TCP"
+                ),
             ],
             resources=self._resource_requirements(),
             security_context=container_security_ctx,
@@ -1109,7 +1158,9 @@ class HostedProvisioner:
             volume_mounts=[
                 # wine-prefix is supplied by volumeClaimTemplates below;
                 # K8s wires the per-replica PVC automatically.
-                client.V1VolumeMount(name=_PVC_TEMPLATE_NAME, mount_path="/home/mt/.wine"),
+                client.V1VolumeMount(
+                    name=_PVC_TEMPLATE_NAME, mount_path="/home/mt/.wine"
+                ),
                 client.V1VolumeMount(name="mt-cache", mount_path="/home/mt/.cache"),
                 client.V1VolumeMount(name="tmp", mount_path="/tmp"),
                 client.V1VolumeMount(name="var-tmp", mount_path="/var/tmp"),
@@ -1169,7 +1220,9 @@ class HostedProvisioner:
             client.V1EnvVar(
                 name="POD_NAMESPACE",
                 value_from=client.V1EnvVarSource(
-                    field_ref=client.V1ObjectFieldSelector(field_path="metadata.namespace"),
+                    field_ref=client.V1ObjectFieldSelector(
+                        field_path="metadata.namespace"
+                    ),
                 ),
             ),
         ]
@@ -1187,7 +1240,9 @@ class HostedProvisioner:
             env=watchdog_env,
             env_from=watchdog_env_from,
             ports=[
-                client.V1ContainerPort(name="watchdog", container_port=watchdog_port, protocol="TCP"),
+                client.V1ContainerPort(
+                    name="watchdog", container_port=watchdog_port, protocol="TCP"
+                ),
             ],
             resources=watchdog_resources,
             security_context=container_security_ctx,
@@ -1202,19 +1257,29 @@ class HostedProvisioner:
         # typed Tolerations / Affinity / TopologySpreadConstraint objects
         # because the OpenAPI serialisation handles the camelCase mapping.
         tolerations_raw = _parse_json_envelope(
-            "MT_NODE_TOLERATIONS_JSON", _TOLERATIONS_JSON_RAW, list,
+            "MT_NODE_TOLERATIONS_JSON",
+            _TOLERATIONS_JSON_RAW,
+            list,
         )
         node_selector = _parse_json_envelope(
-            "MT_NODE_NODE_SELECTOR_JSON", _NODE_SELECTOR_JSON_RAW, dict,
+            "MT_NODE_NODE_SELECTOR_JSON",
+            _NODE_SELECTOR_JSON_RAW,
+            dict,
         )
         affinity_raw = _parse_json_envelope(
-            "MT_NODE_AFFINITY_JSON", _AFFINITY_JSON_RAW, dict,
+            "MT_NODE_AFFINITY_JSON",
+            _AFFINITY_JSON_RAW,
+            dict,
         )
         topology_spread_raw = _parse_json_envelope(
-            "MT_NODE_TOPOLOGY_SPREAD_JSON", _TOPOLOGY_SPREAD_JSON_RAW, list,
+            "MT_NODE_TOPOLOGY_SPREAD_JSON",
+            _TOPOLOGY_SPREAD_JSON_RAW,
+            list,
         )
         pod_annotations = _parse_json_envelope(
-            "MT_NODE_POD_ANNOTATIONS_JSON", _POD_ANNOTATIONS_JSON_RAW, dict,
+            "MT_NODE_POD_ANNOTATIONS_JSON",
+            _POD_ANNOTATIONS_JSON_RAW,
+            dict,
         )
 
         # ── Pod spec ───────────────────────────────────────────────────────
@@ -1239,9 +1304,18 @@ class HostedProvisioner:
             # Inline volumes only; the wine-prefix volume is supplied by
             # volumeClaimTemplates below.
             volumes=[
-                client.V1Volume(name="mt-cache", empty_dir=client.V1EmptyDirVolumeSource(size_limit="256Mi")),
-                client.V1Volume(name="tmp", empty_dir=client.V1EmptyDirVolumeSource(size_limit="256Mi")),
-                client.V1Volume(name="var-tmp", empty_dir=client.V1EmptyDirVolumeSource(size_limit="64Mi")),
+                client.V1Volume(
+                    name="mt-cache",
+                    empty_dir=client.V1EmptyDirVolumeSource(size_limit="256Mi"),
+                ),
+                client.V1Volume(
+                    name="tmp",
+                    empty_dir=client.V1EmptyDirVolumeSource(size_limit="256Mi"),
+                ),
+                client.V1Volume(
+                    name="var-tmp",
+                    empty_dir=client.V1EmptyDirVolumeSource(size_limit="64Mi"),
+                ),
             ],
             priority_class_name=_PRIORITY_CLASS_NAME_RAW or None,
             tolerations=tolerations_raw,
@@ -1276,9 +1350,7 @@ class HostedProvisioner:
         # push updates into a running Pod's tmpfs; the Pod must
         # restart for the new credentials to take effect.
         vault_template = (
-            "{{- with secret \""
-            + f"{self._vault_data_path(vault_path)}"
-            + "\" -}}\n"
+            '{{- with secret "' + f"{self._vault_data_path(vault_path)}" + '" -}}\n'
             "export MT_LOGIN={{ .Data.data.mt5_login }}\n"
             "export MT_PASSWORD={{ .Data.data.mt5_password }}\n"
             "export MT_ZMQ_AUTH_TOKEN={{ .Data.data.mt5_zmq_auth_token }}\n"
@@ -1290,28 +1362,27 @@ class HostedProvisioner:
             "vault.hashicorp.com/role": _VAULT_TENANT_ROLE,
             "vault.hashicorp.com/agent-pre-populate-only": "false",
             "vault.hashicorp.com/agent-init-first": "true",
-            f"vault.hashicorp.com/agent-inject-secret-{_VAULT_SECRETS_FILE}":
-                self._vault_data_path(vault_path),
-            f"vault.hashicorp.com/agent-inject-template-{_VAULT_SECRETS_FILE}":
-                vault_template,
+            f"vault.hashicorp.com/agent-inject-secret-{_VAULT_SECRETS_FILE}": self._vault_data_path(
+                vault_path
+            ),
+            f"vault.hashicorp.com/agent-inject-template-{_VAULT_SECRETS_FILE}": vault_template,
         }
         # Stamp the sentinel-or-real symbol's resolution moment on the
         # initial pod template so a chart upgrade that replaces the
         # StatefulSet does not lose the annotation; HostedRecoveryService
         # uses it as a freshness signal.
         if symbol != SYMBOL_PENDING_SENTINEL:
-            merged_annotations["etradie.io/symbol-resolved-at"] = str(
-                int(_time.time())
-            )
+            merged_annotations["etradie.io/symbol-resolved-at"] = str(int(_time.time()))
         if pod_annotations:
             merged_annotations.update(pod_annotations)
         if credentials_checksum:
-            merged_annotations[
-                "etradie.io/vault-credentials-checksum"
-            ] = credentials_checksum
+            merged_annotations["etradie.io/vault-credentials-checksum"] = (
+                credentials_checksum
+            )
 
         pod_template_metadata = client.V1ObjectMeta(
-            labels=selector | {
+            labels=selector
+            | {
                 _LABEL_PART_OF: _PART_OF_VALUE,
                 _LABEL_COMPONENT: "mt-node",
                 _LABEL_USER_ID: labels[_LABEL_USER_ID],
@@ -1346,14 +1417,18 @@ class HostedProvisioner:
         )
 
         sts = client.V1StatefulSet(
-            metadata=client.V1ObjectMeta(name=release, namespace=self._namespace, labels=labels),
+            metadata=client.V1ObjectMeta(
+                name=release, namespace=self._namespace, labels=labels
+            ),
             spec=client.V1StatefulSetSpec(
                 replicas=1,
                 service_name=headless_service_name,
                 pod_management_policy="OrderedReady",
                 update_strategy=client.V1StatefulSetUpdateStrategy(
                     type="RollingUpdate",
-                    rolling_update=client.V1RollingUpdateStatefulSetStrategy(partition=0),
+                    rolling_update=client.V1RollingUpdateStatefulSetStrategy(
+                        partition=0
+                    ),
                 ),
                 revision_history_limit=5,
                 selector=client.V1LabelSelector(match_labels=selector),
@@ -1366,13 +1441,16 @@ class HostedProvisioner:
             with attempt:
                 try:
                     await apps_api.create_namespaced_stateful_set(
-                        namespace=self._namespace, body=sts,
+                        namespace=self._namespace,
+                        body=sts,
                     )
                     return
                 except ApiException as exc:
                     if exc.status == 409:
                         await apps_api.replace_namespaced_stateful_set(
-                            name=release, namespace=self._namespace, body=sts,
+                            name=release,
+                            namespace=self._namespace,
+                            body=sts,
                         )
                         return
                     raise
@@ -1401,13 +1479,19 @@ class HostedProvisioner:
         # the watchdog via the regular ClusterIP Service's ServiceMonitor.
         ports = [
             client.V1ServicePort(
-                name="zmq", port=zmq_port, target_port="zmq", protocol="TCP",
+                name="zmq",
+                port=zmq_port,
+                target_port="zmq",
+                protocol="TCP",
             ),
         ]
         if not headless:
             ports.append(
                 client.V1ServicePort(
-                    name="watchdog", port=watchdog_port, target_port="watchdog", protocol="TCP",
+                    name="watchdog",
+                    port=watchdog_port,
+                    target_port="watchdog",
+                    protocol="TCP",
                 ),
             )
         service_spec = client.V1ServiceSpec(
@@ -1418,29 +1502,37 @@ class HostedProvisioner:
             ports=ports,
         )
         service = client.V1Service(
-            metadata=client.V1ObjectMeta(name=name, namespace=self._namespace, labels=labels),
+            metadata=client.V1ObjectMeta(
+                name=name, namespace=self._namespace, labels=labels
+            ),
             spec=service_spec,
         )
         async for attempt in await self._retrying():
             with attempt:
                 try:
                     await core_api.create_namespaced_service(
-                        namespace=self._namespace, body=service,
+                        namespace=self._namespace,
+                        body=service,
                     )
                     return
                 except ApiException as exc:
                     if exc.status == 409:
                         existing = await core_api.read_namespaced_service(
-                            name=name, namespace=self._namespace,
+                            name=name,
+                            namespace=self._namespace,
                         )
                         # Preserve clusterIP (immutable). For a headless
                         # service the existing clusterIP is 'None' and
                         # we keep it; for a regular service it's the
                         # allocated IP and we must also keep it.
                         service.spec.cluster_ip = existing.spec.cluster_ip
-                        service.metadata.resource_version = existing.metadata.resource_version
+                        service.metadata.resource_version = (
+                            existing.metadata.resource_version
+                        )
                         await core_api.replace_namespaced_service(
-                            name=name, namespace=self._namespace, body=service,
+                            name=name,
+                            namespace=self._namespace,
+                            body=service,
                         )
                         return
                     raise
@@ -1473,7 +1565,8 @@ class HostedProvisioner:
         while _time.monotonic() < deadline:
             try:
                 sts = await apps_api.read_namespaced_stateful_set(
-                    name=release, namespace=self._namespace,
+                    name=release,
+                    namespace=self._namespace,
                 )
                 ready = int(sts.status.ready_replicas or 0)
                 if ready >= 1:
@@ -1482,7 +1575,11 @@ class HostedProvisioner:
                 last_error = exc
                 logger.debug(
                     "hosted_readiness_sts_poll_error",
-                    extra={"release": release, "status": exc.status, "reason": exc.reason},
+                    extra={
+                        "release": release,
+                        "status": exc.status,
+                        "reason": exc.reason,
+                    },
                 )
             await asyncio.sleep(_READINESS_POLL_SECS)
         else:
@@ -1621,8 +1718,7 @@ class HostedProvisioner:
                 "template": {
                     "metadata": {
                         "annotations": {
-                            "etradie.io/symbol-resolved-at":
-                                str(int(_time.time())),
+                            "etradie.io/symbol-resolved-at": str(int(_time.time())),
                         },
                     },
                     "spec": {
@@ -1708,7 +1804,12 @@ class HostedProvisioner:
                 return True
             logger.warning(
                 "hosted_resource_delete_failed",
-                extra={"kind": kind, "name": name, "status": exc.status, "reason": exc.reason},
+                extra={
+                    "kind": kind,
+                    "name": name,
+                    "status": exc.status,
+                    "reason": exc.reason,
+                },
             )
             return False
 
@@ -1727,9 +1828,17 @@ class HostedProvisioner:
         for fn, name, kind in (
             (apps_api.delete_namespaced_stateful_set, release, "StatefulSet"),
             (core_api.delete_namespaced_service, service_name, "Service"),
-            (core_api.delete_namespaced_service, headless_service_name, "Service(headless)"),
+            (
+                core_api.delete_namespaced_service,
+                headless_service_name,
+                "Service(headless)",
+            ),
             (core_api.delete_namespaced_service_account, sa_name, "ServiceAccount"),
-            (core_api.delete_namespaced_secret, f"{release}-creds", "Secret(legacy-creds)"),
+            (
+                core_api.delete_namespaced_secret,
+                f"{release}-creds",
+                "Secret(legacy-creds)",
+            ),
             (
                 core_api.delete_namespaced_config_map,
                 f"{release}-watchdog-config",

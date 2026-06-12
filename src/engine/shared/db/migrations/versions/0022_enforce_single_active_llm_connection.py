@@ -20,9 +20,9 @@ is_platform = false; the platform row has is_platform = true and
 user_id = NULL) so they get separate partial unique indexes that
 cannot interact.
 """
+
 from alembic import op
 import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision = "0022"
@@ -48,8 +48,7 @@ def upgrade() -> None:
     #    Platform scope: at most one row should have is_platform = true.
     #    Same logic without the user_id partition.
     # ------------------------------------------------------------------
-    op.execute(
-        """
+    op.execute("""
         WITH ranked AS (
             SELECT
                 id,
@@ -66,11 +65,9 @@ def upgrade() -> None:
            SET is_active = false,
                updated_at = NOW()
          WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
-        """
-    )
+        """)
 
-    op.execute(
-        """
+    op.execute("""
         WITH ranked AS (
             SELECT
                 id,
@@ -85,8 +82,7 @@ def upgrade() -> None:
            SET is_active = false,
                updated_at = NOW()
          WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
-        """
-    )
+        """)
 
     # ------------------------------------------------------------------
     # 2. Personal-scope partial unique index.
@@ -105,9 +101,7 @@ def upgrade() -> None:
         "llm_connections",
         ["user_id"],
         unique=True,
-        postgresql_where=sa.text(
-            "is_active = true AND is_platform = false"
-        ),
+        postgresql_where=sa.text("is_active = true AND is_platform = false"),
     )
 
     # ------------------------------------------------------------------
@@ -123,9 +117,7 @@ def upgrade() -> None:
         "llm_connections",
         ["is_platform"],
         unique=True,
-        postgresql_where=sa.text(
-            "is_active = true AND is_platform = true"
-        ),
+        postgresql_where=sa.text("is_active = true AND is_platform = true"),
     )
 
 

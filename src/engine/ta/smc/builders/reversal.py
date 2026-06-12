@@ -159,7 +159,9 @@ class ReversalBuilder:
             protective_level=htf_sms.failed_level,
         )
         take_profit = self._find_nearest_bsl_target(
-            entry_price, swing_highs or [], pip_val,
+            entry_price,
+            swing_highs or [],
+            pip_val,
             stop_loss=stop_loss,
             min_tp_rr=resolve_min_tp_rr(ltf_ob.timeframe),
         )
@@ -303,7 +305,9 @@ class ReversalBuilder:
             protective_level=htf_sms.failed_level,
         )
         take_profit = self._find_nearest_ssl_target(
-            entry_price, swing_lows or [], pip_val,
+            entry_price,
+            swing_lows or [],
+            pip_val,
             stop_loss=stop_loss,
             min_tp_rr=resolve_min_tp_rr(ltf_ob.timeframe),
         )
@@ -410,7 +414,9 @@ class ReversalBuilder:
         )
         stop_loss = min(structural_sl, turtle_min_sl)
         take_profit = self._find_nearest_bsl_target(
-            entry_price, swing_highs or [], pip_val,
+            entry_price,
+            swing_highs or [],
+            pip_val,
             stop_loss=stop_loss,
             min_tp_rr=resolve_min_tp_rr(ltf_sequence.timeframe),
         )
@@ -493,7 +499,9 @@ class ReversalBuilder:
         )
         stop_loss = max(structural_sl, turtle_min_sl)
         take_profit = self._find_nearest_ssl_target(
-            entry_price, swing_lows or [], pip_val,
+            entry_price,
+            swing_lows or [],
+            pip_val,
             stop_loss=stop_loss,
             min_tp_rr=resolve_min_tp_rr(ltf_sequence.timeframe),
         )
@@ -616,11 +624,7 @@ class ReversalBuilder:
         invalidation_level = (
             protective_level
             if protective_level is not None
-            else (
-                ob.lower_bound
-                if direction == Direction.BULLISH
-                else ob.upper_bound
-            )
+            else (ob.lower_bound if direction == Direction.BULLISH else ob.upper_bound)
         )
         ob_inner_edge = (
             ob.lower_bound if direction == Direction.BULLISH else ob.upper_bound
@@ -656,9 +660,9 @@ class ReversalBuilder:
             min_reward = sl_distance * rr
 
         candidates = [
-            sh.price for sh in swing_highs
-            if sh.price > entry_price
-            and (sh.price - entry_price) >= min_reward
+            sh.price
+            for sh in swing_highs
+            if sh.price > entry_price and (sh.price - entry_price) >= min_reward
         ]
         if candidates:
             return min(candidates)
@@ -687,9 +691,9 @@ class ReversalBuilder:
             min_reward = sl_distance * rr
 
         candidates = [
-            sl.price for sl in swing_lows
-            if sl.price < entry_price
-            and (entry_price - sl.price) >= min_reward
+            sl.price
+            for sl in swing_lows
+            if sl.price < entry_price and (entry_price - sl.price) >= min_reward
         ]
         if candidates:
             return max(candidates)

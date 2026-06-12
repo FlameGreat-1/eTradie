@@ -108,9 +108,7 @@ mod tests {
 
     #[test]
     fn test_calculate_content_length_missing() {
-        let headers = vec![
-            ("content-type".to_string(), "application/json".to_string()),
-        ];
+        let headers = vec![("content-type".to_string(), "application/json".to_string())];
 
         let length = calculate_content_length(&headers);
         assert_eq!(length, None);
@@ -118,14 +116,10 @@ mod tests {
 
     #[test]
     fn test_has_content_length() {
-        let headers_with = vec![
-            ("content-length".to_string(), "1024".to_string()),
-        ];
+        let headers_with = vec![("content-length".to_string(), "1024".to_string())];
         assert!(has_content_length(&headers_with));
 
-        let headers_without = vec![
-            ("content-type".to_string(), "application/json".to_string()),
-        ];
+        let headers_without = vec![("content-type".to_string(), "application/json".to_string())];
         assert!(!has_content_length(&headers_without));
     }
 

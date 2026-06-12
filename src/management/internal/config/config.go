@@ -71,8 +71,8 @@ type Config struct {
 	RedisURL string `envconfig:"REDIS_URL" default:"redis://localhost:6379/1"`
 
 	// Observability.
-	LogLevel        string `envconfig:"LOG_LEVEL" default:"INFO"`
-	LogJSON         bool   `envconfig:"LOG_JSON" default:"true"`
+	LogLevel string `envconfig:"LOG_LEVEL" default:"INFO"`
+	LogJSON  bool   `envconfig:"LOG_JSON" default:"true"`
 	// Empty = tracing disabled (opt-in no-op), matching the engine,
 	// gateway, and execution. The Helm configmap injects the real
 	// collector endpoint in the prod/staging overlays. A non-empty

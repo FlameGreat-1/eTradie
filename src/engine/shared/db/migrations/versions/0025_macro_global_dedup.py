@@ -52,6 +52,7 @@ Revision ID: 0025
 Revises: 0024
 Create Date: 2026-05-25
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
@@ -207,19 +208,14 @@ _DEAD_TABLE = "news_items"
 # table after each operation is negligible compared to the safety of
 # never operating on a stale view of the schema mid-migration.
 
+
 def _existing_indexes(insp, table_name: str) -> set[str]:
-    return {
-        idx["name"]
-        for idx in insp.get_indexes(table_name)
-        if idx.get("name")
-    }
+    return {idx["name"] for idx in insp.get_indexes(table_name) if idx.get("name")}
 
 
 def _existing_unique_constraints(insp, table_name: str) -> set[str]:
     return {
-        uc["name"]
-        for uc in insp.get_unique_constraints(table_name)
-        if uc.get("name")
+        uc["name"] for uc in insp.get_unique_constraints(table_name) if uc.get("name")
     }
 
 
@@ -228,6 +224,7 @@ def _existing_columns(insp, table_name: str) -> set[str]:
 
 
 # ── Upgrade ────────────────────────────────────────────────────────────
+
 
 def upgrade() -> None:
     conn = op.get_bind()
@@ -256,7 +253,9 @@ def upgrade() -> None:
             existing_uq = _existing_unique_constraints(insp, table)
             if entry["tenant_uq"] in existing_uq:
                 op.drop_constraint(
-                    entry["tenant_uq"], table, type_="unique",
+                    entry["tenant_uq"],
+                    table,
+                    type_="unique",
                 )
 
         # 1c. Create the global unique constraint declared by the ORM.
@@ -268,7 +267,9 @@ def upgrade() -> None:
         existing_uq = _existing_unique_constraints(insp, table)
         if global_uq_name not in existing_uq:
             op.create_unique_constraint(
-                global_uq_name, table, global_uq_cols,
+                global_uq_name,
+                table,
+                global_uq_cols,
             )
 
         # 1d. Drop the user_id column. We do this AFTER the unique
@@ -325,6 +326,7 @@ def upgrade() -> None:
 # The block uses the same idempotency guards as upgrade() so a
 # partially-applied downgrade is safe to resume.
 
+
 def downgrade() -> None:
     conn = op.get_bind()
     insp = inspect(conn)
@@ -342,12 +344,8 @@ def downgrade() -> None:
             ),
             sa.Column("headline", sa.String(1000), nullable=False),
             sa.Column("source", sa.String(50), nullable=False),
-            sa.Column(
-                "url", sa.String(2000), nullable=False, server_default=""
-            ),
-            sa.Column(
-                "summary", sa.Text, nullable=False, server_default=""
-            ),
+            sa.Column("url", sa.String(2000), nullable=False, server_default=""),
+            sa.Column("summary", sa.Text, nullable=False, server_default=""),
             sa.Column(
                 "currencies",
                 postgresql.ARRAY(sa.String(5)),
@@ -367,9 +365,7 @@ def downgrade() -> None:
                 server_default="MEDIUM",
             ),
             sa.Column("dedupe_hash", sa.String(64), nullable=False),
-            sa.Column(
-                "published_at", sa.DateTime(timezone=True), nullable=False
-            ),
+            sa.Column("published_at", sa.DateTime(timezone=True), nullable=False),
             sa.Column(
                 "created_at",
                 sa.DateTime(timezone=True),
@@ -394,10 +390,14 @@ def downgrade() -> None:
             ["user_id", "published_at"],
         )
         op.create_index(
-            "ix_news_user_impact", _DEAD_TABLE, ["user_id", "impact"],
+            "ix_news_user_impact",
+            _DEAD_TABLE,
+            ["user_id", "impact"],
         )
         op.create_index(
-            "ix_news_user_id", _DEAD_TABLE, ["user_id"],
+            "ix_news_user_id",
+            _DEAD_TABLE,
+            ["user_id"],
         )
 
     # ── 2. Reverse the global -> tenant swap on each macro table ───
@@ -425,7 +425,9 @@ def downgrade() -> None:
         existing_uq = _existing_unique_constraints(insp, table)
         if global_uq_name in existing_uq:
             op.drop_constraint(
-                global_uq_name, table, type_="unique",
+                global_uq_name,
+                table,
+                type_="unique",
             )
 
         # 2c. Re-add the user_id column with the 'system' default 0013
@@ -453,7 +455,9 @@ def downgrade() -> None:
             existing_uq = _existing_unique_constraints(insp, table)
             if entry["tenant_uq"] not in existing_uq:
                 op.create_unique_constraint(
-                    entry["tenant_uq"], table, tenant_uq_cols,
+                    entry["tenant_uq"],
+                    table,
+                    tenant_uq_cols,
                 )
 
         # 2e. Recreate the tenant indexes 0013 originally installed.
@@ -465,34 +469,48 @@ def downgrade() -> None:
         tenant_ix_columns = {
             # calendar_events
             "ix_cal_user_currency_time": [
-                "user_id", "currency", "event_time",
+                "user_id",
+                "currency",
+                "event_time",
             ],
             "ix_cal_user_event_time": ["user_id", "event_time"],
             "ix_cal_user_impact_time": [
-                "user_id", "impact", "event_time",
+                "user_id",
+                "impact",
+                "event_time",
             ],
             "ix_cal_user_id": ["user_id"],
             # central_bank_events
             "ix_cb_events_user_bank_timestamp": [
-                "user_id", "bank", "event_timestamp",
+                "user_id",
+                "bank",
+                "event_timestamp",
             ],
             "ix_cb_events_user_event_type": [
-                "user_id", "event_type",
+                "user_id",
+                "event_type",
             ],
             "ix_cb_events_user_created_at": [
-                "user_id", "created_at",
+                "user_id",
+                "created_at",
             ],
             "ix_cb_events_user_policy_action": [
-                "user_id", "policy_action", "event_timestamp",
+                "user_id",
+                "policy_action",
+                "event_timestamp",
             ],
             "ix_cb_events_user_id": ["user_id"],
             # cot_reports
             "ix_cot_user_currency_date": [
-                "user_id", "currency", "report_date",
+                "user_id",
+                "currency",
+                "report_date",
             ],
             "ix_cot_user_report_date": ["user_id", "report_date"],
             "ix_cot_user_extreme_flag": [
-                "user_id", "extreme_flag", "report_date",
+                "user_id",
+                "extreme_flag",
+                "report_date",
             ],
             "ix_cot_user_id": ["user_id"],
             # economic_releases
@@ -503,7 +521,8 @@ def downgrade() -> None:
             "ix_dxy_user_id": ["user_id"],
             # intermarket_snapshots
             "ix_intermarket_user_snapshot_at": [
-                "user_id", "snapshot_at",
+                "user_id",
+                "snapshot_at",
             ],
             "ix_intermarket_user_id": ["user_id"],
         }

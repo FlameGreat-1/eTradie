@@ -11,6 +11,7 @@ Routes:
     WS  /api/broker/stream-ticks
     WS  /api/broker/stream-positions
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,7 +20,15 @@ import json
 import time as _time
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 
 from engine.dependencies import Container
 from engine.helpers import _resolve_user_broker
@@ -49,11 +58,15 @@ router = APIRouter()
 from collections import OrderedDict
 
 _BROKER_SYMBOLS_CACHE_CAPACITY: int = 1024
-_broker_symbols_cache: "OrderedDict[tuple[str, str, str], tuple[dict, float]]" = OrderedDict()
+_broker_symbols_cache: "OrderedDict[tuple[str, str, str], tuple[dict, float]]" = (
+    OrderedDict()
+)
 
 
 def _broker_symbols_cache_get(
-    key: tuple[str, str, str], *, now: float,
+    key: tuple[str, str, str],
+    *,
+    now: float,
 ) -> dict | None:
     """Return the cached payload for `key` if still fresh, else None.
 
@@ -112,7 +125,7 @@ async def broker_symbols(
     # account_id) tuple this user's symbols belong to.
     broker_client = await _resolve_user_broker(container, user.user_id)
     if not broker_client:
-         raise HTTPException(status_code=503, detail="No active broker connection")
+        raise HTTPException(status_code=503, detail="No active broker connection")
 
     cache_key = (
         user.user_id,
@@ -131,14 +144,14 @@ async def broker_symbols(
             # 1. Fetch from persistent registry (Ordered by name for UI consistency)
             db_symbols = await uow.broker_symbol_repo.get_all_by_account(
                 provider=broker_client.provider_name,
-                account_id=broker_client.account_id
+                account_id=broker_client.account_id,
             )
 
             # 2. If registry is empty, trigger an immediate sync and return names as fallback
             if not db_symbols:
                 logger.info(
                     "broker_registry_empty_triggering_initial_sync",
-                    extra={"user_id": user.user_id}
+                    extra={"user_id": user.user_id},
                 )
                 sync_service = BrokerSyncService(broker_client, ta_uow_factory)
                 # Dispatch background task
@@ -147,7 +160,9 @@ async def broker_symbols(
                 # Fallback to fast broker call (names only) for initial display
                 try:
                     raw_names = await broker_client.get_all_symbol_names()
-                    symbols = [{"name": n, "description": n, "path": n} for n in raw_names]
+                    symbols = [
+                        {"name": n, "description": n, "path": n} for n in raw_names
+                    ]
                 except Exception:
                     # If even the fallback fails, return an empty list instead of crashing the UI
                     symbols = []
@@ -159,14 +174,17 @@ async def broker_symbols(
                         "description": s.description or s.name,
                         "path": s.path or s.name,
                         "digits": s.digits,
-                        "point": s.point
+                        "point": s.point,
                     }
                     for s in sorted(db_symbols, key=lambda x: x.name)
                 ]
 
         result = {"symbols": symbols, "count": len(symbols)}
         _broker_symbols_cache_set(
-            cache_key, result, now=now, ttl_seconds=10.0,
+            cache_key,
+            result,
+            now=now,
+            ttl_seconds=10.0,
         )
         return result
 
@@ -175,23 +193,45 @@ async def broker_symbols(
             "broker_symbols_failed",
             extra={"error": str(exc), "user_id": user.user_id},
         )
-        raise HTTPException(status_code=502, detail="Could not fetch broker symbols. Please try again in a moment.")
+        raise HTTPException(
+            status_code=502,
+            detail="Could not fetch broker symbols. Please try again in a moment.",
+        )
 
 
 # -- Timeframe map (shared by candles + pre-warm) --------------------------
 
 _TF_MAP = {
-    "M1": TF.M1, "M5": TF.M5, "M15": TF.M15, "M30": TF.M30,
-    "H1": TF.H1, "H3": TF.H3, "H4": TF.H4,
-    "H6": TF.H6, "H8": TF.H8, "H12": TF.H12,
-    "D1": TF.D1, "W1": TF.W1, "MN1": TF.MN1,
+    "M1": TF.M1,
+    "M5": TF.M5,
+    "M15": TF.M15,
+    "M30": TF.M30,
+    "H1": TF.H1,
+    "H3": TF.H3,
+    "H4": TF.H4,
+    "H6": TF.H6,
+    "H8": TF.H8,
+    "H12": TF.H12,
+    "D1": TF.D1,
+    "W1": TF.W1,
+    "MN1": TF.MN1,
 }
 
 # Full timeframe coverage for pre-warming.
 _PREWARM_TIMEFRAMES = (
-    "M1", "M5", "M15", "M30",
-    "H1", "H3", "H4", "H6", "H8", "H12",
-    "D1", "W1", "MN1",
+    "M1",
+    "M5",
+    "M15",
+    "M30",
+    "H1",
+    "H3",
+    "H4",
+    "H6",
+    "H8",
+    "H12",
+    "D1",
+    "W1",
+    "MN1",
 )
 
 
@@ -224,9 +264,7 @@ async def chart_candles(
     tf_norm = timeframe.upper()
     tf = _TF_MAP.get(tf_norm)
     if tf is None:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid timeframe: {timeframe}"
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid timeframe: {timeframe}")
 
     container: Container = request.app.state.container
 
@@ -295,15 +333,11 @@ async def chart_candles(
         if not acquired:
             return None
         try:
-            payload = await _fetch_from_broker(
-                tf, tf_norm, background=background
-            )
+            payload = await _fetch_from_broker(tf, tf_norm, background=background)
             await _store(cache_key, payload)
             return payload
         finally:
-            await container.cache.release_lock(
-                "candles", lock_key, token
-            )
+            await container.cache.release_lock("candles", lock_key, token)
 
     async def _background_revalidate() -> None:
         """Coordinator-friendly revalidation factory."""
@@ -335,9 +369,7 @@ async def chart_candles(
             other_key = f"{user.user_id}:{safe_symbol}:{other_tf}:{bg_count}"
 
             try:
-                exists, age = await container.cache.get_meta_only(
-                    "candles", other_key
-                )
+                exists, age = await container.cache.get_meta_only("candles", other_key)
             except Exception:
                 exists, age = False, None
             if exists and (age is None or age < REVALIDATE_AFTER_S):
@@ -354,9 +386,7 @@ async def chart_candles(
                 other_tf_enum = _TF_MAP.get(other_tf)
                 if other_tf_enum is None:
                     continue
-                client = await _resolve_user_broker(
-                    container, user.user_id
-                )
+                client = await _resolve_user_broker(container, user.user_id)
                 with broker_priority(BrokerRequestPriority.BACKGROUND):
                     seq = await asyncio.wait_for(
                         client.fetch_candles(
@@ -430,9 +460,7 @@ async def chart_candles(
 
     # 1. Fast path: read cache and decide on freshness.
     try:
-        cached, age = await container.cache.get_with_meta(
-            "candles", cache_key
-        )
+        cached, age = await container.cache.get_with_meta("candles", cache_key)
     except Exception as e:
         logger.warning(
             "candles_cache_get_failed",
@@ -469,7 +497,8 @@ async def chart_candles(
             },
         )
         raise HTTPException(
-            status_code=502, detail="Could not fetch chart data. Please try again in a moment."
+            status_code=502,
+            detail="Could not fetch chart data. Please try again in a moment.",
         )
 
     if payload is not None:
@@ -480,16 +509,12 @@ async def chart_candles(
     while loop.time() < deadline:
         await asyncio.sleep(LOCK_WAIT_POLL_S)
         try:
-            exists, _ = await container.cache.get_meta_only(
-                "candles", cache_key
-            )
+            exists, _ = await container.cache.get_meta_only("candles", cache_key)
         except Exception:
             exists = False
         if exists:
             try:
-                cached, _ = await container.cache.get_with_meta(
-                    "candles", cache_key
-                )
+                cached, _ = await container.cache.get_with_meta("candles", cache_key)
             except Exception:
                 cached = None
             if cached is not None:
@@ -508,8 +533,7 @@ async def chart_candles(
     raise HTTPException(
         status_code=504,
         detail=(
-            "Chart data is warming up from the broker. "
-            "Please retry in a moment."
+            "Chart data is warming up from the broker. " "Please retry in a moment."
         ),
     )
 
@@ -623,12 +647,14 @@ async def stream_ticks(websocket: WebSocket):
             # Fetch the latest tick from the broker.
             try:
                 tick = await broker_client.get_tick_price(symbol)
-                await websocket.send_json({
-                    "bid": tick.bid,
-                    "ask": tick.ask,
-                    "time": tick.time,
-                    "symbol": symbol,
-                })
+                await websocket.send_json(
+                    {
+                        "bid": tick.bid,
+                        "ask": tick.ask,
+                        "time": tick.time,
+                        "symbol": symbol,
+                    }
+                )
             except Exception as exc:
                 # Transient broker glitch: log the cause, send a generic
                 # frame to the browser, and keep the stream open.
@@ -636,10 +662,12 @@ async def stream_ticks(websocket: WebSocket):
                     "tick_stream_fetch_failed",
                     extra={"symbol": symbol, "error": str(exc), "user_id": user_id},
                 )
-                await websocket.send_json({
-                    "error": "Live price temporarily unavailable.",
-                    "symbol": symbol,
-                })
+                await websocket.send_json(
+                    {
+                        "error": "Live price temporarily unavailable.",
+                        "symbol": symbol,
+                    }
+                )
                 await asyncio.sleep(2.0)  # Back off on error.
 
     except WebSocketDisconnect:
@@ -693,7 +721,9 @@ async def stream_positions(websocket: WebSocket):
             return
         except Exception:
             try:
-                await websocket.close(code=4001, reason="Expected init message with token")
+                await websocket.close(
+                    code=4001, reason="Expected init message with token"
+                )
             except Exception:
                 pass
             return
@@ -733,7 +763,9 @@ async def stream_positions(websocket: WebSocket):
                 break
 
             try:
-                positions = await asyncio.wait_for(broker_client.get_positions(), timeout=2.0)
+                positions = await asyncio.wait_for(
+                    broker_client.get_positions(), timeout=2.0
+                )
 
                 # Serialize
                 result = [
@@ -752,23 +784,29 @@ async def stream_positions(websocket: WebSocket):
                 ]
 
                 # Check for diff
-                current_hash = hashlib.md5(json.dumps(result, sort_keys=True).encode()).hexdigest()
+                current_hash = hashlib.md5(
+                    json.dumps(result, sort_keys=True).encode()
+                ).hexdigest()
                 if current_hash != last_state_hash:
                     await websocket.send_json(result)
                     last_state_hash = current_hash
 
             except Exception as exc:
-                logger.warning("position_stream_poll_error", extra={"error": str(exc), "user_id": user_id})
+                logger.warning(
+                    "position_stream_poll_error",
+                    extra={"error": str(exc), "user_id": user_id},
+                )
                 await asyncio.sleep(2.0)
 
     except WebSocketDisconnect:
         pass
     except Exception as exc:
-        logger.error("position_stream_error", extra={"error": str(exc), "user_id": user_id})
+        logger.error(
+            "position_stream_error", extra={"error": str(exc), "user_id": user_id}
+        )
         try:
             await websocket.close(code=1011, reason="Internal error")
         except Exception:
             pass
     finally:
         logger.info("position_stream_disconnected", extra={"user_id": user_id})
-

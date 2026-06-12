@@ -79,7 +79,7 @@ func TestExecutionGRPCAdapter_Execute_RetryAndIdempotency(t *testing.T) {
 	// Wait briefly for server to be ready
 	time.Sleep(50 * time.Millisecond)
 
-	adapter, err := infra.NewExecutionGRPCAdapter(addr, 5000)
+	adapter, err := infra.NewExecutionGRPCAdapter(addr, 5000, nil)
 	if err != nil {
 		t.Fatalf("failed to create adapter: %v", err)
 	}

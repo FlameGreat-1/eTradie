@@ -22,6 +22,7 @@ in. This keeps the module trivially unit-testable.
 Audit ref: CHECKLIST Section 4 - 'Detect EA vs backend signal
 mismatch' + 'Kill-switch if EA diverges from expected logic'.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -112,21 +113,31 @@ class EAIdentityVerifier:
         """
         mismatches: dict[str, tuple[Any, Any]] = {}
 
-        if expected.magic_number != 0 and observed.magic_number != expected.magic_number:
+        if (
+            expected.magic_number != 0
+            and observed.magic_number != expected.magic_number
+        ):
             mismatches["magic"] = (expected.magic_number, observed.magic_number)
 
         if expected.account_login and observed.account_login != expected.account_login:
             mismatches["login"] = (expected.account_login, observed.account_login)
 
-        if expected.account_server and observed.account_server != expected.account_server:
+        if (
+            expected.account_server
+            and observed.account_server != expected.account_server
+        ):
             mismatches["server"] = (expected.account_server, observed.account_server)
 
         if (
             expected.minimum_ea_version
             and observed.ea_version
-            and _version_tuple(observed.ea_version) < _version_tuple(expected.minimum_ea_version)
+            and _version_tuple(observed.ea_version)
+            < _version_tuple(expected.minimum_ea_version)
         ):
-            mismatches["ea_version"] = (expected.minimum_ea_version, observed.ea_version)
+            mismatches["ea_version"] = (
+                expected.minimum_ea_version,
+                observed.ea_version,
+            )
 
         if mismatches:
             for field in mismatches:
@@ -145,7 +156,10 @@ class EAIdentityVerifier:
                 extra={
                     "provider": self.provider,
                     "account_id": self.account_id,
-                    "mismatches": {k: {"expected": v[0], "observed": v[1]} for k, v in mismatches.items()},
+                    "mismatches": {
+                        k: {"expected": v[0], "observed": v[1]}
+                        for k, v in mismatches.items()
+                    },
                 },
             )
             raise EAIdentityMismatchError(
@@ -153,7 +167,10 @@ class EAIdentityVerifier:
                 details={
                     "provider": self.provider,
                     "account_id": self.account_id,
-                    "mismatches": {k: {"expected": v[0], "observed": v[1]} for k, v in mismatches.items()},
+                    "mismatches": {
+                        k: {"expected": v[0], "observed": v[1]}
+                        for k, v in mismatches.items()
+                    },
                 },
             )
 

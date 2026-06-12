@@ -1,7 +1,7 @@
 use etradie_envoy_common::{
-    extract_trace_id_from_traceparent, extract_span_id_from_traceparent,
-    generate_trace_id, generate_span_id, validate_trace_id,
-    HEADER_X_REQUEST_ID, HEADER_X_TRACE_ID, HEADER_TRACEPARENT,
+    extract_span_id_from_traceparent, extract_trace_id_from_traceparent, generate_span_id,
+    generate_trace_id, validate_trace_id, HEADER_TRACEPARENT, HEADER_X_REQUEST_ID,
+    HEADER_X_TRACE_ID,
 };
 
 #[derive(Debug, Clone)]
@@ -16,11 +16,7 @@ pub struct RequestContext {
 }
 
 impl RequestContext {
-    pub fn new(
-        method: String,
-        path: String,
-        headers: &[(String, String)],
-    ) -> Self {
+    pub fn new(method: String, path: String, headers: &[(String, String)]) -> Self {
         let (trace_id, span_id) = Self::extract_trace_context(headers);
         let request_id = Self::extract_or_generate_request_id(headers);
         let client_ip = Self::extract_client_ip(headers);
@@ -70,15 +66,21 @@ impl RequestContext {
     }
 
     fn extract_trace_context(headers: &[(String, String)]) -> (String, String) {
-        if let Some((_, tp_value)) = headers.iter().find(|(name, _)| name.eq_ignore_ascii_case(HEADER_TRACEPARENT)) {
+        if let Some((_, tp_value)) = headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case(HEADER_TRACEPARENT))
+        {
             if let Some(tid) = extract_trace_id_from_traceparent(tp_value) {
-                let sid = extract_span_id_from_traceparent(tp_value)
-                    .unwrap_or_else(generate_span_id);
+                let sid =
+                    extract_span_id_from_traceparent(tp_value).unwrap_or_else(generate_span_id);
                 return (tid, sid);
             }
         }
 
-        if let Some((_, trace_value)) = headers.iter().find(|(name, _)| name.eq_ignore_ascii_case(HEADER_X_TRACE_ID)) {
+        if let Some((_, trace_value)) = headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case(HEADER_X_TRACE_ID))
+        {
             if validate_trace_id(trace_value).is_ok() {
                 return (trace_value.clone(), generate_span_id());
             }
@@ -118,9 +120,7 @@ mod tests {
 
     #[test]
     fn test_context_creation() {
-        let headers = vec![
-            ("user-agent".to_string(), "test-agent".to_string()),
-        ];
+        let headers = vec![("user-agent".to_string(), "test-agent".to_string())];
         let context = RequestContext::new("GET".to_string(), "/api/v1/users".to_string(), &headers);
 
         assert_eq!(context.method(), "GET");
@@ -132,9 +132,7 @@ mod tests {
 
     #[test]
     fn test_context_with_trace_id() {
-        let headers = vec![
-            ("x-trace-id".to_string(), "abc123def456".to_string()),
-        ];
+        let headers = vec![("x-trace-id".to_string(), "abc123def456".to_string())];
         let context = RequestContext::new("POST".to_string(), "/api/v1/data".to_string(), &headers);
 
         assert_eq!(context.trace_id(), "abc123def456");
@@ -142,9 +140,7 @@ mod tests {
 
     #[test]
     fn test_context_with_client_ip() {
-        let headers = vec![
-            ("x-forwarded-for".to_string(), "192.168.1.1".to_string()),
-        ];
+        let headers = vec![("x-forwarded-for".to_string(), "192.168.1.1".to_string())];
         let context = RequestContext::new("GET".to_string(), "/".to_string(), &headers);
 
         assert_eq!(context.client_ip(), Some("192.168.1.1"));
@@ -152,9 +148,7 @@ mod tests {
 
     #[test]
     fn test_context_without_client_ip() {
-        let headers = vec![
-            ("user-agent".to_string(), "test-agent".to_string()),
-        ];
+        let headers = vec![("user-agent".to_string(), "test-agent".to_string())];
         let context = RequestContext::new("GET".to_string(), "/".to_string(), &headers);
 
         assert_eq!(context.client_ip(), None);
@@ -162,9 +156,7 @@ mod tests {
 
     #[test]
     fn test_context_with_request_id() {
-        let headers = vec![
-            ("x-request-id".to_string(), "req-123-456".to_string()),
-        ];
+        let headers = vec![("x-request-id".to_string(), "req-123-456".to_string())];
         let context = RequestContext::new("GET".to_string(), "/".to_string(), &headers);
 
         assert_eq!(context.request_id(), "req-123-456");

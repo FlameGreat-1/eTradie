@@ -196,7 +196,7 @@ class CFTCDEAProvider(BaseCOTProvider):
             return None
 
         # Get the text after COMMITMENTS
-        after_commitments = block[commitments_idx + len("COMMITMENTS"):]
+        after_commitments = block[commitments_idx + len("COMMITMENTS") :]
 
         # Extract the contract name from the first line
         first_line = block.split("\n")[0] if "\n" in block else block[:100]

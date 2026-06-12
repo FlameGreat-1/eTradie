@@ -123,7 +123,9 @@ class AnthropicClient(LLMClient):
             kwargs["tool_choice"] = {"type": "tool", "name": _TOOL_NAME}
 
         budget = resolve_reasoning_budget(
-            operator_budget_tokens=getattr(self._config, "reasoning_budget_tokens", None),
+            operator_budget_tokens=getattr(
+                self._config, "reasoning_budget_tokens", None
+            ),
             capabilities=self._capabilities,
         )
         if (

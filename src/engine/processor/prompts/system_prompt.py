@@ -463,17 +463,32 @@ def build_user_message(context: ProcessorInput) -> str:
     # trade. Do not re-add `candidate_id` to this set.
     _STRIP_KEYS = {
         # DB / collector metadata
-        "id", "created_at", "snapshot_at", "collected_at",
-        "sources", "source", "assessed_at", "source_url", "summary",
+        "id",
+        "created_at",
+        "snapshot_at",
+        "collected_at",
+        "sources",
+        "source",
+        "assessed_at",
+        "source_url",
+        "summary",
         # Text fields that duplicate structural context
-        "reasoning", "description", "entry_reasoning",
+        "reasoning",
+        "description",
+        "entry_reasoning",
         # Pydantic computed-field duplicates of `direction`
-        "is_bullish", "is_bearish",
+        "is_bullish",
+        "is_bearish",
     }
 
     # Values that carry zero information for the LLM
     _EMPTY_VALUES = {
-        None, "", "NONE", "NEUTRAL", "INLINE", "UNKNOWN",
+        None,
+        "",
+        "NONE",
+        "NEUTRAL",
+        "INLINE",
+        "UNKNOWN",
     }
 
     # Boolean fields whose key ends in any of these suffixes are
@@ -485,8 +500,14 @@ def build_user_message(context: ProcessorInput) -> str:
     # decisions the LLM relies on for its top-down spine and must
     # remain explicit either way.
     _DEAD_WHEN_FALSE_SUFFIXES = (
-        "_detected", "_cleared", "_swept", "_mitigated", "_broken",
-        "_filled", "_tested", "_confirmed",
+        "_detected",
+        "_cleared",
+        "_swept",
+        "_mitigated",
+        "_broken",
+        "_filled",
+        "_tested",
+        "_confirmed",
     )
 
     def _round_float(value: float) -> float:
@@ -494,8 +515,8 @@ def build_user_message(context: ProcessorInput) -> str:
 
         Pip values, prices, and ratios currently emit 13+ decimal
         artefacts like 5153.999999999996 or 1670.0400000000002.
-        Round to 5 decimals for standard FX precision, removing 
-        trailing zeros natively via python float repr. NaN is 
+        Round to 5 decimals for standard FX precision, removing
+        trailing zeros natively via python float repr. NaN is
         preserved untouched.
         """
         if value != value:  # NaN guard (NaN != NaN by IEEE-754)
@@ -541,10 +562,21 @@ def build_user_message(context: ProcessorInput) -> str:
                 if isinstance(v_clean, str) and v_clean in _EMPTY_VALUES:
                     continue
                 # Drop zero counts/scores that add no signal
-                if isinstance(v_clean, (int, float)) and v_clean == 0 and k in (
-                    "dovish_count", "hawkish_count", "wow_change",
-                    "leveraged_long", "leveraged_short", "leveraged_net",
-                    "asset_manager_long", "asset_manager_short", "asset_manager_net",
+                if (
+                    isinstance(v_clean, (int, float))
+                    and v_clean == 0
+                    and k
+                    in (
+                        "dovish_count",
+                        "hawkish_count",
+                        "wow_change",
+                        "leveraged_long",
+                        "leveraged_short",
+                        "leveraged_net",
+                        "asset_manager_long",
+                        "asset_manager_short",
+                        "asset_manager_net",
+                    )
                 ):
                     continue
                 cleaned[k] = v_clean
@@ -552,11 +584,9 @@ def build_user_message(context: ProcessorInput) -> str:
         elif isinstance(d, list):
             cleaned = [_clean_dict(item) for item in d]
             return [
-                item for item in cleaned
-                if item is not None
-                and item != ""
-                and item != []
-                and item != {}
+                item
+                for item in cleaned
+                if item is not None and item != "" and item != [] and item != {}
             ]
         elif isinstance(d, bool):
             # Booleans must be returned BEFORE the float branch because
@@ -595,6 +625,7 @@ def build_user_message(context: ProcessorInput) -> str:
     # needed downstream.
     snapshots = clean_ta.get("snapshots") if isinstance(clean_ta, dict) else None
     if isinstance(snapshots, dict) and snapshots:
+
         def _tf_rank(key: str) -> int:
             try:
                 return TIMEFRAME_MINUTES[Timeframe(key)]
@@ -602,7 +633,8 @@ def build_user_message(context: ProcessorInput) -> str:
                 # Unknown keys sort to the end so a future timeframe
                 # added to TA but missed here still produces valid
                 # JSON instead of a KeyError.
-                return 10 ** 9
+                return 10**9
+
         ordered = dict(sorted(snapshots.items(), key=lambda kv: _tf_rank(kv[0])))
         clean_ta["snapshots"] = ordered
 
@@ -632,7 +664,8 @@ def build_user_message(context: ProcessorInput) -> str:
     # downstream consumers to function.
     _METADATA_STRIP_KEYS = {"trace_id"}
     clean_metadata = {
-        k: v for k, v in (context.metadata or {}).items()
+        k: v
+        for k, v in (context.metadata or {}).items()
         if not k.startswith("rag_") and k not in _METADATA_STRIP_KEYS
     }
 

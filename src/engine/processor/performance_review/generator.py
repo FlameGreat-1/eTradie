@@ -24,6 +24,7 @@ The generator is self-contained: it does not own its HTTP client or
 LLM client, so unit tests can swap both with fakes. Mirrors the
 trading_plan generator exactly.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -96,9 +97,9 @@ class GenerationRequest:
     """
 
     user_id: str
-    period: str               # 'weekly' | 'monthly'
-    period_start: datetime    # inclusive
-    period_end: datetime      # inclusive
+    period: str  # 'weekly' | 'monthly'
+    period_start: datetime  # inclusive
+    period_end: datetime  # inclusive
     profile_version: int
     journal_mode: str = "system"  # 'system' | 'manual'
     role: str = "etradie"
@@ -239,7 +240,9 @@ class PerformanceReviewGenerator:
         # path because the scheduler does not enumerate per-user
         # versions before fanning out).
         profile, profile_version = await self._fetch_profile(req.user_id)
-        effective_version = profile_version if profile_version > 0 else req.profile_version
+        effective_version = (
+            profile_version if profile_version > 0 else req.profile_version
+        )
 
         # Step 3: optional prior review (from gateway).
         prior_review = await self._fetch_prior_review(req)
@@ -264,11 +267,13 @@ class PerformanceReviewGenerator:
         #     BYOK requirement for free / pro_byok users (rule #2 in
         #     PRACTICE.md) while letting admins and managed users run
         #     reviews on the platform key (rule #4).
-        dynamic_client, dynamic_config = await self._container.load_llm_client_for_background(
-            req.user_id,
-            role=req.role,
-            tier=req.tier,
-            allow_platform_fallback=True,
+        dynamic_client, dynamic_config = (
+            await self._container.load_llm_client_for_background(
+                req.user_id,
+                role=req.role,
+                tier=req.tier,
+                allow_platform_fallback=True,
+            )
         )
         if dynamic_client is None or dynamic_config is None:
             raise PerformanceReviewGenerationError(
@@ -314,7 +319,7 @@ class PerformanceReviewGenerator:
                     f"LLM quota reached for your tier ({exc.dimension}); "
                     f"resets in {exc.retry_after} seconds"
                 )
-    
+
             # Bounded retry loop for the LLM call. Shared transient
             # classifier with trading_plan so the heuristic stays in
             # one place. Every error path either retries (keeping the
@@ -385,7 +390,9 @@ class PerformanceReviewGenerator:
                         # message and we need to diagnose. Symmetric
                         # with trading_plan_llm_call_failed.
                         "error": str(last_exc) if last_exc else "unknown",
-                        "error_type": type(last_exc).__name__ if last_exc else "unknown",
+                        "error_type": (
+                            type(last_exc).__name__ if last_exc else "unknown"
+                        ),
                         "failure_code": failure.code,
                     },
                 )
@@ -400,7 +407,7 @@ class PerformanceReviewGenerator:
                 actual_input_tokens=response.input_tokens,
                 actual_output_tokens=response.output_tokens,
             )
-    
+
             parsed = self._parse_response(response.text)
             review = self._shape_review(
                 parsed=parsed,
@@ -652,6 +659,7 @@ class PerformanceReviewGenerator:
         checks have a chance to fire with field-level errors instead
         of generic decode errors.
         """
+
         def _dict(name: str) -> dict[str, Any]:
             v = parsed.get(name)
             return v if isinstance(v, dict) else {}
@@ -685,16 +693,14 @@ class PerformanceReviewGenerator:
         # with the deterministic band; the validator then checks the
         # written value. This is the single source of truth that
         # prevents fake precision.
-        agg_conf = aggregation.get("confidence") if isinstance(aggregation, dict) else None
+        agg_conf = (
+            aggregation.get("confidence") if isinstance(aggregation, dict) else None
+        )
         if isinstance(agg_conf, dict):
             confidence = {
                 "band": str(agg_conf.get("band", "insufficient")),
                 "sample_size": int(agg_conf.get("sample_size", 0) or 0),
-                "note": str(
-                    confidence.get("note")
-                    or agg_conf.get("note")
-                    or ""
-                ),
+                "note": str(confidence.get("note") or agg_conf.get("note") or ""),
             }
 
         review: dict[str, Any] = {
@@ -713,7 +719,9 @@ class PerformanceReviewGenerator:
                 "worst_behavior": str(metrics.get("worst_behavior", "")),
             },
             "behavioral_analysis": {
-                "patterns": [str(p) for p in _list_from("behavioral_analysis", "patterns")],
+                "patterns": [
+                    str(p) for p in _list_from("behavioral_analysis", "patterns")
+                ],
             },
             "system_adherence": {
                 "items": [
@@ -811,7 +819,11 @@ class PerformanceReviewGenerator:
             try:
                 resp = await self._http.post(
                     url,
-                    json={"user_id": req.user_id, "journal_mode": req.journal_mode, "review": review},
+                    json={
+                        "user_id": req.user_id,
+                        "journal_mode": req.journal_mode,
+                        "review": review,
+                    },
                     headers=headers,
                 )
             except (httpx.TimeoutException, httpx.HTTPError) as exc:

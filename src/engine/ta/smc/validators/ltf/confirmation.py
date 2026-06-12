@@ -210,9 +210,7 @@ class LTFConfirmationValidator:
             extra={
                 "symbol": sequence.symbol if hasattr(sequence, "symbol") else "unknown",
                 "timeframe": str(
-                    sequence.timeframe
-                    if hasattr(sequence, "timeframe")
-                    else "unknown"
+                    sequence.timeframe if hasattr(sequence, "timeframe") else "unknown"
                 ),
                 "liquidity_taken": liquidity_ok,
                 "choch_present": choch_ok,

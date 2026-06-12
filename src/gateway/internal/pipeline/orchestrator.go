@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog"
 	goredis "github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -1184,11 +1184,11 @@ func (o *Orchestrator) processSymbol(
 				debugCtx = auth.InjectTokenIntoContext(debugCtx, rawToken)
 			}
 			debugBody := map[string]interface{}{
-				"symbol":      symbol,
-				"ta_data":     processorInput.TAAnalysis,
-				"macro_data":  processorInput.MacroAnalysis,
-				"rag_data":    processorInput.RetrievedKnowledge,
-				"trace_id":    traceID,
+				"symbol":     symbol,
+				"ta_data":    processorInput.TAAnalysis,
+				"macro_data": processorInput.MacroAnalysis,
+				"rag_data":   processorInput.RetrievedKnowledge,
+				"trace_id":   traceID,
 			}
 			if _, debugErr := o.engineHTTP.PostJSON(debugCtx, "/internal/debug/runcycle", debugBody); debugErr != nil {
 				o.log.Debug().

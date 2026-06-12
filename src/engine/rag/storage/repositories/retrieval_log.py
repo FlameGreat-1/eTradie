@@ -82,11 +82,7 @@ class RetrievalLogRepository(BaseRepository[RetrievalLogRow]):
         *,
         limit: int = 100,
     ) -> Sequence[RetrievalLogRow]:
-        stmt = (
-            select(self.model)
-            .order_by(self.model.created_at.desc())
-            .limit(limit)
-        )
+        stmt = select(self.model).order_by(self.model.created_at.desc()).limit(limit)
         return await self.execute_query(stmt)
 
     async def admin_get_by_strategy(

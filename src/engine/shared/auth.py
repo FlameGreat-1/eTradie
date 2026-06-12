@@ -86,7 +86,10 @@ def _read_access_token_cookie(cookies) -> str:
     mapping with a .get(name) accessor (Request.cookies / the
     WebSocket cookie jar). Returns "" when neither is present.
     """
-    for name in (_SECURE_COOKIE_PREFIX + ACCESS_TOKEN_COOKIE_NAME, ACCESS_TOKEN_COOKIE_NAME):
+    for name in (
+        _SECURE_COOKIE_PREFIX + ACCESS_TOKEN_COOKIE_NAME,
+        ACCESS_TOKEN_COOKIE_NAME,
+    ):
         val = cookies.get(name)
         if val and val.strip():
             return val.strip()
@@ -322,11 +325,13 @@ async def verify_token_from_websocket(
     is responsible for translating it into a WS close-frame.
     """
     # 1. Authorization header on the upgrade.
-    auth_header = websocket.headers.get("authorization") or websocket.headers.get("Authorization")
+    auth_header = websocket.headers.get("authorization") or websocket.headers.get(
+        "Authorization"
+    )
     if auth_header:
         token = auth_header.strip()
         if token.lower().startswith("bearer "):
-            token = token[len("bearer "):].strip()
+            token = token[len("bearer ") :].strip()
         if token:
             try:
                 return _verify_token(token)
@@ -343,7 +348,9 @@ async def verify_token_from_websocket(
 
     # 3. Init-frame token for legacy non-browser clients.
     if init_message is not None:
-        token_field = init_message.get("token") if isinstance(init_message, Mapping) else None
+        token_field = (
+            init_message.get("token") if isinstance(init_message, Mapping) else None
+        )
         if isinstance(token_field, str) and token_field.strip():
             try:
                 return _verify_token(token_field.strip())

@@ -372,7 +372,9 @@ def create_mt5_broker_from_connection(
         client = MetaApiClient(
             config=config,
             http_client=http_client,
-            **_build_connectivity_kwargs("metaapi", row.metaapi_account_id or "unknown"),
+            **_build_connectivity_kwargs(
+                "metaapi", row.metaapi_account_id or "unknown"
+            ),
         )
         acct_id = row.metaapi_account_id
         logger.info(
@@ -514,4 +516,3 @@ def create_mt5_broker_from_connection(
             "allowed": ["ea", "metaapi", "hosted"],
         },
     )
-

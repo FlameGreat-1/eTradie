@@ -115,60 +115,66 @@ class SweepAnalyzer:
 
         for i, candle in enumerate(sequence.candles):
             date_str = candle.timestamp.strftime("%Y-%m-%d")
-            
+
             # --- Detect PDH / PDL Sweeps ---
             past_dates = [d for d in daily_highs.keys() if d < date_str]
             if past_dates:
                 prev_date = max(past_dates)
                 pdh = daily_highs[prev_date]
                 pdl = daily_lows[prev_date]
-                
+
                 # Check PDH
                 if pdh not in invalidated_highs:
                     if candle.high > pdh:
-                        if candle.close <= pdh: # VALID SWEEP
+                        if candle.close <= pdh:  # VALID SWEEP
                             sweep_pips = calculate_pips(pdh, candle.high, candle.symbol)
                             if sweep_pips >= self.min_sweep_pips:
-                                sweeps.append(LiquiditySweep(
-                                    symbol=candle.symbol,
-                                    timeframe=candle.timeframe,
-                                    timestamp=candle.timestamp,
-                                    liquidity_type=LiquidityType.PDH_SWEEP,
-                                    swept_level=pdh,
-                                    swept_level_timestamp=candle.timestamp,
-                                    sweep_high=candle.high,
-                                    sweep_low=candle.low,
-                                    sweep_pips=sweep_pips,
-                                    closed_back_inside=True,
-                                    close_price=candle.close,
-                                    candle_index=i,
-                                    is_major_sweep=True,
-                                ))
-                                invalidated_highs.add(pdh) # Prevent repeat daily sweeps
+                                sweeps.append(
+                                    LiquiditySweep(
+                                        symbol=candle.symbol,
+                                        timeframe=candle.timeframe,
+                                        timestamp=candle.timestamp,
+                                        liquidity_type=LiquidityType.PDH_SWEEP,
+                                        swept_level=pdh,
+                                        swept_level_timestamp=candle.timestamp,
+                                        sweep_high=candle.high,
+                                        sweep_low=candle.low,
+                                        sweep_pips=sweep_pips,
+                                        closed_back_inside=True,
+                                        close_price=candle.close,
+                                        candle_index=i,
+                                        is_major_sweep=True,
+                                    )
+                                )
+                                invalidated_highs.add(
+                                    pdh
+                                )  # Prevent repeat daily sweeps
                         else:
-                            invalidated_highs.add(pdh) # Decisively broken
-                            
+                            invalidated_highs.add(pdh)  # Decisively broken
+
                 # Check PDL
                 if pdl not in invalidated_lows:
                     if candle.low < pdl:
-                        if candle.close >= pdl: # VALID SWEEP
+                        if candle.close >= pdl:  # VALID SWEEP
                             sweep_pips = calculate_pips(candle.low, pdl, candle.symbol)
                             if sweep_pips >= self.min_sweep_pips:
-                                sweeps.append(LiquiditySweep(
-                                    symbol=candle.symbol,
-                                    timeframe=candle.timeframe,
-                                    timestamp=candle.timestamp,
-                                    liquidity_type=LiquidityType.PDL_SWEEP,
-                                    swept_level=pdl,
-                                    swept_level_timestamp=candle.timestamp,
-                                    sweep_high=candle.high,
-                                    sweep_low=candle.low,
-                                    sweep_pips=sweep_pips,
-                                    closed_back_inside=True,
-                                    close_price=candle.close,
-                                    candle_index=i,
-                                    is_major_sweep=True,
-                                ))
+                                sweeps.append(
+                                    LiquiditySweep(
+                                        symbol=candle.symbol,
+                                        timeframe=candle.timeframe,
+                                        timestamp=candle.timestamp,
+                                        liquidity_type=LiquidityType.PDL_SWEEP,
+                                        swept_level=pdl,
+                                        swept_level_timestamp=candle.timestamp,
+                                        sweep_high=candle.high,
+                                        sweep_low=candle.low,
+                                        sweep_pips=sweep_pips,
+                                        closed_back_inside=True,
+                                        close_price=candle.close,
+                                        candle_index=i,
+                                        is_major_sweep=True,
+                                    )
+                                )
                                 invalidated_lows.add(pdl)
                         else:
                             invalidated_lows.add(pdl)
@@ -182,7 +188,9 @@ class SweepAnalyzer:
                     if candle.close <= swing_high.price:
                         sweep = self.detect_bsl_sweep(candle, swing_high, i)
                         if sweep:
-                            sweep = sweep.model_copy(update={"is_major_sweep": swing_high.strength >= 5})
+                            sweep = sweep.model_copy(
+                                update={"is_major_sweep": swing_high.strength >= 5}
+                            )
                             sweeps.append(sweep)
                             invalidated_highs.add(swing_high.price)
                     else:
@@ -196,7 +204,9 @@ class SweepAnalyzer:
                     if candle.close >= swing_low.price:
                         sweep = self.detect_ssl_sweep(candle, swing_low, i)
                         if sweep:
-                            sweep = sweep.model_copy(update={"is_major_sweep": swing_low.strength >= 5})
+                            sweep = sweep.model_copy(
+                                update={"is_major_sweep": swing_low.strength >= 5}
+                            )
                             sweeps.append(sweep)
                             invalidated_lows.add(swing_low.price)
                     else:

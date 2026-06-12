@@ -141,9 +141,7 @@ class FREDIntermarketProvider(BaseMarketDataProvider):
                     "limit": "5",
                 },
             )
-            observations = (
-                raw.get("observations", []) if isinstance(raw, dict) else []
-            )
+            observations = raw.get("observations", []) if isinstance(raw, dict) else []
             for obs in observations:
                 value = self._parse_float(obs.get("value"))
                 if value is not None:

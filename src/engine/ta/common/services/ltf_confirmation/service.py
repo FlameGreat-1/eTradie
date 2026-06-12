@@ -47,6 +47,7 @@ logger = get_logger(__name__)
 
 class LTFConfirmationRequest(BaseModel):
     """Request payload for the lightweight LTF confirmation check."""
+
     symbol: str
     direction: str  # "BULLISH" or "BEARISH"
     ltf_timeframe: str  # e.g. "M5", "M15"
@@ -64,6 +65,7 @@ class LTFConfirmationRequest(BaseModel):
 
 class LTFConfirmationResponse(BaseModel):
     """Response from the lightweight LTF confirmation check."""
+
     confirmed: bool
     symbol: str
     direction: str
@@ -212,7 +214,10 @@ class LTFConfirmationService:
             # Layer 2: LTF Confirmation Check
             # ---------------------------------------------------------------
             sequence = await self._fetch_candles(
-                symbol, ltf_tf, broker_client, self.LTF_LOOKBACK,
+                symbol,
+                ltf_tf,
+                broker_client,
+                self.LTF_LOOKBACK,
             )
             if sequence is None or sequence.count < 10:
                 elapsed = (datetime.now(UTC) - start).total_seconds() * 1000
@@ -227,8 +232,11 @@ class LTFConfirmationService:
                 )
 
             checks = self._run_ltf_checks(
-                sequence, direction, request.ob_upper,
-                request.ob_lower, request.entry_price,
+                sequence,
+                direction,
+                request.ob_upper,
+                request.ob_lower,
+                request.entry_price,
             )
 
             confirmed = all(checks.values())
@@ -338,7 +346,10 @@ class LTFConfirmationService:
             }
         """
         sequence = await self._fetch_candles(
-            symbol, htf_tf, broker_client, self.HTF_LOOKBACK,
+            symbol,
+            htf_tf,
+            broker_client,
+            self.HTF_LOOKBACK,
         )
 
         if sequence is None or sequence.count < 5:
@@ -369,7 +380,10 @@ class LTFConfirmationService:
         # True mitigation = candle body overlap with the zone exceeds the
         # configured threshold (default 50%).
         ob_fresh = self._check_ob_still_fresh(
-            sequence, direction, ob_upper, ob_lower,
+            sequence,
+            direction,
+            ob_upper,
+            ob_lower,
         )
 
         # Check 2: Opposing BMS.
@@ -377,13 +391,16 @@ class LTFConfirmationService:
         # BULLISH trade -> check for BEARISH BMS (bearish breaks swing lows).
         # BEARISH trade -> check for BULLISH BMS (bullish breaks swing highs).
         no_opposing_bms = self._check_no_opposing_bms(
-            sequence, direction,
+            sequence,
+            direction,
         )
 
         # Check 3: Stop loss blown.
         # Has price already closed beyond the approved candidate's SL?
         sl_not_blown = self._check_sl_not_blown(
-            sequence, direction, stop_loss,
+            sequence,
+            direction,
+            stop_loss,
         )
 
         checks = {
@@ -502,25 +519,25 @@ class LTFConfirmationService:
         if direction == Direction.BULLISH:
             # Check for BEARISH BMS (opposing to our bullish trade).
             opposing_bms = self._bms_detector.detect_bearish_bms(
-                sequence, swing_lows,
+                sequence,
+                swing_lows,
             )
             # Only count BMS events that occurred in the recent window.
             if recent_candles:
                 recent_start_ts = recent_candles[0].timestamp
                 opposing_bms = [
-                    bms for bms in opposing_bms
-                    if bms.timestamp >= recent_start_ts
+                    bms for bms in opposing_bms if bms.timestamp >= recent_start_ts
                 ]
         else:
             # Check for BULLISH BMS (opposing to our bearish trade).
             opposing_bms = self._bms_detector.detect_bullish_bms(
-                sequence, swing_highs,
+                sequence,
+                swing_highs,
             )
             if recent_candles:
                 recent_start_ts = recent_candles[0].timestamp
                 opposing_bms = [
-                    bms for bms in opposing_bms
-                    if bms.timestamp >= recent_start_ts
+                    bms for bms in opposing_bms if bms.timestamp >= recent_start_ts
                 ]
 
         if opposing_bms:
@@ -560,7 +577,9 @@ class LTFConfirmationService:
 
         # Only check the most recent candles (last 10).
         # Older candles predate the watcher arming.
-        recent = sequence.candles[-10:] if len(sequence.candles) > 10 else sequence.candles
+        recent = (
+            sequence.candles[-10:] if len(sequence.candles) > 10 else sequence.candles
+        )
 
         for candle in recent:
             if direction == Direction.BULLISH:
@@ -590,15 +609,25 @@ class LTFConfirmationService:
 
         if direction == Direction.BULLISH:
             bms_events = self._bms_detector.detect_bullish_bms(sequence, swing_highs)
-            choch_events = self._choch_detector.detect_bullish_choch(sequence, swing_highs)
-            inducements = self._inducement_detector.detect_bullish_inducement(sequence, swing_lows)
+            choch_events = self._choch_detector.detect_bullish_choch(
+                sequence, swing_highs
+            )
+            inducements = self._inducement_detector.detect_bullish_inducement(
+                sequence, swing_lows
+            )
         else:
             bms_events = self._bms_detector.detect_bearish_bms(sequence, swing_lows)
-            choch_events = self._choch_detector.detect_bearish_choch(sequence, swing_lows)
-            inducements = self._inducement_detector.detect_bearish_inducement(sequence, swing_highs)
+            choch_events = self._choch_detector.detect_bearish_choch(
+                sequence, swing_lows
+            )
+            inducements = self._inducement_detector.detect_bearish_inducement(
+                sequence, swing_highs
+            )
 
         sweeps = self._sweep_analyzer.detect_sweeps_in_sequence(
-            sequence, swing_highs, swing_lows,
+            sequence,
+            swing_highs,
+            swing_lows,
         )
         fvgs = self._fvg_detector.detect_fvgs(sequence)
 
@@ -633,8 +662,7 @@ class LTFConfirmationService:
         # Check 6: Inducement cleared
         inducement_ok = True
         relevant_inducements = [
-            idm for idm in inducements
-            if idm.direction == direction
+            idm for idm in inducements if idm.direction == direction
         ]
         if relevant_inducements:
             inducement_ok = all(idm.cleared for idm in relevant_inducements)

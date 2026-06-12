@@ -133,9 +133,7 @@ async def _publish_byok_provider_quota_safe(
 # from the partial LLM JSON stream so the dashboard SSE consumer can
 # render tokens as they arrive. Compiled once at module load to avoid
 # re-compiling on every chunk of every analysis cycle.
-_REASONING_RE = re.compile(
-    r'"explainable_reasoning"\s*:\s*"((?:\\.|[^"\\])*)'
-)
+_REASONING_RE = re.compile(r'"explainable_reasoning"\s*:\s*"((?:\\.|[^"\\])*)')
 
 
 class AnalysisProcessor(ProcessorPort):
@@ -216,7 +214,9 @@ class AnalysisProcessor(ProcessorPort):
 
         try:
             async with asyncio.timeout(self._config.total_timeout_seconds):
-                return await self._execute_guarded(context, user_id=user_id, trace_id=trace_id, start=start)
+                return await self._execute_guarded(
+                    context, user_id=user_id, trace_id=trace_id, start=start
+                )
 
         except QuotaExceededError:
             # Propagate immediately: the metering layer already recorded
@@ -353,9 +353,7 @@ class AnalysisProcessor(ProcessorPort):
         prompt_hash = compute_prompt_hash(
             build_system_prompt(), build_user_message(context)
         )
-        digest = compute_digest(
-            user_id=user_id, symbol=symbol, prompt_hash=prompt_hash
-        )
+        digest = compute_digest(user_id=user_id, symbol=symbol, prompt_hash=prompt_hash)
         guard = ProcessorIdempotency(self._cache)
 
         # 1. A completed result for this exact input already exists.
@@ -441,11 +439,16 @@ class AnalysisProcessor(ProcessorPort):
         try:
             from pathlib import Path
             from datetime import datetime as dt, timezone
+
             ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             prompts_dir = Path("/output/prompts") / f"{symbol}_{ts}"
             prompts_dir.mkdir(parents=True, exist_ok=True)
-            (prompts_dir / "system_prompt.txt").write_text(system_prompt, encoding="utf-8")
-            (prompts_dir / "user_message.txt").write_text(user_message, encoding="utf-8")
+            (prompts_dir / "system_prompt.txt").write_text(
+                system_prompt, encoding="utf-8"
+            )
+            (prompts_dir / "user_message.txt").write_text(
+                user_message, encoding="utf-8"
+            )
             # Diagnostic: identify WHICH invocation produced this dump so
             # duplicate dumps for a single trigger can be correlated.
             _meta = context.metadata if isinstance(context.metadata, dict) else {}
@@ -467,9 +470,20 @@ class AnalysisProcessor(ProcessorPort):
                 ),
                 encoding="utf-8",
             )
-            logger.info("prompt_payload_saved", extra={"directory": str(prompts_dir), "symbol": symbol, "trace_id": trace_id, "source": _meta.get("source", "")})
+            logger.info(
+                "prompt_payload_saved",
+                extra={
+                    "directory": str(prompts_dir),
+                    "symbol": symbol,
+                    "trace_id": trace_id,
+                    "source": _meta.get("source", ""),
+                },
+            )
         except Exception as exc:
-            logger.error("failed_to_save_prompt_payload", extra={"error": str(exc), "symbol": symbol, "trace_id": trace_id})
+            logger.error(
+                "failed_to_save_prompt_payload",
+                extra={"error": str(exc), "symbol": symbol, "trace_id": trace_id},
+            )
 
         logger.debug(
             "processor_prompt_built",
@@ -576,12 +590,12 @@ class AnalysisProcessor(ProcessorPort):
                 if match:
                     current_extracted = match.group(1)
                     # Unescape json newlines and quotes progressively.
-                    current_extracted = current_extracted.replace(
-                        "\\n", "\n"
-                    ).replace('\\"', '"')
+                    current_extracted = current_extracted.replace("\\n", "\n").replace(
+                        '\\"', '"'
+                    )
 
                     if len(current_extracted) > len(last_published_reasoning):
-                        new_text = current_extracted[len(last_published_reasoning):]
+                        new_text = current_extracted[len(last_published_reasoning) :]
                         last_published_reasoning = current_extracted
                         if stream_channel and new_text:
                             await self._cache.publish(
@@ -736,6 +750,7 @@ class AnalysisProcessor(ProcessorPort):
             try:
                 from pathlib import Path
                 from datetime import datetime as dt, timezone
+
                 ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
                 dump_dir = Path("/output/prompts") / f"truncated_{symbol}_{ts}"
                 dump_dir.mkdir(parents=True, exist_ok=True)
@@ -823,11 +838,16 @@ class AnalysisProcessor(ProcessorPort):
             try:
                 from pathlib import Path
                 from datetime import datetime as dt, timezone
+
                 ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
                 dump_dir = Path("/output/prompts") / f"failed_{symbol}_{ts}"
                 dump_dir.mkdir(parents=True, exist_ok=True)
-                (dump_dir / "truncated_response.txt").write_text(llm_response.text, encoding="utf-8")
-                logger.error("dumped_truncated_response", extra={"directory": str(dump_dir)})
+                (dump_dir / "truncated_response.txt").write_text(
+                    llm_response.text, encoding="utf-8"
+                )
+                logger.error(
+                    "dumped_truncated_response", extra={"directory": str(dump_dir)}
+                )
             except Exception:
                 pass
             raise parse_exc
@@ -919,7 +939,8 @@ class AnalysisProcessor(ProcessorPort):
         """Validate that the context has sufficient data for analysis."""
         if not context.ta_analysis:
             PROCESSOR_INSUFFICIENT_DATA_TOTAL.labels(
-                processor=PROCESSOR_NAME, reason="empty_ta",
+                processor=PROCESSOR_NAME,
+                reason="empty_ta",
             ).inc()
             raise ProcessorInsufficientDataError(
                 "ProcessorInput has empty ta_analysis",
@@ -932,7 +953,8 @@ class AnalysisProcessor(ProcessorPort):
         )
         if not has_candidates:
             PROCESSOR_INSUFFICIENT_DATA_TOTAL.labels(
-                processor=PROCESSOR_NAME, reason="no_candidates",
+                processor=PROCESSOR_NAME,
+                reason="no_candidates",
             ).inc()
             raise ProcessorInsufficientDataError(
                 "ProcessorInput has no SMC or SnD candidates",
@@ -941,7 +963,8 @@ class AnalysisProcessor(ProcessorPort):
 
         if not context.retrieved_knowledge:
             PROCESSOR_INSUFFICIENT_DATA_TOTAL.labels(
-                processor=PROCESSOR_NAME, reason="empty_rag",
+                processor=PROCESSOR_NAME,
+                reason="empty_rag",
             ).inc()
             raise ProcessorInsufficientDataError(
                 "ProcessorInput has empty retrieved_knowledge",

@@ -598,9 +598,7 @@ class RedisCache:
         get_with_meta() to retrieve both the value and its age.
         """
         envelope = {"v": value, "t": int(time.time())}
-        return await self.set(
-            namespace, key, envelope, ttl_seconds, trace_id=trace_id
-        )
+        return await self.set(namespace, key, envelope, ttl_seconds, trace_id=trace_id)
 
     async def get_with_meta(
         self,

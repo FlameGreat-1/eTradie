@@ -5,8 +5,8 @@ mod orchestrator;
 
 use context::RequestContext;
 use etradie_envoy_common::{
-    build_traceparent, init_service_info, log_request_end, log_request_start,
-    set_environment, MetricsCollector,
+    build_traceparent, init_service_info, log_request_end, log_request_start, set_environment,
+    MetricsCollector,
 };
 use orchestrator::FilterOrchestrator;
 use proxy_wasm::traits::{Context, HttpContext, RootContext};
@@ -20,9 +20,7 @@ thread_local! {
 #[no_mangle]
 pub fn _start() {
     proxy_wasm::set_log_level(LogLevel::Info);
-    proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> {
-        Box::new(ETradieRootContext)
-    });
+    proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> { Box::new(ETradieRootContext) });
 }
 
 struct ETradieRootContext;
@@ -44,14 +42,19 @@ impl RootContext for ETradieRootContext {
                 ORCHESTRATOR.with(|o| {
                     *o.borrow_mut() = Some(orchestrator);
                 });
-                proxy_wasm::hostcalls::log(LogLevel::Info, "eTradie integration filter initialized").ok();
+                proxy_wasm::hostcalls::log(
+                    LogLevel::Info,
+                    "eTradie integration filter initialized",
+                )
+                .ok();
                 true
             }
             Err(e) => {
                 proxy_wasm::hostcalls::log(
                     LogLevel::Error,
                     &format!("Failed to initialize orchestrator: {}", e),
-                ).ok();
+                )
+                .ok();
                 false
             }
         }
@@ -78,8 +81,12 @@ impl Context for ETradieHttpContext {}
 
 impl HttpContext for ETradieHttpContext {
     fn on_http_request_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> Action {
-        let method = self.get_http_request_header(":method").unwrap_or_else(|| "GET".to_string());
-        let path = self.get_http_request_header(":path").unwrap_or_else(|| "/".to_string());
+        let method = self
+            .get_http_request_header(":method")
+            .unwrap_or_else(|| "GET".to_string());
+        let path = self
+            .get_http_request_header(":path")
+            .unwrap_or_else(|| "/".to_string());
 
         let headers = self.get_http_request_headers();
 
@@ -98,10 +105,7 @@ impl HttpContext for ETradieHttpContext {
             if let Some(orchestrator) = o.borrow_mut().as_mut() {
                 orchestrator.process_request(&context, &headers)
             } else {
-                proxy_wasm::hostcalls::log(
-                    LogLevel::Error,
-                    "Orchestrator not initialized",
-                ).ok();
+                proxy_wasm::hostcalls::log(LogLevel::Error, "Orchestrator not initialized").ok();
                 orchestrator::OrchestratorResult::CircuitBreakerOpen
             }
         });
@@ -118,7 +122,8 @@ impl HttpContext for ETradieHttpContext {
         } else {
             let (status, headers, body) = result.to_response(context.trace_id());
             self.response_status = status;
-            let header_refs: Vec<(&str, &str)> = headers.iter()
+            let header_refs: Vec<(&str, &str)> = headers
+                .iter()
                 .map(|(k, v)| (k.as_str(), v.as_str()))
                 .collect();
             self.send_http_response(status, header_refs, Some(body.as_bytes()));

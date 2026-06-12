@@ -96,9 +96,7 @@ class COTCollector(BaseCollector):
             except Exception as exc:
                 logger.warning(
                     "cot_tff_enrichment_skipped",
-                    provider=getattr(
-                        self._tff_provider, "provider_name", "unknown"
-                    ),
+                    provider=getattr(self._tff_provider, "provider_name", "unknown"),
                     error=str(exc),
                 )
 
@@ -112,7 +110,8 @@ class COTCollector(BaseCollector):
 
             for p in positions:
                 prev_net = await repo.get_previous_net(
-                    p.currency.value, p.report_date,
+                    p.currency.value,
+                    p.report_date,
                 )
                 wow = (p.non_commercial_net - prev_net) if prev_net is not None else 0
 
@@ -226,7 +225,6 @@ class COTCollector(BaseCollector):
         )
         self._record_items_stored(len(enriched))
         return dataset
-
 
     def _empty_dataset(self) -> COTDataSet:
         return COTDataSet(collected_at=datetime.now(UTC))

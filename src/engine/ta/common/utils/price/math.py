@@ -7,25 +7,25 @@ from engine.shared.exceptions import ConfigurationError
 # Examples: XAUUSDm, XAUUSD.raw, XAUUSDsb, USDJPYm, US30.raw, etc.
 
 _METAL_PREFIXES: Final[tuple[str, ...]] = (
-    "XAUUSD",   # Gold
-    "XAGUSD",   # Silver
-    "XPTUSD",   # Platinum
-    "XPDUSD",   # Palladium
-    "XAUCAD",   # Gold vs CAD
-    "XAUEUR",   # Gold vs EUR
-    "XAUGBP",   # Gold vs GBP
-    "XAUAUD",   # Gold vs AUD
-    "XAGEUR",   # Silver vs EUR
+    "XAUUSD",  # Gold
+    "XAGUSD",  # Silver
+    "XPTUSD",  # Platinum
+    "XPDUSD",  # Palladium
+    "XAUCAD",  # Gold vs CAD
+    "XAUEUR",  # Gold vs EUR
+    "XAUGBP",  # Gold vs GBP
+    "XAUAUD",  # Gold vs AUD
+    "XAGEUR",  # Silver vs EUR
 )
 
 _OIL_PREFIXES: Final[tuple[str, ...]] = (
-    "XBRUSD",   # Brent Crude
-    "XTIUSD",   # WTI Crude
-    "USOIL",    # US Oil
-    "UKOIL",    # UK Oil
-    "BRENT",    # Brent
-    "WTI",      # WTI
-    "CL",       # Crude Light (futures-style)
+    "XBRUSD",  # Brent Crude
+    "XTIUSD",  # WTI Crude
+    "USOIL",  # US Oil
+    "UKOIL",  # UK Oil
+    "BRENT",  # Brent
+    "WTI",  # WTI
+    "CL",  # Crude Light (futures-style)
 )
 
 _JPY_PREFIXES: Final[tuple[str, ...]] = (
@@ -192,11 +192,11 @@ def _get_pair_type(symbol: str) -> str:
     for prefix in _DERIV_P0001_PREFIXES:
         if symbol_upper == prefix or symbol_upper.startswith(prefix):
             return "DERIV_P0001"
-            
+
     for prefix in _DERIV_P01_PREFIXES:
         if symbol_upper == prefix or symbol_upper.startswith(prefix):
             return "DERIV_P01"
-            
+
     for prefix in _DERIV_P1_PREFIXES:
         if symbol_upper == prefix or symbol_upper.startswith(prefix):
             return "DERIV_P1"

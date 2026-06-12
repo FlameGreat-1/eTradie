@@ -68,7 +68,9 @@ class SnapshotRepository:
         dict wrapper remain valid JSONB. SQLAlchemy's ``JSON`` column
         accepts both at the wire level.
         """
-        latest_version = await self._get_latest_version(symbol, timeframe, user_id=user_id)
+        latest_version = await self._get_latest_version(
+            symbol, timeframe, user_id=user_id
+        )
 
         schema = SnapshotSchema(
             user_id=user_id,

@@ -1,6 +1,8 @@
 use crate::circuit_breaker::CircuitBreaker;
 use crate::context::RequestContext;
-use crate::filters::{HeaderFilterIntegration, RateLimitFilterIntegration, RequestFilterIntegration};
+use crate::filters::{
+    HeaderFilterIntegration, RateLimitFilterIntegration, RequestFilterIntegration,
+};
 use etradie_envoy_common::{
     build_error_response, build_security_event_response, log_filter_decision,
     record_filter_execution, FilterDecision, Logger, MetricsCollector, LATENCY_BUDGET_MS,
@@ -44,15 +46,25 @@ impl FilterOrchestrator {
 
         let start_time = current_timestamp_ms();
 
-        if !self.circuit_breaker.check_and_update_state(context.trace_id()) {
-            self.logger.error(context.trace_id(), "Circuit breaker is open, rejecting request");
+        if !self
+            .circuit_breaker
+            .check_and_update_state(context.trace_id())
+        {
+            self.logger.error(
+                context.trace_id(),
+                "Circuit breaker is open, rejecting request",
+            );
             self.metrics.increment_counter("circuit_breaker_rejections");
             return OrchestratorResult::CircuitBreakerOpen;
         }
 
         self.logger.info(
             context.trace_id(),
-            &format!("Processing request: {} {}", context.method(), context.path()),
+            &format!(
+                "Processing request: {} {}",
+                context.method(),
+                context.path()
+            ),
         );
 
         let result = self.execute_filter_chain(context, headers);
@@ -124,7 +136,8 @@ impl FilterOrchestrator {
             return OrchestratorResult::Denied(decision);
         }
 
-        self.logger.info(context.trace_id(), "Request passed all filters");
+        self.logger
+            .info(context.trace_id(), "Request passed all filters");
         OrchestratorResult::Allowed
     }
 
@@ -142,7 +155,8 @@ impl FilterOrchestrator {
     }
 
     fn record_metrics(&self, result: &OrchestratorResult, duration_ms: u64) {
-        self.metrics.record_histogram("request_duration_ms", duration_ms);
+        self.metrics
+            .record_histogram("request_duration_ms", duration_ms);
         self.metrics.increment_counter("requests_total");
 
         match result {
@@ -153,7 +167,8 @@ impl FilterOrchestrator {
                 self.metrics.increment_counter("requests_denied");
             }
             OrchestratorResult::CircuitBreakerOpen => {
-                self.metrics.increment_counter("requests_circuit_breaker_open");
+                self.metrics
+                    .increment_counter("requests_circuit_breaker_open");
             }
         }
     }
@@ -179,9 +194,7 @@ impl OrchestratorResult {
 
     pub fn to_response(&self, trace_id: &str) -> (u32, Vec<(String, String)>, String) {
         match self {
-            OrchestratorResult::Allowed => {
-                (200, vec![], String::new())
-            }
+            OrchestratorResult::Allowed => (200, vec![], String::new()),
             OrchestratorResult::Denied(decision) => {
                 if let Some(event) = &decision.event {
                     let status = match event.code {
@@ -193,7 +206,10 @@ impl OrchestratorResult {
                     build_security_event_response(event, status)
                 } else {
                     let error = etradie_envoy_common::FilterError::InternalError {
-                        message: decision.reason.clone().unwrap_or_else(|| "Request denied".to_string()),
+                        message: decision
+                            .reason
+                            .clone()
+                            .unwrap_or_else(|| "Request denied".to_string()),
                     };
                     build_error_response(&error, trace_id)
                 }
@@ -253,9 +269,7 @@ mod tests {
     fn test_orchestrator_denies_invalid_method() {
         let mut orchestrator = FilterOrchestrator::new().unwrap();
 
-        let headers = vec![
-            ("user-agent".to_string(), "test-agent".to_string()),
-        ];
+        let headers = vec![("user-agent".to_string(), "test-agent".to_string())];
 
         // TRACE is deliberately excluded from ALLOWED_HTTP_METHODS
         // (debug/proxy semantics not needed in front of the gateway).

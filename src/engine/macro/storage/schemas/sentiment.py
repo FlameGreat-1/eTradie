@@ -18,15 +18,9 @@ class SentimentReadingRow(Base):
     )
     currency: Mapped[str] = mapped_column(String(5), nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="")
-    long_percentage: Mapped[float] = mapped_column(
-        Float, nullable=False, default=50.0
-    )
-    short_percentage: Mapped[float] = mapped_column(
-        Float, nullable=False, default=50.0
-    )
-    net_positioning: Mapped[float] = mapped_column(
-        Float, nullable=False, default=0.0
-    )
+    long_percentage: Mapped[float] = mapped_column(Float, nullable=False, default=50.0)
+    short_percentage: Mapped[float] = mapped_column(Float, nullable=False, default=50.0)
+    net_positioning: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     collected_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -40,7 +34,8 @@ class SentimentReadingRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "currency", "source",
+            "currency",
+            "source",
             name="uq_sentiment_currency_source",
         ),
         Index("ix_sentiment_currency", "currency"),

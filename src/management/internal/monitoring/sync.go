@@ -111,7 +111,7 @@ func (s *StateReconciler) RunStartupSync(ctx context.Context) error {
 
 	// Get all currently managed trades from memory.
 	managedTrades := s.mgr.GetAllTrades()
-	
+
 	// Create a fast lookup map of tickets we already know about.
 	knownTickets := make(map[string]bool)
 	for _, t := range managedTrades {
@@ -160,7 +160,7 @@ func (s *StateReconciler) RunStartupSync(ctx context.Context) error {
 			// Try to insert a dummy closed trade.
 			// This is a rough approximation since we don't have entry/exit pairs matched perfectly by ticket.
 			// The EA groups them by DEAL_ENTRY_OUT which gives us the final result.
-			
+
 			tradeID := "TMG-HIST-" + h.Ticket
 			outcome := string(constants.OutcomeBreakeven)
 			if h.Profit > 0 {
@@ -173,25 +173,25 @@ func (s *StateReconciler) RunStartupSync(ctx context.Context) error {
 			closedAt := time.Unix(h.Time, 0).UTC()
 
 			dbRecord := &journal.TradeRecord{
-				UserID:           s.userID,
-				TradeID:          tradeID,
-				Symbol:           h.Symbol,
-				Direction:        h.Direction,
-				BrokerOrderID:    h.Ticket,
-				TradingStyle:     string(constants.StyleIntraday),
-				Grade:            "MANUAL/RESTORED",
-				Origin:           journal.OriginManualRestored,
-				EntryPrice:       0.0, // We don't have exact entry from the OUT deal
-				StopLoss:         0.0,
-				InitialSL:        0.0,
-				TP1Price:         0.0,
-				TotalLotSize:     h.Volume,
-				Status:           string(constants.StatusClosed),
-				OpenedAt:         closedAt.Add(-1 * time.Hour), // Rough approximation
-				ClosedAt:         &closedAt,
-				GrossPnL:         h.Profit,
-				Outcome:          outcome,
-				DurationMinutes:  60, // Rough approximation
+				UserID:          s.userID,
+				TradeID:         tradeID,
+				Symbol:          h.Symbol,
+				Direction:       h.Direction,
+				BrokerOrderID:   h.Ticket,
+				TradingStyle:    string(constants.StyleIntraday),
+				Grade:           "MANUAL/RESTORED",
+				Origin:          journal.OriginManualRestored,
+				EntryPrice:      0.0, // We don't have exact entry from the OUT deal
+				StopLoss:        0.0,
+				InitialSL:       0.0,
+				TP1Price:        0.0,
+				TotalLotSize:    h.Volume,
+				Status:          string(constants.StatusClosed),
+				OpenedAt:        closedAt.Add(-1 * time.Hour), // Rough approximation
+				ClosedAt:        &closedAt,
+				GrossPnL:        h.Profit,
+				Outcome:         outcome,
+				DurationMinutes: 60, // Rough approximation
 			}
 
 			// Ignore "duplicate key" errors if it already exists
@@ -317,7 +317,7 @@ func (s *StateReconciler) consumeWatch(
 
 func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions []broker.PositionInfo) {
 	managedTrades := s.mgr.GetAllTrades()
-	
+
 	// Create lookup maps
 	brokerState := make(map[string]broker.PositionInfo)
 	for _, p := range positions {
@@ -339,7 +339,7 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 			t.RUnlock()
 			continue
 		}
-		
+
 		ticket := t.BrokerOrderID
 		dbSL := t.StopLoss
 		dbTP := t.TP1Price
@@ -350,7 +350,7 @@ func (s *StateReconciler) processPositionUpdate(ctx context.Context, positions [
 		breakevenSet := t.BreakevenSet
 		tradeID := t.TradeID
 		symbol := t.Symbol
-		
+
 		// Capture fields needed for recalculations
 		entryPrice := t.EntryPrice
 		totalLotSize := t.TotalLotSize
@@ -522,7 +522,7 @@ func (s *StateReconciler) buildReconciledTrade(
 				Str("ticket", pos.Ticket).
 				Msg("resurrecting_closed_trade_because_broker_reports_it_active")
 			status = constants.StatusActive
-			
+
 			// Revert the database state back to active
 			if err := s.repo.ResurrectTrade(ctx, s.userID, rec.TradeID, pos.Volume); err != nil {
 				s.log.Error().Err(err).Str("trade_id", rec.TradeID).Msg("journal_resurrect_trade_failed")
@@ -576,8 +576,8 @@ func (s *StateReconciler) buildReconciledTrade(
 			TP3Hit:           rec.TP3Hit,
 			// Preserve the recovered row's provenance: a system trade that
 			// was merely re-adopted by the reconciler stays SYSTEM.
-			Origin:           rec.Origin,
-			OpenedAt:         rec.OpenedAt,
+			Origin:   rec.Origin,
+			OpenedAt: rec.OpenedAt,
 		}, nil
 	}
 

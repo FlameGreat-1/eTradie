@@ -1,4 +1,6 @@
-use crate::constants::{TRACE_ID_CHARSET, TRACE_ID_LENGTH, W3C_TRACEPARENT_VERSION, W3C_TRACE_FLAGS_SAMPLED};
+use crate::constants::{
+    TRACE_ID_CHARSET, TRACE_ID_LENGTH, W3C_TRACEPARENT_VERSION, W3C_TRACE_FLAGS_SAMPLED,
+};
 use crate::error::{FilterError, FilterResult};
 use std::time::SystemTime;
 
@@ -41,10 +43,15 @@ pub fn validate_trace_id(trace_id: &str) -> FilterResult<()> {
         });
     }
 
-    if !trace_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if !trace_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return Err(FilterError::InvalidTraceId {
             trace_id: trace_id.to_string(),
-            reason: "Trace ID contains invalid characters (only alphanumeric, dash, underscore allowed)".to_string(),
+            reason:
+                "Trace ID contains invalid characters (only alphanumeric, dash, underscore allowed)"
+                    .to_string(),
         });
     }
 

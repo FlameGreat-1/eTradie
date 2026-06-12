@@ -9,6 +9,7 @@ This package is the single source of truth for:
 Client code MUST consume these primitives instead of rolling its own.
 Audit ref: CHECKLIST Section 2.
 """
+
 from engine.ta.broker.connectivity.freshness import TickFreshnessGuard
 from engine.ta.broker.connectivity.heartbeat import (
     BrokerHeartbeatService,

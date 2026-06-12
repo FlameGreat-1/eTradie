@@ -45,7 +45,11 @@ logger = get_logger(__name__)
 CONNECTION_TYPE_EA = "ea"
 CONNECTION_TYPE_METAAPI = "metaapi"
 CONNECTION_TYPE_HOSTED = "hosted"
-VALID_CONNECTION_TYPES = {CONNECTION_TYPE_EA, CONNECTION_TYPE_METAAPI, CONNECTION_TYPE_HOSTED}
+VALID_CONNECTION_TYPES = {
+    CONNECTION_TYPE_EA,
+    CONNECTION_TYPE_METAAPI,
+    CONNECTION_TYPE_HOSTED,
+}
 
 # Valid status values.
 STATUS_UNTESTED = "untested"
@@ -258,6 +262,7 @@ class BrokerConnectionRepository:
         if id is not None:
             try:
                 from uuid import UUID as _UUIDValidate
+
                 _UUIDValidate(str(id))
                 row_id = str(id)
             except (ValueError, AttributeError, TypeError) as _id_exc:
@@ -423,10 +428,7 @@ class BrokerConnectionRepository:
         # the two secrets changed). The other column keeps whatever
         # version it was already on; the row reads 'active' only when
         # every stored secret is on the active KEK.
-        if (
-            "mt5_password_encrypted" in values
-            or "ea_auth_token_encrypted" in values
-        ):
+        if "mt5_password_encrypted" in values or "ea_auth_token_encrypted" in values:
             existing = await self.get_by_id(connection_id, user_id)
             if existing is not None:
                 mt5_ct = values.get(
@@ -483,7 +485,9 @@ class BrokerConnectionRepository:
 
     # -- Activate / Deactivate / Set Primary -----------------------------------
 
-    async def activate(self, connection_id: str, user_id: str) -> Optional[BrokerConnectionRow]:
+    async def activate(
+        self, connection_id: str, user_id: str
+    ) -> Optional[BrokerConnectionRow]:
         """Activate a connection (deactivates all others for this user)."""
         await self._deactivate_all(user_id)
 
@@ -500,7 +504,9 @@ class BrokerConnectionRepository:
 
         return await self.get_by_id(connection_id, user_id)
 
-    async def deactivate(self, connection_id: str, user_id: str) -> Optional[BrokerConnectionRow]:
+    async def deactivate(
+        self, connection_id: str, user_id: str
+    ) -> Optional[BrokerConnectionRow]:
         """Deactivate a specific connection, scoped to user."""
         stmt = (
             update(BrokerConnectionRow)
@@ -515,7 +521,9 @@ class BrokerConnectionRepository:
 
         return await self.get_by_id(connection_id, user_id)
 
-    async def set_primary(self, connection_id: str, user_id: str) -> Optional[BrokerConnectionRow]:
+    async def set_primary(
+        self, connection_id: str, user_id: str
+    ) -> Optional[BrokerConnectionRow]:
         """Set a connection as primary (unsets all others for this user).
 
         Also activates the connection if it is not already active.

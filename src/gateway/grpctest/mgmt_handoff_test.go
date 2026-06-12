@@ -168,7 +168,7 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 		GRPCPort:                      19181,
 	}
 
-	engineHTTP := infra.NewEngineHTTPClient(mockEngine.URL(), 30)
+	engineHTTP := infra.NewEngineHTTPClient(mockEngine.URL(), "", 30)
 	redisOpts, err := redis.ParseURL(testRedisURL())
 	if err != nil {
 		t.Fatalf("failed to parse redis URL: %v", err)
@@ -188,12 +188,12 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 	assembler := ctxpkg.NewAssembler()
 	guards := routing.NewGuardEvaluator()
 	execPort := &e2e.MockExecutionPort{}
-	router := routing.NewRouter(guards, execPort, transport)
+	router := routing.NewRouter(guards, execPort, transport, nil)
 	processor := infra.NewHTTPProcessorAdapter(engineHTTP)
 
 	orchestrator := pipeline.NewOrchestrator(
 		cfg, taCollector, macroCollector, qb, assembler,
-		processor, router, engineHTTP, transport,
+		processor, router, engineHTTP, transport, execPort,
 	)
 
 	redisWrapper, _ := infra.NewRedisClient(testRedisURL(), 5)
@@ -209,7 +209,7 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 
 	var scheduler *pipeline.Scheduler
 	if symStore != nil && settStore != nil {
-		scheduler = pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, nil)
+		scheduler = pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, nil, nil, nil)
 	}
 
 	// Build GRPCServer WITH the real mgmtClient.

@@ -212,9 +212,10 @@ func (r *Reconciler) runOnceForUser(parent context.Context, userID string) {
 
 // detectGhostPositions inspects the engine's last persisted snapshot
 // for positions that:
-//   (a) appear in the snapshot, AND
-//   (b) do NOT appear in the current broker reply, AND
-//   (c) the snapshot is at least ghostMinAge old.
+//
+//	(a) appear in the snapshot, AND
+//	(b) do NOT appear in the current broker reply, AND
+//	(c) the snapshot is at least ghostMinAge old.
 //
 // Those positions are removed from the engine view (the broker has
 // authoritatively closed them between reconcile cycles) and counted

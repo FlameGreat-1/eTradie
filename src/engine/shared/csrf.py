@@ -60,7 +60,11 @@ def _get_csrf_header_name() -> str:
 
 
 def _is_signed_mode() -> bool:
-    return os.environ.get("AUTH_CSRF_SIGNED", "true").strip().lower() not in ("false", "0", "no")
+    return os.environ.get("AUTH_CSRF_SIGNED", "true").strip().lower() not in (
+        "false",
+        "0",
+        "no",
+    )
 
 
 def _get_jwt_secret() -> bytes:
@@ -91,7 +95,9 @@ def _read_csrf_cookie(request: Request) -> Optional[str]:
     return None
 
 
-def _verify_csrf(request: Request, header_name: str, signed: bool, secret: bytes) -> bool:
+def _verify_csrf(
+    request: Request, header_name: str, signed: bool, secret: bytes
+) -> bool:
     """Return True iff the CSRF cookie + header pair is valid.
 
     In signed mode the authenticated user_id is read from
@@ -150,9 +156,10 @@ def _verify_csrf(request: Request, header_name: str, signed: bool, secret: bytes
         auth_header = request.headers.get("Authorization", "")
         if auth_header.lower().startswith("bearer "):
             token = auth_header[7:].strip()
-            
+
     if token:
         import jwt
+
         try:
             # We skip full validation here because the get_current_user
             # dependency will do it later. We just need the 'sub' claim

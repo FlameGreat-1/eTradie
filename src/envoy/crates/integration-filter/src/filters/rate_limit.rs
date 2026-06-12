@@ -36,7 +36,9 @@ impl RateLimitFilterIntegration {
             ),
         );
 
-        let decision = self.limiter.check_limits(context.trace_id(), context.client_ip());
+        let decision = self
+            .limiter
+            .check_limits(context.trace_id(), context.client_ip());
 
         let duration_ms = current_timestamp_ms().saturating_sub(start_time);
         self.record_metrics(&decision, duration_ms);
@@ -55,7 +57,8 @@ impl RateLimitFilterIntegration {
     }
 
     fn record_metrics(&self, decision: &FilterDecision, duration_ms: u64) {
-        self.metrics.record_histogram("execution_duration_ms", duration_ms);
+        self.metrics
+            .record_histogram("execution_duration_ms", duration_ms);
 
         if decision.allowed {
             self.metrics.increment_counter("requests_allowed");
@@ -89,11 +92,9 @@ mod tests {
     #[test]
     fn test_rate_limit_filter_execution() {
         let mut filter = RateLimitFilterIntegration::with_defaults().unwrap();
-        
-        let headers = vec![
-            ("x-forwarded-for".to_string(), "192.168.1.1".to_string()),
-        ];
-        
+
+        let headers = vec![("x-forwarded-for".to_string(), "192.168.1.1".to_string())];
+
         let context = crate::context::RequestContext::new(
             "GET".to_string(),
             "/api/v1/users".to_string(),
@@ -107,11 +108,9 @@ mod tests {
     #[test]
     fn test_rate_limit_execution_multiple_requests() {
         let mut filter = RateLimitFilterIntegration::with_defaults().unwrap();
-        
-        let headers = vec![
-            ("x-forwarded-for".to_string(), "192.168.1.1".to_string()),
-        ];
-        
+
+        let headers = vec![("x-forwarded-for".to_string(), "192.168.1.1".to_string())];
+
         let context = crate::context::RequestContext::new(
             "GET".to_string(),
             "/api/v1/users".to_string(),
@@ -121,7 +120,7 @@ mod tests {
         // First request should be allowed
         let decision = filter.execute(&context);
         assert!(decision.allowed);
-        
+
         // Subsequent requests should also be allowed (within limits)
         let decision = filter.execute(&context);
         assert!(decision.allowed);
@@ -132,7 +131,7 @@ mod tests {
         let config = RateLimitConfig::new()
             .with_global_limit(5000, 60)
             .with_ip_limit(500, 60);
-        
+
         let filter = RateLimitFilterIntegration::new(config);
         assert!(filter.is_ok());
     }

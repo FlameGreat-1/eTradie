@@ -26,6 +26,7 @@ legacy row is decrypted with the base KEK and re-wrapped to the active
 version, so the first run after this feature ships also migrates every
 pre-existing credential onto the envelope format.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

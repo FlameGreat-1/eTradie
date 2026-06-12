@@ -22,6 +22,7 @@ anything inside this module.
 Audit ref: CHECKLIST Section 2 - 'Heartbeat system per MT terminal',
 'Detection of silent disconnect'.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -143,7 +144,11 @@ class BrokerHeartbeatService:
         """
         key = (provider, account_id)
         existing = self._connections.get(key)
-        if existing is not None and existing.task is not None and not existing.task.done():
+        if (
+            existing is not None
+            and existing.task is not None
+            and not existing.task.done()
+        ):
             existing.task.cancel()
         state = _ConnState(
             provider=provider,
@@ -172,7 +177,8 @@ class BrokerHeartbeatService:
         """Cancel every loop. Called on engine shutdown."""
         self._stopped.set()
         tasks = [
-            s.task for s in self._connections.values()
+            s.task
+            for s in self._connections.values()
             if s.task is not None and not s.task.done()
         ]
         for t in tasks:

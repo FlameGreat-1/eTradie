@@ -105,9 +105,7 @@ def _compute_correlation_signals(
 
     # Yield curve slope: 10Y - 2Y spread in basis points
     if snapshot.us2y_yield is not None and snapshot.us10y_yield is not None:
-        spread_bps = round(
-            (snapshot.us10y_yield - snapshot.us2y_yield) * 100, 1
-        )
+        spread_bps = round((snapshot.us10y_yield - snapshot.us2y_yield) * 100, 1)
         signals["yield_curve_slope_bps"] = spread_bps
         signals["yield_curve_inverted"] = spread_bps < 0
 
@@ -284,6 +282,7 @@ class IntermarketCollector(BaseCollector):
         self._record_items_stored(1 if snapshot else 0)
         return dataset
 
-
     def _empty_dataset(self) -> MarketDataSet:
-        return MarketDataSet(snapshots=[], latest=None, sources=[], collected_at=datetime.now(UTC))
+        return MarketDataSet(
+            snapshots=[], latest=None, sources=[], collected_at=datetime.now(UTC)
+        )

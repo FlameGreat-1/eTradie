@@ -111,7 +111,9 @@ class OpenAIClient(LLMClient):
             }
 
         budget = resolve_reasoning_budget(
-            operator_budget_tokens=getattr(self._config, "reasoning_budget_tokens", None),
+            operator_budget_tokens=getattr(
+                self._config, "reasoning_budget_tokens", None
+            ),
             capabilities=self._capabilities,
         )
         if budget.effort is not None and self._capabilities.is_thinking:

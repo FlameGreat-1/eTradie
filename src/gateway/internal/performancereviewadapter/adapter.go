@@ -5,9 +5,9 @@
 // imports infra. That keeps the handler unit-testable with table-
 // driven fakes and keeps the dependency graph one-directional:
 //
-//   performancereview          -> (interface declarations)
-//   performancereviewadapter   -> performancereview + infra (concrete)
-//   main.go                    -> both (composition)
+//	performancereview          -> (interface declarations)
+//	performancereviewadapter   -> performancereview + infra (concrete)
+//	main.go                    -> both (composition)
 package performancereviewadapter
 
 import (

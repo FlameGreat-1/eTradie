@@ -213,8 +213,13 @@ class Container:
         from engine.ta.broker.mt5.client_pool import BrokerClientPool
 
         import os as _os
-        _pool_idle = float(_os.environ.get("ENGINE_BROKER_POOL_IDLE_TIMEOUT_SECS", "600") or 600)
-        _pool_sweep = float(_os.environ.get("ENGINE_BROKER_POOL_SWEEP_INTERVAL_SECS", "60") or 60)
+
+        _pool_idle = float(
+            _os.environ.get("ENGINE_BROKER_POOL_IDLE_TIMEOUT_SECS", "600") or 600
+        )
+        _pool_sweep = float(
+            _os.environ.get("ENGINE_BROKER_POOL_SWEEP_INTERVAL_SECS", "60") or 60
+        )
         self.broker_client_pool = BrokerClientPool(
             idle_timeout_secs=_pool_idle if _pool_idle > 0 else 600.0,
             sweep_interval_secs=_pool_sweep if _pool_sweep > 0 else 60.0,
@@ -260,16 +265,24 @@ class Container:
             api_key=s.fred_api_key,
         )
         self.rba_rate_provider = RBARateProvider(
-            h, base_url=s.fred_base_url, api_key=s.fred_api_key,
+            h,
+            base_url=s.fred_base_url,
+            api_key=s.fred_api_key,
         )
         self.boc_rate_provider = BOCRateProvider(
-            h, base_url=s.fred_base_url, api_key=s.fred_api_key,
+            h,
+            base_url=s.fred_base_url,
+            api_key=s.fred_api_key,
         )
         self.rbnz_rate_provider = RBNZRateProvider(
-            h, base_url=s.fred_base_url, api_key=s.fred_api_key,
+            h,
+            base_url=s.fred_base_url,
+            api_key=s.fred_api_key,
         )
         self.snb_rate_provider = SNBRateProvider(
-            h, base_url=s.fred_base_url, api_key=s.fred_api_key,
+            h,
+            base_url=s.fred_base_url,
+            api_key=s.fred_api_key,
         )
         for p in (
             self.fed_rate_provider,
@@ -362,7 +375,9 @@ class Container:
         )
         self.economic_collector.cache_ttl = s.cache_ttl_economic_data
 
-        self.calendar_collector = CalendarCollector([self.forexfactory_cal_provider], c, d)
+        self.calendar_collector = CalendarCollector(
+            [self.forexfactory_cal_provider], c, d
+        )
         self.calendar_collector.cache_ttl = s.cache_ttl_calendar
 
         self.dxy_collector = DXYCollector(
@@ -418,8 +433,6 @@ class Container:
                 "twelve_data_client_creation_failed",
                 extra={"error": str(exc)},
             )
-
-
 
     def _build_ta_repositories(self) -> None:
         self.ta_uow_factory = ta_uow_factory(self.db)
@@ -638,6 +651,7 @@ class Container:
         # boot has a real value.
         await self.refresh_active_user_connections()
         import asyncio
+
         self._active_connections_task = asyncio.create_task(
             self._active_connections_refresh_loop(interval_secs),
             name="active-user-connections-refresh",
@@ -732,7 +746,9 @@ class Container:
         )
 
         async def _build_sync_client(
-            dns_name: str, zmq_port: int, auth_token: str,
+            dns_name: str,
+            zmq_port: int,
+            auth_token: str,
         ) -> BrokerBase:
             sync_config = MT5Config.model_construct(
                 enabled=True,
@@ -761,7 +777,9 @@ class Container:
             )
 
         async def _run_full_catalog_sync(
-            dns_name: str, zmq_port: int, auth_token: str,
+            dns_name: str,
+            zmq_port: int,
+            auth_token: str,
         ) -> None:
             client = await _build_sync_client(dns_name, zmq_port, auth_token)
             try:
@@ -881,9 +899,7 @@ class Container:
         key = self._user_broker_keys.pop(user_id, None)
         if key is not None:
             provider, account_id = key
-            await self.broker_client_pool.evict(
-                provider, account_id, reason="explicit"
-            )
+            await self.broker_client_pool.evict(provider, account_id, reason="explicit")
             _logger.info(
                 "user_broker_invalidated",
                 extra={"user_id": user_id, "provider": provider},
@@ -911,7 +927,9 @@ class Container:
                 row = await repo.get_active(user_id=user_id)
 
             if row is None:
-                _logger.debug("no_active_broker_connection_in_db", extra={"user_id": user_id})
+                _logger.debug(
+                    "no_active_broker_connection_in_db", extra={"user_id": user_id}
+                )
                 return None
 
             # Decrypt EA auth token if applicable.
@@ -923,6 +941,7 @@ class Container:
             platform_token = ""
             if row.connection_type == "metaapi":
                 import os
+
                 platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
 
             client = create_mt5_broker_from_connection(
@@ -1070,7 +1089,9 @@ class Container:
             alert_publisher=self.alert_publisher,
         )
 
-    async def resolve_user_processor(self, user: "AuthenticatedUser") -> "AnalysisProcessor":
+    async def resolve_user_processor(
+        self, user: "AuthenticatedUser"
+    ) -> "AnalysisProcessor":
         """Resolve the authenticated user's LLM processor.
 
         Uses a per-user cache to avoid rebuilding the LLM client on
@@ -1146,7 +1167,9 @@ class Container:
                 extra={"user_id": user_id},
             )
 
-    async def load_user_llm_config(self, user: "AuthenticatedUser") -> "ProcessorConfig | None":
+    async def load_user_llm_config(
+        self, user: "AuthenticatedUser"
+    ) -> "ProcessorConfig | None":
         """Load the active LLM connection for a specific user.
 
         Called at request time. Returns a ProcessorConfig built from
@@ -1251,9 +1274,7 @@ class Container:
             platform_row = await repo.get_platform()
 
         if platform_row is not None:
-            return self._processor_config_from_row(
-                platform_row, is_platform=True
-            )
+            return self._processor_config_from_row(platform_row, is_platform=True)
         _logger.info("using_platform_llm_from_env")
         # Env-var fallback IS the platform key by definition (this branch
         # is only reached for admin / pro_managed users with no saved
@@ -1285,7 +1306,9 @@ class Container:
 
     # -- Analysis-path resolver (request-scoped, has AuthenticatedUser) ----
 
-    async def _load_active_llm_connection(self, user: "AuthenticatedUser") -> "ProcessorConfig | None":
+    async def _load_active_llm_connection(
+        self, user: "AuthenticatedUser"
+    ) -> "ProcessorConfig | None":
         """Load the active LLM connection from the database for a user.
 
         Tier policy (defense-in-depth):
@@ -1554,7 +1577,6 @@ class Container:
 
     # -- Shutdown --------------------------------------------------------------
 
-
     async def shutdown(self) -> None:
         # Section 8 (CHECKLIST): stop the hosted recovery service BEFORE
         # the background-task coordinator drains. The coordinator will
@@ -1571,13 +1593,16 @@ class Container:
 
         if getattr(self, "_active_connections_task", None) is not None:
             import asyncio
+
             self._active_connections_task.cancel()
             try:
                 await self._active_connections_task
             except asyncio.CancelledError:
                 pass
             except Exception as exc:
-                _logger.warning("active_connections_task_shutdown_error", extra={"error": str(exc)})
+                _logger.warning(
+                    "active_connections_task_shutdown_error", extra={"error": str(exc)}
+                )
 
         # Cancel pending background work BEFORE we tear down the resources
         # those tasks may be holding (broker clients, http client, redis).
@@ -1621,7 +1646,7 @@ class Container:
                 extra={"error": str(exc)},
             )
         self._user_broker_keys.clear()
-        
+
         # Close the global system-level processor LLM client.
         if hasattr(self, "processor_llm_client"):
             await self.processor_llm_client.close()

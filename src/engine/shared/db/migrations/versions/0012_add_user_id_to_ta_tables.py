@@ -55,9 +55,7 @@ def upgrade() -> None:
         if table_name not in existing_tables:
             continue
 
-        existing_columns = {
-            col["name"] for col in inspector.get_columns(table_name)
-        }
+        existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
 
         if "user_id" in existing_columns:
             # Column already exists (idempotent re-run).
@@ -75,9 +73,7 @@ def upgrade() -> None:
 
         # Step 2: Backfill existing rows with 'system' placeholder.
         op.execute(
-            sa.text(
-                f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL"
-            )
+            sa.text(f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL")
         )
 
         # Step 3: Alter column to NOT NULL.
@@ -89,9 +85,7 @@ def upgrade() -> None:
 
         # Step 4: Create index for fast per-user queries.
         index_name = _INDEX_NAMES[table_name]
-        existing_indexes = {
-            idx["name"] for idx in inspector.get_indexes(table_name)
-        }
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes(table_name)}
         if index_name not in existing_indexes:
             op.create_index(index_name, table_name, ["user_id"])
 
@@ -100,9 +94,7 @@ def upgrade() -> None:
     # conflicts when different users store candles for the same symbol.
     # The new constraint is (user_id, symbol, timeframe, timestamp).
     if "candles" in existing_tables:
-        existing_indexes = {
-            idx["name"] for idx in inspector.get_indexes("candles")
-        }
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes("candles")}
 
         # Drop old unique constraint.
         if "ix_candles_symbol_timeframe_timestamp" in existing_indexes:
@@ -148,9 +140,7 @@ def upgrade() -> None:
 
     # Step 7: Add user_id to candidate composite indexes.
     if "candidates" in existing_tables:
-        existing_indexes = {
-            idx["name"] for idx in inspector.get_indexes("candidates")
-        }
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes("candidates")}
 
         old_new_pairs = [
             (
@@ -183,9 +173,7 @@ def downgrade() -> None:
 
     # Restore candidate indexes.
     if "candidates" in existing_tables:
-        existing_indexes = {
-            idx["name"] for idx in inspector.get_indexes("candidates")
-        }
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes("candidates")}
         restore_pairs = [
             (
                 "ix_candidates_user_symbol_timeframe_timestamp",
@@ -232,9 +220,7 @@ def downgrade() -> None:
 
     # Restore candles unique constraint.
     if "candles" in existing_tables:
-        existing_indexes = {
-            idx["name"] for idx in inspector.get_indexes("candles")
-        }
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes("candles")}
         if "ix_candles_user_symbol_timeframe_timestamp" in existing_indexes:
             op.drop_index(
                 "ix_candles_user_symbol_timeframe_timestamp",
@@ -252,16 +238,12 @@ def downgrade() -> None:
         if table_name not in existing_tables:
             continue
 
-        existing_columns = {
-            col["name"] for col in inspector.get_columns(table_name)
-        }
+        existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
         if "user_id" not in existing_columns:
             continue
 
         index_name = _INDEX_NAMES[table_name]
-        existing_indexes = {
-            idx["name"] for idx in inspector.get_indexes(table_name)
-        }
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes(table_name)}
         if index_name in existing_indexes:
             op.drop_index(index_name, table_name=table_name)
 

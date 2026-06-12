@@ -114,7 +114,9 @@ class GeminiClient(LLMClient):
             kwargs["response_schema"] = compile_for_gemini()
 
         budget = resolve_reasoning_budget(
-            operator_budget_tokens=getattr(self._config, "reasoning_budget_tokens", None),
+            operator_budget_tokens=getattr(
+                self._config, "reasoning_budget_tokens", None
+            ),
             capabilities=self._capabilities,
         )
         if budget.is_active and self._capabilities.is_thinking:
@@ -256,9 +258,13 @@ class GeminiClient(LLMClient):
                 # __bool__ is not stable across SDK versions.
                 if usage_out is not None and chunk.usage_metadata is not None:
                     if chunk.usage_metadata.prompt_token_count is not None:
-                        usage_out["input_tokens"] = chunk.usage_metadata.prompt_token_count
+                        usage_out["input_tokens"] = (
+                            chunk.usage_metadata.prompt_token_count
+                        )
                     if chunk.usage_metadata.candidates_token_count is not None:
-                        usage_out["output_tokens"] = chunk.usage_metadata.candidates_token_count
+                        usage_out["output_tokens"] = (
+                            chunk.usage_metadata.candidates_token_count
+                        )
                 # Capture the finish_reason from every chunk. The final
                 # chunk carries the authoritative reason (STOP,
                 # MAX_TOKENS, SAFETY, RECITATION, OTHER). Earlier

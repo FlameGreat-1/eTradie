@@ -21,6 +21,7 @@ as injected dependencies so tests drive it without infrastructure.
 Audit ref: CHECKLIST Section 4 'Kill-switch if EA diverges from
 expected logic'.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -34,13 +35,11 @@ logger = get_logger(__name__)
 class _BrokerConnectionRepo(Protocol):
     """Narrow subset of the broker-connection repo we need."""
 
-    async def disable_by_id(self, connection_id: str, *, reason: str) -> bool:
-        ...
+    async def disable_by_id(self, connection_id: str, *, reason: str) -> bool: ...
 
 
 class _AlertPublisher(Protocol):
-    async def publish(self, channel: str, payload: dict[str, Any]) -> None:
-        ...
+    async def publish(self, channel: str, payload: dict[str, Any]) -> None: ...
 
 
 @dataclass(frozen=True)

@@ -22,6 +22,7 @@ bound at construction time.
 
 Audit ref: CHECKLIST Section 2 - 'Symbol mapping consistency layer'.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -106,7 +107,11 @@ class SymbolResolver:
                     result="hit_cache",
                 ).inc()
                 # redis client may return bytes or str depending on decode_responses
-                return cached.decode("utf-8") if isinstance(cached, (bytes, bytearray)) else str(cached)
+                return (
+                    cached.decode("utf-8")
+                    if isinstance(cached, (bytes, bytearray))
+                    else str(cached)
+                )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "symbol_resolver_redis_get_failed",

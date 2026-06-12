@@ -10,11 +10,7 @@ impl ContentTypeValidator {
         Self { rules }
     }
 
-    pub fn validate(
-        &self,
-        headers: &[(String, String)],
-        method: &str,
-    ) -> FilterResult<()> {
+    pub fn validate(&self, headers: &[(String, String)], method: &str) -> FilterResult<()> {
         let content_type = self.find_content_type(headers);
 
         if crate::rules::is_method_requiring_content_type(method) {
@@ -58,9 +54,9 @@ impl ContentTypeValidator {
 
 pub fn parse_content_type(content_type: &str) -> (String, Vec<(String, String)>) {
     let parts: Vec<&str> = content_type.split(';').collect();
-    
+
     let media_type = parts.first().unwrap_or(&"").trim().to_lowercase();
-    
+
     let mut parameters = Vec::new();
     for part in parts.iter().skip(1) {
         if let Some((key, value)) = part.split_once('=') {
@@ -76,7 +72,7 @@ pub fn parse_content_type(content_type: &str) -> (String, Vec<(String, String)>)
 
 pub fn get_charset(content_type: &str) -> Option<String> {
     let (_, parameters) = parse_content_type(content_type);
-    
+
     parameters
         .iter()
         .find(|(key, _)| key == "charset")
@@ -102,9 +98,7 @@ mod tests {
         let rules = ValidationRules::new();
         let validator = ContentTypeValidator::new(rules);
 
-        let headers = vec![
-            ("content-type".to_string(), "application/json".to_string()),
-        ];
+        let headers = vec![("content-type".to_string(), "application/json".to_string())];
 
         assert!(validator.validate(&headers, "POST").is_ok());
     }
@@ -123,9 +117,7 @@ mod tests {
         let rules = ValidationRules::new();
         let validator = ContentTypeValidator::new(rules);
 
-        let headers = vec![
-            ("content-type".to_string(), "application/xml".to_string()),
-        ];
+        let headers = vec![("content-type".to_string(), "application/xml".to_string())];
 
         assert!(validator.validate(&headers, "POST").is_err());
     }

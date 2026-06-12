@@ -12,6 +12,7 @@ Routes:
     POST   /api/broker/connections/{connection_id}/test
     DELETE /api/broker/connections/{connection_id}
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -185,7 +186,7 @@ async def create_broker_connection(
             if not platform_token:
                 raise HTTPException(
                     status_code=500,
-                    detail="MT5_METAAPI_TOKEN environment variable is not configured on the server."
+                    detail="MT5_METAAPI_TOKEN environment variable is not configured on the server.",
                 )
 
             provisioner = MetaApiProvisioner(
@@ -212,7 +213,7 @@ async def create_broker_connection(
                 )
                 raise HTTPException(
                     status_code=400,
-                    detail="Broker provisioning failed. Check the broker server, login and password and try again."
+                    detail="Broker provisioning failed. Check the broker server, login and password and try again.",
                 )
 
         elif body.connection_type == "hosted":
@@ -234,9 +235,7 @@ async def create_broker_connection(
             async with container.db.read_session() as session:
                 repo = BrokerConnectionRepository(session)
                 existing = await repo.get_all(user_id=user.user_id)
-            hosted_count = sum(
-                1 for c in existing if c.connection_type == "hosted"
-            )
+            hosted_count = sum(1 for c in existing if c.connection_type == "hosted")
             if hosted_count >= max_hosted:
                 raise HTTPException(
                     status_code=422,
@@ -256,10 +255,11 @@ async def create_broker_connection(
             # all agree. HostedRecoveryService and gc_orphans key on the
             # row id; any mismatch breaks recovery and GC silently.
             from uuid import uuid4 as _uuid4
+
             allocated_connection_id = str(_uuid4())
 
             provisioner = container.hosted_provisioner
-            
+
             # Predict the runtime details immediately so the DB row can be
             # created synchronously.
             release = provisioner._release_name(allocated_connection_id)
@@ -267,11 +267,12 @@ async def create_broker_connection(
             ea_host = f"{release}.{provisioner._namespace}.svc.cluster.local"
             # ZMQ port is always DEFAULT_ZMQ_PORT (5555) for hosted nodes.
             ea_port = 5555
-            
+
             # Generate a secure token upfront.
             import secrets
+
             ea_auth_token = secrets.token_hex(32)
-            
+
             # Fire-and-forget provisioning. The engine will not block on
             # the Pod boot. The background task updates the DB when done.
             async def run_hosted_provisioner(
@@ -296,7 +297,11 @@ async def create_broker_connection(
                     async with container.db.session() as bg_session:
                         repo = BrokerConnectionRepository(bg_session)
                         await repo.update_status(
-                            conn_id, user_id, status="ready", status_message="Provisioned successfully", connected=True
+                            conn_id,
+                            user_id,
+                            status="ready",
+                            status_message="Provisioned successfully",
+                            connected=True,
                         )
                 except Exception as exc:
                     logger.error(
@@ -306,7 +311,10 @@ async def create_broker_connection(
                     async with container.db.session() as bg_session:
                         repo = BrokerConnectionRepository(bg_session)
                         await repo.update_status(
-                            conn_id, user_id, status="failed", status_message=f"Provisioning failed: {exc}"
+                            conn_id,
+                            user_id,
+                            status="failed",
+                            status_message=f"Provisioning failed: {exc}",
                         )
 
             background_tasks.add_task(
@@ -337,16 +345,23 @@ async def create_broker_connection(
                 ea_auth_token=ea_auth_token,
                 metaapi_account_id=metaapi_account_id,
                 metaapi_region=metaapi_region,
-                hosted_container_id=hosted_container_id
-                    if body.connection_type == "hosted" else None,
+                hosted_container_id=(
+                    hosted_container_id if body.connection_type == "hosted" else None
+                ),
                 mt5_server=body.mt5_server,
                 mt5_login=body.mt5_login,
                 mt5_password=body.mt5_password,
                 platform=body.platform,
                 activate=body.activate,
                 id=_row_id_override,
-                status="provisioning" if body.connection_type == "hosted" else "untested",
-                status_message="Connecting to your broker... This may take up to 3 minutes." if body.connection_type == "hosted" else "",
+                status=(
+                    "provisioning" if body.connection_type == "hosted" else "untested"
+                ),
+                status_message=(
+                    "Connecting to your broker... This may take up to 3 minutes."
+                    if body.connection_type == "hosted"
+                    else ""
+                ),
             )
             result = _serialize_broker_connection(row)
             connection_id = str(row.id)
@@ -357,9 +372,7 @@ async def create_broker_connection(
         await container.invalidate_user_broker(user.user_id)
 
     result["message"] = (
-        "Connection created and activated."
-        if body.activate
-        else "Connection created."
+        "Connection created and activated." if body.activate else "Connection created."
     )
     return result
 
@@ -766,7 +779,9 @@ async def delete_broker_connection(
                 # Background task to avoid blocking the user API response
                 asyncio.create_task(provisioner.cleanup_account(metaapi_account_id))
             except Exception as exc:
-                logger.error("failed_to_start_metaapi_cleanup", extra={"error": str(exc)})
+                logger.error(
+                    "failed_to_start_metaapi_cleanup", extra={"error": str(exc)}
+                )
     elif is_hosted and hosted_container_id:
         try:
             provisioner = container.hosted_provisioner

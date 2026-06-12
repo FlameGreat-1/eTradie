@@ -15,9 +15,9 @@ No data migration is required: VARCHAR widening is a metadata-only
 operation in PostgreSQL when the new length is >= the old length, so
 the ALTER COLUMN runs in O(1) and never rewrites the table.
 """
+
 from alembic import op
 import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision = "0023"
@@ -40,14 +40,12 @@ def downgrade() -> None:
     # Narrowing requires that no existing row exceeds the new width.
     # Truncate any over-length values before applying the type change
     # so the downgrade does not fail on legitimately-persisted data.
-    op.execute(
-        """
+    op.execute("""
         UPDATE analysis_audit_logs
            SET retrieval_strategy = LEFT(retrieval_strategy, 32)
          WHERE retrieval_strategy IS NOT NULL
            AND char_length(retrieval_strategy) > 32;
-        """
-    )
+        """)
     op.alter_column(
         "analysis_audit_logs",
         "retrieval_strategy",

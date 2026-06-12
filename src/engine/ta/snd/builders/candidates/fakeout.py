@@ -12,12 +12,18 @@ from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detectors.fakeouts import FakeoutTest
 from engine.ta.snd.detectors.previous_levels import PreviousHighsLows
 from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
-from engine.ta.constants import Direction, CandidatePattern, OTE_LEVELS, FIBONACCI_VALUES
+from engine.ta.constants import (
+    Direction,
+    CandidatePattern,
+    OTE_LEVELS,
+    FIBONACCI_VALUES,
+)
 
 from engine.ta.snd.validators.ltf.confirmation import LTFConfirmationValidator
 import datetime
 
 logger = get_logger(__name__)
+
 
 class FakeoutCandidateBuilder:
     """
@@ -83,7 +89,7 @@ class FakeoutCandidateBuilder:
         marubozu_valid, marubozu_ts = self._validate_marubozu(
             ltf_sequence, breakout_candle_index, Direction.BEARISH
         )
-        
+
         # Fakeout-king entries sit at the SR flip; the flip level is the
         # SL anchor (no separate structural extreme).
         levels = compute_trade_levels(
@@ -125,7 +131,8 @@ class FakeoutCandidateBuilder:
             fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
             fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
             compression_detected=self._check_compression(
-                ltf_sequence, fakeout_tests,
+                ltf_sequence,
+                fakeout_tests,
             ),
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
@@ -230,7 +237,8 @@ class FakeoutCandidateBuilder:
             fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
             fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
             compression_detected=self._check_compression(
-                ltf_sequence, fakeout_tests,
+                ltf_sequence,
+                fakeout_tests,
             ),
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
@@ -292,7 +300,8 @@ class FakeoutCandidateBuilder:
         if not fakeout_tests:
             return False
         return self.ltf_validator.validate_compression_at_zone(
-            sequence, fakeout_tests,
+            sequence,
+            fakeout_tests,
         )
 
     def _get_fib_level(
@@ -324,7 +333,9 @@ class FakeoutCandidateBuilder:
         breakout_candle_index: Optional[int],
         direction: Direction,
     ) -> tuple[bool, Optional["datetime.datetime"]]:
-        if breakout_candle_index is None or breakout_candle_index >= len(sequence.candles):
+        if breakout_candle_index is None or breakout_candle_index >= len(
+            sequence.candles
+        ):
             return False, None
 
         candle = sequence.candles[breakout_candle_index]

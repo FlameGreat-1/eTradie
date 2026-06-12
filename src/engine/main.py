@@ -138,6 +138,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from engine.processor.performance_review.scheduler import (
         register_performance_review_jobs,
     )
+
     register_performance_review_jobs(app, container.scheduler)
 
     # Scheduler jobs bind to .refresh() (cache-bypass writer path) so
@@ -362,6 +363,7 @@ def create_app() -> FastAPI:
     # generate spans. Audit ref: observability end-to-end (Step 10d).
     if settings.otel_exporter_otlp_endpoint and not settings.is_testing:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
         FastAPIInstrumentor.instrument_app(app, excluded_urls="/metrics")
 
     # -- Global last-resort exception handler -----------------------------
@@ -371,6 +373,7 @@ def create_app() -> FastAPI:
     # not intercept HTTPException / RequestValidationError or the
     # routers' typed ETradieBaseError mappings.
     from engine.shared.error_handler import register_exception_handlers
+
     register_exception_handlers(app)
 
     # -- Request body-size limit (TIER 4 "Length limits") -----------------
@@ -383,6 +386,7 @@ def create_app() -> FastAPI:
     # OUTERMOST in Starlette's reverse-add middleware order and rejects
     # an oversized body before CSRF or any route handler runs.
     from engine.shared.body_limit import MaxBodySizeMiddleware
+
     app.add_middleware(MaxBodySizeMiddleware)
 
     # -- CSRF middleware ---------------------------------------------------
@@ -392,6 +396,7 @@ def create_app() -> FastAPI:
     # chain runs in Starlette's order). Internal routes (/internal/*)
     # are exempt because they use X-Internal-Auth instead.
     from engine.shared.csrf import CSRFMiddleware
+
     app.add_middleware(CSRFMiddleware)
 
     # -- CORS middleware ---------------------------------------------------
@@ -405,9 +410,7 @@ def create_app() -> FastAPI:
     # DROPPED (fail safe) and logged loudly — the same posture as the
     # Go execution/management services' auth.BuildCORSAllowlist.
     allowed_origins = _validate_cors_origins(
-        origin.strip()
-        for origin in allowed_origins_str.split(",")
-        if origin.strip()
+        origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()
     )
     app.add_middleware(
         CORSMiddleware,

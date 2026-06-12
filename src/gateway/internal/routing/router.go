@@ -346,19 +346,19 @@ func (r *Router) executeTrade(
 					WithDirection(decision.Direction).
 					WithTraceID(traceID).
 					WithDetails(map[string]interface{}{
-						"reason":           "Free tier does not support trade execution.",
-						"required_tier":   "pro_byok",
-						"feature":         "automated_execution",
+						"reason":        "Free tier does not support trade execution.",
+						"required_tier": "pro_byok",
+						"feature":       "automated_execution",
 					}),
 			)
 		}
 
 		return map[string]interface{}{
-			"status":         "blocked",
-			"reason":         "Trade execution is not available on the Free tier. Upgrade to Pro.",
-			"error_code":     "tier_required",
-			"required_tier":  "pro_byok",
-			"feature":        "automated_execution",
+			"status":        "blocked",
+			"reason":        "Trade execution is not available on the Free tier. Upgrade to Pro.",
+			"error_code":    "tier_required",
+			"required_tier": "pro_byok",
+			"feature":       "automated_execution",
 		}
 	}
 

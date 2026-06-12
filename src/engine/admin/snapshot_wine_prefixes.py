@@ -34,6 +34,7 @@ grants exactly:
   - snapshot.storage.k8s.io/volumesnapshots: get, list, create, delete
 Nothing else. No cluster-scoped verbs.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -57,7 +58,9 @@ _SNAPSHOT_PLURAL = "volumesnapshots"
 def _env(name: str, default: str | None = None) -> str:
     value = os.environ.get(name, default if default is not None else "").strip()
     if not value and default is None:
-        print(f"FATAL: required env var {name} is not set", file=sys.stderr)  # noqa: T201
+        print(
+            f"FATAL: required env var {name} is not set", file=sys.stderr
+        )  # noqa: T201
         sys.exit(2)
     return value
 
@@ -73,8 +76,7 @@ async def _list_wine_prefix_pvcs(
     core_api: client.CoreV1Api, namespace: str
 ) -> list[client.V1PersistentVolumeClaim]:
     label_selector = (
-        f"{_LABEL_APP_NAME}=etradie-mt-node,"
-        f"{_LABEL_COMPONENT}=wine-prefix"
+        f"{_LABEL_APP_NAME}=etradie-mt-node," f"{_LABEL_COMPONENT}=wine-prefix"
     )
     resp = await core_api.list_namespaced_persistent_volume_claim(
         namespace=namespace,
@@ -118,6 +120,7 @@ def _build_snapshot_manifest(
 
 _HTTP_CONFLICT = 409
 
+
 async def _create_snapshot(
     custom_api: client.CustomObjectsApi,
     namespace: str,
@@ -157,7 +160,9 @@ async def _prune_old_snapshots(
             label_selector=label_selector,
         )
     except ApiException as exc:
-        print(f"  WARN: list VolumeSnapshots failed: {exc.reason} (status {exc.status})")
+        print(
+            f"  WARN: list VolumeSnapshots failed: {exc.reason} (status {exc.status})"
+        )
         return (0, 1)
 
     deleted = 0
@@ -260,7 +265,9 @@ async def main_async() -> int:
                 failures += 1
 
         deleted, prune_failures = await _prune_old_snapshots(
-            custom_api, namespace, retention_days,
+            custom_api,
+            namespace,
+            retention_days,
         )
         print(
             f"[snapshot-wine-prefixes] created={snapshots_created} "

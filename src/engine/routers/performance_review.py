@@ -15,6 +15,7 @@ No user authentication on the HTTP surface: the gateway already
 authenticated the caller. We verify the shared-secret HMAC via the
 same dependency the rest of the /internal/* surface uses.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -75,9 +76,7 @@ async def _resolve_generator(
     gen = getattr(container, "_performance_review_generator", None)
     if gen is not None:
         return gen
-    lock: asyncio.Lock = getattr(
-        container, "_performance_review_generator_lock", None
-    )
+    lock: asyncio.Lock = getattr(container, "_performance_review_generator_lock", None)
     if lock is None:
         lock = asyncio.Lock()
         container._performance_review_generator_lock = lock  # type: ignore[attr-defined]
@@ -165,14 +164,10 @@ async def dispatch_performance_review(
     container: Container = request.app.state.container
 
     role = (
-        body.role.strip()
-        or request.headers.get("X-User-Role", "").strip()
-        or "etradie"
+        body.role.strip() or request.headers.get("X-User-Role", "").strip() or "etradie"
     ).lower()
     tier = (
-        body.tier.strip()
-        or request.headers.get("X-User-Tier", "").strip()
-        or "free"
+        body.tier.strip() or request.headers.get("X-User-Tier", "").strip() or "free"
     ).lower()
 
     gen_req = GenerationRequest(

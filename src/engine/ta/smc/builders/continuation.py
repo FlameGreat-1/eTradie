@@ -152,9 +152,7 @@ class ContinuationBuilder:
         stop_loss = self._compute_structural_stop_loss(
             ob=ltf_ob,
             direction=Direction.BULLISH,
-            protective_level=(
-                ltf_sweep.sweep_low if ltf_sweep is not None else None
-            ),
+            protective_level=(ltf_sweep.sweep_low if ltf_sweep is not None else None),
         )
 
         # take_profit is Optional[float] on SMCCandidate by design.  When
@@ -320,9 +318,7 @@ class ContinuationBuilder:
         stop_loss = self._compute_structural_stop_loss(
             ob=ltf_ob,
             direction=Direction.BEARISH,
-            protective_level=(
-                ltf_sweep.sweep_high if ltf_sweep is not None else None
-            ),
+            protective_level=(ltf_sweep.sweep_high if ltf_sweep is not None else None),
         )
 
         # take_profit is Optional[float] on SMCCandidate by design.  When
@@ -497,9 +493,9 @@ class ContinuationBuilder:
             min_reward = sl_distance * rr
 
         candidates = [
-            sh.price for sh in swing_highs
-            if sh.price > entry_price
-            and (sh.price - entry_price) >= min_reward
+            sh.price
+            for sh in swing_highs
+            if sh.price > entry_price and (sh.price - entry_price) >= min_reward
         ]
         if candidates:
             return min(candidates)
@@ -530,9 +526,9 @@ class ContinuationBuilder:
             min_reward = sl_distance * rr
 
         candidates = [
-            sl.price for sl in swing_lows
-            if sl.price < entry_price
-            and (entry_price - sl.price) >= min_reward
+            sl.price
+            for sl in swing_lows
+            if sl.price < entry_price and (entry_price - sl.price) >= min_reward
         ]
         if candidates:
             return max(candidates)
@@ -561,11 +557,7 @@ class ContinuationBuilder:
         invalidation_level = (
             protective_level
             if protective_level is not None
-            else (
-                ob.lower_bound
-                if direction == Direction.BULLISH
-                else ob.upper_bound
-            )
+            else (ob.lower_bound if direction == Direction.BULLISH else ob.upper_bound)
         )
         ob_inner_edge = (
             ob.lower_bound if direction == Direction.BULLISH else ob.upper_bound
@@ -586,40 +578,52 @@ class ContinuationBuilder:
         Identifies local maxima using a simple 3-bar pivot.
         """
         from engine.ta.models.swing import SwingHigh
+
         highs = []
         candles = sequence.candles
         for i in range(1, len(candles) - 1):
-            if candles[i].high > candles[i - 1].high and candles[i].high > candles[i + 1].high:
-                highs.append(SwingHigh(
-                    symbol=sequence.symbol,
-                    timeframe=sequence.timeframe,
-                    timestamp=candles[i].timestamp,
-                    price=candles[i].high,
-                    index=i,
-                    strength=1,
-                    left_bars=1,
-                    right_bars=1,
-                ))
+            if (
+                candles[i].high > candles[i - 1].high
+                and candles[i].high > candles[i + 1].high
+            ):
+                highs.append(
+                    SwingHigh(
+                        symbol=sequence.symbol,
+                        timeframe=sequence.timeframe,
+                        timestamp=candles[i].timestamp,
+                        price=candles[i].high,
+                        index=i,
+                        strength=1,
+                        left_bars=1,
+                        right_bars=1,
+                    )
+                )
         return highs
 
     @staticmethod
     def _get_swing_lows_from_sequence(sequence: CandleSequence) -> list:
         """Extract approximate swing lows from a candle sequence."""
         from engine.ta.models.swing import SwingLow
+
         lows = []
         candles = sequence.candles
         for i in range(1, len(candles) - 1):
-            if candles[i].low < candles[i - 1].low and candles[i].low < candles[i + 1].low:
-                lows.append(SwingLow(
-                    symbol=sequence.symbol,
-                    timeframe=sequence.timeframe,
-                    timestamp=candles[i].timestamp,
-                    price=candles[i].low,
-                    index=i,
-                    strength=1,
-                    left_bars=1,
-                    right_bars=1,
-                ))
+            if (
+                candles[i].low < candles[i - 1].low
+                and candles[i].low < candles[i + 1].low
+            ):
+                lows.append(
+                    SwingLow(
+                        symbol=sequence.symbol,
+                        timeframe=sequence.timeframe,
+                        timestamp=candles[i].timestamp,
+                        price=candles[i].low,
+                        index=i,
+                        strength=1,
+                        left_bars=1,
+                        right_bars=1,
+                    )
+                )
         return lows
 
     def _fib_level_str(

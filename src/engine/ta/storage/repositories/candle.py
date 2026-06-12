@@ -92,7 +92,9 @@ class CandleRepository:
 
         return schema
 
-    async def bulk_create(self, candles: list[Candle], *, user_id: str) -> list[CandleSchema]:
+    async def bulk_create(
+        self, candles: list[Candle], *, user_id: str
+    ) -> list[CandleSchema]:
         """Batch insert multiple candles owned by user_id, idempotently.
 
         Uses Postgres `INSERT ... ON CONFLICT DO NOTHING` against the
@@ -136,7 +138,11 @@ class CandleRepository:
                 "open_time": c.timestamp,
                 "close_time": _derive_close_time(
                     c.timestamp,
-                    c.timeframe.value if hasattr(c.timeframe, "value") else str(c.timeframe),
+                    (
+                        c.timeframe.value
+                        if hasattr(c.timeframe, "value")
+                        else str(c.timeframe)
+                    ),
                 ),
             }
             for c in candles

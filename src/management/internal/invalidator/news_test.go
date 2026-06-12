@@ -38,6 +38,37 @@ func (m *MockBrokerPort) ClosePartial(ctx context.Context, ticket string, volume
 	args := m.Called(ctx, ticket, volumeToClose)
 	return args.Error(0)
 }
+func (m *MockBrokerPort) GetAccountInfo(ctx context.Context) (*broker.AccountInfo, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*broker.AccountInfo), args.Error(1)
+}
+func (m *MockBrokerPort) GetSymbolInfo(ctx context.Context, symbol string) (*broker.SymbolInfo, error) {
+	args := m.Called(ctx, symbol)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*broker.SymbolInfo), args.Error(1)
+}
+func (m *MockBrokerPort) GetPositions(ctx context.Context) ([]broker.PositionInfo, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]broker.PositionInfo), args.Error(1)
+}
+func (m *MockBrokerPort) GetHistory(ctx context.Context, days int) ([]broker.HistoryDealInfo, error) {
+	args := m.Called(ctx, days)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]broker.HistoryDealInfo), args.Error(1)
+}
+func (m *MockBrokerPort) WatchPositions(ctx context.Context, interval time.Duration) (<-chan []broker.PositionInfo, <-chan error) {
+	return nil, nil
+}
 
 // For these pure business logic tests, we will pass nil to the journal repo
 // to focus strictly on verifying the core math and conditional logic of the engine.

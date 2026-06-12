@@ -173,7 +173,7 @@ def build_user_prompt(
         "ACCOUNT\n-------\n"
         f"Balance: {formatted_balance}\n"
         f"Balance source: {balance_source}\n\n"
-        "Trading System profile (the trader's saved \"HOW I TRADE\"\n"
+        'Trading System profile (the trader\'s saved "HOW I TRADE"\n'
         "preferences — produce the plan based on these answers verbatim):\n\n"
         f"{profile_json}\n\n"
         "Produce the JSON object specified by the system prompt's RESPONSE\n"

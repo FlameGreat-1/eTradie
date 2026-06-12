@@ -62,7 +62,8 @@ impl RequestFilterIntegration {
     }
 
     fn record_metrics(&self, decision: &FilterDecision, duration_ms: u64) {
-        self.metrics.record_histogram("execution_duration_ms", duration_ms);
+        self.metrics
+            .record_histogram("execution_duration_ms", duration_ms);
 
         if decision.allowed {
             self.metrics.increment_counter("validations_passed");
@@ -90,19 +91,22 @@ mod tests {
     #[test]
     fn test_request_filter_creation() {
         let filter = RequestFilterIntegration::with_defaults();
-        assert_eq!(std::mem::size_of_val(&filter), std::mem::size_of::<RequestFilterIntegration>());
+        assert_eq!(
+            std::mem::size_of_val(&filter),
+            std::mem::size_of::<RequestFilterIntegration>()
+        );
     }
 
     #[test]
     fn test_request_filter_execution_valid() {
         let filter = RequestFilterIntegration::with_defaults();
-        
+
         let headers = vec![
             ("user-agent".to_string(), "test-agent".to_string()),
             ("content-type".to_string(), "application/json".to_string()),
             ("content-length".to_string(), "1024".to_string()),
         ];
-        
+
         let context = crate::context::RequestContext::new(
             "POST".to_string(),
             "/api/v1/users".to_string(),
@@ -116,11 +120,9 @@ mod tests {
     #[test]
     fn test_request_filter_invalid_method() {
         let filter = RequestFilterIntegration::with_defaults();
-        
-        let headers = vec![
-            ("user-agent".to_string(), "test-agent".to_string()),
-        ];
-        
+
+        let headers = vec![("user-agent".to_string(), "test-agent".to_string())];
+
         let context = crate::context::RequestContext::new(
             "DELETE".to_string(),
             "/api/v1/users".to_string(),
@@ -134,12 +136,12 @@ mod tests {
     #[test]
     fn test_request_filter_payload_too_large() {
         let filter = RequestFilterIntegration::with_defaults();
-        
+
         let headers = vec![
             ("user-agent".to_string(), "test-agent".to_string()),
             ("content-length".to_string(), "20000000".to_string()),
         ];
-        
+
         let context = crate::context::RequestContext::new(
             "POST".to_string(),
             "/api/v1/users".to_string(),
@@ -153,11 +155,9 @@ mod tests {
     #[test]
     fn test_request_filter_invalid_path() {
         let filter = RequestFilterIntegration::with_defaults();
-        
-        let headers = vec![
-            ("user-agent".to_string(), "test-agent".to_string()),
-        ];
-        
+
+        let headers = vec![("user-agent".to_string(), "test-agent".to_string())];
+
         let context = crate::context::RequestContext::new(
             "GET".to_string(),
             "/api/../etc/passwd".to_string(),
@@ -171,11 +171,9 @@ mod tests {
     #[test]
     fn test_request_filter_get_method() {
         let filter = RequestFilterIntegration::with_defaults();
-        
-        let headers = vec![
-            ("user-agent".to_string(), "test-agent".to_string()),
-        ];
-        
+
+        let headers = vec![("user-agent".to_string(), "test-agent".to_string())];
+
         let context = crate::context::RequestContext::new(
             "GET".to_string(),
             "/api/v1/users".to_string(),

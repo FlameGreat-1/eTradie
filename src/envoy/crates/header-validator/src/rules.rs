@@ -1,6 +1,6 @@
 use etradie_envoy_common::{
-    ALLOWED_CONTENT_TYPES, HEADER_USER_AGENT, MAX_HEADER_COUNT,
-    MAX_HEADER_SIZE, MAX_USER_AGENT_SIZE,
+    ALLOWED_CONTENT_TYPES, HEADER_USER_AGENT, MAX_HEADER_COUNT, MAX_HEADER_SIZE,
+    MAX_USER_AGENT_SIZE,
 };
 
 #[derive(Debug, Clone)]
@@ -67,8 +67,13 @@ impl ValidationRules {
     }
 
     pub fn is_content_type_allowed(&self, content_type: &str) -> bool {
-        let normalized = content_type.split(';').next().unwrap_or("").trim().to_lowercase();
-        
+        let normalized = content_type
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_lowercase();
+
         self.allowed_content_types
             .iter()
             .any(|allowed| normalized == allowed.to_lowercase())
@@ -140,7 +145,7 @@ mod tests {
         let rules = ValidationRules::new()
             .with_max_header_size(4096)
             .with_max_header_count(50);
-        
+
         assert_eq!(rules.max_header_size, 4096);
         assert_eq!(rules.max_header_count, 50);
     }

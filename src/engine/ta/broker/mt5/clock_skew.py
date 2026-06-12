@@ -17,6 +17,7 @@ is the right statistic for clock skew over a window of 16 samples.
 Audit ref: CHECKLIST Section 4 - 'Time synchronization (critical
 for trading logic)'.
 """
+
 from __future__ import annotations
 
 import statistics
@@ -40,9 +41,9 @@ logger = get_logger(__name__)
 class EAClockSample:
     """One EA_CLOCK reply."""
 
-    server_time: int       # broker server time (TimeCurrent on MT)
-    ea_local_time: int     # host UTC clock (TimeLocal on MT)
-    tick_time: int         # latest tick time on the EA's chart symbol
+    server_time: int  # broker server time (TimeCurrent on MT)
+    ea_local_time: int  # host UTC clock (TimeLocal on MT)
+    tick_time: int  # latest tick time on the EA's chart symbol
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "EAClockSample":

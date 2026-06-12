@@ -133,21 +133,21 @@ class CompressionAnalyzer:
 
         return None
 
-
     def is_compression(self, candles: list, symbol: str) -> bool:
-        '''Legacy backwards-compatibility wrapper for validators.'''
+        """Legacy backwards-compatibility wrapper for validators."""
         if len(candles) < self.min_candles:
             return False
-            
+
         low = min(c.low for c in candles)
         high = max(c.high for c in candles)
-        
+
         from engine.ta.common.utils.price.math import calculate_pips
+
         range_pips = calculate_pips(low, high, symbol)
-        
+
         if range_pips < self.min_range_pips or range_pips > self.max_range_pips:
             return False
-            
+
         return True
 
     def is_valid_compression(

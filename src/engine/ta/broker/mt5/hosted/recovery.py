@@ -42,6 +42,7 @@ Design invariants
 - All four metrics are bounded-cardinality (see prometheus.py
   comments). Per-connection detail goes to structured logs.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -103,10 +104,9 @@ class HostedRecoveryConfig:
         Env var names mirror helm/engine/templates/configmap.yaml so
         an operator can tune the loop without code changes.
         """
-        enabled = (
-            os.environ.get("ENGINE_HOSTED_RECOVERY_ENABLED", "true").strip().lower()
-            in ("1", "true", "yes", "on")
-        )
+        enabled = os.environ.get(
+            "ENGINE_HOSTED_RECOVERY_ENABLED", "true"
+        ).strip().lower() in ("1", "true", "yes", "on")
 
         def _pos_float(name: str, default: str, minimum: float) -> float:
             raw = (os.environ.get(name, default) or default).strip()
@@ -312,7 +312,9 @@ class HostedRecoveryService:
         for row in rows:
             connection_id = str(row.id)
             user_id = row.user_id
-            release = self._provisioner._release_name(connection_id)  # mirror chart's release name
+            release = self._provisioner._release_name(
+                connection_id
+            )  # mirror chart's release name
 
             try:
                 status = await self._provisioner.get_account_status(release)
@@ -401,8 +403,12 @@ class HostedRecoveryService:
                     # Reset the first-unhealthy timestamp so a future
                     # failure starts a fresh threshold window.
                     self._first_unhealthy.pop(connection_id, None)
-                except (ConfigurationError, ProviderError, ProviderTimeoutError,
-                        ProviderUnavailableError) as exc:
+                except (
+                    ConfigurationError,
+                    ProviderError,
+                    ProviderTimeoutError,
+                    ProviderUnavailableError,
+                ) as exc:
                     failed += 1
                     logger.error(
                         "hosted_recovery_reprovision_failed",

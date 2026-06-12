@@ -26,10 +26,10 @@ import (
 // ExecutionGRPCAdapter implements ports.ExecutionPort by calling
 // Module B's ExecutionService via gRPC.
 type ExecutionGRPCAdapter struct {
-	client    executionv1.ExecutionServiceClient
-	conn      *grpc.ClientConn
-	signKey   []byte // HMAC key for ExecuteTrade signing; empty disables signing.
-	log       zerolog.Logger
+	client  executionv1.ExecutionServiceClient
+	conn    *grpc.ClientConn
+	signKey []byte // HMAC key for ExecuteTrade signing; empty disables signing.
+	log     zerolog.Logger
 }
 
 // NewExecutionGRPCAdapter creates a gRPC client for Module B's execution engine.

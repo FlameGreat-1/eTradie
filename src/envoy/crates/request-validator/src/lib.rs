@@ -75,27 +75,35 @@ impl RequestValidator {
 
     fn validate_method(&self, trace_id: &str, method: &str) -> FilterResult<()> {
         self.method_validator.validate(method).map_err(|e| {
-            self.logger.warn(trace_id, &format!("Invalid method: {}", method));
+            self.logger
+                .warn(trace_id, &format!("Invalid method: {}", method));
             e
         })
     }
 
     fn validate_structure(&self, trace_id: &str, path: &str, method: &str) -> FilterResult<()> {
-        self.structure_validator.validate(path, method).map_err(|e| {
-            self.logger.warn(trace_id, &format!("Invalid request structure: {}", e.message()));
-            e
-        })
+        self.structure_validator
+            .validate(path, method)
+            .map_err(|e| {
+                self.logger.warn(
+                    trace_id,
+                    &format!("Invalid request structure: {}", e.message()),
+                );
+                e
+            })
     }
 
     fn validate_size(&self, trace_id: &str, headers: &[(String, String)]) -> FilterResult<()> {
         if let Some(content_length) = calculate_content_length(headers) {
-            self.size_validator.validate_body_size(content_length).map_err(|e| {
-                self.logger.warn(
-                    trace_id,
-                    &format!("Request body too large: {} bytes", content_length),
-                );
-                e
-            })?;
+            self.size_validator
+                .validate_body_size(content_length)
+                .map_err(|e| {
+                    self.logger.warn(
+                        trace_id,
+                        &format!("Request body too large: {} bytes", content_length),
+                    );
+                    e
+                })?;
         }
 
         Ok(())
@@ -157,9 +165,7 @@ mod tests {
     #[test]
     fn test_payload_too_large() {
         let validator = RequestValidator::new();
-        let headers = vec![
-            ("content-length".to_string(), "20000000".to_string()),
-        ];
+        let headers = vec![("content-length".to_string(), "20000000".to_string())];
 
         let decision = validator.validate("trace-123", "POST", "/api/v1/users", &headers);
         assert!(!decision.allowed);

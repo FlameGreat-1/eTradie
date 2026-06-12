@@ -59,7 +59,8 @@ class COTReportRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "currency", "report_date",
+            "currency",
+            "report_date",
             name="uq_cot_currency_date",
         ),
         Index("ix_cot_currency_date", "currency", "report_date"),

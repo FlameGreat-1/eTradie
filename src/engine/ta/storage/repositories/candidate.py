@@ -30,7 +30,9 @@ class CandidateRepository:
         self.session = session
         self._logger = get_logger(__name__)
 
-    async def create_smc_candidate(self, candidate: SMCCandidate, *, user_id: str) -> CandidateSchema:
+    async def create_smc_candidate(
+        self, candidate: SMCCandidate, *, user_id: str
+    ) -> CandidateSchema:
         """Create SMC candidate record owned by user_id.
 
         Deduplicates by (user_id, symbol, pattern, direction, entry_price
@@ -123,7 +125,9 @@ class CandidateRepository:
 
         return schema
 
-    async def create_snd_candidate(self, candidate: SnDCandidate, *, user_id: str) -> CandidateSchema:
+    async def create_snd_candidate(
+        self, candidate: SnDCandidate, *, user_id: str
+    ) -> CandidateSchema:
         """Create SnD candidate record owned by user_id.
 
         Deduplicates by (user_id, symbol, pattern, direction, entry_price
@@ -246,7 +250,8 @@ class CandidateRepository:
 
         # ── Step 1: Bulk fetch existing dedup keys ──
         existing_keys = await self._fetch_existing_dedup_keys(
-            candidates, user_id=user_id,
+            candidates,
+            user_id=user_id,
         )
 
         # ── Step 2: Separate new vs duplicate ──
@@ -268,53 +273,55 @@ class CandidateRepository:
             # don't duplicate each other.
             existing_keys.add(key)
 
-            new_schemas.append(CandidateSchema(
-                user_id=user_id,
-                symbol=candidate.symbol,
-                timeframe=candidate.timeframe,
-                pattern=candidate.pattern.value,
-                direction=candidate.direction.value,
-                timestamp=candidate.timestamp,
-                entry_price=candidate.entry_price,
-                stop_loss=candidate.stop_loss,
-                take_profit=candidate.take_profit,
-                htf_timeframe=candidate.htf_timeframe,
-                ltf_timeframe=candidate.ltf_timeframe,
-                is_smc=True,
-                is_snd=False,
-                # Structure events
-                sms_detected=candidate.sms_detected,
-                sms_price=candidate.sms_price,
-                sms_timestamp=candidate.sms_timestamp,
-                bms_detected=candidate.bms_detected,
-                bms_price=candidate.bms_price,
-                bms_timestamp=candidate.bms_timestamp,
-                choch_detected=candidate.choch_detected,
-                choch_price=candidate.choch_price,
-                choch_timestamp=candidate.choch_timestamp,
-                # Order block
-                order_block_upper=candidate.order_block_upper,
-                order_block_lower=candidate.order_block_lower,
-                order_block_timestamp=candidate.order_block_timestamp,
-                # FVG
-                fvg_upper=candidate.fvg_upper,
-                fvg_lower=candidate.fvg_lower,
-                fvg_timestamp=candidate.fvg_timestamp,
-                # Liquidity / inducement
-                liquidity_swept=candidate.liquidity_swept,
-                swept_level=candidate.swept_level,
-                sweep_timestamp=candidate.sweep_timestamp,
-                inducement_cleared=candidate.inducement_cleared,
-                inducement_level=candidate.inducement_level,
-                # LTF confirmation
-                ltf_confirmation=candidate.ltf_confirmation,
-                ltf_confirmation_timestamp=candidate.ltf_confirmation_timestamp,
-                displacement_pips=candidate.displacement_pips,
-                # Fibonacci / session
-                fib_level=candidate.fib_level,
-                session_context=candidate.session_context,
-                meta_data=candidate.metadata,
-            ))
+            new_schemas.append(
+                CandidateSchema(
+                    user_id=user_id,
+                    symbol=candidate.symbol,
+                    timeframe=candidate.timeframe,
+                    pattern=candidate.pattern.value,
+                    direction=candidate.direction.value,
+                    timestamp=candidate.timestamp,
+                    entry_price=candidate.entry_price,
+                    stop_loss=candidate.stop_loss,
+                    take_profit=candidate.take_profit,
+                    htf_timeframe=candidate.htf_timeframe,
+                    ltf_timeframe=candidate.ltf_timeframe,
+                    is_smc=True,
+                    is_snd=False,
+                    # Structure events
+                    sms_detected=candidate.sms_detected,
+                    sms_price=candidate.sms_price,
+                    sms_timestamp=candidate.sms_timestamp,
+                    bms_detected=candidate.bms_detected,
+                    bms_price=candidate.bms_price,
+                    bms_timestamp=candidate.bms_timestamp,
+                    choch_detected=candidate.choch_detected,
+                    choch_price=candidate.choch_price,
+                    choch_timestamp=candidate.choch_timestamp,
+                    # Order block
+                    order_block_upper=candidate.order_block_upper,
+                    order_block_lower=candidate.order_block_lower,
+                    order_block_timestamp=candidate.order_block_timestamp,
+                    # FVG
+                    fvg_upper=candidate.fvg_upper,
+                    fvg_lower=candidate.fvg_lower,
+                    fvg_timestamp=candidate.fvg_timestamp,
+                    # Liquidity / inducement
+                    liquidity_swept=candidate.liquidity_swept,
+                    swept_level=candidate.swept_level,
+                    sweep_timestamp=candidate.sweep_timestamp,
+                    inducement_cleared=candidate.inducement_cleared,
+                    inducement_level=candidate.inducement_level,
+                    # LTF confirmation
+                    ltf_confirmation=candidate.ltf_confirmation,
+                    ltf_confirmation_timestamp=candidate.ltf_confirmation_timestamp,
+                    displacement_pips=candidate.displacement_pips,
+                    # Fibonacci / session
+                    fib_level=candidate.fib_level,
+                    session_context=candidate.session_context,
+                    meta_data=candidate.metadata,
+                )
+            )
 
         # ── Step 3: Batch insert + single flush ──
         if new_schemas:
@@ -359,7 +366,8 @@ class CandidateRepository:
 
         # ── Step 1: Bulk fetch existing dedup keys ──
         existing_keys = await self._fetch_existing_dedup_keys(
-            candidates, user_id=user_id,
+            candidates,
+            user_id=user_id,
         )
 
         # ── Step 2: Separate new vs duplicate ──
@@ -379,63 +387,65 @@ class CandidateRepository:
 
             existing_keys.add(key)
 
-            new_schemas.append(CandidateSchema(
-                user_id=user_id,
-                symbol=candidate.symbol,
-                timeframe=candidate.timeframe,
-                pattern=candidate.pattern.value,
-                direction=candidate.direction.value,
-                timestamp=candidate.timestamp,
-                entry_price=candidate.entry_price,
-                stop_loss=candidate.stop_loss,
-                take_profit=candidate.take_profit,
-                htf_timeframe=candidate.htf_timeframe,
-                ltf_timeframe=candidate.ltf_timeframe,
-                is_smc=False,
-                is_snd=True,
-                # QML
-                qml_detected=candidate.qml_detected,
-                qml_price=candidate.qml_price,
-                qml_timestamp=candidate.qml_timestamp,
-                # SR / RS Flips
-                sr_flip_detected=candidate.sr_flip_detected,
-                sr_flip_price=candidate.sr_flip_price,
-                sr_flip_timestamp=candidate.sr_flip_timestamp,
-                rs_flip_detected=candidate.rs_flip_detected,
-                rs_flip_price=candidate.rs_flip_price,
-                rs_flip_timestamp=candidate.rs_flip_timestamp,
-                # MPL
-                mpl_detected=candidate.mpl_detected,
-                mpl_price=candidate.mpl_price,
-                mpl_timestamp=candidate.mpl_timestamp,
-                # Supply / demand zones
-                supply_zone_upper=candidate.supply_zone_upper,
-                supply_zone_lower=candidate.supply_zone_lower,
-                supply_zone_timestamp=candidate.supply_zone_timestamp,
-                demand_zone_upper=candidate.demand_zone_upper,
-                demand_zone_lower=candidate.demand_zone_lower,
-                demand_zone_timestamp=candidate.demand_zone_timestamp,
-                # Fakeout
-                fakeout_detected=candidate.fakeout_detected,
-                fakeout_level=candidate.fakeout_level,
-                fakeout_timestamp=candidate.fakeout_timestamp,
-                # Previous highs / lows
-                previous_highs_count=candidate.previous_highs_count,
-                previous_lows_count=candidate.previous_lows_count,
-                # Marubozu
-                marubozu_detected=candidate.marubozu_detected,
-                marubozu_timestamp=candidate.marubozu_timestamp,
-                # Compression
-                compression_detected=candidate.compression_detected,
-                compression_candle_count=candidate.compression_candle_count,
-                # LTF confirmation
-                ltf_confirmation=candidate.ltf_confirmation,
-                ltf_confirmation_timestamp=candidate.ltf_confirmation_timestamp,
-                # Fibonacci / session
-                fib_level=candidate.fib_level,
-                session_context=candidate.session_context,
-                meta_data=candidate.metadata,
-            ))
+            new_schemas.append(
+                CandidateSchema(
+                    user_id=user_id,
+                    symbol=candidate.symbol,
+                    timeframe=candidate.timeframe,
+                    pattern=candidate.pattern.value,
+                    direction=candidate.direction.value,
+                    timestamp=candidate.timestamp,
+                    entry_price=candidate.entry_price,
+                    stop_loss=candidate.stop_loss,
+                    take_profit=candidate.take_profit,
+                    htf_timeframe=candidate.htf_timeframe,
+                    ltf_timeframe=candidate.ltf_timeframe,
+                    is_smc=False,
+                    is_snd=True,
+                    # QML
+                    qml_detected=candidate.qml_detected,
+                    qml_price=candidate.qml_price,
+                    qml_timestamp=candidate.qml_timestamp,
+                    # SR / RS Flips
+                    sr_flip_detected=candidate.sr_flip_detected,
+                    sr_flip_price=candidate.sr_flip_price,
+                    sr_flip_timestamp=candidate.sr_flip_timestamp,
+                    rs_flip_detected=candidate.rs_flip_detected,
+                    rs_flip_price=candidate.rs_flip_price,
+                    rs_flip_timestamp=candidate.rs_flip_timestamp,
+                    # MPL
+                    mpl_detected=candidate.mpl_detected,
+                    mpl_price=candidate.mpl_price,
+                    mpl_timestamp=candidate.mpl_timestamp,
+                    # Supply / demand zones
+                    supply_zone_upper=candidate.supply_zone_upper,
+                    supply_zone_lower=candidate.supply_zone_lower,
+                    supply_zone_timestamp=candidate.supply_zone_timestamp,
+                    demand_zone_upper=candidate.demand_zone_upper,
+                    demand_zone_lower=candidate.demand_zone_lower,
+                    demand_zone_timestamp=candidate.demand_zone_timestamp,
+                    # Fakeout
+                    fakeout_detected=candidate.fakeout_detected,
+                    fakeout_level=candidate.fakeout_level,
+                    fakeout_timestamp=candidate.fakeout_timestamp,
+                    # Previous highs / lows
+                    previous_highs_count=candidate.previous_highs_count,
+                    previous_lows_count=candidate.previous_lows_count,
+                    # Marubozu
+                    marubozu_detected=candidate.marubozu_detected,
+                    marubozu_timestamp=candidate.marubozu_timestamp,
+                    # Compression
+                    compression_detected=candidate.compression_detected,
+                    compression_candle_count=candidate.compression_candle_count,
+                    # LTF confirmation
+                    ltf_confirmation=candidate.ltf_confirmation,
+                    ltf_confirmation_timestamp=candidate.ltf_confirmation_timestamp,
+                    # Fibonacci / session
+                    fib_level=candidate.fib_level,
+                    session_context=candidate.session_context,
+                    meta_data=candidate.metadata,
+                )
+            )
 
         # ── Step 3: Batch insert + single flush ──
         if new_schemas:
@@ -494,12 +504,14 @@ class CandidateRepository:
 
         existing_keys: set[tuple] = set()
         for row in result.all():
-            existing_keys.add((
-                row.symbol,
-                row.pattern,
-                row.direction,
-                round(row.entry_price, 4),
-            ))
+            existing_keys.add(
+                (
+                    row.symbol,
+                    row.pattern,
+                    row.direction,
+                    round(row.entry_price, 4),
+                )
+            )
 
         return existing_keys
 

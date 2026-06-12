@@ -58,9 +58,7 @@ class EconomicDataCollector(BaseCollector):
         # The collected data is still valuable for the current analysis cycle
         # even if we can't persist it for historical queries.
         if all_releases:
-            unique_map = {
-                (r.indicator_name, r.release_time): r for r in all_releases
-            }
+            unique_map = {(r.indicator_name, r.release_time): r for r in all_releases}
             all_releases = list(unique_map.values())
             try:
                 async with self._db.session() as session:
@@ -113,7 +111,6 @@ class EconomicDataCollector(BaseCollector):
         )
         self._record_items_stored(len(all_releases))
         return dataset
-
 
     def _empty_dataset(self) -> EconomicDataSet:
         return EconomicDataSet(releases=[], sources=[], collected_at=datetime.now(UTC))

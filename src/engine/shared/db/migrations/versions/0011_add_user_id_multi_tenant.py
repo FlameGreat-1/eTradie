@@ -57,9 +57,7 @@ def upgrade() -> None:
             # Table doesn't exist yet (shouldn't happen if prior migrations ran).
             continue
 
-        existing_columns = {
-            col["name"] for col in inspector.get_columns(table_name)
-        }
+        existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
 
         if "user_id" in existing_columns:
             # Column already exists (idempotent re-run).
@@ -80,9 +78,7 @@ def upgrade() -> None:
         # This preserves all pre-auth data. The operator should reassign
         # these to the actual admin user ID after first startup.
         op.execute(
-            sa.text(
-                f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL"
-            )
+            sa.text(f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL")
         )
 
         # Step 3: Alter column to NOT NULL now that all rows have a value.
@@ -94,9 +90,7 @@ def upgrade() -> None:
 
         # Step 4: Create index for fast per-user queries.
         index_name = _INDEX_NAMES[table_name]
-        existing_indexes = {
-            idx["name"] for idx in inspector.get_indexes(table_name)
-        }
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes(table_name)}
         if index_name not in existing_indexes:
             op.create_index(index_name, table_name, ["user_id"])
 
@@ -110,18 +104,14 @@ def downgrade() -> None:
         if table_name not in existing_tables:
             continue
 
-        existing_columns = {
-            col["name"] for col in inspector.get_columns(table_name)
-        }
+        existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
 
         if "user_id" not in existing_columns:
             continue
 
         # Drop index first.
         index_name = _INDEX_NAMES[table_name]
-        existing_indexes = {
-            idx["name"] for idx in inspector.get_indexes(table_name)
-        }
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes(table_name)}
         if index_name in existing_indexes:
             op.drop_index(index_name, table_name=table_name)
 

@@ -32,9 +32,7 @@ from engine.macro.providers.market_data.base import BaseMarketDataProvider
 
 logger = get_logger(__name__)
 
-_USER_AGENT = (
-    "Mozilla/5.0 (compatible; etradie-macro/1.0; +https://www.cftc.gov)"
-)
+_USER_AGENT = "Mozilla/5.0 (compatible; etradie-macro/1.0; +https://www.cftc.gov)"
 
 
 class YahooMetalsProvider(BaseMarketDataProvider):

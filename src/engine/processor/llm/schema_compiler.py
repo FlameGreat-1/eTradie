@@ -78,7 +78,7 @@ def _inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
                 ref = node["$ref"]
                 if not ref.startswith("#/$defs/"):
                     return node
-                name = ref[len("#/$defs/"):]
+                name = ref[len("#/$defs/") :]
                 target = defs.get(name)
                 if target is None:
                     return node
@@ -106,14 +106,20 @@ def _normalize_optional_to_nullable(node: Any) -> Any:
     if isinstance(node, dict):
         any_of = node.get("anyOf")
         if isinstance(any_of, list) and len(any_of) == 2:
-            non_null = [s for s in any_of if isinstance(s, dict) and s.get("type") != "null"]
-            has_null = any(isinstance(s, dict) and s.get("type") == "null" for s in any_of)
+            non_null = [
+                s for s in any_of if isinstance(s, dict) and s.get("type") != "null"
+            ]
+            has_null = any(
+                isinstance(s, dict) and s.get("type") == "null" for s in any_of
+            )
             if len(non_null) == 1 and has_null:
                 inner = copy.deepcopy(non_null[0])
                 inner["nullable"] = True
                 merged = {k: v for k, v in node.items() if k != "anyOf"}
                 merged.update(inner)
-                return {k: _normalize_optional_to_nullable(v) for k, v in merged.items()}
+                return {
+                    k: _normalize_optional_to_nullable(v) for k, v in merged.items()
+                }
         return {k: _normalize_optional_to_nullable(v) for k, v in node.items()}
     if isinstance(node, list):
         return [_normalize_optional_to_nullable(item) for item in node]
@@ -128,11 +134,7 @@ def _strip_metadata(node: Any) -> Any:
     helps the model pick the right enum value.
     """
     if isinstance(node, dict):
-        return {
-            k: _strip_metadata(v)
-            for k, v in node.items()
-            if k != "title"
-        }
+        return {k: _strip_metadata(v) for k, v in node.items() if k != "title"}
     if isinstance(node, list):
         return [_strip_metadata(item) for item in node]
     return node

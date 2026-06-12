@@ -412,7 +412,6 @@ func (r *Repository) UpdateTradeRuntime(ctx context.Context, userID, tradeID str
 	return nil
 }
 
-
 // UpdateTradePointDigits persists a self-healed broker point/digits onto
 // the managed-trade row so the heal survives the next restart (audit
 // EM-C2). Scoped by user_id. A non-positive point is ignored to avoid

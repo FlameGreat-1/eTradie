@@ -111,7 +111,7 @@ pub fn strip_whitespace(value: &str) -> String {
 
 pub fn normalize_header_value(value: &str) -> String {
     let stripped = strip_whitespace(value);
-    
+
     stripped
         .chars()
         .filter(|c| !c.is_control() || *c == '\t')
@@ -144,9 +144,7 @@ mod tests {
     #[test]
     fn test_invalid_header_name() {
         let sanitizer = HeaderSanitizer::new(true);
-        let headers = vec![
-            ("invalid header".to_string(), "value".to_string()),
-        ];
+        let headers = vec![("invalid header".to_string(), "value".to_string())];
 
         let result = sanitizer.sanitize_headers(headers);
         assert!(result.is_err());
@@ -155,7 +153,9 @@ mod tests {
     #[test]
     fn test_validate_header_value() {
         let sanitizer = HeaderSanitizer::new(true);
-        assert!(sanitizer.validate_header_value("test", "valid-value").is_ok());
+        assert!(sanitizer
+            .validate_header_value("test", "valid-value")
+            .is_ok());
         assert!(sanitizer.validate_header_value("test", "").is_err());
     }
 

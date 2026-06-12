@@ -1,4 +1,7 @@
-use etradie_envoy_common::{Logger, LogLevel, MetricsCollector, CIRCUIT_BREAKER_FAILURE_THRESHOLD, CIRCUIT_BREAKER_RESET_TIMEOUT_SECS};
+use etradie_envoy_common::{
+    LogLevel, Logger, MetricsCollector, CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+    CIRCUIT_BREAKER_RESET_TIMEOUT_SECS,
+};
 use serde::Serialize;
 use std::time::SystemTime;
 

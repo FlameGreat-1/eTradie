@@ -30,9 +30,7 @@ def upgrade() -> None:
 
     # Only add if the table exists and column is missing.
     if table_name in inspector.get_table_names():
-        existing_columns = {
-            col["name"] for col in inspector.get_columns(table_name)
-        }
+        existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
 
         if "mt5_password_encrypted" not in existing_columns:
             op.add_column(
@@ -52,9 +50,7 @@ def downgrade() -> None:
     table_name = "broker_connections"
 
     if table_name in inspector.get_table_names():
-        existing_columns = {
-            col["name"] for col in inspector.get_columns(table_name)
-        }
+        existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
 
         if "mt5_password_encrypted" in existing_columns:
             op.drop_column(table_name, "mt5_password_encrypted")

@@ -12,7 +12,14 @@ from functools import lru_cache
 from typing import Any, Optional, Self
 from urllib.parse import parse_qs, urlparse
 
-from pydantic import AliasChoices, Field, PostgresDsn, RedisDsn, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    Field,
+    PostgresDsn,
+    RedisDsn,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from engine.ta.constants import Timeframe
@@ -106,7 +113,6 @@ class Settings(BaseSettings):
     # OECD Data Explorer — non-US economic data (free, no key required)
     oecd_api_base_url: str = "https://sdmx.oecd.org/public/rest/data"
 
-
     # ── Economic Calendar ─────────────────────────────────────────────
     # Forex Factory official weekly calendar JSON (faireconomy CDN, no key).
     # Carries scheduled FUTURE event times + impact + currency, which the
@@ -156,16 +162,16 @@ class Settings(BaseSettings):
         default=60, ge=10, le=600, description="Seconds before half-open"
     )
     circuit_breaker_half_open_max_calls: int = Field(default=3, ge=1, le=10)
-    
+
     # SSL Configuration (Enterprise Proxy Support)
     ssl_ca_bundle_path: Optional[str] = Field(
         default=None,
-        description="Path to custom CA bundle (for enterprise proxies/security software)"
+        description="Path to custom CA bundle (for enterprise proxies/security software)",
     )
     ssl_verify: bool = Field(
         default=True,
         validation_alias=AliasChoices("HTTP_SSL_VERIFY", "ssl_verify"),
-        description="Whether to verify SSL certificates. Set to false for proxies with self-signed certs."
+        description="Whether to verify SSL certificates. Set to false for proxies with self-signed certs.",
     )
 
     # ── Observability ────────────────────────────────────────
@@ -302,7 +308,6 @@ class TAConfig(BaseSettings):
             Timeframe.M1,
         ]
     )
-
 
     snapshot_cache_ttl_seconds: int = Field(default=300, ge=60, le=3600)
 
@@ -634,8 +639,8 @@ def get_ta_config() -> TAConfig:
 def get_rag_config() -> RAGConfig:
     """Return the singleton RAG config instance, cached after first load."""
     return RAGConfig()
- 
- 
+
+
 # Ensure all models are fully defined for Pydantic.
 Settings.model_rebuild()
 TAConfig.model_rebuild()

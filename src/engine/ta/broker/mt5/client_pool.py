@@ -18,6 +18,7 @@ touch coroutines do not each instantiate a client.
 Audit ref: CHECKLIST Section 5 - 'No global locks blocking unrelated
 users', 'Each user's terminal is isolated'.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -136,13 +137,19 @@ class BrokerClientPool:
                 "broker_client_pool_added",
                 extra={
                     "provider": provider,
-                    "account_id": (account_id[:12] + "...") if account_id and len(account_id) > 12 else (account_id or "unknown"),
+                    "account_id": (
+                        (account_id[:12] + "...")
+                        if account_id and len(account_id) > 12
+                        else (account_id or "unknown")
+                    ),
                     "pool_size": len(self._entries),
                 },
             )
             return client
 
-    async def evict(self, provider: str, account_id: str, *, reason: str = "explicit") -> bool:
+    async def evict(
+        self, provider: str, account_id: str, *, reason: str = "explicit"
+    ) -> bool:
         """Evict a single entry. Returns True when an entry was removed."""
         key = (provider, account_id or "unknown")
         entry = self._entries.pop(key, None)

@@ -107,7 +107,7 @@ func rejectMethod(w http.ResponseWriter, allowed string) {
 // under /api/v1/admin/billing/subscriptions/. Today only one form is
 // recognised:
 //
-//   GET /api/v1/admin/billing/subscriptions/{user_id}/events
+//	GET /api/v1/admin/billing/subscriptions/{user_id}/events
 //
 // Unknown sub-paths return 404 so a typo in the SPA does not silently
 // fall through to the list endpoint. The handler body lives in the

@@ -104,8 +104,10 @@ class ZoneValidator:
 
             # 3a. FVG overlaps the OB price range
             if self._ranges_overlap(
-                ob.lower_bound, ob.upper_bound,
-                fvg.lower_bound, fvg.upper_bound,
+                ob.lower_bound,
+                ob.upper_bound,
+                fvg.lower_bound,
+                fvg.upper_bound,
             ):
                 return fvg
 
@@ -151,8 +153,7 @@ class ZoneValidator:
                 # Or cleared within structural proximity
                 if (
                     hasattr(inducement, "candle_index")
-                    and abs(inducement.candle_index - ob.candle_index)
-                    <= max_distance
+                    and abs(inducement.candle_index - ob.candle_index) <= max_distance
                 ):
                     return True
 
@@ -556,10 +557,13 @@ class ZoneValidator:
         """
         has_fvg = self.validate_ob_has_fvg(ob, fvgs)
         has_liquidity = self.validate_ob_has_liquidity(
-            ob, liquidity_sweeps, inducement_events,
+            ob,
+            liquidity_sweeps,
+            inducement_events,
         )
         at_premium_discount = self.validate_ob_at_premium_discount(
-            ob, retracement,
+            ob,
+            retracement,
         )
         is_fresh = self.validate_zone_freshness(ob, sequence)
         fib_score = self.score_ob_fib_confluence(ob, retracement)
@@ -585,9 +589,7 @@ class ZoneValidator:
                 "fib_confluence_score": fib_score,
                 "passed": passed,
                 "fvg_count": len(fvgs),
-                "sweep_count": len(
-                    [s for s in liquidity_sweeps if s is not None]
-                ),
+                "sweep_count": len([s for s in liquidity_sweeps if s is not None]),
                 "inducement_count": len(inducement_events),
                 "has_retracement": retracement is not None,
             },

@@ -183,13 +183,9 @@ def resolve_min_tp_rr(
     if resolved_style_rr is None and style is not None:
         resolved_style_rr = style_min_tp_rr(style)
 
-    tf_floor = (
-        timeframe_min_tp_rr(timeframe) if timeframe is not None else None
-    )
+    tf_floor = timeframe_min_tp_rr(timeframe) if timeframe is not None else None
 
-    candidates = [
-        v for v in (resolved_style_rr, tf_floor) if v is not None
-    ]
+    candidates = [v for v in (resolved_style_rr, tf_floor) if v is not None]
     if not candidates:
         return _LOWEST_STYLE_MIN_RR
     return max(float(v) for v in candidates)

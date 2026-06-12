@@ -72,6 +72,7 @@ repositories did it: ``urlsafe_b64encode(sha256(raw))``. This is what
 guarantees a given env value yields the identical Fernet key as before,
 so legacy ciphertext produced by the old code decrypts here verbatim.
 """
+
 from __future__ import annotations
 
 import base64
@@ -345,7 +346,7 @@ def _resolve_keks_from_env() -> dict[int, bytes]:
     for env_name, env_val in os.environ.items():
         if not env_name.startswith(_VERSIONED_KEY_PREFIX):
             continue
-        suffix = env_name[len(_VERSIONED_KEY_PREFIX):]
+        suffix = env_name[len(_VERSIONED_KEY_PREFIX) :]
         if not suffix.isdigit():
             continue
         version = int(suffix)

@@ -128,10 +128,14 @@ class ZmqClient(BrokerBase):
         # lock+socket pair and must remain unthrottled to keep CANDLES
         # independent of trading throughput).
         self._outbound_limiter = outbound_limiter
-        self._outbound_limit_deadline_secs = max(0.0, float(outbound_limit_deadline_secs))
+        self._outbound_limit_deadline_secs = max(
+            0.0, float(outbound_limit_deadline_secs)
+        )
         self._inflight_limit = max(0, int(inflight_limit))
         self._inflight_gate: Optional[asyncio.Semaphore] = (
-            asyncio.Semaphore(self._inflight_limit) if self._inflight_limit > 0 else None
+            asyncio.Semaphore(self._inflight_limit)
+            if self._inflight_limit > 0
+            else None
         )
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
         # The trading socket carries every command except CANDLES: ticks,
@@ -162,7 +166,7 @@ class ZmqClient(BrokerBase):
         self._candles_socket: zmq_async.Socket | None = None  # type: ignore[type-arg]
         self._candles_lock = asyncio.Lock()
         self._candles_initialized = False
-    
+
     @property
     def provider_name(self) -> str:
         return "zmq"
@@ -319,7 +323,11 @@ class ZmqClient(BrokerBase):
 
         # 2) In-flight gate. Bounded by request_deadline so a backlog
         # cannot silently build up.
-        gate_deadline = request_deadline_secs if request_deadline_secs and request_deadline_secs > 0 else 5.0
+        gate_deadline = (
+            request_deadline_secs
+            if request_deadline_secs and request_deadline_secs > 0
+            else 5.0
+        )
         if self._inflight_gate is not None:
             gate_start = _time.monotonic()
             try:
@@ -365,13 +373,20 @@ class ZmqClient(BrokerBase):
                 was_initialized = self._initialized
                 if not self._initialized:
                     self._connect_sync()
-                
+
                 # Auto-authenticate on first connect (or reconnect) if it's not a PING command
-                if not was_initialized and request.get("command") not in ("PING", "HEALTH"):
+                if not was_initialized and request.get("command") not in (
+                    "PING",
+                    "HEALTH",
+                ):
                     try:
-                        await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
+                        await self._send_recv_async(
+                            {"command": "PING", "auth_token": self.auth_token}
+                        )
                     except ProviderResponseError as e:
-                        logger.warning("zmq_initial_auth_failed", extra={"error": str(e)})
+                        logger.warning(
+                            "zmq_initial_auth_failed", extra={"error": str(e)}
+                        )
                 # Section 4 (CHECKLIST): one-shot identity verification on
                 # every fresh authenticated socket. Reset _identity_verified
                 # so a reconnect re-verifies. Skipped for EA_IDENTITY itself
@@ -382,15 +397,23 @@ class ZmqClient(BrokerBase):
                     and self._identity_verifier is not None
                     and self._expected_identity is not None
                     and not self._identity_verified
-                    and request.get("command") not in (
-                        "PING", "HEALTH", "EA_IDENTITY", "EA_CLOCK",
+                    and request.get("command")
+                    not in (
+                        "PING",
+                        "HEALTH",
+                        "EA_IDENTITY",
+                        "EA_CLOCK",
                     )
                 ):
                     try:
-                        ident_raw = await self._send_recv_async({"command": "EA_IDENTITY"})
+                        ident_raw = await self._send_recv_async(
+                            {"command": "EA_IDENTITY"}
+                        )
                         if isinstance(ident_raw, dict):
                             snapshot = EAIdentitySnapshot.from_dict(ident_raw)
-                            self._identity_verifier.verify(snapshot, self._expected_identity)
+                            self._identity_verifier.verify(
+                                snapshot, self._expected_identity
+                            )
                             self._identity_verified = True
                     except ProviderResponseError:
                         # Old EA build does not understand EA_IDENTITY -
@@ -401,7 +424,7 @@ class ZmqClient(BrokerBase):
                             "zmq_identity_command_unsupported",
                             extra={"endpoint": self._endpoint},
                         )
-                
+
                 # Section 5: if a deadline is in play, wrap the send/recv
                 # in asyncio.timeout so a slow EA does not pin the engine.
                 try:
@@ -425,10 +448,12 @@ class ZmqClient(BrokerBase):
                     # Re-auth inline if the EA was restarted (ZMQ socket is stateless, so EA forgets us)
                     if "Not authenticated" in str(e):
                         try:
-                            await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
+                            await self._send_recv_async(
+                                {"command": "PING", "auth_token": self.auth_token}
+                            )
                         except ProviderResponseError as ping_e:
                             raise ping_e from e
-                            
+
                         # Retry original request after successful re-auth
                         return await self._send_recv_async(request)
                     raise
@@ -441,7 +466,9 @@ class ZmqClient(BrokerBase):
                 # the request, FastAPI raises CancelledError. We MUST destroy the ZMQ
                 # socket because it is still waiting for a reply from MT5. Leaving it
                 # open poisons the REQ/REP sequence for the next caller.
-                logger.warning("zmq_request_cancelled_resetting", extra={"error": str(e)})
+                logger.warning(
+                    "zmq_request_cancelled_resetting", extra={"error": str(e)}
+                )
                 if self._socket:
                     self._socket.close(linger=0)
                     self._socket = None
@@ -735,11 +762,13 @@ class ZmqClient(BrokerBase):
             name = s.get("name", "")
             if not name:
                 continue
-            symbols.append({
-                "name": name,
-                "description": s.get("description", ""),
-                "path": s.get("path", ""),
-            })
+            symbols.append(
+                {
+                    "name": name,
+                    "description": s.get("description", ""),
+                    "path": s.get("path", ""),
+                }
+            )
 
         logger.info(
             "zmq_all_symbols_fetched",
@@ -749,7 +778,9 @@ class ZmqClient(BrokerBase):
 
     async def health_check(self) -> bool:
         try:
-            reply = await self._request({"command": "PING", "auth_token": self.auth_token})
+            reply = await self._request(
+                {"command": "PING", "auth_token": self.auth_token}
+            )
             if isinstance(reply, dict):
                 return reply.get("status") == "ok"
             return False
@@ -948,6 +979,7 @@ class ZmqClient(BrokerBase):
                     from engine.shared.metrics.prometheus import (
                         BROKER_TICK_FETCH_RECOVERY_TOTAL,
                     )
+
                     BROKER_TICK_FETCH_RECOVERY_TOTAL.labels(
                         provider=self.provider_name,
                         account_id=self.account_id,

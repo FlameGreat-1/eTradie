@@ -105,8 +105,8 @@ func (h *AdminQuotaHandler) handleList(w http.ResponseWriter, r *http.Request) {
 		rows = []*billingstore.QuotaPolicyRow{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"rows":             rows,
-		"canonical_tiers":  billingstore.CanonicalTiers,
+		"rows":            rows,
+		"canonical_tiers": billingstore.CanonicalTiers,
 	})
 }
 

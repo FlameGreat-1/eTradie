@@ -4,7 +4,12 @@ from typing import Optional
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
-from engine.ta.constants import Direction, CandidatePattern, OTE_LEVELS, FIBONACCI_VALUES
+from engine.ta.constants import (
+    Direction,
+    CandidatePattern,
+    OTE_LEVELS,
+    FIBONACCI_VALUES,
+)
 from engine.ta.models.candidate import SnDCandidate
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
@@ -132,7 +137,8 @@ class QMCandidateBuilder:
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
             compression_detected=self._check_compression(
-                ltf_sequence, fakeout_tests,
+                ltf_sequence,
+                fakeout_tests,
             ),
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
@@ -244,7 +250,8 @@ class QMCandidateBuilder:
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
             compression_detected=self._check_compression(
-                ltf_sequence, fakeout_tests,
+                ltf_sequence,
+                fakeout_tests,
             ),
             previous_highs_count=previous_highs.touch_count,
             mpl_detected=mpl is not None,
@@ -356,7 +363,8 @@ class QMCandidateBuilder:
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
             compression_detected=self._check_compression(
-                ltf_sequence, fakeout_tests,
+                ltf_sequence,
+                fakeout_tests,
             ),
             ltf_confirmation=ltf_confirmed,
             ltf_confirmation_timestamp=(
@@ -468,7 +476,8 @@ class QMCandidateBuilder:
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
             compression_detected=self._check_compression(
-                ltf_sequence, fakeout_tests,
+                ltf_sequence,
+                fakeout_tests,
             ),
             previous_lows_count=previous_lows.touch_count,
             mpl_detected=mpl is not None,
@@ -561,7 +570,8 @@ class QMCandidateBuilder:
             return False
         last_fakeout = fakeout_tests[-1]
         return self.ltf_validator.validate_compression_at_zone(
-            sequence, fakeout_tests,
+            sequence,
+            fakeout_tests,
         )
 
     def _get_fib_level(

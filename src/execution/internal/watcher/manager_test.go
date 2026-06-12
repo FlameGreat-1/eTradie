@@ -148,4 +148,3 @@ func TestManager_ShutdownPreservesDatabase(t *testing.T) {
 		t.Errorf("expected database record NOT to be deleted on manager shutdown, but Delete was called")
 	}
 }
-

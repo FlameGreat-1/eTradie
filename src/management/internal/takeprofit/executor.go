@@ -163,7 +163,7 @@ func (e *Executor) executeTP(
 				priceDist = entryPrice - closePrice
 			}
 			rMultiple = priceDist / slDist
-			
+
 			// Layer 2: R-multiple estimate fallback
 			if pnlSource == "none" {
 				pnl = rMultiple * riskAmount * (closeVol / trade.TotalLotSize)

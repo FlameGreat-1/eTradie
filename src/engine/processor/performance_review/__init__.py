@@ -12,6 +12,7 @@ or LLM client, so unit tests can swap both with fakes. The Container
 builds ONE instance per process and reuses it across users (mirrors
 the trading_plan module exactly).
 """
+
 from engine.processor.performance_review.generator import (
     GenerationRequest,
     PerformanceReviewGenerationError,

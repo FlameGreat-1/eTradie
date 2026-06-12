@@ -206,9 +206,7 @@ class SnapshotBuilder:
             return Direction.NEUTRAL
 
         # Layer 1: confirmed BMS / major CHoCH.
-        latest_bms = (
-            max(bms_events, key=lambda x: x.timestamp) if bms_events else None
-        )
+        latest_bms = max(bms_events, key=lambda x: x.timestamp) if bms_events else None
         # Only MAJOR CHoCH events flip macro bias; minor CHoCH events
         # describe internal pullbacks, not a structural reversal.
         major_choch_events = [

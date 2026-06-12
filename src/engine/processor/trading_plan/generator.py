@@ -221,15 +221,14 @@ class TradingPlanGenerator:
         if not req.user_id:
             raise TradingPlanGenerationError("missing user_id")
         if not isinstance(req.profile, dict) or not req.profile:
-            raise TradingPlanGenerationError(
-                "trading system profile is missing"
-            )
+            raise TradingPlanGenerationError("trading system profile is missing")
 
         # Stamp the LLM-call start time so the gateway can record
         # TradingPlanLLMCallDuration accurately on the callback. The
         # gateway falls back to skipping the metric if this field is
         # missing, so deploys mid-flight stay backward-compatible.
         from datetime import datetime, timezone
+
         generation_started_at = datetime.now(timezone.utc).isoformat()
 
         user_prompt = build_user_prompt(
@@ -245,11 +244,13 @@ class TradingPlanGenerator:
         # pass allow_platform_fallback=True. The loader still reads
         # the platform DB row first (hot-reloadable via the dashboard)
         # and falls back to env-var config only when no DB row exists.
-        llm_client, dynamic_config = await self._container.load_llm_client_for_background(
-            req.user_id,
-            role=req.role,
-            tier=req.tier,
-            allow_platform_fallback=True,
+        llm_client, dynamic_config = (
+            await self._container.load_llm_client_for_background(
+                req.user_id,
+                role=req.role,
+                tier=req.tier,
+                allow_platform_fallback=True,
+            )
         )
         if llm_client is None or dynamic_config is None:
             # In practice this should not happen for trading-plan
@@ -301,7 +302,7 @@ class TradingPlanGenerator:
                     f"LLM quota reached for your tier ({exc.dimension}); "
                     f"resets in {exc.retry_after} seconds"
                 )
-    
+
             # Bounded retry loop for the LLM call. Transient transport
             # errors and provider 5xx responses get one or two retries
             # with exponential backoff; non-transient errors (auth, bad
@@ -363,7 +364,9 @@ class TradingPlanGenerator:
                     extra={
                         "user_id": req.user_id,
                         "error": str(last_exc) if last_exc else "unknown",
-                        "error_type": type(last_exc).__name__ if last_exc else "unknown",
+                        "error_type": (
+                            type(last_exc).__name__ if last_exc else "unknown"
+                        ),
                         "failure_code": failure.code,
                     },
                 )
@@ -378,7 +381,7 @@ class TradingPlanGenerator:
                 actual_input_tokens=response.input_tokens,
                 actual_output_tokens=response.output_tokens,
             )
-    
+
             parsed = self._parse_response(response.text)
             plan = self._shape_plan(
                 parsed=parsed,
@@ -417,20 +420,14 @@ class TradingPlanGenerator:
         start = text.find("{")
         end = text.rfind("}")
         if start == -1 or end == -1 or end <= start:
-            raise TradingPlanGenerationError(
-                "AI response was not valid JSON"
-            )
+            raise TradingPlanGenerationError("AI response was not valid JSON")
         candidate = text[start : end + 1]
         try:
             data = json.loads(candidate)
         except json.JSONDecodeError:
-            raise TradingPlanGenerationError(
-                "AI response was not valid JSON"
-            )
+            raise TradingPlanGenerationError("AI response was not valid JSON")
         if not isinstance(data, dict):
-            raise TradingPlanGenerationError(
-                "AI response was not a JSON object"
-            )
+            raise TradingPlanGenerationError("AI response was not a JSON object")
         return data
 
     @staticmethod
@@ -447,6 +444,7 @@ class TradingPlanGenerator:
         sections are filled with the safe default; structural
         mismatches raise so the engine can mark the row 'failed'.
         """
+
         def _require_dict(name: str) -> dict[str, Any]:
             v = parsed.get(name)
             if not isinstance(v, dict):
@@ -487,31 +485,31 @@ class TradingPlanGenerator:
             # so a sparse LLM response still produces a structurally
             # valid row the gateway validator accepts.
             return {
-                "date":                 str(src.get("date", "")),
-                "session":              str(src.get("session", "")),
-                "pair":                 str(src.get("pair", "")),
-                "direction":            str(src.get("direction", "")),
-                "style":                str(src.get("style", "")),
-                "setup_type":           str(src.get("setup_type", "")),
-                "htf_bias":             str(src.get("htf_bias", "")),
-                "entry":                str(src.get("entry", "")),
-                "stop_loss":            str(src.get("stop_loss", "")),
-                "take_profit":          str(src.get("take_profit", "")),
-                "risk_percent":         str(src.get("risk_percent", "")),
-                "position_size":        str(src.get("position_size", "")),
-                "exit":                 str(src.get("exit", "")),
-                "rr_planned":           str(src.get("rr_planned", "")),
-                "rr_achieved":          str(src.get("rr_achieved", "")),
-                "pnl":                  str(src.get("pnl", "")),
-                "outcome":              str(src.get("outcome", "")),
-                "rule_followed":        str(src.get("rule_followed", "")),
+                "date": str(src.get("date", "")),
+                "session": str(src.get("session", "")),
+                "pair": str(src.get("pair", "")),
+                "direction": str(src.get("direction", "")),
+                "style": str(src.get("style", "")),
+                "setup_type": str(src.get("setup_type", "")),
+                "htf_bias": str(src.get("htf_bias", "")),
+                "entry": str(src.get("entry", "")),
+                "stop_loss": str(src.get("stop_loss", "")),
+                "take_profit": str(src.get("take_profit", "")),
+                "risk_percent": str(src.get("risk_percent", "")),
+                "position_size": str(src.get("position_size", "")),
+                "exit": str(src.get("exit", "")),
+                "rr_planned": str(src.get("rr_planned", "")),
+                "rr_achieved": str(src.get("rr_achieved", "")),
+                "pnl": str(src.get("pnl", "")),
+                "outcome": str(src.get("outcome", "")),
+                "rule_followed": str(src.get("rule_followed", "")),
                 "emotion_before_trade": str(src.get("emotion_before_trade", "")),
-                "emotion_after_trade":  str(src.get("emotion_after_trade", "")),
-                "trade_quality":        str(src.get("trade_quality", "")),
-                "mistake_category":     str(src.get("mistake_category", "")),
-                "news_present":         str(src.get("news_present", "")),
-                "screenshot_link":      str(src.get("screenshot_link", "")),
-                "notes":                str(src.get("notes", "")),
+                "emotion_after_trade": str(src.get("emotion_after_trade", "")),
+                "trade_quality": str(src.get("trade_quality", "")),
+                "mistake_category": str(src.get("mistake_category", "")),
+                "news_present": str(src.get("news_present", "")),
+                "screenshot_link": str(src.get("screenshot_link", "")),
+                "notes": str(src.get("notes", "")),
             }
 
         journal: list[dict[str, str]] = [
@@ -527,10 +525,12 @@ class TradingPlanGenerator:
             metric = str(it.get("metric", "")).strip()
             if not metric:
                 continue
-            scorecard_items.append({
-                "metric": metric,
-                "score": str(it.get("score", "")),
-            })
+            scorecard_items.append(
+                {
+                    "metric": metric,
+                    "score": str(it.get("score", "")),
+                }
+            )
 
         plan: dict[str, Any] = {
             "trader_profile": {
@@ -538,11 +538,11 @@ class TradingPlanGenerator:
                 "bullets": [str(b).strip() for b in bullets if str(b).strip()],
             },
             "account": {
-                "starting_balance":      str(account.get("starting_balance", "")),
-                "max_daily_risk":        str(account.get("max_daily_risk", "")),
-                "max_weekly_drawdown":   str(account.get("max_weekly_drawdown", "")),
-                "preferred_rr":          str(account.get("preferred_rr", "")),
-                "max_trades_per_day":    str(account.get("max_trades_per_day", "")),
+                "starting_balance": str(account.get("starting_balance", "")),
+                "max_daily_risk": str(account.get("max_daily_risk", "")),
+                "max_weekly_drawdown": str(account.get("max_weekly_drawdown", "")),
+                "preferred_rr": str(account.get("preferred_rr", "")),
+                "max_trades_per_day": str(account.get("max_trades_per_day", "")),
                 "trading_days_per_week": str(account.get("trading_days_per_week", "")),
             },
             "journal": journal,

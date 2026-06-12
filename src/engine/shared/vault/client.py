@@ -14,6 +14,7 @@ breaker, and Prometheus instrumentation are shared with the rest of
 the engine's outbound calls. Token refresh is asyncio-Lock-guarded so
 concurrent first-touch callers serialise into a single auth round-trip.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -90,11 +91,16 @@ class VaultConfig:
         return cls(
             address=address,
             namespace=os.environ.get("VAULT_NAMESPACE", "").strip(),
-            kv_mount=os.environ.get("VAULT_MOUNT", _DEFAULT_KV_MOUNT).strip() or _DEFAULT_KV_MOUNT,
-            k8s_auth_path=os.environ.get("VAULT_K8S_AUTH_PATH", _DEFAULT_K8S_AUTH_PATH).strip()
+            kv_mount=os.environ.get("VAULT_MOUNT", _DEFAULT_KV_MOUNT).strip()
+            or _DEFAULT_KV_MOUNT,
+            k8s_auth_path=os.environ.get(
+                "VAULT_K8S_AUTH_PATH", _DEFAULT_K8S_AUTH_PATH
+            ).strip()
             or _DEFAULT_K8S_AUTH_PATH,
             k8s_auth_role=role,
-            sa_token_path=os.environ.get("VAULT_K8S_SA_TOKEN_PATH", _DEFAULT_SA_TOKEN_PATH).strip()
+            sa_token_path=os.environ.get(
+                "VAULT_K8S_SA_TOKEN_PATH", _DEFAULT_SA_TOKEN_PATH
+            ).strip()
             or _DEFAULT_SA_TOKEN_PATH,
             renew_safety_secs=renew_safety,
         )
@@ -154,9 +160,7 @@ class VaultClient:
 
     async def _login_locked(self) -> None:
         sa_token = self._read_sa_token()
-        url = (
-            f"{self._config.address}/v1/auth/{self._config.k8s_auth_path}/login"
-        )
+        url = f"{self._config.address}/v1/auth/{self._config.k8s_auth_path}/login"
         body = {"jwt": sa_token, "role": self._config.k8s_auth_role}
         headers = self._headers(include_token=False)
         resp = await self._http.request(
@@ -248,7 +252,9 @@ class VaultClient:
             details={"url": url, "category": category},
         )
 
-    def _headers(self, *, include_token: bool, token: Optional[str] = None) -> dict[str, str]:
+    def _headers(
+        self, *, include_token: bool, token: Optional[str] = None
+    ) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
         if self._config.namespace:
             headers["X-Vault-Namespace"] = self._config.namespace

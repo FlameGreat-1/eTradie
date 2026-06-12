@@ -5,6 +5,7 @@ Routes:
     GET /api/processor/config
     PUT /api/processor/config
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -12,7 +13,12 @@ from pydantic import SecretStr
 
 from engine.dependencies import Container
 from engine.processor.config import ProcessorConfig
-from engine.processor.constants import AVAILABLE_MODELS, DEFAULT_MODELS, LLMProvider, MODEL_CATALOG
+from engine.processor.constants import (
+    AVAILABLE_MODELS,
+    DEFAULT_MODELS,
+    LLMProvider,
+    MODEL_CATALOG,
+)
 from engine.processor.llm.factory import create_llm_client
 from engine.processor.service import AnalysisProcessor
 from engine.schemas import ProcessorConfigResponse, ProcessorConfigUpdateRequest
@@ -108,9 +114,7 @@ async def update_processor_config(
     old_cfg = container.processor_config
     new_provider = body.llm_provider or old_cfg.llm_provider
     new_model = body.model_name or old_cfg.model_name
-    new_temp = (
-        body.temperature if body.temperature is not None else old_cfg.temperature
-    )
+    new_temp = body.temperature if body.temperature is not None else old_cfg.temperature
     new_max_tokens = (
         body.max_output_tokens
         if body.max_output_tokens is not None
@@ -154,7 +158,10 @@ async def update_processor_config(
         new_cfg = ProcessorConfig(**config_overrides)
     except Exception as exc:
         logger.error("processor_config_invalid", extra={"error": str(exc)})
-        raise HTTPException(status_code=400, detail="Invalid processor configuration. Check the provider, model and limits and try again.")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid processor configuration. Check the provider, model and limits and try again.",
+        )
 
     if hasattr(container, "processor_llm_client"):
         await container.processor_llm_client.close()

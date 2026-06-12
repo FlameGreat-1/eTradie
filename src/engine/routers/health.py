@@ -14,6 +14,7 @@ dependency into a pod restart loop. Readiness can block because the
 worst case is traffic stops being routed to this pod until the
 dependency recovers. Audit ref: V-14, X-8.
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response, status
@@ -127,11 +128,7 @@ async def providers_health(request: Request) -> dict:
     by_provider: dict[str, dict[str, str]] = {}
     healthy = 0
     for name, status in statuses.items():
-        category = (
-            providers[name].category.value
-            if name in providers
-            else "unknown"
-        )
+        category = providers[name].category.value if name in providers else "unknown"
         by_provider[name] = {
             "category": category,
             "status": status.value,

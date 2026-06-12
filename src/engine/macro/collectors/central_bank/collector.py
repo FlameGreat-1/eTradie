@@ -11,8 +11,7 @@ logger = get_logger(__name__)
 
 
 class CentralBankCollector(BaseCollector):
-    """Collect central bank rate decisions from all registered FRED CB providers.
-    """
+    """Collect central bank rate decisions from all registered FRED CB providers."""
 
     collector_name = "central_bank"
     cache_namespace = "cb"
@@ -72,13 +71,22 @@ class CentralBankCollector(BaseCollector):
                 await repo.bulk_upsert(
                     rows,
                     index_elements=[
-                        "bank", "title", "event_timestamp",
+                        "bank",
+                        "title",
+                        "event_timestamp",
                     ],
                     update_fields=[
-                        "content", "speaker", "tone", "tone_score",
-                        "policy_action", "balance_sheet_direction",
-                        "rate_current", "rate_previous", "rate_change_bps",
-                        "source_url", "event_type",
+                        "content",
+                        "speaker",
+                        "tone",
+                        "tone_score",
+                        "policy_action",
+                        "balance_sheet_direction",
+                        "rate_current",
+                        "rate_previous",
+                        "rate_change_bps",
+                        "source_url",
+                        "event_type",
                     ],
                 )
 

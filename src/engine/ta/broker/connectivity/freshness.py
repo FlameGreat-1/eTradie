@@ -10,6 +10,7 @@ can be invoked on every tick without affecting the latency budget.
 Audit ref: CHECKLIST Section 2 - 'Price feed validation layer
 (anti-stale pricing detection)'.
 """
+
 from __future__ import annotations
 
 import time as _time
@@ -82,7 +83,8 @@ class TickFreshnessGuard:
                     "age_seconds": age,
                     "max_age_seconds": self.max_age_seconds,
                     "tick_iso": datetime.fromtimestamp(
-                        float(tick_unix_ts), tz=timezone.utc,
+                        float(tick_unix_ts),
+                        tz=timezone.utc,
                     ).isoformat(),
                     "reason": "stale_by_age",
                 },

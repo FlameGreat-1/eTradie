@@ -22,11 +22,11 @@ rejects any payload that does not parse or does not validate, and
 the gateway rejects any payload whose fields are out of bounds or
 contain banned phrases.
 """
+
 from __future__ import annotations
 
 import json
 from typing import Any
-
 
 SYSTEM_PROMPT = """
 You are Exoper AI, an institutional-grade trader performance analyst.
@@ -147,7 +147,11 @@ def build_user_prompt(
     rather than reformatting in prose is the well-tested pattern from
     the existing trading_plan generator.
     """
-    period_label = "Weekly (trailing 7 days)" if period == "weekly" else "Monthly (last calendar month)"
+    period_label = (
+        "Weekly (trailing 7 days)"
+        if period == "weekly"
+        else "Monthly (last calendar month)"
+    )
     period_capital = period.capitalize()
 
     prior_block: str

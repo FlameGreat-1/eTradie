@@ -56,7 +56,7 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
 
 fn base64_encode(input: &[u8]) -> String {
     const BASE64_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    
+
     let mut result = String::new();
     let mut buffer = 0u32;
     let mut bits = 0;
@@ -94,10 +94,10 @@ fn percent_decode(input: &str) -> Result<String, String> {
         if ch == '%' {
             let hex1 = chars.next().ok_or("Incomplete percent encoding")?;
             let hex2 = chars.next().ok_or("Incomplete percent encoding")?;
-            
+
             let byte = u8::from_str_radix(&format!("{}{}", hex1, hex2), 16)
                 .map_err(|_| "Invalid hex in percent encoding")?;
-            
+
             result.push(byte as char);
         } else if ch == '+' {
             result.push(' ');

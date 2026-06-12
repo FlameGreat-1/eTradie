@@ -98,7 +98,10 @@ def resolve_reasoning_budget(
             effort=_budget_to_effort(operator_budget_tokens),
         )
 
-    if capabilities.is_thinking and capabilities.default_reasoning_budget_tokens is not None:
+    if (
+        capabilities.is_thinking
+        and capabilities.default_reasoning_budget_tokens is not None
+    ):
         default = capabilities.default_reasoning_budget_tokens
         return ReasoningBudget(
             budget_tokens=default,

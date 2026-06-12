@@ -1,4 +1,6 @@
-use etradie_envoy_common::{utils::validation::validate_http_method, ALLOWED_HTTP_METHODS, FilterResult};
+use etradie_envoy_common::{
+    utils::validation::validate_http_method, FilterResult, ALLOWED_HTTP_METHODS,
+};
 
 pub struct MethodValidator {
     allowed_methods: Vec<String>,
@@ -11,18 +13,22 @@ impl MethodValidator {
 
     pub fn with_default_methods() -> Self {
         Self {
-            allowed_methods: ALLOWED_HTTP_METHODS
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
+            allowed_methods: ALLOWED_HTTP_METHODS.iter().map(|s| s.to_string()).collect(),
         }
     }
 
     pub fn validate(&self, method: &str) -> FilterResult<()> {
         let method_upper = method.to_uppercase();
-        
-        validate_http_method(&method_upper, &self.allowed_methods.iter().map(|s| s.as_str()).collect::<Vec<_>>())?;
-        
+
+        validate_http_method(
+            &method_upper,
+            &self
+                .allowed_methods
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>(),
+        )?;
+
         Ok(())
     }
 
@@ -64,7 +70,10 @@ mod tests {
     fn test_validator_creation() {
         let validator = MethodValidator::with_default_methods();
         // Default set covers the full gateway surface plus CORS preflight.
-        assert_eq!(validator.allowed_methods().len(), ALLOWED_HTTP_METHODS.len());
+        assert_eq!(
+            validator.allowed_methods().len(),
+            ALLOWED_HTTP_METHODS.len()
+        );
     }
 
     #[test]
@@ -141,7 +150,7 @@ mod tests {
             "POST".to_string(),
             "PUT".to_string(),
         ]);
-        
+
         assert!(validator.validate("GET").is_ok());
         assert!(validator.validate("POST").is_ok());
         assert!(validator.validate("PUT").is_ok());

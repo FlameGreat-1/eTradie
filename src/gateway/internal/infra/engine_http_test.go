@@ -32,7 +32,7 @@ func TestEngineHTTPClient_PostJSON_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := infra.NewEngineHTTPClient(server.URL, 5)
+	client := infra.NewEngineHTTPClient(server.URL, "", 5)
 	defer client.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -72,7 +72,7 @@ func TestEngineHTTPClient_PostJSON_RetryOn503(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := infra.NewEngineHTTPClient(server.URL, 5)
+	client := infra.NewEngineHTTPClient(server.URL, "", 5)
 	defer client.Close()
 
 	ctx := context.Background()
@@ -105,7 +105,7 @@ func TestEngineHTTPClient_PostJSON_NoRetryOn400(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := infra.NewEngineHTTPClient(server.URL, 5)
+	client := infra.NewEngineHTTPClient(server.URL, "", 5)
 	defer client.Close()
 
 	ctx := context.Background()

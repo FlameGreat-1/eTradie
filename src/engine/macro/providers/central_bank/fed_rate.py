@@ -89,9 +89,7 @@ class BaseFREDRateProvider(BaseProvider):
         try:
             upper = await self._fetch_series(self.upper_series)
             lower = (
-                await self._fetch_series(self.lower_series)
-                if self.lower_series
-                else []
+                await self._fetch_series(self.lower_series) if self.lower_series else []
             )
 
             decisions = self._build_history(upper, lower)
@@ -124,7 +122,9 @@ class BaseFREDRateProvider(BaseProvider):
         descending sort order is preserved so element 0 is the most recent
         reading.
         """
-        obs_start = (datetime.now(UTC) - timedelta(days=365 * _LOOKBACK_YEARS)).strftime("%Y-%m-%d")
+        obs_start = (
+            datetime.now(UTC) - timedelta(days=365 * _LOOKBACK_YEARS)
+        ).strftime("%Y-%m-%d")
         raw = await self._http.get(
             f"{self._base_url}/series/observations",
             provider_name=self.provider_name,

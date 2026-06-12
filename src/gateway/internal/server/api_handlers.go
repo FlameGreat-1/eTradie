@@ -342,10 +342,10 @@ func (h *APIHandler) handleRunCycle(w http.ResponseWriter, r *http.Request) {
 // HTTP-shaped log line.
 //
 // Failure posture (delegated to the helper):
-//   * Policy lookup error -> not blocked (helper returns Blocked=false
+//   - Policy lookup error -> not blocked (helper returns Blocked=false
 //     and the error; we log + return so the caller proceeds).
-//   * Usage lookup error -> same.
-//   * Block dimension hit -> blocked.
+//   - Usage lookup error -> same.
+//   - Block dimension hit -> blocked.
 func (h *APIHandler) preflightLLMQuota(
 	r *http.Request,
 	claims *auth.Claims,

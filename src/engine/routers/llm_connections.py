@@ -13,6 +13,7 @@ Routes:
     POST   /api/llm/platform/connection
     DELETE /api/llm/platform/connection
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -85,12 +86,8 @@ async def list_llm_connections(
                 "max_output_tokens": row.max_output_tokens,
                 "is_active": row.is_active,
                 "label": row.label,
-                "created_at": (
-                    row.created_at.isoformat() if row.created_at else None
-                ),
-                "updated_at": (
-                    row.updated_at.isoformat() if row.updated_at else None
-                ),
+                "created_at": (row.created_at.isoformat() if row.created_at else None),
+                "updated_at": (row.updated_at.isoformat() if row.updated_at else None),
             }
         )
 
@@ -405,7 +402,9 @@ async def create_platform_llm_connection(
     admin: AuthenticatedUser = Depends(get_admin_user),
 ) -> dict:
     """Create or overwrite the Platform LLM connection."""
-    await _rate_limit(request, "llm_platform_create", max_requests=10, window_seconds=60)
+    await _rate_limit(
+        request, "llm_platform_create", max_requests=10, window_seconds=60
+    )
     container: Container = request.app.state.container
 
     valid_providers = {p.value for p in LLMProvider}
@@ -486,4 +485,7 @@ async def delete_platform_llm_connection(
     container._user_processors.clear()
     await container.invalidate_all_background_llm()
 
-    return {"deleted": True, "message": "Platform connection deleted. Reverting to .env configuration."}
+    return {
+        "deleted": True,
+        "message": "Platform connection deleted. Reverting to .env configuration.",
+    }

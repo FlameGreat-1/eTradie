@@ -18,8 +18,8 @@ import (
 // reconciler returns ErrNotImplemented so a future test that
 // accidentally calls one fails loudly.
 type fakeBroker struct {
-	mu       sync.Mutex
-	posByUID map[string][]models.Position
+	mu        sync.Mutex
+	posByUID  map[string][]models.Position
 	pendByUID map[string][]models.BrokerPendingOrder
 }
 

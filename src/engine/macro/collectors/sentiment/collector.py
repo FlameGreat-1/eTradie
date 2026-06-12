@@ -52,9 +52,7 @@ class SentimentCollector(BaseCollector):
                             else str(getattr(s, "currency", ""))
                         ),
                         "source": (
-                            getattr(s, "source", "")
-                            if hasattr(s, "source")
-                            else ""
+                            getattr(s, "source", "") if hasattr(s, "source") else ""
                         ),
                         "long_percentage": getattr(s, "long_percentage", 50.0),
                         "short_percentage": getattr(s, "short_percentage", 50.0),
@@ -68,15 +66,18 @@ class SentimentCollector(BaseCollector):
                         rows,
                         index_elements=["currency", "source"],
                         update_fields=[
-                            "long_percentage", "short_percentage",
-                            "net_positioning", "collected_at",
+                            "long_percentage",
+                            "short_percentage",
+                            "net_positioning",
+                            "collected_at",
                         ],
                     )
 
         # Read global intermarket cache for risk environment assessment.
         # Cache key is global: latest
         intermarket_raw = await self._cache.get(
-            "intermarket", self._cache_key(),
+            "intermarket",
+            self._cache_key(),
         )
         vix: float | None = None
         us2y: float | None = None
@@ -111,7 +112,6 @@ class SentimentCollector(BaseCollector):
         )
         self._record_items_stored(len(all_sentiments))
         return result
-
 
     def _empty_dataset(self) -> dict[str, Any]:
         return {}

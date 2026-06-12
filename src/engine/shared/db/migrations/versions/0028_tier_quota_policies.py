@@ -12,6 +12,7 @@ Revision ID: 0028
 Revises: 0027
 Created:  2026-05-28
 """
+
 from __future__ import annotations
 
 from alembic import op
@@ -235,8 +236,7 @@ def upgrade() -> None:
     # parameters. The allowed_models column is seeded as an empty
     # JSONB array for every tier; admins populate it later via the
     # dashboard if they want to restrict the model allow-list.
-    insert_sql = sa.text(
-        """
+    insert_sql = sa.text("""
         INSERT INTO tier_quota_policies (
             tier,
             daily_input_tokens,
@@ -264,8 +264,7 @@ def upgrade() -> None:
             NOW(),
             NULL
         )
-        """
-    )
+        """)
     bind = op.get_bind()
     for row in _SEED_ROWS:
         bind.execute(

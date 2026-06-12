@@ -19,6 +19,7 @@ Routes:
     POST /internal/broker/close_partial
     POST /internal/broker/close_position
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -74,9 +75,18 @@ async def broker_account_info(
         except Exception:
             pass
 
-        logger.error("broker_account_info_failed_no_cache", extra={"error": str(exc), "user_id": user_id})
+        logger.error(
+            "broker_account_info_failed_no_cache",
+            extra={"error": str(exc), "user_id": user_id},
+        )
         # Return empty skeleton to prevent 502s from bubbling up to the dashboard UI
-        return {"balance": 0, "equity": 0, "margin": 0, "margin_free": 0, "currency": "USD"}
+        return {
+            "balance": 0,
+            "equity": 0,
+            "margin": 0,
+            "margin_free": 0,
+            "currency": "USD",
+        }
 
 
 @router.get("/internal/broker/positions")
@@ -129,7 +139,10 @@ async def broker_positions(
         except Exception:
             pass
 
-        logger.error("broker_positions_failed_no_cache", extra={"error": str(exc), "user_id": user_id})
+        logger.error(
+            "broker_positions_failed_no_cache",
+            extra={"error": str(exc), "user_id": user_id},
+        )
         # Return empty list to prevent 502s from bubbling up to the dashboard UI
         return []
 
@@ -147,7 +160,9 @@ async def broker_history(
     cache_key = f"cache_failover:history:{user_id}:{days}"
 
     try:
-        history = await asyncio.wait_for(broker_client.get_history(days=days), timeout=5.0)
+        history = await asyncio.wait_for(
+            broker_client.get_history(days=days), timeout=5.0
+        )
         result = [
             {
                 "ticket": h.ticket,
@@ -214,7 +229,10 @@ async def broker_pending_orders(
             pass
         return result
     except (asyncio.TimeoutError, Exception) as exc:
-        logger.warning("zmq_execution_lock_timeout_falling_back_to_pending_orders_cache", extra={"error": str(exc), "user_id": user_id})
+        logger.warning(
+            "zmq_execution_lock_timeout_falling_back_to_pending_orders_cache",
+            extra={"error": str(exc), "user_id": user_id},
+        )
 
         try:
             cached_orders = await container.cache.get("internal", cache_key)
@@ -244,10 +262,14 @@ async def broker_symbol_info(
 
     try:
         # Enforce a strict 2-second timeout to prevent Go client timeout race.
-        info = await asyncio.wait_for(broker_client.get_symbol_info(symbol), timeout=2.0)
+        info = await asyncio.wait_for(
+            broker_client.get_symbol_info(symbol), timeout=2.0
+        )
         # Update the failover cache silently
         try:
-            await container.cache.set("internal", cache_key, info, ttl_seconds=86400 * 7)
+            await container.cache.set(
+                "internal", cache_key, info, ttl_seconds=86400 * 7
+            )
         except Exception:
             pass
         return info
@@ -261,7 +283,8 @@ async def broker_symbol_info(
             pass
 
         logger.error(
-            "broker_symbol_info_failed_no_cache", extra={"symbol": symbol, "error": str(exc), "user_id": user_id}
+            "broker_symbol_info_failed_no_cache",
+            extra={"symbol": symbol, "error": str(exc), "user_id": user_id},
         )
         raise HTTPException(
             status_code=502, detail=f"Symbol info unavailable and no cache: {exc}"
@@ -293,11 +316,10 @@ async def broker_tick_price(
         }
     except Exception as exc:
         logger.error(
-            "broker_tick_price_failed", extra={"symbol": symbol, "error": str(exc), "user_id": user_id}
+            "broker_tick_price_failed",
+            extra={"symbol": symbol, "error": str(exc), "user_id": user_id},
         )
-        raise HTTPException(
-            status_code=502, detail=f"Tick price unavailable: {exc}"
-        )
+        raise HTTPException(status_code=502, detail=f"Tick price unavailable: {exc}")
 
 
 @router.post("/internal/broker/place_order")
@@ -348,11 +370,14 @@ async def broker_place_order(
     except Exception as exc:
         logger.error(
             "broker_place_order_failed",
-            extra={"symbol": symbol, "direction": direction, "error": str(exc), "user_id": user_id},
+            extra={
+                "symbol": symbol,
+                "direction": direction,
+                "error": str(exc),
+                "user_id": user_id,
+            },
         )
-        raise HTTPException(
-            status_code=502, detail=f"Order placement failed: {exc}"
-        )
+        raise HTTPException(status_code=502, detail=f"Order placement failed: {exc}")
 
 
 @router.post("/internal/broker/cancel_order")
@@ -413,7 +438,8 @@ async def broker_position(
         }
     except Exception as exc:
         logger.error(
-            "broker_position_failed", extra={"ticket": ticket, "error": str(exc), "user_id": user_id}
+            "broker_position_failed",
+            extra={"ticket": ticket, "error": str(exc), "user_id": user_id},
         )
         raise HTTPException(status_code=502, detail=f"Position unavailable: {exc}")
 
@@ -489,7 +515,12 @@ async def broker_close_partial(
     except Exception as exc:
         logger.error(
             "broker_close_partial_failed",
-            extra={"ticket": ticket, "volume": volume, "error": str(exc), "user_id": user_id},
+            extra={
+                "ticket": ticket,
+                "volume": volume,
+                "error": str(exc),
+                "user_id": user_id,
+            },
         )
         return {"success": False, "close_price": 0, "error": str(exc)}
 

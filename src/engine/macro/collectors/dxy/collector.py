@@ -83,12 +83,8 @@ def _compute_key_levels(
     resistances = sorted(set(resistances))
 
     # Nearest support below current, nearest resistance above current
-    nearest_support = max(
-        (s for s in supports if s < current), default=None
-    )
-    nearest_resistance = min(
-        (r for r in resistances if r > current), default=None
-    )
+    nearest_support = max((s for s in supports if s < current), default=None)
+    nearest_resistance = min((r for r in resistances if r > current), default=None)
 
     return {
         "support": nearest_support,
@@ -111,9 +107,8 @@ def _detect_divergence(
     trend_up = trend == TrendDirection.UP
     trend_down = trend == TrendDirection.DOWN
 
-    divergence_detected = (
-        (momentum_bullish and trend_down)
-        or (momentum_bearish and trend_up)
+    divergence_detected = (momentum_bullish and trend_down) or (
+        momentum_bearish and trend_up
     )
 
     signal_type = "NONE"
@@ -181,13 +176,12 @@ class DXYCollector(BaseCollector):
 
                 # Get recent history for trend and key level analysis
                 recent_rows = await repo.get_recent_values(limit=20)
-                history_values = [
-                    row.value for row in reversed(recent_rows)
-                ]
+                history_values = [row.value for row in reversed(recent_rows)]
 
                 trend = _compute_trend(snapshot.dxy_value, history_values)
                 key_levels = _compute_key_levels(
-                    snapshot.dxy_value, history_values,
+                    snapshot.dxy_value,
+                    history_values,
                 )
                 divergence = _detect_divergence(momentum, trend)
                 bias = _compute_bias(momentum, trend)
@@ -219,6 +213,7 @@ class DXYCollector(BaseCollector):
         self._record_items_stored(1 if snapshot else 0)
         return dataset
 
-
     def _empty_dataset(self) -> MarketDataSet:
-        return MarketDataSet(snapshots=[], latest=None, sources=[], collected_at=datetime.now(UTC))
+        return MarketDataSet(
+            snapshots=[], latest=None, sources=[], collected_at=datetime.now(UTC)
+        )

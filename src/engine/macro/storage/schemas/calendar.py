@@ -34,7 +34,9 @@ class CalendarEventRow(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "event_name", "currency", "event_time",
+            "event_name",
+            "currency",
+            "event_time",
             name="uq_cal_event",
         ),
         Index("ix_cal_currency_time", "currency", "event_time"),

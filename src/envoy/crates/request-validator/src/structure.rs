@@ -127,18 +127,13 @@ pub fn is_valid_path_segment(segment: &str) -> bool {
         && !segment.contains("..")
         && !segment.contains('\0')
         && segment.chars().all(|c| {
-            c.is_ascii_alphanumeric()
-                || c == '-'
-                || c == '_'
-                || c == '.'
-                || c == '~'
-                || c == '/'
+            c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '~' || c == '/'
         })
 }
 
 pub fn normalize_path(path: &str) -> String {
     let without_query = extract_path_without_query(path);
-    
+
     let segments: Vec<&str> = without_query
         .split('/')
         .filter(|s| !s.is_empty() && *s != ".")

@@ -39,9 +39,7 @@ def upgrade() -> None:
     if "candidates" not in existing_tables:
         return
 
-    existing_columns = {
-        col["name"] for col in inspector.get_columns("candidates")
-    }
+    existing_columns = {col["name"] for col in inspector.get_columns("candidates")}
 
     # ── 1. Add missing columns ──────────────────────────────────────────
 
@@ -49,8 +47,10 @@ def upgrade() -> None:
     _add_if_missing(existing_columns, "fvg_upper", sa.Float, nullable=True)
     _add_if_missing(existing_columns, "fvg_lower", sa.Float, nullable=True)
     _add_if_missing(
-        existing_columns, "fvg_timestamp",
-        sa.DateTime(timezone=True), nullable=True,
+        existing_columns,
+        "fvg_timestamp",
+        sa.DateTime(timezone=True),
+        nullable=True,
     )
 
     # SMC: inducement_level (was missing from 0002)
@@ -64,65 +64,83 @@ def upgrade() -> None:
     _add_if_missing(existing_columns, "sr_flip_detected", sa.Boolean, nullable=True)
     _add_if_missing(existing_columns, "sr_flip_price", sa.Float, nullable=True)
     _add_if_missing(
-        existing_columns, "sr_flip_timestamp",
-        sa.DateTime(timezone=True), nullable=True,
+        existing_columns,
+        "sr_flip_timestamp",
+        sa.DateTime(timezone=True),
+        nullable=True,
     )
 
     # SnD: RS flip – full set
     _add_if_missing(existing_columns, "rs_flip_detected", sa.Boolean, nullable=True)
     _add_if_missing(existing_columns, "rs_flip_price", sa.Float, nullable=True)
     _add_if_missing(
-        existing_columns, "rs_flip_timestamp",
-        sa.DateTime(timezone=True), nullable=True,
+        existing_columns,
+        "rs_flip_timestamp",
+        sa.DateTime(timezone=True),
+        nullable=True,
     )
 
     # SnD: MPL – full set
     _add_if_missing(existing_columns, "mpl_detected", sa.Boolean, nullable=True)
     _add_if_missing(existing_columns, "mpl_price", sa.Float, nullable=True)
     _add_if_missing(
-        existing_columns, "mpl_timestamp",
-        sa.DateTime(timezone=True), nullable=True,
+        existing_columns,
+        "mpl_timestamp",
+        sa.DateTime(timezone=True),
+        nullable=True,
     )
 
     # SnD: Supply zone
     _add_if_missing(existing_columns, "supply_zone_upper", sa.Float, nullable=True)
     _add_if_missing(existing_columns, "supply_zone_lower", sa.Float, nullable=True)
     _add_if_missing(
-        existing_columns, "supply_zone_timestamp",
-        sa.DateTime(timezone=True), nullable=True,
+        existing_columns,
+        "supply_zone_timestamp",
+        sa.DateTime(timezone=True),
+        nullable=True,
     )
 
     # SnD: Demand zone
     _add_if_missing(existing_columns, "demand_zone_upper", sa.Float, nullable=True)
     _add_if_missing(existing_columns, "demand_zone_lower", sa.Float, nullable=True)
     _add_if_missing(
-        existing_columns, "demand_zone_timestamp",
-        sa.DateTime(timezone=True), nullable=True,
+        existing_columns,
+        "demand_zone_timestamp",
+        sa.DateTime(timezone=True),
+        nullable=True,
     )
 
     # SnD: Fakeout – full set
     _add_if_missing(existing_columns, "fakeout_detected", sa.Boolean, nullable=True)
     _add_if_missing(existing_columns, "fakeout_level", sa.Float, nullable=True)
     _add_if_missing(
-        existing_columns, "fakeout_timestamp",
-        sa.DateTime(timezone=True), nullable=True,
+        existing_columns,
+        "fakeout_timestamp",
+        sa.DateTime(timezone=True),
+        nullable=True,
     )
 
     # SnD: Marubozu
     _add_if_missing(existing_columns, "marubozu_detected", sa.Boolean, nullable=True)
     _add_if_missing(
-        existing_columns, "marubozu_timestamp",
-        sa.DateTime(timezone=True), nullable=True,
+        existing_columns,
+        "marubozu_timestamp",
+        sa.DateTime(timezone=True),
+        nullable=True,
     )
 
     # SnD: Compression
     _add_if_missing(existing_columns, "compression_detected", sa.Boolean, nullable=True)
-    _add_if_missing(existing_columns, "compression_candle_count", sa.Integer, nullable=True)
+    _add_if_missing(
+        existing_columns, "compression_candle_count", sa.Integer, nullable=True
+    )
 
     # SnD: Sweep timestamp (SMC liquidity_swept exists, but sweep_timestamp may be missing)
     _add_if_missing(
-        existing_columns, "sweep_timestamp",
-        sa.DateTime(timezone=True), nullable=True,
+        existing_columns,
+        "sweep_timestamp",
+        sa.DateTime(timezone=True),
+        nullable=True,
     )
 
     # ── 2. Rename metadata -> meta_data ─────────────────────────────────
@@ -137,17 +155,17 @@ def upgrade() -> None:
     }
 
     obsolete_columns = [
-        "qml_level",       # replaced by qml_detected + qml_price
-        "qmh_level",       # removed entirely
-        "qmh_timestamp",   # removed entirely
-        "sr_flip_level",   # replaced by sr_flip_detected/price/timestamp
-        "rs_flip_level",   # replaced by rs_flip_detected/price/timestamp
-        "fakeout_count",   # replaced by fakeout_detected/level/timestamp
-        "has_compression", # replaced by compression_detected/candle_count
+        "qml_level",  # replaced by qml_detected + qml_price
+        "qmh_level",  # removed entirely
+        "qmh_timestamp",  # removed entirely
+        "sr_flip_level",  # replaced by sr_flip_detected/price/timestamp
+        "rs_flip_level",  # replaced by rs_flip_detected/price/timestamp
+        "fakeout_count",  # replaced by fakeout_detected/level/timestamp
+        "has_compression",  # replaced by compression_detected/candle_count
         "has_previous_highs",  # removed (previous_highs_count suffices)
-        "has_previous_lows",   # removed (previous_lows_count suffices)
-        "has_mpl",         # replaced by mpl_detected
-        "mpl_level",       # replaced by mpl_price
+        "has_previous_lows",  # removed (previous_lows_count suffices)
+        "has_mpl",  # replaced by mpl_detected
+        "mpl_level",  # replaced by mpl_price
     ]
 
     for col_name in obsolete_columns:
@@ -163,18 +181,21 @@ def downgrade() -> None:
     if "candidates" not in existing_tables:
         return
 
-    existing_columns = {
-        col["name"] for col in inspector.get_columns("candidates")
-    }
+    existing_columns = {col["name"] for col in inspector.get_columns("candidates")}
 
     # ── Restore obsolete columns ────────────────────────────────────────
     _add_if_missing(existing_columns, "qml_level", sa.Float, nullable=True)
     _add_if_missing(
-        existing_columns, "qmh_level", sa.Float, nullable=True,
+        existing_columns,
+        "qmh_level",
+        sa.Float,
+        nullable=True,
     )
     _add_if_missing(
-        existing_columns, "qmh_timestamp",
-        sa.DateTime(timezone=True), nullable=True,
+        existing_columns,
+        "qmh_timestamp",
+        sa.DateTime(timezone=True),
+        nullable=True,
     )
     _add_if_missing(existing_columns, "sr_flip_level", sa.Float, nullable=True)
     _add_if_missing(existing_columns, "rs_flip_level", sa.Float, nullable=True)
@@ -189,7 +210,10 @@ def downgrade() -> None:
     existing_columns_after = {
         col["name"] for col in inspector.get_columns("candidates")
     }
-    if "meta_data" in existing_columns_after and "metadata" not in existing_columns_after:
+    if (
+        "meta_data" in existing_columns_after
+        and "metadata" not in existing_columns_after
+    ):
         op.alter_column("candidates", "meta_data", new_column_name="metadata")
 
     # ── Drop columns added in upgrade ───────────────────────────────────
@@ -198,17 +222,34 @@ def downgrade() -> None:
     }
 
     new_columns = [
-        "fvg_upper", "fvg_lower", "fvg_timestamp",
+        "fvg_upper",
+        "fvg_lower",
+        "fvg_timestamp",
         "inducement_level",
-        "qml_detected", "qml_price",
-        "sr_flip_detected", "sr_flip_price", "sr_flip_timestamp",
-        "rs_flip_detected", "rs_flip_price", "rs_flip_timestamp",
-        "mpl_detected", "mpl_price", "mpl_timestamp",
-        "supply_zone_upper", "supply_zone_lower", "supply_zone_timestamp",
-        "demand_zone_upper", "demand_zone_lower", "demand_zone_timestamp",
-        "fakeout_detected", "fakeout_level", "fakeout_timestamp",
-        "marubozu_detected", "marubozu_timestamp",
-        "compression_detected", "compression_candle_count",
+        "qml_detected",
+        "qml_price",
+        "sr_flip_detected",
+        "sr_flip_price",
+        "sr_flip_timestamp",
+        "rs_flip_detected",
+        "rs_flip_price",
+        "rs_flip_timestamp",
+        "mpl_detected",
+        "mpl_price",
+        "mpl_timestamp",
+        "supply_zone_upper",
+        "supply_zone_lower",
+        "supply_zone_timestamp",
+        "demand_zone_upper",
+        "demand_zone_lower",
+        "demand_zone_timestamp",
+        "fakeout_detected",
+        "fakeout_level",
+        "fakeout_timestamp",
+        "marubozu_detected",
+        "marubozu_timestamp",
+        "compression_detected",
+        "compression_candle_count",
     ]
 
     for col_name in new_columns:

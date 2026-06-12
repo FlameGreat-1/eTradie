@@ -40,14 +40,29 @@ def upgrade() -> None:
 
     op.create_table(
         "sentiment_readings",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("currency", sa.String(5), nullable=False),
         sa.Column("source", sa.String(50), nullable=False, server_default=""),
         sa.Column("long_percentage", sa.Float, nullable=False, server_default="50.0"),
         sa.Column("short_percentage", sa.Float, nullable=False, server_default="50.0"),
         sa.Column("net_positioning", sa.Float, nullable=False, server_default="0.0"),
-        sa.Column("collected_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "collected_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
         sa.UniqueConstraint("currency", "source", name="uq_sentiment_currency_source"),
     )
 

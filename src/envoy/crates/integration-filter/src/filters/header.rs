@@ -40,11 +40,9 @@ impl HeaderFilterIntegration {
             ),
         );
 
-        let decision = self.validator.validate(
-            context.trace_id(),
-            headers,
-            context.method(),
-        );
+        let decision = self
+            .validator
+            .validate(context.trace_id(), headers, context.method());
 
         let duration_ms = current_timestamp_ms().saturating_sub(start_time);
         self.record_metrics(&decision, duration_ms);
@@ -63,7 +61,8 @@ impl HeaderFilterIntegration {
     }
 
     fn record_metrics(&self, decision: &FilterDecision, duration_ms: u64) {
-        self.metrics.record_histogram("execution_duration_ms", duration_ms);
+        self.metrics
+            .record_histogram("execution_duration_ms", duration_ms);
 
         if decision.allowed {
             self.metrics.increment_counter("validations_passed");
@@ -97,12 +96,12 @@ mod tests {
     #[test]
     fn test_header_filter_execution_valid() {
         let filter = HeaderFilterIntegration::with_defaults().unwrap();
-        
+
         let headers = vec![
             ("user-agent".to_string(), "test-agent".to_string()),
             ("content-type".to_string(), "application/json".to_string()),
         ];
-        
+
         let context = crate::context::RequestContext::new(
             "POST".to_string(),
             "/api/v1/users".to_string(),
@@ -116,11 +115,9 @@ mod tests {
     #[test]
     fn test_header_filter_execution_invalid() {
         let filter = HeaderFilterIntegration::with_defaults().unwrap();
-        
-        let headers = vec![
-            ("content-type".to_string(), "application/json".to_string()),
-        ];
-        
+
+        let headers = vec![("content-type".to_string(), "application/json".to_string())];
+
         let context = crate::context::RequestContext::new(
             "POST".to_string(),
             "/api/v1/users".to_string(),
@@ -134,13 +131,13 @@ mod tests {
     #[test]
     fn test_header_filter_execution_multiple_headers() {
         let filter = HeaderFilterIntegration::with_defaults().unwrap();
-        
+
         let headers = vec![
             ("user-agent".to_string(), "test-agent".to_string()),
             ("content-type".to_string(), "application/json".to_string()),
             ("accept".to_string(), "application/json".to_string()),
         ];
-        
+
         let context = crate::context::RequestContext::new(
             "POST".to_string(),
             "/api/v1/users".to_string(),
@@ -156,7 +153,7 @@ mod tests {
         let rules = ValidationRules::new()
             .with_max_header_size(4096)
             .with_max_header_count(50);
-        
+
         let filter = HeaderFilterIntegration::new(rules);
         assert!(filter.is_ok());
     }

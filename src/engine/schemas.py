@@ -3,6 +3,7 @@
 Extracted from main.py for maintainability. Every schema is a pure
 Pydantic model with no side effects.
 """
+
 from __future__ import annotations
 
 from typing import Optional
@@ -119,6 +120,7 @@ class InternalProcessorRequest(BaseModel):
     fields exist for callers that prefer a single transport (the
     handler resolves header-first, body-second).
     """
+
     model_config = _STRICT_REQUEST_CONFIG
 
     processor_input: dict
@@ -135,6 +137,7 @@ class InternalDebugRunCycleRequest(BaseModel):
     Contains the full pipeline data (TA, macro, RAG, processor) so the
     engine can persist it to /output/runcycle/ for offline inspection.
     """
+
     model_config = _STRICT_REQUEST_CONFIG
 
     symbol: str
@@ -154,9 +157,14 @@ class CreateLLMConnectionRequest(BaseModel):
     model_name: Optional[str] = None
     base_url: Optional[str] = None
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
-    max_output_tokens: int = Field(default_factory=lambda: get_processor_config().max_output_tokens, ge=1024, le=131072)
+    max_output_tokens: int = Field(
+        default_factory=lambda: get_processor_config().max_output_tokens,
+        ge=1024,
+        le=131072,
+    )
     label: Optional[str] = None
     activate: bool = True
+
 
 class UpdateLLMConnectionRequest(BaseModel):
     model_config = _STRICT_REQUEST_CONFIG
@@ -168,6 +176,7 @@ class UpdateLLMConnectionRequest(BaseModel):
     temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
     max_output_tokens: Optional[int] = Field(default=None, ge=1024, le=131072)
     label: Optional[str] = None
+
 
 class CreateBrokerConnectionRequest(BaseModel):
     model_config = _STRICT_REQUEST_CONFIG
@@ -181,11 +190,15 @@ class CreateBrokerConnectionRequest(BaseModel):
     # 'mt4' is reserved but rejected at the router until the MT4 EA
     # binary is bundled in the mt-node image. Only 'mt5' is buildable
     # end-to-end today; see docker/mt-node/ea/README.md.
-    platform: str = Field(default="mt5", description="Trading platform. Currently only 'mt5' is supported end-to-end; 'mt4' is reserved for future support.")
+    platform: str = Field(
+        default="mt5",
+        description="Trading platform. Currently only 'mt5' is supported end-to-end; 'mt4' is reserved for future support.",
+    )
     # No symbol field. The hosted provisioner runs automatic broker
     # symbol resolution (GET_ALL_SYMBOLS over ZMQ) after the Pod boots
     # and persists the canonical->broker-actual map to the row.
     activate: bool = True
+
 
 class UpdateBrokerConnectionRequest(BaseModel):
     model_config = _STRICT_REQUEST_CONFIG

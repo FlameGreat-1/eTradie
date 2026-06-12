@@ -73,15 +73,15 @@ logger = get_logger(__name__)
 # All values in hours for consistency.
 
 # TA data (user-scoped) — self-heals via broker re-fetch.
-RETENTION_CANDLES_HOURS = 72           # 3 days
-RETENTION_SNAPSHOTS_HOURS = 24         # 24 hours
+RETENTION_CANDLES_HOURS = 72  # 3 days
+RETENTION_SNAPSHOTS_HOURS = 24  # 24 hours
 RETENTION_CANDIDATES_INACTIVE_HOURS = 72  # 3 days
 
 # Processor data (user-scoped) — heavy JSON reasoning, kept for a week for review
-RETENTION_PROCESSOR_HOURS = 168        # 7 days
+RETENTION_PROCESSOR_HOURS = 168  # 7 days
 
 # Macro data (global) — self-heals via scheduler re-collection.
-RETENTION_MACRO_HOURS = 168            # 7 days (all macro tables)
+RETENTION_MACRO_HOURS = 168  # 7 days (all macro tables)
 
 
 class RetentionPruner:
@@ -116,37 +116,55 @@ class RetentionPruner:
 
         # ── Processor tables ─────────────────────────────────────
         results["analysis_outputs"] = await self._prune_processor_table(
-            AnalysisOutputRow, "created_at", RETENTION_PROCESSOR_HOURS,
+            AnalysisOutputRow,
+            "created_at",
+            RETENTION_PROCESSOR_HOURS,
         )
         results["analysis_audit_logs"] = await self._prune_processor_table(
-            AnalysisAuditLogRow, "created_at", RETENTION_PROCESSOR_HOURS,
+            AnalysisAuditLogRow,
+            "created_at",
+            RETENTION_PROCESSOR_HOURS,
         )
 
         # ── Macro tables ─────────────────────────────────────────
         results["calendar_events"] = await self._prune_macro_table(
-            CalendarEventRow, "created_at", RETENTION_MACRO_HOURS,
+            CalendarEventRow,
+            "created_at",
+            RETENTION_MACRO_HOURS,
         )
         results["central_bank_events"] = await self._prune_macro_table(
-            CentralBankEventRow, "created_at", RETENTION_MACRO_HOURS,
+            CentralBankEventRow,
+            "created_at",
+            RETENTION_MACRO_HOURS,
         )
         results["cot_reports"] = await self._prune_macro_table(
-            COTReportRow, "created_at", RETENTION_MACRO_HOURS,
+            COTReportRow,
+            "created_at",
+            RETENTION_MACRO_HOURS,
         )
         results["dxy_snapshots"] = await self._prune_macro_table(
-            DXYSnapshotRow, "created_at", RETENTION_MACRO_HOURS,
+            DXYSnapshotRow,
+            "created_at",
+            RETENTION_MACRO_HOURS,
         )
         results["economic_releases"] = await self._prune_macro_table(
-            EconomicReleaseRow, "created_at", RETENTION_MACRO_HOURS,
+            EconomicReleaseRow,
+            "created_at",
+            RETENTION_MACRO_HOURS,
         )
         results["intermarket_snapshots"] = await self._prune_macro_table(
-            IntermarketSnapshotRow, "created_at", RETENTION_MACRO_HOURS,
+            IntermarketSnapshotRow,
+            "created_at",
+            RETENTION_MACRO_HOURS,
         )
         # Sentiment rows are UPSERTED on (currency, source): created_at keeps
         # its original insert time while collected_at advances every cycle.
         # Prune by collected_at so a continuously-updated live row is not
         # deleted just because it was first inserted > 7 days ago.
         results["sentiment_readings"] = await self._prune_macro_table(
-            SentimentReadingRow, "collected_at", RETENTION_MACRO_HOURS,
+            SentimentReadingRow,
+            "collected_at",
+            RETENTION_MACRO_HOURS,
         )
 
         total_deleted = sum(results.values())
@@ -263,9 +281,7 @@ class RetentionPruner:
         """
         try:
             async with self._db.session() as session:
-                result = await session.execute(
-                    delete(schema_class).where(condition)
-                )
+                result = await session.execute(delete(schema_class).where(condition))
                 deleted = result.rowcount
                 await session.commit()
 

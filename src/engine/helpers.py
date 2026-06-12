@@ -3,6 +3,7 @@
 Extracted from main.py for maintainability. These are stateless utility
 functions used across multiple router modules.
 """
+
 from __future__ import annotations
 
 import json
@@ -214,7 +215,11 @@ def _save_debug_output(
         _write("ta_smc_candidates", ta_data.get("smc_candidates"))
         _write("ta_snd_candidates", ta_data.get("snd_candidates"))
 
-        ta_meta = {k: v for k, v in ta_data.items() if k not in ("snapshots", "smc_candidates", "snd_candidates")}
+        ta_meta = {
+            k: v
+            for k, v in ta_data.items()
+            if k not in ("snapshots", "smc_candidates", "snd_candidates")
+        }
         _write("ta_metadata", ta_meta)
 
     _write("macro_analysis", macro_data)

@@ -57,19 +57,29 @@ def build_where_filter(
         if len(directions) == 1:
             conditions.append({f"direction_{directions[0]}": {"$eq": True}})
         else:
-            conditions.append({"$or": [{f"direction_{d}": {"$eq": True}} for d in directions]})
+            conditions.append(
+                {"$or": [{f"direction_{d}": {"$eq": True}} for d in directions]}
+            )
 
     if setup_families:
         if len(setup_families) == 1:
             conditions.append({f"setup_family_{setup_families[0]}": {"$eq": True}})
         else:
-            conditions.append({"$or": [{f"setup_family_{sf}": {"$eq": True}} for sf in setup_families]})
+            conditions.append(
+                {
+                    "$or": [
+                        {f"setup_family_{sf}": {"$eq": True}} for sf in setup_families
+                    ]
+                }
+            )
 
     if timeframes:
         if len(timeframes) == 1:
             conditions.append({f"timeframe_{timeframes[0]}": {"$eq": True}})
         else:
-            conditions.append({"$or": [{f"timeframe_{tf}": {"$eq": True}} for tf in timeframes]})
+            conditions.append(
+                {"$or": [{f"timeframe_{tf}": {"$eq": True}} for tf in timeframes]}
+            )
 
     if styles:
         # Note: chunkers metadata builder doesn't extract 'style' to a dynamic flag yet.

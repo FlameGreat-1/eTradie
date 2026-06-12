@@ -52,7 +52,7 @@ func TestFullPipeline_NewsProximityGuardRejects(t *testing.T) {
 
 	var newsGuardFired bool
 	for _, check := range output.GuardResult.Checks {
-		if check.Rule == constants.RuleNewsProximity {
+		if check.Rule == constants.RuleHighImpactEventProximity {
 			assert.Equal(t, constants.VerdictReject, check.Verdict,
 				"news proximity guard should REJECT")
 			assert.Contains(t, check.Reason, "Non-Farm Payrolls")
@@ -66,7 +66,7 @@ func TestFullPipeline_NewsProximityGuardRejects(t *testing.T) {
 
 	// Overall verdict must be REJECT (news guard is blocking).
 	assert.Equal(t, constants.VerdictReject, output.GuardResult.OverallVerdict)
-	assert.Contains(t, output.GuardResult.BlockingRules, string(constants.RuleNewsProximity))
+	assert.Contains(t, output.GuardResult.BlockingRules, string(constants.RuleHighImpactEventProximity))
 
 	// Outcome should be REJECTED_BY_GUARD.
 	assert.Equal(t, constants.OutcomeRejectedByGuard, output.CycleOutcome)

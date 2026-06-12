@@ -8,6 +8,7 @@ Routes:
     GET  /api/analysis/{analysis_id}
     POST /api/analysis/rerun
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -61,7 +62,9 @@ async def get_my_usage(
     UX for a stale session.
     """
     container: Container = request.app.state.container
-    from engine.processor.storage.repositories.billing_repository import BillingRepository
+    from engine.processor.storage.repositories.billing_repository import (
+        BillingRepository,
+    )
 
     try:
         async with container.db.session() as session:
@@ -126,7 +129,9 @@ async def get_latest_analyses(
         repo = AnalysisRepository(session)
 
         if pair:
-            rows = await repo.get_latest_by_pair(pair.upper(), user_id=user.user_id, limit=limit)
+            rows = await repo.get_latest_by_pair(
+                pair.upper(), user_id=user.user_id, limit=limit
+            )
         else:
             rows = await repo.list_recent_all(user_id=user.user_id, limit=limit)
 
@@ -150,12 +155,18 @@ async def get_latest_analyses(
             elif entry_zone.get("low") is not None:
                 entry_price = float(entry_zone["low"])
 
-            sl_price = float(sl_obj["price"]) if sl_obj.get("price") is not None else None
+            sl_price = (
+                float(sl_obj["price"]) if sl_obj.get("price") is not None else None
+            )
 
             tp_price = None
             if tps_list:
                 # Prefer the final TP (TP3) for the chart line; fall back to the highest available.
-                tp_entry = tps_list[-1] if isinstance(tps_list, list) and len(tps_list) > 0 else None
+                tp_entry = (
+                    tps_list[-1]
+                    if isinstance(tps_list, list) and len(tps_list) > 0
+                    else None
+                )
                 if tp_entry and tp_entry.get("level") is not None:
                     tp_price = float(tp_entry["level"])
 
@@ -183,9 +194,7 @@ async def get_latest_analyses(
                 "llm_model": row.llm_model,
                 "status": row.status,
                 "duration_ms": row.duration_ms,
-                "created_at": (
-                    row.created_at.isoformat() if row.created_at else None
-                ),
+                "created_at": (row.created_at.isoformat() if row.created_at else None),
                 "display": {
                     "summary": display["summary"],
                     "analyzed_by": display["analyzed_by"],
@@ -284,9 +293,7 @@ async def get_analysis_history(
                 "llm_model": row.llm_model,
                 "status": row.status,
                 "duration_ms": row.duration_ms,
-                "created_at": (
-                    row.created_at.isoformat() if row.created_at else None
-                ),
+                "created_at": (row.created_at.isoformat() if row.created_at else None),
                 "display": {
                     "summary": display["summary"],
                     "analyzed_by": display["analyzed_by"],
@@ -340,7 +347,9 @@ async def get_analysis_stats(
 
     async with container.db.read_session() as session:
         repo = AnalysisRepository(session)
-        stats = await repo.get_stats(user_id=user.user_id, pair=pair, since=since_dt, until=until_dt)
+        stats = await repo.get_stats(
+            user_id=user.user_id, pair=pair, since=since_dt, until=until_dt
+        )
     return stats
 
 
@@ -434,6 +443,7 @@ async def stream_live_analysis(
                 exc_info=True,
             )
         finally:
+
             async def _cleanup_pubsub():
                 try:
                     await pubsub.unsubscribe(channel_name)
@@ -481,7 +491,9 @@ async def get_analysis_detail(
 
         audit_rows = []
         audit_repo = AuditRepository(session)
-        audit_rows = await audit_repo.get_by_analysis_id(analysis_id, user_id=user.user_id)
+        audit_rows = await audit_repo.get_by_analysis_id(
+            analysis_id, user_id=user.user_id
+        )
 
     if not row:
         raise HTTPException(
@@ -590,23 +602,23 @@ async def rerun_analysis(
     container: Container = request.app.state.container
     processor = await _resolve_user_processor(container, user)
     if not hasattr(container, "ta_orchestrator"):
-        raise HTTPException(
-            status_code=503, detail="TA orchestrator not initialized"
-        )
+        raise HTTPException(status_code=503, detail="TA orchestrator not initialized")
     user_broker = await _resolve_user_broker(container, user.user_id)
 
     symbol = symbol.strip()
     if not symbol:
         raise HTTPException(status_code=400, detail="Symbol is required")
 
-    from engine.processor.storage.repositories.billing_repository import BillingRepository
+    from engine.processor.storage.repositories.billing_repository import (
+        BillingRepository,
+    )
     from datetime import timezone, timedelta
-    
+
     async with container.db.session() as session:
         billing_repo = BillingRepository(session)
         # We don't need reset_daily_usage_if_needed anymore for this check
         usage = await billing_repo.get_or_create_usage(user.user_id)
-        
+
         if not user.is_admin and user.tier == "free":
             last_analysis = usage.get("last_analysis_at")
             if last_analysis:
@@ -614,17 +626,17 @@ async def rerun_analysis(
                 # Ensure last_analysis is timezone aware
                 if last_analysis.tzinfo is None:
                     last_analysis = last_analysis.replace(tzinfo=timezone.utc)
-                
+
                 time_since_last = now - last_analysis
                 if time_since_last < timedelta(hours=24):
                     remaining = timedelta(hours=24) - time_since_last
                     hours, remainder = divmod(int(remaining.total_seconds()), 3600)
                     minutes, _ = divmod(remainder, 60)
                     raise HTTPException(
-                        status_code=429, 
-                        detail=f"Free tier is limited to 1 analysis per 24 hours. Next analysis available in {hours}h {minutes}m. Upgrade to Pro for unlimited analyses."
+                        status_code=429,
+                        detail=f"Free tier is limited to 1 analysis per 24 hours. Next analysis available in {hours}h {minutes}m. Upgrade to Pro for unlimited analyses.",
                     )
-        
+
         await billing_repo.increment_analysis(user.user_id)
         # Track that we are starting a full TA + Macro cycle.
         # Later this can be used for usage-based billing.
@@ -643,7 +655,10 @@ async def rerun_analysis(
         )
     except Exception as exc:
         logger.error("rerun_ta_failed", extra={"symbol": symbol, "error": str(exc)})
-        raise HTTPException(status_code=500, detail="Technical analysis failed. Please try again in a moment.")
+        raise HTTPException(
+            status_code=500,
+            detail="Technical analysis failed. Please try again in a moment.",
+        )
 
     if isinstance(ta_result, dict):
         ta_analysis = ta_result
@@ -696,13 +711,14 @@ async def rerun_analysis(
                 macro_analysis[name] = result.model_dump(mode="json")
             else:
                 macro_analysis[name] = {"raw": str(result)}
-        await pulse.emit("CLAUDING", "Macro intelligence collected", source="macro", completed=True)
-    except Exception as exc:
-        logger.error(
-            "rerun_macro_failed", extra={"symbol": symbol, "error": str(exc)}
+        await pulse.emit(
+            "CLAUDING", "Macro intelligence collected", source="macro", completed=True
         )
+    except Exception as exc:
+        logger.error("rerun_macro_failed", extra={"symbol": symbol, "error": str(exc)})
         raise HTTPException(
-            status_code=500, detail="Macro collection failed. Please try again in a moment."
+            status_code=500,
+            detail="Macro collection failed. Please try again in a moment.",
         )
 
     # Derive enriched macro signal flags from collected data.
@@ -824,9 +840,7 @@ async def rerun_analysis(
             has_tff_data=macro_signals["has_tff_data"],
             has_core_inflation=macro_signals["has_core_inflation"],
             has_safe_haven_elevated=macro_signals["safe_haven_elevated"],
-            has_commodity_currencies_weak=macro_signals[
-                "commodity_currencies_weak"
-            ],
+            has_commodity_currencies_weak=macro_signals["commodity_currencies_weak"],
             dxy_momentum=macro_signals["dxy_momentum"] or None,
             risk_environment=macro_signals["risk_environment"] or None,
         )
@@ -837,9 +851,7 @@ async def rerun_analysis(
         else:
             retrieved_knowledge = {}
     except Exception as exc:
-        logger.error(
-            "rerun_rag_failed", extra={"symbol": symbol, "error": str(exc)}
-        )
+        logger.error("rerun_rag_failed", extra={"symbol": symbol, "error": str(exc)})
         raise HTTPException(
             status_code=500,
             detail="Knowledge retrieval failed. Please try again in a moment.",
@@ -851,7 +863,9 @@ async def rerun_analysis(
             detail="RAG returned empty knowledge base. The LLM cannot reason without rulebook context.",
         )
 
-    await pulse.emit("GERMINATING", "Knowledge retrieval complete", source="rag", completed=True)
+    await pulse.emit(
+        "GERMINATING", "Knowledge retrieval complete", source="rag", completed=True
+    )
     await pulse.emit("REASONING", "Preparing AI processor", source="processor")
 
     # --- rerun_analysis continues in _rerun_process_and_return below ---
@@ -912,9 +926,7 @@ async def _rerun_process_and_return(
         metadata["risk_environment"] = macro_signals["risk_environment"]
     metadata["stagflation_detected"] = macro_signals["stagflation_detected"]
     metadata["safe_haven_elevated"] = macro_signals["safe_haven_elevated"]
-    metadata["commodity_currencies_weak"] = macro_signals[
-        "commodity_currencies_weak"
-    ]
+    metadata["commodity_currencies_weak"] = macro_signals["commodity_currencies_weak"]
     if macro_signals["dxy_momentum"]:
         metadata["dxy_momentum"] = macro_signals["dxy_momentum"]
     metadata["cot_extremes_count"] = len(macro_signals["cot_extremes"])

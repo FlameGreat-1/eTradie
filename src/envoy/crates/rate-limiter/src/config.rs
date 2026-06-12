@@ -1,6 +1,6 @@
 use etradie_envoy_common::{
-    GLOBAL_RATE_LIMIT_PERIOD_SECS, GLOBAL_RATE_LIMIT_REQUESTS,
-    IP_RATE_LIMIT_PERIOD_SECS, IP_RATE_LIMIT_REQUESTS,
+    GLOBAL_RATE_LIMIT_PERIOD_SECS, GLOBAL_RATE_LIMIT_REQUESTS, IP_RATE_LIMIT_PERIOD_SECS,
+    IP_RATE_LIMIT_REQUESTS,
 };
 
 #[derive(Debug, Clone)]
@@ -108,7 +108,7 @@ mod tests {
         let config = RateLimitConfig::new()
             .with_global_limit(5000, 30)
             .with_ip_limit(500, 30);
-        
+
         assert_eq!(config.global_requests, 5000);
         assert_eq!(config.global_period_secs, 30);
         assert_eq!(config.ip_requests, 500);
@@ -120,7 +120,7 @@ mod tests {
         let config = RateLimitConfig::new()
             .with_global_limit(10000, 60)
             .with_ip_limit(1000, 60);
-        
+
         assert_eq!(config.global_refill_rate(), 166);
         assert_eq!(config.ip_refill_rate(), 16);
     }

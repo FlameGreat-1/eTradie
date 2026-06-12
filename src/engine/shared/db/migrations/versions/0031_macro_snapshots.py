@@ -17,6 +17,7 @@ Revision ID: 0031
 Revises: 0030
 Create Date: 2026-06-01
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
@@ -59,10 +60,14 @@ def upgrade() -> None:
         ),
     )
     op.create_unique_constraint(
-        "uq_macro_snapshot_namespace", _TABLE, ["namespace"],
+        "uq_macro_snapshot_namespace",
+        _TABLE,
+        ["namespace"],
     )
     op.create_index(
-        "ix_macro_snapshot_namespace", _TABLE, ["namespace"],
+        "ix_macro_snapshot_namespace",
+        _TABLE,
+        ["namespace"],
     )
 
 

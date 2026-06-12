@@ -150,13 +150,11 @@ class BaseCollector(abc.ABC):
                         extra={
                             "collector": self.collector_name,
                             "namespace": self.cache_namespace,
-                            "duration_ms": round(
-                                (time.monotonic() - start) * 1000, 2
-                            ),
+                            "duration_ms": round((time.monotonic() - start) * 1000, 2),
                         },
                     )
                     return cached
-                
+
                 # If cache is still empty, and we are not forcing refresh, we MUST NOT hit the APIs.
                 # Fallback to the DB.
                 db_data = await self._read_from_db()
@@ -181,7 +179,7 @@ class BaseCollector(abc.ABC):
                             )
                         )
                     return db_data
-                
+
                 # If DB is also empty or _read_from_db not implemented, return empty dataset to avoid API fetch
                 self._observe("empty_fallback", start)
                 logger.warning(
@@ -225,7 +223,8 @@ class BaseCollector(abc.ABC):
         """
         try:
             raw = await self._cache.get(
-                self.cache_namespace, self._cache_key(),
+                self.cache_namespace,
+                self._cache_key(),
             )
         except Exception as exc:
             logger.warning(
@@ -270,12 +269,8 @@ class BaseCollector(abc.ABC):
         consistent telemetry.
         """
         duration = time.monotonic() - start
-        COLLECTOR_RUN_TOTAL.labels(
-            collector=self.collector_name, status=status
-        ).inc()
-        COLLECTOR_RUN_DURATION.labels(collector=self.collector_name).observe(
-            duration
-        )
+        COLLECTOR_RUN_TOTAL.labels(collector=self.collector_name, status=status).inc()
+        COLLECTOR_RUN_DURATION.labels(collector=self.collector_name).observe(duration)
 
     @abc.abstractmethod
     async def _do_collect(self) -> Any:
@@ -371,7 +366,9 @@ class BaseCollector(abc.ABC):
             async with self._db.session() as session:
                 repo = MacroSnapshotRepository(session)
                 await repo.upsert_payload(
-                    self.cache_namespace, payload, collected_at,
+                    self.cache_namespace,
+                    payload,
+                    collected_at,
                 )
         except Exception as exc:
             logger.warning(

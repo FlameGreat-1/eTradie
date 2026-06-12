@@ -6,9 +6,9 @@
 // infra. That keeps the handler unit-testable with table-driven fakes
 // and keeps the dependency graph one-directional:
 //
-//   tradingplan      -> (interface declarations)
-//   tradingplanadapter -> tradingplan + infra (concrete implementations)
-//   main.go          -> tradingplan + tradingplanadapter (composition)
+//	tradingplan      -> (interface declarations)
+//	tradingplanadapter -> tradingplan + infra (concrete implementations)
+//	main.go          -> tradingplan + tradingplanadapter (composition)
 package tradingplanadapter
 
 import (

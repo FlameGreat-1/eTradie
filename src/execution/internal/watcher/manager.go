@@ -1391,13 +1391,13 @@ func (w *Watcher) handleTimeout() {
 				WithSymbol(w.order.Symbol).
 				WithDirection(string(w.order.Direction)).
 				WithDetails(map[string]interface{}{
-					"watcher_id":       w.order.WatcherID,
-					"analysis_id":      w.order.AnalysisID,
-					"entry_price":      w.order.EntryPrice,
-					"timeout_minutes":  w.timeoutMinutes,
-					"trading_style":    string(w.order.TradingStyle),
-					"execution_mode":   modeLabel,
-					"broker_order_id":  w.order.BrokerOrderID,
+					"watcher_id":      w.order.WatcherID,
+					"analysis_id":     w.order.AnalysisID,
+					"entry_price":     w.order.EntryPrice,
+					"timeout_minutes": w.timeoutMinutes,
+					"trading_style":   string(w.order.TradingStyle),
+					"execution_mode":  modeLabel,
+					"broker_order_id": w.order.BrokerOrderID,
 				}),
 		)
 	}

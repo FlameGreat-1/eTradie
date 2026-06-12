@@ -251,10 +251,7 @@ class MetaApiProvisioner:
         Returns:
             True if the deploy request was accepted.
         """
-        url = (
-            f"{self._base_url}"
-            f"/users/current/accounts/{account_id}/deploy"
-        )
+        url = f"{self._base_url}" f"/users/current/accounts/{account_id}/deploy"
         try:
             await self._http.post(
                 url,
@@ -288,10 +285,7 @@ class MetaApiProvisioner:
         Returns:
             True if the undeploy request was accepted.
         """
-        url = (
-            f"{self._base_url}"
-            f"/users/current/accounts/{account_id}/undeploy"
-        )
+        url = f"{self._base_url}" f"/users/current/accounts/{account_id}/undeploy"
         try:
             await self._http.post(
                 url,
@@ -326,10 +320,7 @@ class MetaApiProvisioner:
         Returns:
             True if deletion was successful.
         """
-        url = (
-            f"{self._base_url}"
-            f"/users/current/accounts/{account_id}"
-        )
+        url = f"{self._base_url}" f"/users/current/accounts/{account_id}"
         try:
             await self._http.delete(
                 url,

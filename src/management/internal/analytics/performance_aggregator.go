@@ -68,21 +68,21 @@ type Bundle struct {
 	PeriodStart time.Time `json:"period_start"`
 	PeriodEnd   time.Time `json:"period_end"`
 
-	Summary    Summary       `json:"summary"`
-	BySession  []DimensionRow `json:"by_session"`
-	BySetup    []DimensionRow `json:"by_setup"`
-	ByStyle    []DimensionRow `json:"by_style"`
-	ByGrade    []DimensionRow `json:"by_grade"`
-	BySymbol   []DimensionRow `json:"by_symbol"`
+	Summary     Summary        `json:"summary"`
+	BySession   []DimensionRow `json:"by_session"`
+	BySetup     []DimensionRow `json:"by_setup"`
+	ByStyle     []DimensionRow `json:"by_style"`
+	ByGrade     []DimensionRow `json:"by_grade"`
+	BySymbol    []DimensionRow `json:"by_symbol"`
 	ByDayOfWeek []DimensionRow `json:"by_day_of_week"`
 	ByHourOfDay []DimensionRow `json:"by_hour_of_day"`
 
-	Risk       Risk          `json:"risk"`
-	Adherence  Adherence     `json:"adherence"`
-	Behavior   Behavior      `json:"behavior"`
-	Trades     []TradeRow    `json:"trades"`
+	Risk      Risk       `json:"risk"`
+	Adherence Adherence  `json:"adherence"`
+	Behavior  Behavior   `json:"behavior"`
+	Trades    []TradeRow `json:"trades"`
 
-	Confidence Confidence    `json:"confidence"`
+	Confidence Confidence `json:"confidence"`
 }
 
 // Summary holds the window-level aggregates.
@@ -108,13 +108,13 @@ type Summary struct {
 // DimensionRow is one bucket on a per-dimension breakdown (e.g. one
 // session, one setup, one trading style).
 type DimensionRow struct {
-	Key         string  `json:"key"`
-	Trades      int     `json:"trades"`
-	Wins        int     `json:"wins"`
-	Losses      int     `json:"losses"`
-	WinRatePct  float64 `json:"win_rate_pct"`
-	AvgR        float64 `json:"avg_r"`
-	PnL         float64 `json:"pnl"`
+	Key        string  `json:"key"`
+	Trades     int     `json:"trades"`
+	Wins       int     `json:"wins"`
+	Losses     int     `json:"losses"`
+	WinRatePct float64 `json:"win_rate_pct"`
+	AvgR       float64 `json:"avg_r"`
+	PnL        float64 `json:"pnl"`
 }
 
 // Risk is the risk-discipline view (PLAN.md §8).
@@ -129,11 +129,11 @@ type Risk struct {
 
 // Adherence is the rule-compliance view (PLAN.md §4, §13).
 type Adherence struct {
-	TotalSLAdjustments  int     `json:"total_sl_adjustments"`
-	AvgSLAdjustments    float64 `json:"avg_sl_adjustments_per_trade"`
-	TradesWithSLMoved   int     `json:"trades_with_sl_moved"`
-	TotalPartialCloses  int     `json:"total_partial_closes"`
-	TradesWithPartials  int     `json:"trades_with_partials"`
+	TotalSLAdjustments int     `json:"total_sl_adjustments"`
+	AvgSLAdjustments   float64 `json:"avg_sl_adjustments_per_trade"`
+	TradesWithSLMoved  int     `json:"trades_with_sl_moved"`
+	TotalPartialCloses int     `json:"total_partial_closes"`
+	TradesWithPartials int     `json:"trades_with_partials"`
 }
 
 // Behavior is the behavioral signal view (PLAN.md §3, §14).
@@ -322,17 +322,17 @@ func computeSummary(trades []TradeRow) Summary {
 		return s
 	}
 	var (
-		sumR       float64
-		bestR      = trades[0].RMultiple
-		worstR     = trades[0].RMultiple
-		sumDur     float64
-		sumWinR    float64
-		sumLossR   float64
-		symbols    = make(map[string]struct{})
-		setups     = make(map[string]struct{})
-		currentW   int
-		currentL   int
-		durCount   int
+		sumR     float64
+		bestR    = trades[0].RMultiple
+		worstR   = trades[0].RMultiple
+		sumDur   float64
+		sumWinR  float64
+		sumLossR float64
+		symbols  = make(map[string]struct{})
+		setups   = make(map[string]struct{})
+		currentW int
+		currentL int
+		durCount int
 	)
 	for _, t := range trades {
 		switch t.Outcome {
@@ -730,4 +730,3 @@ func parseNumericString(s string) float64 {
 	v, _ := strconv.ParseFloat(s, 64)
 	return v
 }
-

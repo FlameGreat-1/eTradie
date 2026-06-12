@@ -403,19 +403,26 @@ class SnDDetector:
 
         for candidate in candidates:
             key = (str(candidate.timeframe), str(candidate.direction))
-            confluences = candidate.metadata.get("confluences", 0) if candidate.metadata else 0
+            confluences = (
+                candidate.metadata.get("confluences", 0) if candidate.metadata else 0
+            )
 
             existing = best.get(key)
             if existing is None:
                 best[key] = candidate
                 continue
 
-            existing_confluences = existing.metadata.get("confluences", 0) if existing.metadata else 0
+            existing_confluences = (
+                existing.metadata.get("confluences", 0) if existing.metadata else 0
+            )
 
             # Higher confluence wins; on tie, more recent wins
             if confluences > existing_confluences:
                 best[key] = candidate
-            elif confluences == existing_confluences and candidate.timestamp > existing.timestamp:
+            elif (
+                confluences == existing_confluences
+                and candidate.timestamp > existing.timestamp
+            ):
                 best[key] = candidate
 
         return list(best.values())

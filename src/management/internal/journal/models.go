@@ -25,30 +25,30 @@ const (
 // Maps to the TRADE JOURNAL ENTRY schema. Every record is owned by a
 // specific user (multi-tenant isolation via user_id).
 type TradeRecord struct {
-	ID              int64      `db:"id"`
-	UserID          string     `db:"user_id"` // Owner of this trade (auth user ID)
-	TradeID         string     `db:"trade_id"`
-	Symbol          string     `db:"symbol"`
-	Direction       string     `db:"direction"`
-	EntryPrice      float64    `db:"entry_price"`
-	ExitPrice       float64    `db:"exit_price"`
-	StopLoss        float64    `db:"stop_loss"`
-	InitialSL       float64    `db:"initial_sl"`
-	TP1Price        float64    `db:"tp1_price"`
-	TP1Pct          int32      `db:"tp1_pct"`
-	TP2Price        float64    `db:"tp2_price"`
-	TP2Pct          int32      `db:"tp2_pct"`
-	TP3Price        float64    `db:"tp3_price"`
-	TP3Pct          int32      `db:"tp3_pct"`
-	TotalLotSize    float64    `db:"total_lot_size"`
-	RemainingLotSize float64   `db:"remaining_lot_size"`
-	GrossPnL        float64    `db:"gross_pnl"`
-	RMultiple       float64    `db:"r_multiple"`
-	RiskAmount      float64    `db:"risk_amount"`
-	RiskPercent     float64    `db:"risk_percent"`
-	RRRatio         float64    `db:"rr_ratio"`
-	Point           float64    `db:"point"`
-	Digits          int        `db:"digits"`
+	ID               int64   `db:"id"`
+	UserID           string  `db:"user_id"` // Owner of this trade (auth user ID)
+	TradeID          string  `db:"trade_id"`
+	Symbol           string  `db:"symbol"`
+	Direction        string  `db:"direction"`
+	EntryPrice       float64 `db:"entry_price"`
+	ExitPrice        float64 `db:"exit_price"`
+	StopLoss         float64 `db:"stop_loss"`
+	InitialSL        float64 `db:"initial_sl"`
+	TP1Price         float64 `db:"tp1_price"`
+	TP1Pct           int32   `db:"tp1_pct"`
+	TP2Price         float64 `db:"tp2_price"`
+	TP2Pct           int32   `db:"tp2_pct"`
+	TP3Price         float64 `db:"tp3_price"`
+	TP3Pct           int32   `db:"tp3_pct"`
+	TotalLotSize     float64 `db:"total_lot_size"`
+	RemainingLotSize float64 `db:"remaining_lot_size"`
+	GrossPnL         float64 `db:"gross_pnl"`
+	RMultiple        float64 `db:"r_multiple"`
+	RiskAmount       float64 `db:"risk_amount"`
+	RiskPercent      float64 `db:"risk_percent"`
+	RRRatio          float64 `db:"rr_ratio"`
+	Point            float64 `db:"point"`
+	Digits           int     `db:"digits"`
 	// Origin is the typed provenance discriminator (see OriginSystem /
 	// OriginManualReconciled / OriginManualRestored). It is the
 	// authoritative manual-vs-system signal for the trading-plan

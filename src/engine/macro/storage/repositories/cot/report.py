@@ -13,7 +13,8 @@ class COTRepository(BaseRepository[COTReportRow]):
     _repo_name = "cot"
 
     async def get_52_week_net_range(
-        self, currency: str,
+        self,
+        currency: str,
     ) -> tuple[int, int]:
         result = await self._session.execute(
             select(
@@ -30,7 +31,9 @@ class COTRepository(BaseRepository[COTReportRow]):
         return 0, 0
 
     async def get_previous_net(
-        self, currency: str, current_date: date,
+        self,
+        currency: str,
+        current_date: date,
     ) -> int | None:
         stmt = (
             select(self.model.non_commercial_net)

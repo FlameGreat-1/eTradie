@@ -126,7 +126,10 @@ impl HeaderValidator {
 
         let event = SecurityEvent::new(event_code, trace_id.to_string(), error.message());
 
-        self.logger.warn(trace_id, &format!("Header validation failed: {}", error.message()));
+        self.logger.warn(
+            trace_id,
+            &format!("Header validation failed: {}", error.message()),
+        );
         self.metrics.record_security_event(event_code);
         self.metrics.increment_counter("validations_failed");
 
@@ -194,9 +197,7 @@ mod tests {
         let rules = ValidationRules::new();
         let validator = HeaderValidator::new(rules).unwrap();
 
-        let headers = vec![
-            ("content-type".to_string(), "application/json".to_string()),
-        ];
+        let headers = vec![("content-type".to_string(), "application/json".to_string())];
 
         let decision = validator.validate("trace-123", &headers, "POST");
         assert!(!decision.allowed);
@@ -232,9 +233,7 @@ mod tests {
 
     #[test]
     fn test_has_header() {
-        let headers = vec![
-            ("user-agent".to_string(), "test-agent".to_string()),
-        ];
+        let headers = vec![("user-agent".to_string(), "test-agent".to_string())];
 
         assert!(has_header(&headers, "user-agent"));
         assert!(has_header(&headers, "User-Agent"));

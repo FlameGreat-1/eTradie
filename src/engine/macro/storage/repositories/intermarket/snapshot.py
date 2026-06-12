@@ -13,11 +13,7 @@ class IntermarketRepository(BaseRepository[IntermarketSnapshotRow]):
     _repo_name = "intermarket"
 
     async def get_latest(self) -> IntermarketSnapshotRow | None:
-        stmt = (
-            select(self.model)
-            .order_by(self.model.snapshot_at.desc())
-            .limit(1)
-        )
+        stmt = select(self.model).order_by(self.model.snapshot_at.desc()).limit(1)
         result = await self.execute_query(stmt)
         return result[0] if result else None
 
@@ -36,10 +32,19 @@ class IntermarketRepository(BaseRepository[IntermarketSnapshotRow]):
             [row],
             index_elements=["snapshot_at"],
             update_fields=[
-                "gold_price", "silver_price", "oil_price",
-                "iron_ore", "dairy_gdt", "copper", "natural_gas",
-                "us2y_yield", "us10y_yield", "us30y_yield",
-                "dxy_value", "sp500", "vix",
+                "gold_price",
+                "silver_price",
+                "oil_price",
+                "iron_ore",
+                "dairy_gdt",
+                "copper",
+                "natural_gas",
+                "us2y_yield",
+                "us10y_yield",
+                "us30y_yield",
+                "dxy_value",
+                "sp500",
+                "vix",
                 "correlation_signals_json",
             ],
         )

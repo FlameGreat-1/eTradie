@@ -19,13 +19,13 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/container"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
-	"github.com/flamegreat-1/etradie/src/gateway/internal/ports"
-	"github.com/flamegreat-1/etradie/src/mails"
-	"github.com/flamegreat-1/etradie/src/support"
-	"github.com/flamegreat-1/etradie/src/performancereview"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/performancereviewadapter"
-	"github.com/flamegreat-1/etradie/src/tradingplan"
+	"github.com/flamegreat-1/etradie/src/gateway/internal/ports"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/tradingplanadapter"
+	"github.com/flamegreat-1/etradie/src/mails"
+	"github.com/flamegreat-1/etradie/src/performancereview"
+	"github.com/flamegreat-1/etradie/src/support"
+	"github.com/flamegreat-1/etradie/src/tradingplan"
 	"github.com/flamegreat-1/etradie/src/tradingsystem"
 )
 

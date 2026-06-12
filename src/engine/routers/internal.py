@@ -8,6 +8,7 @@ Routes:
     POST /internal/processor/process
     POST /internal/debug/runcycle
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -16,7 +17,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 
 from engine.dependencies import Container
-from engine.helpers import _resolve_user_broker, _resolve_user_processor, _save_debug_output
+from engine.helpers import (
+    _resolve_user_broker,
+    _resolve_user_processor,
+    _save_debug_output,
+)
 from engine.processor.llm.errors import (
     LLMDuplicateSuppressedError,
     LLMRateLimitedError,
@@ -67,7 +72,10 @@ async def internal_ta_confirm_ltf(
     user_id = request.headers.get("X-User-Id", "")
     if not user_id:
         from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail="X-User-Id header required for internal LTF confirm")
+
+        raise HTTPException(
+            status_code=400, detail="X-User-Id header required for internal LTF confirm"
+        )
     user_broker = await _resolve_user_broker(container, user_id)
 
     # Lazy-build the LTF confirmation service
@@ -111,7 +119,8 @@ async def internal_ta_confirm_ltf(
     )
 
     result = await container.ltf_confirmation_service.confirm(
-        ltf_request, user_broker,
+        ltf_request,
+        user_broker,
     )
 
     return result.model_dump(mode="json")
@@ -137,9 +146,7 @@ async def internal_ta_analyze(
     """
     container: Container = request.app.state.container
     if not hasattr(container, "ta_orchestrator"):
-        raise HTTPException(
-            status_code=503, detail="TA orchestrator not initialized"
-        )
+        raise HTTPException(status_code=503, detail="TA orchestrator not initialized")
     user_id = request.headers.get("X-User-Id", "")
     if not user_id:
         raise HTTPException(
@@ -215,9 +222,7 @@ async def internal_ta_analyze(
                 return _error_result(symbol, exc)
 
     # gather preserves input order, so symbol_results aligns with body.symbols.
-    results = await asyncio.gather(
-        *(_analyze_one(symbol) for symbol in body.symbols)
-    )
+    results = await asyncio.gather(*(_analyze_one(symbol) for symbol in body.symbols))
 
     return {"symbol_results": list(results)}
 
@@ -289,9 +294,7 @@ async def internal_macro_collect(
         )
         return result
 
-    tasks = {
-        name: _collect_one(name, c) for name, c in collector_map.items()
-    }
+    tasks = {name: _collect_one(name, c) for name, c in collector_map.items()}
     raw_results = await asyncio.gather(
         *tasks.values(),
         return_exceptions=True,
@@ -345,7 +348,9 @@ async def internal_rag_retrieve(
     if not hasattr(container, "rag_orchestrator"):
         raise HTTPException(status_code=503, detail="RAG not initialized")
 
-    user_id = (request.headers.get("X-User-Id") or getattr(body, "user_id", "") or "").strip()
+    user_id = (
+        request.headers.get("X-User-Id") or getattr(body, "user_id", "") or ""
+    ).strip()
 
     cache = getattr(container, "cache", None)
     if cache is not None and user_id:
@@ -358,9 +363,7 @@ async def internal_rag_retrieve(
     else:
         pulse = NoOpPulse()
 
-    await pulse.emit(
-        "GERMINATING", "Querying rulebook knowledge base", source="rag"
-    )
+    await pulse.emit("GERMINATING", "Querying rulebook knowledge base", source="rag")
     try:
         bundle = await container.rag_orchestrator.retrieve_context(
             body.query_text,
@@ -453,8 +456,12 @@ async def internal_processor_process(
     # downstream _load_active_llm_connection guard enforces this again
     # as defense-in-depth.
     tier = (request.headers.get("X-User-Tier") or body.tier or "free").strip().lower()
-    role = (request.headers.get("X-User-Role") or body.role or "etradie").strip().lower()
-    username = (request.headers.get("X-User-Username") or body.username or user_id).strip()
+    role = (
+        (request.headers.get("X-User-Role") or body.role or "etradie").strip().lower()
+    )
+    username = (
+        request.headers.get("X-User-Username") or body.username or user_id
+    ).strip()
     if role not in ("admin", "etradie"):
         # Reject unknown roles defensively rather than coercing them to
         # the safer 'etradie' — a typo in a future deploy should fail

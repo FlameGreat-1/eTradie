@@ -12,7 +12,12 @@ from engine.ta.snd.builders.levels import compute_trade_levels
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detectors.fakeouts import FakeoutTest
 from engine.ta.snd.detectors.previous_levels import PreviousHighsLows
-from engine.ta.constants import Direction, CandidatePattern, OTE_LEVELS, FIBONACCI_VALUES
+from engine.ta.constants import (
+    Direction,
+    CandidatePattern,
+    OTE_LEVELS,
+    FIBONACCI_VALUES,
+)
 from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
 from engine.ta.snd.validators.ltf.confirmation import LTFConfirmationValidator
 import datetime
@@ -152,7 +157,8 @@ class ContinuationCandidateBuilder:
             fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
             fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
             compression_detected=self._check_compression(
-                ltf_sequence, fakeout_tests,
+                ltf_sequence,
+                fakeout_tests,
             ),
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
@@ -281,7 +287,8 @@ class ContinuationCandidateBuilder:
             fakeout_level=fakeout_tests[-1].level if fakeout_tests else None,
             fakeout_timestamp=fakeout_tests[-1].timestamp if fakeout_tests else None,
             compression_detected=self._check_compression(
-                ltf_sequence, fakeout_tests,
+                ltf_sequence,
+                fakeout_tests,
             ),
             marubozu_detected=marubozu_valid,
             marubozu_timestamp=marubozu_ts,
@@ -341,7 +348,8 @@ class ContinuationCandidateBuilder:
         if not fakeout_tests:
             return False
         return self.ltf_validator.validate_compression_at_zone(
-            sequence, fakeout_tests,
+            sequence,
+            fakeout_tests,
         )
 
     def _get_fib_level(
@@ -373,7 +381,9 @@ class ContinuationCandidateBuilder:
         breakout_candle_index: Optional[int],
         direction: Direction,
     ) -> tuple[bool, Optional["datetime.datetime"]]:
-        if breakout_candle_index is None or breakout_candle_index >= len(sequence.candles):
+        if breakout_candle_index is None or breakout_candle_index >= len(
+            sequence.candles
+        ):
             return False, None
 
         candle = sequence.candles[breakout_candle_index]

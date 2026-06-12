@@ -65,9 +65,8 @@ pub const ALLOWED_CONTENT_TYPES: &[&str] = &[
 // DELETE (planned admin endpoints), PATCH (partial updates), and
 // OPTIONS (CORS preflight from dashboard). HEAD is included for
 // uptime probes that prefer header-only responses.
-pub const ALLOWED_HTTP_METHODS: &[&str] = &[
-    "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS",
-];
+pub const ALLOWED_HTTP_METHODS: &[&str] =
+    &["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
 
 pub const HTTP_STATUS_BAD_REQUEST: u32 = 400;
 pub const HTTP_STATUS_PAYLOAD_TOO_LARGE: u32 = 413;

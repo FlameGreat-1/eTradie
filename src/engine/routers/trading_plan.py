@@ -33,6 +33,7 @@ Responses:
     503 Service Unavail - generator could not be constructed (gateway
                           URL or internal secret missing).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -149,14 +150,10 @@ async def dispatch_trading_plan_generation(
     # and any future caller) populate the GenerationRequest the same
     # way.
     role = (
-        body.role.strip()
-        or request.headers.get("X-User-Role", "").strip()
-        or "etradie"
+        body.role.strip() or request.headers.get("X-User-Role", "").strip() or "etradie"
     ).lower()
     tier = (
-        body.tier.strip()
-        or request.headers.get("X-User-Tier", "").strip()
-        or "free"
+        body.tier.strip() or request.headers.get("X-User-Tier", "").strip() or "free"
     ).lower()
 
     gen_req = GenerationRequest(

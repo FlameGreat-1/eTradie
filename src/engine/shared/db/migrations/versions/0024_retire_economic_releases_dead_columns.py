@@ -36,6 +36,7 @@ Downgrade restores the previous shape with empty values where the
 providers never populated data. Surprise enums fall back to
 'INLINE' / 'MEDIUM' to satisfy the original NOT NULL defaults.
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
@@ -79,9 +80,7 @@ def _existing_indexes(insp, table_name: str) -> set[str]:
 
 def _existing_constraints(insp, table_name: str) -> set[str]:
     return {
-        uc["name"]
-        for uc in insp.get_unique_constraints(table_name)
-        if uc.get("name")
+        uc["name"] for uc in insp.get_unique_constraints(table_name) if uc.get("name")
     }
 
 
@@ -187,14 +186,10 @@ def downgrade() -> None:
     if "impact" not in existing_columns:
         op.add_column(
             _TABLE,
-            sa.Column(
-                "impact", sa.String(10), nullable=False, server_default="MEDIUM"
-            ),
+            sa.Column("impact", sa.String(10), nullable=False, server_default="MEDIUM"),
         )
     if "inflation_type" not in existing_columns:
-        op.add_column(
-            _TABLE, sa.Column("inflation_type", sa.String(10), nullable=True)
-        )
+        op.add_column(_TABLE, sa.Column("inflation_type", sa.String(10), nullable=True))
 
     insp = inspect(conn)
     existing_indexes = _existing_indexes(insp, _TABLE)

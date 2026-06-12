@@ -99,18 +99,18 @@ const (
 type OrderStatus string
 
 const (
-	StatusPending         OrderStatus = "PENDING"
-	StatusWatching        OrderStatus = "WATCHING"
-	StatusFilled          OrderStatus = "FILLED"
-	StatusCancelled       OrderStatus = "CANCELLED"
-	StatusExpired         OrderStatus = "EXPIRED"
-	StatusRejected        OrderStatus = "REJECTED"
-	StatusQueued          OrderStatus = "QUEUED"
-	StatusLocked          OrderStatus = "LOCKED"
-	StatusPaused          OrderStatus = "PAUSED"
+	StatusPending   OrderStatus = "PENDING"
+	StatusWatching  OrderStatus = "WATCHING"
+	StatusFilled    OrderStatus = "FILLED"
+	StatusCancelled OrderStatus = "CANCELLED"
+	StatusExpired   OrderStatus = "EXPIRED"
+	StatusRejected  OrderStatus = "REJECTED"
+	StatusQueued    OrderStatus = "QUEUED"
+	StatusLocked    OrderStatus = "LOCKED"
+	StatusPaused    OrderStatus = "PAUSED"
 	// StatusHalted is the order status when the global or per-user
 	// execution kill switch blocked placement. CHECKLIST Section 8.
-	StatusHalted OrderStatus = "HALTED"
+	StatusHalted          OrderStatus = "HALTED"
 	StatusPartiallyFilled OrderStatus = "PARTIALLY_FILLED"
 	// StatusDuplicate is returned when an idempotency claim detects a
 	// prior placement for the same (user_id, idempotency_key). The
@@ -144,7 +144,7 @@ const (
 	ActionWeeklyPaused       AuditAction = "WEEKLY_PAUSED"
 	// ActionExecutionHalted records a placement blocked by the kill
 	// switch (global or per-user). CHECKLIST Section 8.
-	ActionExecutionHalted    AuditAction = "EXECUTION_HALTED"
+	ActionExecutionHalted AuditAction = "EXECUTION_HALTED"
 )
 
 // CancelReason explains why a pending order was cancelled.

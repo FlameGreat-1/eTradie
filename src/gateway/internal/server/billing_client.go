@@ -65,8 +65,8 @@ type CheckoutResponse struct {
 // The gateway maps this to 400 (caller error) so the dashboard can show the
 // reason inline. ErrUpstreamUnavailable maps to 502.
 var (
-	ErrUpstreamRejected     = errors.New("billing client: upstream rejected request")
-	ErrUpstreamUnavailable  = errors.New("billing client: upstream unavailable")
+	ErrUpstreamRejected    = errors.New("billing client: upstream rejected request")
+	ErrUpstreamUnavailable = errors.New("billing client: upstream unavailable")
 	// ErrUpstreamNotSupported maps the billing service's 501 response
 	// (ErrPortalNotSupported) so the gateway handler can distinguish a
 	// 'provider does not expose a portal URL for this customer' result

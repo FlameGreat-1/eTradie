@@ -607,8 +607,8 @@ func tierFor(user *auth.User) string {
 // invalidation on Upsert).
 //
 // Return semantics (Audit ref: ADMIN-QUOTA-AUDIT-V2-3):
-//   * Success -> (policy, nil). Normal path.
-//   * ErrPolicyNotFound -> (zero-policy, error). Every canonical
+//   - Success -> (policy, nil). Normal path.
+//   - ErrPolicyNotFound -> (zero-policy, error). Every canonical
 //     tier is seeded by migration 0028 / SchemaSQL; a missing row
 //     for free/pro_byok/pro_managed/admin is a DEPLOYMENT FAILURE,
 //     not a real tier-mismatch outcome. Surfacing it as
@@ -617,7 +617,7 @@ func tierFor(user *auth.User) string {
 //     is operationally false. The caller MUST 503 instead so the
 //     engine fails closed and the user sees a generic transient
 //     error, while the operator gets a loud log line.
-//   * Any other store error -> (zero-policy, wrapped error).
+//   - Any other store error -> (zero-policy, wrapped error).
 //     A DB connection failure, pool exhaustion, or query timeout is
 //     a TRANSIENT infrastructure issue. Same 503 posture.
 func (h *MeteringHandler) policyForUser(ctx context.Context, user *auth.User) (billingstore.LLMQuotaPolicy, error) {

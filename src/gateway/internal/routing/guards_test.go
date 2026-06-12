@@ -12,7 +12,7 @@ import (
 
 func TestCheckHighImpactEventProximity_NoCalendar(t *testing.T) {
 	macro := &models.MacroResult{}
-	result := checkHighImpactEventProximity(macro)
+	result := checkHighImpactEventProximity(nil, macro)
 
 	if result.Verdict != constants.VerdictPass {
 		t.Fatalf("expected PASS when calendar is nil, got %s", result.Verdict)
@@ -27,7 +27,7 @@ func TestCheckHighImpactEventProximity_NoHighImpactEvents(t *testing.T) {
 			},
 		},
 	}
-	result := checkHighImpactEventProximity(macro)
+	result := checkHighImpactEventProximity(nil, macro)
 
 	if result.Verdict != constants.VerdictPass {
 		t.Fatalf("expected PASS for LOW impact events, got %s: %s", result.Verdict, result.Reason)
@@ -47,7 +47,7 @@ func TestCheckHighImpactEventProximity_HighImpactWithinLockout(t *testing.T) {
 			},
 		},
 	}
-	result := checkHighImpactEventProximity(macro)
+	result := checkHighImpactEventProximity(nil, macro)
 
 	if result.Verdict != constants.VerdictReject {
 		t.Fatalf("expected REJECT for HIGH impact within lockout, got %s: %s", result.Verdict, result.Reason)
@@ -73,7 +73,7 @@ func TestCheckHighImpactEventProximity_HighImpactOutsideLockout(t *testing.T) {
 			},
 		},
 	}
-	result := checkHighImpactEventProximity(macro)
+	result := checkHighImpactEventProximity(nil, macro)
 
 	if result.Verdict != constants.VerdictPass {
 		t.Fatalf("expected PASS for HIGH impact outside lockout, got %s: %s", result.Verdict, result.Reason)

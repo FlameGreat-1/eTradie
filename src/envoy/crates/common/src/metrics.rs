@@ -113,7 +113,10 @@ impl MetricsCollector {
     }
 
     pub fn set_rate_limit_tokens_remaining(&self, limit_type: &str, tokens: u64) {
-        let metric_name = format!("rate_limit_tokens_remaining_{}", sanitize_metric_name(limit_type));
+        let metric_name = format!(
+            "rate_limit_tokens_remaining_{}",
+            sanitize_metric_name(limit_type)
+        );
         self.set_gauge(&metric_name, tokens);
     }
 

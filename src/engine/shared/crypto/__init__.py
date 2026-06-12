@@ -9,6 +9,7 @@ path, and one ciphertext format across the engine.
 See ``credential_cipher`` for the envelope-encryption implementation
 and ``docs/security/TIER3_CREDENTIAL_ENCRYPTION.md`` for the design.
 """
+
 from engine.shared.crypto.credential_cipher import (
     CredentialCipher,
     CredentialDecryptionError,

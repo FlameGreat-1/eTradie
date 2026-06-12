@@ -197,8 +197,8 @@ type Config struct {
 	RedisURL string `envconfig:"REDIS_URL" default:"redis://localhost:6379/1"`
 
 	// Observability.
-	LogLevel        string `envconfig:"LOG_LEVEL" default:"INFO"`
-	LogJSON         bool   `envconfig:"LOG_JSON" default:"true"`
+	LogLevel string `envconfig:"LOG_LEVEL" default:"INFO"`
+	LogJSON  bool   `envconfig:"LOG_JSON" default:"true"`
 	// Empty = tracing disabled (opt-in no-op), matching the engine and
 	// gateway. The Helm configmap injects the real collector endpoint in
 	// the prod/staging overlays. A non-empty default would make a bare
@@ -315,7 +315,7 @@ func (c *Config) validate() error {
 	if c.requireSignedRequests {
 		if key := c.RequestSigningKey(); len(key) < 32 {
 			return fmt.Errorf(
-				"request signing is enforced but no usable key is available: set EXECUTION_REQUEST_SIGNING_SECRET "+
+				"request signing is enforced but no usable key is available: set EXECUTION_REQUEST_SIGNING_SECRET " +
 					"(>=32 chars) or ensure ENGINE_INTERNAL_SHARED_SECRET (>=32 chars) is configured",
 			)
 		}

@@ -252,14 +252,14 @@ class HttpClient:
         if self._session is None or self._session.closed:
             ssl_context: ssl.SSLContext | bool = self._ssl_verify
             if self._ssl_ca_bundle_path:
-                ssl_context = ssl.create_default_context(cafile=self._ssl_ca_bundle_path)
-            
+                ssl_context = ssl.create_default_context(
+                    cafile=self._ssl_ca_bundle_path
+                )
+
             self._session = aiohttp.ClientSession(
                 timeout=self._timeout,
                 connector=aiohttp.TCPConnector(
-                    limit=100, 
-                    limit_per_host=30,
-                    ssl=ssl_context
+                    limit=100, limit_per_host=30, ssl=ssl_context
                 ),
             )
         return self._session

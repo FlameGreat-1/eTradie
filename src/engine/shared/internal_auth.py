@@ -70,6 +70,7 @@ def _load_secret() -> bytes:
         # will reject every request with 401 until the secret is set,
         # which is the safe default.
         import logging
+
         logging.getLogger(__name__).warning(
             "ENGINE_INTERNAL_SHARED_SECRET is not set. "
             "All /internal/* requests will be rejected with 401. "

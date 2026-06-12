@@ -161,9 +161,15 @@ MODEL_CATALOG: Final[list[ModelMetadata]] = [
 # Legacy mapping for backwards compatibility during migration.
 # Components should migrate to using MODEL_CATALOG directly.
 AVAILABLE_MODELS: Final[dict[str, list[str]]] = {
-    LLMProvider.ANTHROPIC: [m["id"] for m in MODEL_CATALOG if m["provider"] == LLMProvider.ANTHROPIC],
-    LLMProvider.OPENAI: [m["id"] for m in MODEL_CATALOG if m["provider"] == LLMProvider.OPENAI],
-    LLMProvider.GEMINI: [m["id"] for m in MODEL_CATALOG if m["provider"] == LLMProvider.GEMINI],
+    LLMProvider.ANTHROPIC: [
+        m["id"] for m in MODEL_CATALOG if m["provider"] == LLMProvider.ANTHROPIC
+    ],
+    LLMProvider.OPENAI: [
+        m["id"] for m in MODEL_CATALOG if m["provider"] == LLMProvider.OPENAI
+    ],
+    LLMProvider.GEMINI: [
+        m["id"] for m in MODEL_CATALOG if m["provider"] == LLMProvider.GEMINI
+    ],
 }
 
 # System default provider

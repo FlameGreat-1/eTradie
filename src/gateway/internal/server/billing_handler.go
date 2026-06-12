@@ -63,11 +63,11 @@ var accessGrantingStatuses = map[string]bool{
 // BillingClient so provider API keys never live inside the gateway
 // process.
 type BillingHandler struct {
-	subStore   *billingstore.SubscriptionStore
-	portalAud  *billingstore.PortalAuditStore
-	client     *BillingClient
-	userStore  *auth.UserStore
-	log        zerolog.Logger
+	subStore  *billingstore.SubscriptionStore
+	portalAud *billingstore.PortalAuditStore
+	client    *BillingClient
+	userStore *auth.UserStore
+	log       zerolog.Logger
 
 	// subCache: in-process last-known-good cache, keyed by user_id.
 	//
@@ -422,9 +422,9 @@ func (h *BillingHandler) handleCreateCheckout(w http.ResponseWriter, r *http.Req
 	switch {
 	case err == nil && h.alreadyEntitled(current):
 		payload := map[string]any{
-			"error":           "already subscribed",
-			"current_tier":    current.Tier,
-			"current_status":  current.Status,
+			"error":          "already subscribed",
+			"current_tier":   current.Tier,
+			"current_status": current.Status,
 		}
 		if current.CurrentPeriodEnd != nil {
 			payload["current_period_end"] = current.CurrentPeriodEnd.UTC().Format(time.RFC3339)

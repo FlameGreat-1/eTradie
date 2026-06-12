@@ -188,7 +188,9 @@ class TAOrchestrator:
                 if pulse:
                     await pulse.emit("SHARDING", f"Fetching {tf.value} candle data")
                 adaptive_lookback = self._get_adaptive_lookback(tf, lookback_periods)
-                seq = await self._fetch_candles(symbol, tf, adaptive_lookback, active_broker, user_id=user_id)
+                seq = await self._fetch_candles(
+                    symbol, tf, adaptive_lookback, active_broker, user_id=user_id
+                )
                 if seq is not None:
                     sequences[tf] = seq
 
@@ -206,11 +208,15 @@ class TAOrchestrator:
 
             # ── Phase 2: Per-timeframe structural detection + snapshot
             if pulse:
-                await pulse.emit("SHARDING", "Candle acquisition complete", completed=True)
+                await pulse.emit(
+                    "SHARDING", "Candle acquisition complete", completed=True
+                )
             snapshots: dict[Timeframe, TechnicalSnapshot] = {}
             for tf, seq in sequences.items():
                 if pulse:
-                    await pulse.emit("DETECTING", f"Analyzing {tf.value} market structure")
+                    await pulse.emit(
+                        "DETECTING", f"Analyzing {tf.value} market structure"
+                    )
                 snapshot = await self._build_enriched_snapshot(seq, pulse=pulse)
                 if snapshot is not None:
                     snapshots[tf] = snapshot
@@ -229,7 +235,9 @@ class TAOrchestrator:
 
             # ── Phase 3: Run pattern detection on HTF pairs ──────────
             if pulse:
-                await pulse.emit("DETECTING", "Structural analysis complete", completed=True)
+                await pulse.emit(
+                    "DETECTING", "Structural analysis complete", completed=True
+                )
             all_smc: list[SMCCandidate] = []
             all_snd: list[SnDCandidate] = []
 
@@ -238,13 +246,19 @@ class TAOrchestrator:
                 higher_tf = available_htfs[i]
                 lower_tf = available_htfs[i + 1]
                 if pulse:
-                    await pulse.emit("SHIMMING", f"Scanning {higher_tf.value}→{lower_tf.value} SMC zones")
+                    await pulse.emit(
+                        "SHIMMING",
+                        f"Scanning {higher_tf.value}→{lower_tf.value} SMC zones",
+                    )
                 smc = self._run_smc_detection(
                     sequences[higher_tf],
                     sequences[lower_tf],
                 )
                 if pulse:
-                    await pulse.emit("SHIMMING", f"Scanning {higher_tf.value}→{lower_tf.value} SnD zones")
+                    await pulse.emit(
+                        "SHIMMING",
+                        f"Scanning {higher_tf.value}→{lower_tf.value} SnD zones",
+                    )
                 snd = self._run_snd_detection(
                     sequences[higher_tf],
                     sequences[lower_tf],
@@ -258,7 +272,10 @@ class TAOrchestrator:
                 higher_tf = available_ltfs[i]
                 lower_tf = available_ltfs[i + 1]
                 if pulse:
-                    await pulse.emit("PONTIFICATING", f"LTF confirmation {higher_tf.value}→{lower_tf.value}")
+                    await pulse.emit(
+                        "PONTIFICATING",
+                        f"LTF confirmation {higher_tf.value}→{lower_tf.value}",
+                    )
                 smc = self._run_smc_detection(
                     sequences[higher_tf],
                     sequences[lower_tf],
@@ -296,8 +313,12 @@ class TAOrchestrator:
             # ── Phase 6: Align adjacent snapshots ────────────────────
             if pulse:
                 await pulse.emit("SHIMMING", "Zone scanning complete", completed=True)
-                await pulse.emit("PONTIFICATING", "Liquidity & confirmation complete", completed=True)
-                await pulse.emit("FERMENTING", "Performing multi-timeframe trend alignment")
+                await pulse.emit(
+                    "PONTIFICATING", "Liquidity & confirmation complete", completed=True
+                )
+                await pulse.emit(
+                    "FERMENTING", "Performing multi-timeframe trend alignment"
+                )
             alignments: dict[str, dict] = {}
             ordered_tfs = [tf for tf in all_timeframes if tf in snapshots]
             for i in range(len(ordered_tfs) - 1):
@@ -560,8 +581,7 @@ class TAOrchestrator:
             metadata = pair_data.get("alignment_metadata") or {}
             zones_nested = metadata.get("zones_nested")
             flat_entry = {
-                k: v for k, v in pair_data.items()
-                if k != "alignment_metadata"
+                k: v for k, v in pair_data.items() if k != "alignment_metadata"
             }
             if zones_nested is not None:
                 flat_entry["zones_nested"] = zones_nested
@@ -645,11 +665,18 @@ class TAOrchestrator:
         except (TypeError, ValueError):
             confluences = 0
         flag_attrs = (
-            "bms_detected", "choch_detected", "sms_detected",
-            "liquidity_swept", "inducement_cleared",
-            "qml_detected", "sr_rs_flip_detected", "mpl_detected", 
-            "fakeout_detected", "marubozu_detected", "compression_detected", 
-            "ltf_confirmation"
+            "bms_detected",
+            "choch_detected",
+            "sms_detected",
+            "liquidity_swept",
+            "inducement_cleared",
+            "qml_detected",
+            "sr_rs_flip_detected",
+            "mpl_detected",
+            "fakeout_detected",
+            "marubozu_detected",
+            "compression_detected",
+            "ltf_confirmation",
         )
         flag_count = sum(bool(getattr(c, attr, False)) for attr in flag_attrs)
         return (confluences, flag_count, getattr(c, "entry_price", 0.0))
@@ -689,7 +716,10 @@ class TAOrchestrator:
 
     @classmethod
     def _dedupe_smc_candidates_by_zone(
-        cls, candidates: list, *, symbol: str,
+        cls,
+        candidates: list,
+        *,
+        symbol: str,
     ) -> list:
         """Keep the highest-ranked SMC candidate per
         (timeframe, direction, OB-midpoint bucket). Candidates
@@ -705,20 +735,28 @@ class TAOrchestrator:
                 ob_lower = getattr(c, "fvg_lower", None)
                 ob_upper = getattr(c, "fvg_upper", None)
             bucket = cls._zone_bucket(
-                ob_lower, ob_upper, c.timeframe, symbol,
+                ob_lower,
+                ob_upper,
+                c.timeframe,
+                symbol,
             )
             if bucket is None:
                 bypass.append(c)
                 continue
             key = (c.timeframe, c.direction, bucket)
             existing = best_in_bucket.get(key)
-            if existing is None or cls._candidate_rank_key(c) > cls._candidate_rank_key(existing):
+            if existing is None or cls._candidate_rank_key(c) > cls._candidate_rank_key(
+                existing
+            ):
                 best_in_bucket[key] = c
         return list(best_in_bucket.values()) + bypass
 
     @classmethod
     def _dedupe_snd_candidates_by_zone(
-        cls, candidates: list, *, symbol: str,
+        cls,
+        candidates: list,
+        *,
+        symbol: str,
     ) -> list:
         """Keep the highest-ranked SnD candidate per
         (timeframe, direction, zone-midpoint bucket). The zone is
@@ -728,23 +766,26 @@ class TAOrchestrator:
         best_in_bucket: dict[tuple, object] = {}
         bypass: list = []
         for c in candidates:
-            zone_lower = (
-                getattr(c, "supply_zone_lower", None)
-                or getattr(c, "demand_zone_lower", None)
+            zone_lower = getattr(c, "supply_zone_lower", None) or getattr(
+                c, "demand_zone_lower", None
             )
-            zone_upper = (
-                getattr(c, "supply_zone_upper", None)
-                or getattr(c, "demand_zone_upper", None)
+            zone_upper = getattr(c, "supply_zone_upper", None) or getattr(
+                c, "demand_zone_upper", None
             )
             bucket = cls._zone_bucket(
-                zone_lower, zone_upper, c.timeframe, symbol,
+                zone_lower,
+                zone_upper,
+                c.timeframe,
+                symbol,
             )
             if bucket is None:
                 bypass.append(c)
                 continue
             key = (c.timeframe, c.direction, bucket)
             existing = best_in_bucket.get(key)
-            if existing is None or cls._candidate_rank_key(c) > cls._candidate_rank_key(existing):
+            if existing is None or cls._candidate_rank_key(c) > cls._candidate_rank_key(
+                existing
+            ):
                 best_in_bucket[key] = c
         return list(best_in_bucket.values()) + bypass
 
@@ -1022,7 +1063,8 @@ class TAOrchestrator:
             # to produce an updated instance.
             for idx, ob in enumerate(order_blocks):
                 is_fresh = self._zone_validator.validate_zone_freshness(
-                    ob, sequence,
+                    ob,
+                    sequence,
                 )
                 if not is_fresh:
                     order_blocks[idx] = ob.model_copy(
@@ -1304,9 +1346,9 @@ class TAOrchestrator:
                     "htf_timeframe": htf_sequence.timeframe.value,
                     "ltf_timeframe": ltf_sequence.timeframe.value,
                     "candidates_count": len(candidates),
-                    "candidate_patterns": [
-                        c.pattern.value for c in candidates
-                    ] if candidates else [],
+                    "candidate_patterns": (
+                        [c.pattern.value for c in candidates] if candidates else []
+                    ),
                 },
             )
             return candidates
@@ -1355,9 +1397,9 @@ class TAOrchestrator:
                     "htf_timeframe": htf_sequence.timeframe.value,
                     "ltf_timeframe": ltf_sequence.timeframe.value,
                     "candidates_count": len(candidates),
-                    "candidate_patterns": [
-                        c.pattern.value for c in candidates
-                    ] if candidates else [],
+                    "candidate_patterns": (
+                        [c.pattern.value for c in candidates] if candidates else []
+                    ),
                 },
             )
             return candidates
@@ -1483,9 +1525,7 @@ class TAOrchestrator:
             anchors when present. Used by the chart overlay.
         """
         live_obs = sum(1 for ob in snapshot.order_blocks if not ob.mitigated)
-        live_breakers = sum(
-            1 for bb in snapshot.breaker_blocks if not bb.mitigated
-        )
+        live_breakers = sum(1 for bb in snapshot.breaker_blocks if not bb.mitigated)
         live_fvgs = sum(1 for fvg in snapshot.fvgs if not fvg.filled)
         live_qms = sum(1 for qm in snapshot.qml_levels if not qm.tested)
         live_mpls = sum(1 for mpl in snapshot.mpl_levels if not mpl.tested)
@@ -1604,7 +1644,9 @@ class TAOrchestrator:
     # the LTF arrays are aggressively capped and the noisiest LTF sections
     # (equal_highs_lows / liquidity_grabs / fibonacci_retracements /
     # dealing_ranges) are dropped entirely on M1 / M5.
-    _LTF_TIMEFRAMES = frozenset({Timeframe.M30, Timeframe.M15, Timeframe.M5, Timeframe.M1})
+    _LTF_TIMEFRAMES = frozenset(
+        {Timeframe.M30, Timeframe.M15, Timeframe.M5, Timeframe.M1}
+    )
     _LTF_NOISE_TIMEFRAMES = frozenset({Timeframe.M1, Timeframe.M5})
 
     @classmethod
@@ -1667,9 +1709,7 @@ class TAOrchestrator:
         arr_cap = self._array_cap_for(tf)
 
         live_obs = [ob for ob in snapshot.order_blocks if not ob.mitigated]
-        live_breakers = [
-            bb for bb in snapshot.breaker_blocks if not bb.mitigated
-        ]
+        live_breakers = [bb for bb in snapshot.breaker_blocks if not bb.mitigated]
         live_fvgs = [fvg for fvg in snapshot.fvgs if not fvg.filled]
         live_qms = [qm for qm in snapshot.qml_levels if not qm.tested]
         live_mpls = [mpl for mpl in snapshot.mpl_levels if not mpl.tested]
@@ -1682,23 +1722,15 @@ class TAOrchestrator:
             "swing_highs": self._serialize_swing_highs(
                 snapshot.swing_highs[-swing_cap:]
             ),
-            "swing_lows": self._serialize_swing_lows(
-                snapshot.swing_lows[-swing_cap:]
-            ),
-            "bms_events": self._serialize_bms_events(
-                snapshot.bms_events[-arr_cap:]
-            ),
+            "swing_lows": self._serialize_swing_lows(snapshot.swing_lows[-swing_cap:]),
+            "bms_events": self._serialize_bms_events(snapshot.bms_events[-arr_cap:]),
             "choch_events": self._serialize_choch_events(
                 snapshot.choch_events[-arr_cap:]
             ),
-            "sms_events": self._serialize_sms_events(
-                snapshot.sms_events[-arr_cap:]
-            ),
+            "sms_events": self._serialize_sms_events(snapshot.sms_events[-arr_cap:]),
             "order_blocks": self._serialize_order_blocks(live_obs[-arr_cap:]),
             "fair_value_gaps": self._serialize_fvgs(live_fvgs[-arr_cap:]),
-            "breaker_blocks": self._serialize_breaker_blocks(
-                live_breakers[-arr_cap:]
-            ),
+            "breaker_blocks": self._serialize_breaker_blocks(live_breakers[-arr_cap:]),
             "liquidity_sweeps": self._serialize_sweeps(
                 snapshot.liquidity_sweeps[-arr_cap:]
             ),
@@ -1709,12 +1741,8 @@ class TAOrchestrator:
             "sr_flips": self._serialize_sr_flips(snapshot.sr_flips[-arr_cap:]),
             "rs_flips": self._serialize_rs_flips(snapshot.rs_flips[-arr_cap:]),
             "mpl_levels": self._serialize_mpl_levels(live_mpls[-arr_cap:]),
-            "supply_zones": self._serialize_supply_zones(
-                live_supply[-arr_cap:]
-            ),
-            "demand_zones": self._serialize_demand_zones(
-                live_demand[-arr_cap:]
-            ),
+            "supply_zones": self._serialize_supply_zones(live_supply[-arr_cap:]),
+            "demand_zones": self._serialize_demand_zones(live_demand[-arr_cap:]),
         }
 
         # M5 / M1 drop the noisy LTF-only sections entirely.
@@ -1892,9 +1920,7 @@ class TAOrchestrator:
                 "direction": ind.direction.value,
                 "cleared": ind.cleared,
                 "cleared_timestamp": (
-                    ind.cleared_timestamp.isoformat()
-                    if ind.cleared_timestamp
-                    else None
+                    ind.cleared_timestamp.isoformat() if ind.cleared_timestamp else None
                 ),
                 "is_internal": ind.is_internal,
             }
@@ -2041,5 +2067,3 @@ class TAOrchestrator:
             }
             for dr in dealing_ranges
         ]
-
-

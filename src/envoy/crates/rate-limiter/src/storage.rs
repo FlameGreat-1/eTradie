@@ -32,7 +32,10 @@ impl RateLimitStorage {
 
     pub fn check_global_limit(&mut self) -> FilterResult<()> {
         self.global_bucket.try_consume(1).map_err(|e| {
-            if let FilterError::RateLimitExceeded { retry_after_secs, .. } = e {
+            if let FilterError::RateLimitExceeded {
+                retry_after_secs, ..
+            } = e
+            {
                 FilterError::RateLimitExceeded {
                     limit_type: "Global".to_string(),
                     retry_after_secs,
@@ -43,24 +46,33 @@ impl RateLimitStorage {
         })
     }
 
-    pub fn check_ip_limit(&mut self, ip: &str, capacity: u64, refill_rate: u64) -> FilterResult<()> {
+    pub fn check_ip_limit(
+        &mut self,
+        ip: &str,
+        capacity: u64,
+        refill_rate: u64,
+    ) -> FilterResult<()> {
         if self.ip_buckets.len() >= CLEANUP_THRESHOLD {
             self.cleanup_stale_entries();
         }
 
         let now_ms = current_timestamp_ms();
 
-        let entry = self.ip_buckets.entry(ip.to_string()).or_insert_with(|| {
-            IpBucketEntry {
+        let entry = self
+            .ip_buckets
+            .entry(ip.to_string())
+            .or_insert_with(|| IpBucketEntry {
                 bucket: TokenBucket::new(capacity, refill_rate),
                 last_access_ms: now_ms,
-            }
-        });
+            });
 
         entry.last_access_ms = now_ms;
 
         entry.bucket.try_consume(1).map_err(|e| {
-            if let FilterError::RateLimitExceeded { retry_after_secs, .. } = e {
+            if let FilterError::RateLimitExceeded {
+                retry_after_secs, ..
+            } = e
+            {
                 FilterError::RateLimitExceeded {
                     limit_type: format!("IP ({})", ip),
                     retry_after_secs,
@@ -76,7 +88,9 @@ impl RateLimitStorage {
     }
 
     pub fn ip_tokens_remaining(&self, ip: &str) -> Option<u64> {
-        self.ip_buckets.get(ip).map(|entry| entry.bucket.available_tokens())
+        self.ip_buckets
+            .get(ip)
+            .map(|entry| entry.bucket.available_tokens())
     }
 
     pub fn tracked_ip_count(&self) -> usize {
@@ -87,9 +101,8 @@ impl RateLimitStorage {
         let now_ms = current_timestamp_ms();
         let stale_threshold_ms = 300_000;
 
-        self.ip_buckets.retain(|_, entry| {
-            now_ms.saturating_sub(entry.last_access_ms) < stale_threshold_ms
-        });
+        self.ip_buckets
+            .retain(|_, entry| now_ms.saturating_sub(entry.last_access_ms) < stale_threshold_ms);
     }
 }
 

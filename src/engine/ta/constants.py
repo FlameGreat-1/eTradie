@@ -1,5 +1,7 @@
 from enum import IntEnum, StrEnum
 from typing import Final
+
+
 class Timeframe(StrEnum):
     M1 = "M1"
     M5 = "M5"

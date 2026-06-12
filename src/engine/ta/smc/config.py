@@ -179,5 +179,7 @@ class SMCConfig(BaseSettings):
     # 0.0 = any touch counts (legacy, not recommended).
     # 1.0 = default; requires a real wick past the level.
     inducement_min_break_pips: float = Field(
-        default=1.0, ge=0.0, le=50.0,
+        default=1.0,
+        ge=0.0,
+        le=50.0,
     )

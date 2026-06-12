@@ -346,7 +346,11 @@ BROKER_EA_IDENTITY_TOTAL = Counter(
 BROKER_EA_IDENTITY_MISMATCH_TOTAL = Counter(
     "etradie_broker_ea_identity_mismatch_total",
     "EA identity mismatches by mismatched field",
-    ["provider", "account_id", "field"],  # field: magic | login | server | terminal_build
+    [
+        "provider",
+        "account_id",
+        "field",
+    ],  # field: magic | login | server | terminal_build
 )
 
 BROKER_EA_CLOCK_SKEW_SECONDS = Gauge(

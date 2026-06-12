@@ -132,9 +132,7 @@ class MarubozuAnalyzer:
         timeframe: Timeframe,
     ) -> bool:
         """Bullish Marubozu check with timeframe-scaled displacement."""
-        return candle.is_bullish and self.is_marubozu_for_timeframe(
-            candle, timeframe
-        )
+        return candle.is_bullish and self.is_marubozu_for_timeframe(candle, timeframe)
 
     def is_bearish_marubozu_for_timeframe(
         self,
@@ -142,9 +140,7 @@ class MarubozuAnalyzer:
         timeframe: Timeframe,
     ) -> bool:
         """Bearish Marubozu check with timeframe-scaled displacement."""
-        return candle.is_bearish and self.is_marubozu_for_timeframe(
-            candle, timeframe
-        )
+        return candle.is_bearish and self.is_marubozu_for_timeframe(candle, timeframe)
 
     def detect_marubozu_sequence(
         self,
@@ -169,9 +165,7 @@ class MarubozuAnalyzer:
             while j < len(sequence.candles):
                 next_candle = sequence.candles[j]
 
-                if not self.is_marubozu_for_timeframe(
-                    next_candle, sequence.timeframe
-                ):
+                if not self.is_marubozu_for_timeframe(next_candle, sequence.timeframe):
                     break
 
                 next_direction = (

@@ -33,6 +33,7 @@ import (
 // Fractional model:
 //   - BUY:  newSL = price - (1-fraction) * (price - entry)
 //   - SELL: newSL = price + (1-fraction) * (entry - price)
+//
 // where fraction is trailFractionForStyle(style, tp1Hit). Higher fraction
 // = tighter trail = more locked profit.
 type TrailingEngine struct {

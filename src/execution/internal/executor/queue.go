@@ -29,8 +29,8 @@ import (
 // the same trade idea - the broker price has moved. Better to drop
 // it with a clear error than to fire stale orders.
 type BurstQueue struct {
-	maxConcurrent int
-	perUserCap    int
+	maxConcurrent   int
+	perUserCap      int
 	defaultDeadline time.Duration
 
 	mu        sync.Mutex

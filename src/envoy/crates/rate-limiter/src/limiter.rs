@@ -37,10 +37,7 @@ impl RateLimiter {
                     "Global rate limit exceeded".to_string(),
                 );
                 self.emit_token_metrics(ip);
-                return FilterDecision::deny(
-                    "Global rate limit exceeded".to_string(),
-                    event,
-                );
+                return FilterDecision::deny("Global rate limit exceeded".to_string(), event);
             }
         }
 
@@ -56,10 +53,7 @@ impl RateLimiter {
                     format!("IP rate limit exceeded for {}", ip),
                 );
                 self.emit_token_metrics(ip);
-                return FilterDecision::deny(
-                    format!("IP rate limit exceeded for {}", ip),
-                    event,
-                );
+                return FilterDecision::deny(format!("IP rate limit exceeded for {}", ip), event);
             }
         }
 
@@ -69,13 +63,16 @@ impl RateLimiter {
 
     fn emit_token_metrics(&self, ip: &str) {
         let global_remaining = self.storage.global_tokens_remaining();
-        self.metrics.set_rate_limit_tokens_remaining("global", global_remaining);
+        self.metrics
+            .set_rate_limit_tokens_remaining("global", global_remaining);
 
         if let Some(ip_remaining) = self.storage.ip_tokens_remaining(ip) {
-            self.metrics.set_rate_limit_tokens_remaining("ip", ip_remaining);
+            self.metrics
+                .set_rate_limit_tokens_remaining("ip", ip_remaining);
         }
 
-        self.metrics.set_rate_limit_tracked_ips(self.storage.tracked_ip_count() as u64);
+        self.metrics
+            .set_rate_limit_tracked_ips(self.storage.tracked_ip_count() as u64);
     }
 }
 

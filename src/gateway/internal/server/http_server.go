@@ -305,7 +305,7 @@ func (s *HTTPServer) Shutdown(ctx context.Context) error {
 // Refused (with a clear error) at startup:
 //   - "*"        : credentialed CORS forbids the wildcard,
 //   - "null"     : the literal "null" origin is used by sandboxed
-//                  iframes and data: URLs; never legitimate here,
+//     iframes and data: URLs; never legitimate here,
 //   - empty / whitespace-only entries,
 //   - any non-http/https scheme,
 //   - entries containing a path, query, or fragment,

@@ -211,7 +211,7 @@ class CFTCDEATFFProvider(BaseCOTProvider):
         pos_idx = block.find("Positions")
         if pos_idx == -1:
             return None
-        after = block[pos_idx + len("Positions"):]
+        after = block[pos_idx + len("Positions") :]
 
         nums: list[int] | None = None
         for line in after.split("\n"):

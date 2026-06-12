@@ -52,7 +52,11 @@ class CalendarCollector(BaseCollector):
                     rows,
                     index_elements=["event_name", "currency", "event_time"],
                     update_fields=[
-                        "source", "impact", "forecast", "previous", "actual",
+                        "source",
+                        "impact",
+                        "forecast",
+                        "previous",
+                        "actual",
                     ],
                 )
 
@@ -70,7 +74,6 @@ class CalendarCollector(BaseCollector):
         )
         self._record_items_stored(len(all_events))
         return dataset
-
 
     def _empty_dataset(self) -> CalendarDataSet:
         return CalendarDataSet(events=[], sources=[], collected_at=datetime.now(UTC))

@@ -13,6 +13,7 @@ All brokers return normalized Candle models.
 """
 
 from engine.ta.broker.base import BrokerBase, BrokerCapabilities
+
 __all__ = [
     "BrokerBase",
     "BrokerCapabilities",

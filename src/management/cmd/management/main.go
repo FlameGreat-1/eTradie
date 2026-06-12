@@ -336,8 +336,8 @@ func main() {
 		// We also cache the full *auth.User row keyed by ID so the
 		// restoreTradeFromRecord call below can stamp Username/Role/Tier/
 		// StatusJWT onto each Trade without re-fetching the row.
-		serviceTokens := make(map[string]string)     // userID -> service JWT
-		userByID := make(map[string]*auth.User)      // userID -> User row
+		serviceTokens := make(map[string]string) // userID -> service JWT
+		userByID := make(map[string]*auth.User)  // userID -> User row
 		for userID := range userIDs {
 			user, err := userStore.GetUserByID(ctx, userID)
 			if err != nil || user == nil {

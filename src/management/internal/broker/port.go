@@ -60,17 +60,17 @@ type PositionInfo struct {
 
 // HistoryDealInfo holds a historical deal from the broker.
 type HistoryDealInfo struct {
-	Ticket      string
-	PositionID  string
-	Symbol      string
-	Direction   string
-	Volume      float64
-	Price       float64
-	Profit      float64
-	Commission  float64
-	Swap        float64
-	Time        int64
-	Comment     string
+	Ticket     string
+	PositionID string
+	Symbol     string
+	Direction  string
+	Volume     float64
+	Price      float64
+	Profit     float64
+	Commission float64
+	Swap       float64
+	Time       int64
+	Comment    string
 }
 
 // Port is the abstraction layer for broker interactions needed by

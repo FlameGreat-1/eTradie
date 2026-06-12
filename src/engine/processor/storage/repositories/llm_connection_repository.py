@@ -117,7 +117,7 @@ class LLMConnectionRepository:
         max_output_tokens: Optional[int] = None,
     ) -> LLMConnectionRow:
         """Create or update the platform-level LLM connection.
-        
+
         Overwrites the existing platform connection if one exists.
         """
         # Remove any existing platform connection
@@ -203,14 +203,16 @@ class LLMConnectionRepository:
             select(LLMConnectionRow)
             .where(
                 LLMConnectionRow.user_id == user_id,
-                LLMConnectionRow.is_platform.is_(False)
+                LLMConnectionRow.is_platform.is_(False),
             )
             .order_by(LLMConnectionRow.updated_at.desc())
         )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_by_id(self, connection_id: str, user_id: str) -> Optional[LLMConnectionRow]:
+    async def get_by_id(
+        self, connection_id: str, user_id: str
+    ) -> Optional[LLMConnectionRow]:
         """Return a single connection by ID, scoped to user."""
         stmt = select(LLMConnectionRow).where(
             LLMConnectionRow.id == connection_id,
@@ -220,7 +222,9 @@ class LLMConnectionRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def activate(self, connection_id: str, user_id: str) -> Optional[LLMConnectionRow]:
+    async def activate(
+        self, connection_id: str, user_id: str
+    ) -> Optional[LLMConnectionRow]:
         """Activate a connection (deactivates all others for this user).
 
         Takes a row-level lock on the user's existing active rows
@@ -246,7 +250,9 @@ class LLMConnectionRepository:
 
         return await self.get_by_id(connection_id, user_id)
 
-    async def deactivate(self, connection_id: str, user_id: str) -> Optional[LLMConnectionRow]:
+    async def deactivate(
+        self, connection_id: str, user_id: str
+    ) -> Optional[LLMConnectionRow]:
         """Deactivate a specific connection, scoped to user."""
         stmt = (
             update(LLMConnectionRow)

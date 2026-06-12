@@ -61,12 +61,12 @@ func runReplay(args []string) int {
 	fs.SetOutput(os.Stderr)
 
 	var (
-		userID  = fs.String("user", "", "User ID to replay audit log for (required)")
-		sinceS  = fs.String("since", "", "Start timestamp in RFC3339 format (required)")
-		untilS  = fs.String("until", "", "End timestamp in RFC3339 format (default: now)")
-		addr    = fs.String("addr", defaultAddr, "Execution HTTP server host:port")
-		token   = fs.String("token", "", "Service token for authentication (required)")
-		pretty  = fs.Bool("pretty", false, "Pretty-print JSON output")
+		userID = fs.String("user", "", "User ID to replay audit log for (required)")
+		sinceS = fs.String("since", "", "Start timestamp in RFC3339 format (required)")
+		untilS = fs.String("until", "", "End timestamp in RFC3339 format (default: now)")
+		addr   = fs.String("addr", defaultAddr, "Execution HTTP server host:port")
+		token  = fs.String("token", "", "Service token for authentication (required)")
+		pretty = fs.Bool("pretty", false, "Pretty-print JSON output")
 	)
 
 	if err := fs.Parse(args); err != nil {

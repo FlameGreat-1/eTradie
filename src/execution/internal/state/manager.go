@@ -438,9 +438,11 @@ func (m *Manager) ReplaceBrokerPosition(userID string, p *models.Position) {
 //
 // Called by the reconciler's ghost-position branch when the engine's
 // view contains a position that:
-//   (a) is NOT in the current broker positions list, AND
-//   (b) was present in the last persisted positions snapshot >= the
-//       configured ghost-position min-age threshold ago.
+//
+//	(a) is NOT in the current broker positions list, AND
+//	(b) was present in the last persisted positions snapshot >= the
+//	    configured ghost-position min-age threshold ago.
+//
 // Together, those two facts say 'the broker closed this cleanly
 // between cycles'. The engine adopts the close.
 //

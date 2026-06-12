@@ -14,7 +14,9 @@ pub fn set_environment(env: &str) {
 
 fn get_environment() -> String {
     unsafe {
-        ENVIRONMENT.clone().unwrap_or_else(|| DEFAULT_ENVIRONMENT.to_string())
+        ENVIRONMENT
+            .clone()
+            .unwrap_or_else(|| DEFAULT_ENVIRONMENT.to_string())
     }
 }
 
@@ -180,18 +182,16 @@ pub fn log_request_end(trace_id: &str, status: u32, duration_ms: u64, client_ip:
     logger.log(
         LogLevel::Info,
         trace_id,
-        &format!("Request completed: status={} duration={}ms", status, duration_ms),
+        &format!(
+            "Request completed: status={} duration={}ms",
+            status, duration_ms
+        ),
         client_ip,
         Some(details),
     );
 }
 
-pub fn log_filter_decision(
-    trace_id: &str,
-    filter_name: &str,
-    allowed: bool,
-    reason: Option<&str>,
-) {
+pub fn log_filter_decision(trace_id: &str, filter_name: &str, allowed: bool, reason: Option<&str>) {
     let logger = Logger::new(filter_name);
     let message = if allowed {
         format!("Filter passed: {}", filter_name)

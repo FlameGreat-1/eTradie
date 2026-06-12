@@ -15,8 +15,8 @@ import (
 // UserBillingHandler exposes the regular-user-facing read endpoints that
 // power the dashboard's Payment Methods card and Invoice History feed:
 //
-//   GET /api/v1/billing/payment-method  — latest card snapshot
-//   GET /api/v1/billing/transactions    — paginated financial events
+//	GET /api/v1/billing/payment-method  — latest card snapshot
+//	GET /api/v1/billing/transactions    — paginated financial events
 //
 // Both are user-scoped: every query binds claims.UserID server-side, so
 // a forged query parameter cannot escalate to another user's data. The
