@@ -87,7 +87,7 @@ jobs:
         # for known CVEs and the Dockerfiles/Helm/Kubernetes manifests
         # for misconfigurations. Fails only on fixable HIGH/CRITICAL so
         # the gate is actionable.
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.24.0
         with:
           scan-type: fs
           scan-ref: .
@@ -149,7 +149,7 @@ jobs:
         # Scans the assembled image layers (OS packages + the Go binary)
         # for known CVEs. Fails only on fixable HIGH/CRITICAL so the
         # gate is actionable, matching the fs-scan posture above.
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.24.0
         with:
           scan-type: image
           image-ref: etradie/${{ matrix.service }}:scan
