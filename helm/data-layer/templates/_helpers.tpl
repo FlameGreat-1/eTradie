@@ -20,8 +20,6 @@ helm.sh/chart: {{ include "data-layer.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: etradie
-app.kubernetes.io/component: data-layer
-app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/* ===== Postgres ===== */}}
