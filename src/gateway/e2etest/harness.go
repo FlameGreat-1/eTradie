@@ -93,6 +93,16 @@ func (m *MockExecutionPort) CancelOrder(_ context.Context, _, _, _, _ string) er
 	return nil
 }
 
+// HaltState implements ports.ExecutionPort.
+func (m *MockExecutionPort) HaltState(ctx context.Context, targetUserID string) (global bool, user bool, err error) {
+	return false, false, nil
+}
+
+// SetHaltState implements ports.ExecutionPort.
+func (m *MockExecutionPort) SetHaltState(ctx context.Context, scope, targetUserID string, halted bool) (global bool, user bool, err error) {
+	return false, false, nil
+}
+
 // GetCalls returns a copy of all recorded execution calls.
 func (m *MockExecutionPort) GetCalls() []ExecutionCall {
 	m.mu.Lock()
@@ -172,7 +182,7 @@ func NewHarness(t *testing.T) *Harness {
 
 	// Real EngineHTTPClient pointing at mock server.
 	// Timeout of 30s is generous for tests; the mock responds instantly.
-	engineHTTP := infra.NewEngineHTTPClient(engine.URL(), 30)
+	engineHTTP := infra.NewEngineHTTPClient(engine.URL(), "", 30)
 
 	// Collectors with nil Redis (caching disabled).
 	taCollector := collectors.NewTACollector(engineHTTP, nil, cfg)
@@ -204,7 +214,7 @@ func NewHarness(t *testing.T) *Harness {
 	transport.Start(context.Background())
 
 	// Real router wired with mock execution and transport.
-	router := routing.NewRouter(guards, execPort, transport)
+	router := routing.NewRouter(guards, execPort, transport, nil)
 
 	// Real processor adapter backed by the mock engine HTTP server.
 	processor := infra.NewHTTPProcessorAdapter(engineHTTP)

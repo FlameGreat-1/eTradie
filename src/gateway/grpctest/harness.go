@@ -129,7 +129,7 @@ func NewHarness(t *testing.T) *Harness {
 	}
 
 	// Real EngineHTTPClient pointing at mock.
-	engineHTTP := infra.NewEngineHTTPClient(engine.URL(), 30)
+	engineHTTP := infra.NewEngineHTTPClient(engine.URL(), "", 30)
 
 	// Real Redis connection for alert transport and stores.
 	redisOpts, err := redis.ParseURL(testRedisURL())
@@ -162,7 +162,7 @@ func NewHarness(t *testing.T) *Harness {
 	assembler := ctxpkg.NewAssembler()
 	guards := routing.NewGuardEvaluator()
 	execPort := &e2e.MockExecutionPort{}
-	router := routing.NewRouter(guards, execPort, transport)
+	router := routing.NewRouter(guards, execPort, transport, nil)
 	processor := infra.NewHTTPProcessorAdapter(engineHTTP)
 
 	orchestrator := pipeline.NewOrchestrator(
@@ -186,7 +186,7 @@ func NewHarness(t *testing.T) *Harness {
 	// Scheduler (not started, just wired for SetCycleInterval).
 	var scheduler *pipeline.Scheduler
 	if symStore != nil && settStore != nil {
-		scheduler = pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, nil)
+		scheduler = pipeline.NewScheduler(orchestrator, symStore, settStore, cfg, transport, tokenService, nil, nil, nil)
 	}
 
 	// Build the real GRPCServer. Pass nil for mgmtClient (tested separately).

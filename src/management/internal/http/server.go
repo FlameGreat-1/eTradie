@@ -124,7 +124,8 @@ func loadAllowedOrigins() map[string]bool {
 	// Access-Control-Allow-Credentials: true. Fail safe.
 	allowed, rejected := auth.BuildCORSAllowlist(strings.Split(raw, ","))
 	if len(rejected) > 0 {
-		observability.Logger("cors").Error().
+		l := observability.Logger("cors")
+		l.Error().
 			Strs("rejected", rejected).
 			Msg("management_cors_invalid_origins_dropped")
 	}

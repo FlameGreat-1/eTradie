@@ -57,7 +57,7 @@ _SNAPSHOT_PLURAL = "volumesnapshots"
 def _env(name: str, default: str | None = None) -> str:
     value = os.environ.get(name, default if default is not None else "").strip()
     if not value and default is None:
-        print(f"FATAL: required env var {name} is not set", file=sys.stderr)
+        print(f"FATAL: required env var {name} is not set", file=sys.stderr)  # noqa: T201
         sys.exit(2)
     return value
 
@@ -116,6 +116,8 @@ def _build_snapshot_manifest(
     }
 
 
+_HTTP_CONFLICT = 409
+
 async def _create_snapshot(
     custom_api: client.CustomObjectsApi,
     namespace: str,
@@ -130,10 +132,10 @@ async def _create_snapshot(
             plural=_SNAPSHOT_PLURAL,
             body=manifest,
         )
-        print(f"  created VolumeSnapshot/{name}")
+        print(f"  created VolumeSnapshot/{name}")  # noqa: T201
     except ApiException as exc:
-        if exc.status == 409:
-            print(f"  VolumeSnapshot/{name} already exists (skipping)")
+        if exc.status == _HTTP_CONFLICT:
+            print(f"  VolumeSnapshot/{name} already exists (skipping)")  # noqa: T201
             return
         raise
 

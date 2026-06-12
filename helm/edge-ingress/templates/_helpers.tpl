@@ -38,7 +38,6 @@ app.kubernetes.io/component: edge
 
 {{- define "edge-ingress.selectorLabels" -}}
 app.kubernetes.io/name: edge-ingress
-app.kubernetes.io/component: edge
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
