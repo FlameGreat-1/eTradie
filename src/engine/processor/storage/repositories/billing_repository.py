@@ -157,11 +157,11 @@ class BillingRepository:
         if column not in allowed:
             return
 
-        stmt = text(  # nosec B608
-            f"""
+        query = f"""
             UPDATE billing_usage
             SET {column} = {column} + :amount
             WHERE user_id = :user_id
-            """)
+        """  # nosec B608
+        stmt = text(query)
         await self._session.execute(stmt, {"user_id": user_id, "amount": amount})
         await self._session.commit()

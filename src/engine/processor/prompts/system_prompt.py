@@ -340,7 +340,7 @@ SECTION E — CORE RULES
 
 OUTPUT JSON SCHEMA:
 Output schema is enforced by the LLM provider's decoder when supported (Gemini response_schema, OpenAI response_format strict, Anthropic tools input_schema). Field semantics described above remain authoritative regardless of provider support.
-"""
+"""  # nosec B608
     + _OUTPUT_SCHEMA
 )
 
