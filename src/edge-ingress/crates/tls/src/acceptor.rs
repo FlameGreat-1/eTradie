@@ -132,6 +132,7 @@ mod tests {
             key_path: PathBuf::from("/path/to/key.pem"),
             is_default: true,
         });
+        config.client_auth.ca_path = PathBuf::from("/etc/edge-ingress/cloudflare/origin-pull-ca.pem");
 
         assert!(config.validate().is_ok());
     }
