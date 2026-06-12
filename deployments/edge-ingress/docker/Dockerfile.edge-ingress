@@ -3,7 +3,7 @@ FROM rust:1.88-slim-bookworm AS builder
 
 WORKDIR /build
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
     ca-certificates \
@@ -36,7 +36,7 @@ RUN strip /build/edge-ingress
 # -------- runtime --------
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
     wget \

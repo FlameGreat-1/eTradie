@@ -37,7 +37,6 @@ helm.sh/chart: {{ include "management.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: etradie
-app.kubernetes.io/component: management
 {{- end -}}
 
 {{- /* Audit ref: X-4. */ -}}

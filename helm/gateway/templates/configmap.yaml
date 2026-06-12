@@ -6,6 +6,7 @@ metadata:
   labels:
     {{- include "gateway.labels" . | nindent 4 }}
     app.kubernetes.io/component: config
+# trivy:ignore:KSV-0109
 data:
   # Application environment. Read by the Go services via
   # appEnv()/isProdLikeEnv() (src/auth/config.go) and

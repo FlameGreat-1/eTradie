@@ -11,9 +11,6 @@ image:
   pullPolicy: IfNotPresent
 
 podAnnotations:
-  prometheus.io/scrape: "true"
-  prometheus.io/port: "8083"
-  prometheus.io/path: "/metrics"
   tier: staging
 
 config:
