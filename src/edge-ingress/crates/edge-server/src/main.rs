@@ -11,7 +11,7 @@ use std::env;
 use std::process;
 use tracing::{error, info};
 
-fn init_otel_tracer() {
+fn init_otel_tracer() -> Option<opentelemetry_sdk::trace::Tracer> {
     let endpoint = env::var(OTEL_EXPORTER_ENDPOINT_ENV)
         .unwrap_or_else(|_| DEFAULT_OTEL_ENDPOINT.to_string());
 
@@ -39,19 +39,21 @@ fn init_otel_tracer() {
         .install_batch(opentelemetry_sdk::runtime::Tokio);
 
     match tracer {
-        Ok(_) => {
+        Ok(tracer) => {
             info!(endpoint = %endpoint, "OpenTelemetry tracer initialized");
+            Some(tracer)
         }
         Err(e) => {
             eprintln!("Failed to initialize OpenTelemetry tracer: {}. Continuing without trace export.", e);
+            None
         }
     }
 }
 
 #[tokio::main]
 async fn main() {
-    init_otel_tracer();
-    edge_ingress_common::init_logging_with_otel();
+    let tracer = init_otel_tracer();
+    edge_ingress_common::init_logging_with_otel(tracer);
 
     let config_path = env::var("CONFIG_PATH").unwrap_or_else(|_| {
         "/etc/edge-ingress/config.yaml".to_string()
