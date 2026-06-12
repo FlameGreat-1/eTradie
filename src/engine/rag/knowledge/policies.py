@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from engine.rag.constants import DocumentType, MANDATORY_KNOWLEDGE_GROUPS
+from engine.rag.constants import MANDATORY_KNOWLEDGE_GROUPS
 from engine.shared.exceptions import RAGKnowledgeBaseError
 
 

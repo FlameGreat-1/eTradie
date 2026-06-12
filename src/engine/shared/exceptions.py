@@ -4,7 +4,6 @@ from typing import Any
 
 
 class ETradieBaseError(Exception):
-
     def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.message = message
@@ -56,9 +55,7 @@ class ProviderDisconnectedError(ProviderUnavailableError):
     Audit ref: CHECKLIST Section 2 - 'Detection of silent disconnect'.
     """
 
-    def __init__(
-        self, message: str, *, details: dict | None = None
-    ) -> None:  # noqa: D401
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
         super().__init__(message, details=details)
 
 
@@ -78,9 +75,7 @@ class ProviderStalePriceError(ProviderResponseError):
     pricing detection)'.
     """
 
-    def __init__(
-        self, message: str, *, details: dict | None = None
-    ) -> None:  # noqa: D401
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
         super().__init__(message, details=details)
 
 
@@ -97,9 +92,7 @@ class EAIdentityMismatchError(ProviderAuthenticationError):
     mismatch', 'Kill-switch if EA diverges from expected logic'.
     """
 
-    def __init__(
-        self, message: str, *, details: dict | None = None
-    ) -> None:  # noqa: D401
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
         super().__init__(message, details=details)
 
 
@@ -114,9 +107,7 @@ class OutboundRateLimitExceededError(ProviderError):
     Audit ref: CHECKLIST Section 5 - 'Rate limits prevent EA flooding'.
     """
 
-    def __init__(
-        self, message: str, *, details: dict | None = None
-    ) -> None:  # noqa: D401
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
         super().__init__(message, details=details)
 
 
@@ -128,9 +119,7 @@ class EAClockSkewError(ProviderError):
     Audit ref: CHECKLIST Section 4 - 'Time synchronization'.
     """
 
-    def __init__(
-        self, message: str, *, details: dict | None = None
-    ) -> None:  # noqa: D401
+    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
         super().__init__(message, details=details)
 
 

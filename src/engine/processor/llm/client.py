@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -45,7 +44,7 @@ class LLMResponse:
     input_tokens: int
     output_tokens: int
     duration_ms: float
-    stop_reason: Optional[str] = None
+    stop_reason: str | None = None
 
 
 class LLMClient(abc.ABC):
@@ -62,7 +61,7 @@ class LLMClient(abc.ABC):
         *,
         system_prompt: str,
         user_message: str,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
         use_structured_output: bool = True,
     ) -> LLMResponse:
         """Send a prompt and return the raw response.
@@ -95,8 +94,8 @@ class LLMClient(abc.ABC):
         *,
         system_prompt: str,
         user_message: str,
-        trace_id: Optional[str] = None,
-        usage_out: Optional[dict] = None,
+        trace_id: str | None = None,
+        usage_out: dict | None = None,
         use_structured_output: bool = True,
     ) -> __import__("typing").AsyncGenerator[str, None]:
         """Send a prompt and yield the raw text chunks as they arrive.

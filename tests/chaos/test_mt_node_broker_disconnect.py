@@ -15,6 +15,7 @@ implement one (the default eTradie EA does not - check
 src/engine/ta/broker/mt5/zmq/ZeroMQ_EA.mq5), the test substitutes
 in a direct ZMQ-level disconnect via socket close.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -28,6 +29,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.chaos]
 
 async def _scrape(host: str, port: int) -> dict[str, float]:
     from tests.chaos.test_mt_node_soak import _scrape_watchdog
+
     return await _scrape_watchdog(host, port)
 
 
@@ -82,9 +84,6 @@ async def test_broker_disconnect_recovery(real_cluster_available: bool):
     while asyncio.get_event_loop().time() < recovery_deadline:
         await asyncio.sleep(5)
         m = await _scrape(host, port)
-        if (
-            m.get("mt_node_ea_mt5_connected", 0) == 1.0
-            and m.get("mt_node_ea_authenticated", 0) == 1.0
-        ):
+        if m.get("mt_node_ea_mt5_connected", 0) == 1.0 and m.get("mt_node_ea_authenticated", 0) == 1.0:
             return
     pytest.fail("EA did not recover authenticated state within 240s")

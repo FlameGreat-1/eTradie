@@ -21,6 +21,7 @@ What is NOT exercised (requires the real-cluster test):
 The two files together cover the broker-disconnect Section 2
 requirement: this one on every PR, the real-cluster one on nightly.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -100,9 +101,10 @@ def test_watchdog_terminates_mt_on_consecutive_health_failures(watchdog_module):
             "commands_processed": 0,
         }
 
-    with patch.object(wd, "find_mt_processes", return_value=[fake_proc]), \
-         patch.object(wd, "zmq_health_probe", side_effect=_fake_probe):
-
+    with (
+        patch.object(wd, "find_mt_processes", return_value=[fake_proc]),
+        patch.object(wd, "zmq_health_probe", side_effect=_fake_probe),
+    ):
         initial_restarts = _counter_value(wd.M_INPOD_RESTARTS)
 
         # Manually drive the inner part of watchdog_loop() the same
@@ -129,8 +131,7 @@ def test_watchdog_terminates_mt_on_consecutive_health_failures(watchdog_module):
         assert fake_proc.terminate.called, "watchdog must SIGTERM the MT process"
         final_restarts = _counter_value(wd.M_INPOD_RESTARTS)
         assert final_restarts == initial_restarts + 1.0, (
-            f"M_INPOD_RESTARTS must increment by exactly 1 "
-            f"(was {initial_restarts}, now {final_restarts})"
+            f"M_INPOD_RESTARTS must increment by exactly 1 (was {initial_restarts}, now {final_restarts})"
         )
 
 
@@ -159,14 +160,12 @@ def test_watchdog_socket_reset_counter_increments_on_zmq_error(watchdog_module):
 
     initial_resets = _counter_value(wd.M_WATCHDOG_SOCKET_RESETS)
 
-    with patch.object(probe, "_ctx", fake_ctx):
-        with pytest.raises(zmq.ZMQError):
-            probe.poll()
+    with patch.object(probe, "_ctx", fake_ctx), pytest.raises(zmq.ZMQError):
+        probe.poll()
 
     final_resets = _counter_value(wd.M_WATCHDOG_SOCKET_RESETS)
     assert final_resets == initial_resets + 1.0, (
-        f"M_WATCHDOG_SOCKET_RESETS must increment by exactly 1 "
-        f"(was {initial_resets}, now {final_resets})"
+        f"M_WATCHDOG_SOCKET_RESETS must increment by exactly 1 (was {initial_resets}, now {final_resets})"
     )
     assert fake_socket.close.called, "REQ socket must be torn down on ZMQError"
     assert probe._socket is None, "probe must clear its socket reference after reset"

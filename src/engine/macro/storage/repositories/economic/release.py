@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from engine.shared.db.repositories.base_repository import BaseRepository
 from engine.macro.storage.schemas.economic import EconomicReleaseRow
+from engine.shared.db.repositories.base_repository import BaseRepository
 
 
 class EconomicReleaseRepository(BaseRepository[EconomicReleaseRow]):

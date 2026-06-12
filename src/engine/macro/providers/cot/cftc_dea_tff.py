@@ -36,11 +36,11 @@ import re
 import time
 from datetime import UTC, date, datetime
 
+from engine.macro.models.provider.cot import COTReport, TFFPosition
+from engine.macro.providers.cot.base import BaseCOTProvider
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
 from engine.shared.models.currency import Currency
-from engine.macro.models.provider.cot import COTReport, TFFPosition
-from engine.macro.providers.cot.base import BaseCOTProvider
 
 logger = get_logger(__name__)
 
@@ -114,9 +114,7 @@ class CFTCDEATFFProvider(BaseCOTProvider):
                 category=self.category.value,
             )
             if not isinstance(raw_text, str):
-                raise ValueError(
-                    f"Expected text from CFTC DEA TFF page, got {type(raw_text).__name__}"
-                )
+                raise ValueError(f"Expected text from CFTC DEA TFF page, got {type(raw_text).__name__}")
 
             report_date = _parse_report_date(raw_text)
             tff_positions = self._parse(raw_text, report_date)
@@ -202,9 +200,7 @@ class CFTCDEATFFProvider(BaseCOTProvider):
                 return currency
         return None
 
-    def _parse_block(
-        self, currency: Currency, block: str, report_date: date
-    ) -> TFFPosition | None:
+    def _parse_block(self, currency: Currency, block: str, report_date: date) -> TFFPosition | None:
         # The numbers row is the first line AFTER the "Positions" marker that
         # carries at least 14 numeric tokens. The "Changes from" and percent
         # rows come later and must not be picked.

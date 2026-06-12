@@ -23,9 +23,7 @@ from engine.shared.db.migrations._schema_registry import Base
 class COTReportRow(Base):
     __tablename__ = "cot_reports"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     currency: Mapped[str] = mapped_column(String(5), nullable=False)
     contract_name: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     non_commercial_long: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -44,12 +42,8 @@ class COTReportRow(Base):
     wow_change: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     percentile_rank: Mapped[float] = mapped_column(Float, nullable=False, default=50.0)
     extreme_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    signal_strength: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="NEUTRAL"
-    )
-    divergence_flag: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
+    signal_strength: Mapped[str] = mapped_column(String(20), nullable=False, default="NEUTRAL")
+    divergence_flag: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     report_date: Mapped[date] = mapped_column(Date, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

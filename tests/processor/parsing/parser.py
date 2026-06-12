@@ -15,44 +15,46 @@ from engine.shared.exceptions import ProcessorError
 @pytest.fixture
 def valid_llm_json():
     """Minimal valid AnalysisOutput JSON matching the real schema."""
-    return json.dumps({
-        "analysis_id": "test-123",
-        "pair": "EURUSD",
-        "timestamp": "2025-01-01T12:00:00Z",
-        "trading_style": "INTRADAY",
-        "session": "NEW_YORK",
-        "macro_bias": {
-            "base_currency": {"bias": "BULLISH", "evidence": []},
-            "quote_currency": {"bias": "BEARISH", "evidence": []},
-        },
-        "dxy_bias": {"direction": "BEARISH", "evidence": []},
-        "cot_signal": {"summary": "Longs increasing", "extreme_flag": False, "evidence": []},
-        "event_risk": [],
-        "htf_bias": {"structure": "bullish", "key_levels": []},
-        "mtf_bias": {"structure": "bullish", "key_levels": []},
-        "entry_setup": {"type": "OB", "bounds": [1.0, 1.1], "evidence": []},
-        "wyckoff_phase": {"phase": "markup", "evidence": []},
-        "confluence_score": {"score": 8.0, "factors": []},
-        "setup_grade": "A",
-        "direction": "LONG",
-        "entry_zone": {"low": 1.1000, "high": 1.1010},
-        "stop_loss": {"price": 1.0950, "reason": "Below OB", "evidence": []},
-        "take_profits": [
-            {"level": 1.1100, "size_pct": 50, "basis": "HTF resistance"},
-            {"level": 1.1200, "size_pct": 50, "basis": "Liquidity pool"},
-        ],
-        "rr_ratio": 3.0,
-        "confidence": "HIGH",
-        "proceed_to_module_b": "YES",
-        "execution_mode": "LIMIT",
-        "ltf_confirmed": True,
-        "explainable_reasoning": "Strong bullish structure with macro alignment.",
-        "rag_sources": [{"doc_id": "d1", "chunk_id": "c1", "relevance_score": 0.9}],
-        "audit": {
-            "retrieval": {"query_summary": "test", "top_k": 5},
-            "citations": [],
-        },
-    })
+    return json.dumps(
+        {
+            "analysis_id": "test-123",
+            "pair": "EURUSD",
+            "timestamp": "2025-01-01T12:00:00Z",
+            "trading_style": "INTRADAY",
+            "session": "NEW_YORK",
+            "macro_bias": {
+                "base_currency": {"bias": "BULLISH", "evidence": []},
+                "quote_currency": {"bias": "BEARISH", "evidence": []},
+            },
+            "dxy_bias": {"direction": "BEARISH", "evidence": []},
+            "cot_signal": {"summary": "Longs increasing", "extreme_flag": False, "evidence": []},
+            "event_risk": [],
+            "htf_bias": {"structure": "bullish", "key_levels": []},
+            "mtf_bias": {"structure": "bullish", "key_levels": []},
+            "entry_setup": {"type": "OB", "bounds": [1.0, 1.1], "evidence": []},
+            "wyckoff_phase": {"phase": "markup", "evidence": []},
+            "confluence_score": {"score": 8.0, "factors": []},
+            "setup_grade": "A",
+            "direction": "LONG",
+            "entry_zone": {"low": 1.1000, "high": 1.1010},
+            "stop_loss": {"price": 1.0950, "reason": "Below OB", "evidence": []},
+            "take_profits": [
+                {"level": 1.1100, "size_pct": 50, "basis": "HTF resistance"},
+                {"level": 1.1200, "size_pct": 50, "basis": "Liquidity pool"},
+            ],
+            "rr_ratio": 3.0,
+            "confidence": "HIGH",
+            "proceed_to_module_b": "YES",
+            "execution_mode": "LIMIT",
+            "ltf_confirmed": True,
+            "explainable_reasoning": "Strong bullish structure with macro alignment.",
+            "rag_sources": [{"doc_id": "d1", "chunk_id": "c1", "relevance_score": 0.9}],
+            "audit": {
+                "retrieval": {"query_summary": "test", "top_k": 5},
+                "citations": [],
+            },
+        }
+    )
 
 
 class TestParseValidJSON:
@@ -96,7 +98,7 @@ class TestParseErrors:
     def test_non_object_json_raises(self):
         """JSON array instead of object raises ProcessorError."""
         with pytest.raises(ProcessorError):
-            parse_llm_response('[1, 2, 3]')
+            parse_llm_response("[1, 2, 3]")
 
 
 class TestWarnings:

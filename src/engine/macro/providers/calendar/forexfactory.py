@@ -23,12 +23,12 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+from engine.macro.models.provider.calendar import CalendarEvent
+from engine.macro.providers.calendar.base import BaseCalendarProvider
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
 from engine.shared.models.currency import Currency
 from engine.shared.models.events import EventImpact
-from engine.macro.models.provider.calendar import CalendarEvent
-from engine.macro.providers.calendar.base import BaseCalendarProvider
 
 logger = get_logger(__name__)
 
@@ -133,9 +133,7 @@ class ForexFactoryCalendarProvider(BaseCalendarProvider):
         if event_time is None:
             return None
 
-        impact = _IMPACT_MAP.get(
-            str(row.get("impact", "")).strip().lower(), EventImpact.LOW
-        )
+        impact = _IMPACT_MAP.get(str(row.get("impact", "")).strip().lower(), EventImpact.LOW)
         if impact != EventImpact.HIGH:
             return None
 

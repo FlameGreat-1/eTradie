@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 from weakref import WeakSet
 
 from engine.shared.logging import get_logger
@@ -157,7 +157,7 @@ class BackgroundTaskCoordinator:
         try:
             try:
                 await asyncio.wait_for(factory(), timeout=timeout_s)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "background_task_timeout",
                     extra={"key": key, "timeout_seconds": timeout_s},
@@ -207,7 +207,7 @@ class BackgroundTaskCoordinator:
                     asyncio.gather(*tasks, return_exceptions=True),
                     timeout=drain_timeout_s,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "background_task_coordinator_shutdown_drain_timeout",
                     extra={

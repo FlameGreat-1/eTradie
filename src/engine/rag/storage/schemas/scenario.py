@@ -13,9 +13,7 @@ from engine.shared.db.migrations._schema_registry import Base
 class ScenarioRow(Base):
     __tablename__ = "rag_scenarios"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("rag_documents.id", ondelete="CASCADE"),
@@ -29,13 +27,9 @@ class ScenarioRow(Base):
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     explanation_text: Mapped[str] = mapped_column(Text, nullable=False)
     image_refs: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="[]")
-    confluence_tags: Mapped[dict] = mapped_column(
-        JSON, nullable=False, server_default="[]"
-    )
+    confluence_tags: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="[]")
     style_tags: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="[]")
-    linked_chunk_ids: Mapped[dict] = mapped_column(
-        JSON, nullable=False, server_default="[]"
-    )
+    linked_chunk_ids: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="[]")
     meta_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -52,7 +46,5 @@ class ScenarioRow(Base):
         Index("ix_rag_scenarios_direction", "direction"),
         Index("ix_rag_scenarios_outcome", "outcome"),
         Index("ix_rag_scenarios_is_active", "is_active"),
-        Index(
-            "ix_rag_scenarios_fw_setup_dir", "framework", "setup_family", "direction"
-        ),
+        Index("ix_rag_scenarios_fw_setup_dir", "framework", "setup_family", "direction"),
     )

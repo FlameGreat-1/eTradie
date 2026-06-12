@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from engine.rag.constants import ConflictResult, CoverageResult, RetrievalStrategy
 from engine.rag.models.citation import Citation
 from engine.rag.models.context_bundle import ContextBundle

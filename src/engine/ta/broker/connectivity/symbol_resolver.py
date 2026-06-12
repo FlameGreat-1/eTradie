@@ -25,8 +25,8 @@ Audit ref: CHECKLIST Section 2 - 'Symbol mapping consistency layer'.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Optional
 
 from engine.shared.exceptions import ProviderResponseError
 from engine.shared.logging import get_logger
@@ -107,11 +107,7 @@ class SymbolResolver:
                     result="hit_cache",
                 ).inc()
                 # redis client may return bytes or str depending on decode_responses
-                return (
-                    cached.decode("utf-8")
-                    if isinstance(cached, (bytes, bytearray))
-                    else str(cached)
-                )
+                return cached.decode("utf-8") if isinstance(cached, (bytes, bytearray)) else str(cached)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "symbol_resolver_redis_get_failed",

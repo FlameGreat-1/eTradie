@@ -13,9 +13,7 @@ from engine.shared.db.migrations._schema_registry import Base
 class SentimentReadingRow(Base):
     __tablename__ = "sentiment_readings"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     currency: Mapped[str] = mapped_column(String(5), nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     long_percentage: Mapped[float] = mapped_column(Float, nullable=False, default=50.0)

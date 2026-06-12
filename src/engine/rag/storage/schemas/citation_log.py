@@ -13,9 +13,7 @@ from engine.shared.db.migrations._schema_registry import Base
 class AnalysisCitationRow(Base):
     __tablename__ = "rag_analysis_citations"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     retrieval_log_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -37,9 +35,7 @@ class AnalysisCitationRow(Base):
     section: Mapped[str | None] = mapped_column(String(256), nullable=True)
     subsection: Mapped[str | None] = mapped_column(String(256), nullable=True)
     rule_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    scenario_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True
-    )
+    scenario_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     relevance_score: Mapped[float] = mapped_column(Float, nullable=False)
     excerpt: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(

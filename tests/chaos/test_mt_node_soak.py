@@ -15,12 +15,12 @@ Skips when ETRADIE_CHAOS_KUBECONFIG is not set so CI can run it
 selectively. Provisions a real mt-node release via the chart's helm
 template + kubectl apply on the supplied kubeconfig.
 """
+
 from __future__ import annotations
 
 import asyncio
 import os
 import time
-from typing import Any
 
 import pytest
 
@@ -68,14 +68,14 @@ async def test_mt_node_24h_soak(real_cluster_available: bool, soak_duration: int
         await asyncio.sleep(min(60.0, deadline - time.monotonic()))
         m = await _scrape_watchdog(host, port)
 
-        assert m.get("mt_node_ea_mt5_connected", 0) == 1.0, \
+        assert m.get("mt_node_ea_mt5_connected", 0) == 1.0, (
             f"EA disconnected at t={int(time.monotonic() - last_check)}s"
-        assert m.get("mt_node_ea_authenticated", 0) == 1.0, \
-            "EA unauthenticated mid-soak"
-        assert m.get("mt_node_watchdog_in_pod_restarts_total", 0) == 0, \
-            "watchdog had to in-pod restart MT5"
+        )
+        assert m.get("mt_node_ea_authenticated", 0) == 1.0, "EA unauthenticated mid-soak"
+        assert m.get("mt_node_watchdog_in_pod_restarts_total", 0) == 0, "watchdog had to in-pod restart MT5"
 
         rss = m.get("mt_node_mt5_process_rss_bytes", 0)
         growth = (rss - baseline_rss) / max(baseline_rss, 1)
-        assert growth < leak_ceiling, \
+        assert growth < leak_ceiling, (
             f"RSS grew {growth:.2%} from baseline ({baseline_rss:.0f}->{rss:.0f}); leak suspected"
+        )

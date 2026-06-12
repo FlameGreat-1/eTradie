@@ -3,11 +3,9 @@
 Production module: src/engine/macro/providers/registry.py
 """
 
-import pytest
-
 from engine.macro.providers.base import BaseProvider
 from engine.macro.providers.registry import ProviderRegistry
-from engine.shared.models.events import ProviderCategory, ProviderStatus
+from engine.shared.models.events import ProviderCategory
 
 
 class MockProvider(BaseProvider):

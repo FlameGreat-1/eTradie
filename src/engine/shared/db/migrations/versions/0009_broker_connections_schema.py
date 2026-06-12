@@ -18,7 +18,7 @@ Create Date: 2026-03-25
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
@@ -26,9 +26,9 @@ from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0009"
-down_revision: Union[str, None] = "0008"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0008"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -192,22 +192,16 @@ def upgrade() -> None:
             )
 
         if "ea_host" not in existing_columns:
-            op.add_column(
-                table_name, sa.Column("ea_host", sa.String(255), nullable=True)
-            )
+            op.add_column(table_name, sa.Column("ea_host", sa.String(255), nullable=True))
 
         if "ea_port" not in existing_columns:
             op.add_column(table_name, sa.Column("ea_port", sa.Integer, nullable=True))
 
         if "ea_auth_token_encrypted" not in existing_columns:
-            op.add_column(
-                table_name, sa.Column("ea_auth_token_encrypted", sa.Text, nullable=True)
-            )
+            op.add_column(table_name, sa.Column("ea_auth_token_encrypted", sa.Text, nullable=True))
 
         if "metaapi_token_encrypted" not in existing_columns:
-            op.add_column(
-                table_name, sa.Column("metaapi_token_encrypted", sa.Text, nullable=True)
-            )
+            op.add_column(table_name, sa.Column("metaapi_token_encrypted", sa.Text, nullable=True))
 
         if "metaapi_account_id" not in existing_columns:
             op.add_column(
@@ -216,14 +210,10 @@ def upgrade() -> None:
             )
 
         if "mt5_server" not in existing_columns:
-            op.add_column(
-                table_name, sa.Column("mt5_server", sa.String(200), nullable=True)
-            )
+            op.add_column(table_name, sa.Column("mt5_server", sa.String(200), nullable=True))
 
         if "mt5_login" not in existing_columns:
-            op.add_column(
-                table_name, sa.Column("mt5_login", sa.String(50), nullable=True)
-            )
+            op.add_column(table_name, sa.Column("mt5_login", sa.String(50), nullable=True))
 
         if "is_active" not in existing_columns:
             op.add_column(

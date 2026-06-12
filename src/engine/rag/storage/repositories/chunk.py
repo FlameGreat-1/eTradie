@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import delete, select, update
@@ -28,11 +28,7 @@ class ChunkRepository(BaseRepository[ChunkRow]):
         self,
         document_id: UUID,
     ) -> Sequence[ChunkRow]:
-        stmt = (
-            select(self.model)
-            .where(self.model.document_id == document_id)
-            .order_by(self.model.chunk_index.asc())
-        )
+        stmt = select(self.model).where(self.model.document_id == document_id).order_by(self.model.chunk_index.asc())
         return await self.execute_query(stmt)
 
     async def get_pending_embedding(
@@ -55,11 +51,7 @@ class ChunkRepository(BaseRepository[ChunkRow]):
     ) -> None:
         if not chunk_ids:
             return
-        stmt = (
-            update(self.model)
-            .where(self.model.id.in_(chunk_ids))
-            .values(embedding_status=status)
-        )
+        stmt = update(self.model).where(self.model.id.in_(chunk_ids)).values(embedding_status=status)
         await self._session.execute(stmt)
         await self._session.flush()
 
@@ -74,9 +66,7 @@ class ChunkRepository(BaseRepository[ChunkRow]):
         self,
         document_version_id: UUID,
     ) -> int:
-        stmt = delete(self.model).where(
-            self.model.document_version_id == document_version_id
-        )
+        stmt = delete(self.model).where(self.model.document_version_id == document_version_id)
         result = await self._session.execute(stmt)
         await self._session.flush()
         return result.rowcount or 0

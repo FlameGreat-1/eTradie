@@ -24,11 +24,13 @@ client or LLM client, so unit tests can swap both with fakes.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import re
 from dataclasses import dataclass
-from typing import Any, Optional
+from datetime import UTC
+from typing import Any
 
 import httpx
 
@@ -134,17 +136,13 @@ class TradingPlanGenerator:
         self._secret = internal_secret
 
     @classmethod
-    def from_container(cls, container: Any) -> Optional["TradingPlanGenerator"]:
+    def from_container(cls, container: Any) -> TradingPlanGenerator | None:
         """Build a generator using the Container's wired LLM and HTTP
         clients. Returns None when the gateway URL or shared secret
         is missing (local dev / tests); callers MUST handle the None
         case by responding 503 to the dispatch request.
         """
-        base_url = (
-            os.environ.get("ENGINE_GATEWAY_URL")
-            or os.environ.get("GATEWAY_HTTP_URL")
-            or ""
-        ).strip()
+        base_url = (os.environ.get("ENGINE_GATEWAY_URL") or os.environ.get("GATEWAY_HTTP_URL") or "").strip()
         secret = (
             os.environ.get("ENGINE_INTERNAL_SHARED_SECRET")
             or os.environ.get("GATEWAY_ENGINE_INTERNAL_SHARED_SECRET")
@@ -176,10 +174,8 @@ class TradingPlanGenerator:
 
     async def aclose(self) -> None:
         """Close the dedicated callback HTTP client. Safe to re-call."""
-        try:
+        with contextlib.suppress(Exception):
             await self._http.aclose()
-        except Exception:
-            pass
 
     # -- Public entry point -------------------------------------------------
 
@@ -227,9 +223,9 @@ class TradingPlanGenerator:
         # TradingPlanLLMCallDuration accurately on the callback. The
         # gateway falls back to skipping the metric if this field is
         # missing, so deploys mid-flight stay backward-compatible.
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        generation_started_at = datetime.now(timezone.utc).isoformat()
+        generation_started_at = datetime.now(UTC).isoformat()
 
         user_prompt = build_user_prompt(
             profile=req.profile,
@@ -244,13 +240,11 @@ class TradingPlanGenerator:
         # pass allow_platform_fallback=True. The loader still reads
         # the platform DB row first (hot-reloadable via the dashboard)
         # and falls back to env-var config only when no DB row exists.
-        llm_client, dynamic_config = (
-            await self._container.load_llm_client_for_background(
-                req.user_id,
-                role=req.role,
-                tier=req.tier,
-                allow_platform_fallback=True,
-            )
+        llm_client, dynamic_config = await self._container.load_llm_client_for_background(
+            req.user_id,
+            role=req.role,
+            tier=req.tier,
+            allow_platform_fallback=True,
         )
         if llm_client is None or dynamic_config is None:
             # In practice this should not happen for trading-plan
@@ -259,10 +253,7 @@ class TradingPlanGenerator:
             # so a misconfigured deploy (no platform row, no env
             # platform key) surfaces a real message instead of
             # NoneType-attribute crashes downstream.
-            raise TradingPlanGenerationError(
-                "AI service is not configured on the platform; "
-                "please contact support."
-            )
+            raise TradingPlanGenerationError("AI service is not configured on the platform; please contact support.")
 
         model_name = dynamic_config.model_name
         max_output_tokens = max(1, dynamic_config.max_output_tokens)
@@ -299,8 +290,7 @@ class TradingPlanGenerator:
                     },
                 )
                 raise TradingPlanGenerationError(
-                    f"LLM quota reached for your tier ({exc.dimension}); "
-                    f"resets in {exc.retry_after} seconds"
+                    f"LLM quota reached for your tier ({exc.dimension}); resets in {exc.retry_after} seconds"
                 )
 
             # Bounded retry loop for the LLM call. Transient transport
@@ -311,7 +301,7 @@ class TradingPlanGenerator:
             # the held reservation before re-raising so dangling
             # reservations are never left for the janitor.
             response = None
-            last_exc: Optional[Exception] = None
+            last_exc: Exception | None = None
             for attempt in range(_LLM_MAX_ATTEMPTS):
                 try:
                     # use_structured_output=False is required here.
@@ -364,9 +354,7 @@ class TradingPlanGenerator:
                     extra={
                         "user_id": req.user_id,
                         "error": str(last_exc) if last_exc else "unknown",
-                        "error_type": (
-                            type(last_exc).__name__ if last_exc else "unknown"
-                        ),
+                        "error_type": (type(last_exc).__name__ if last_exc else "unknown"),
                         "failure_code": failure.code,
                     },
                 )
@@ -448,16 +436,12 @@ class TradingPlanGenerator:
         def _require_dict(name: str) -> dict[str, Any]:
             v = parsed.get(name)
             if not isinstance(v, dict):
-                raise TradingPlanGenerationError(
-                    f"AI response is missing the '{name}' section"
-                )
+                raise TradingPlanGenerationError(f"AI response is missing the '{name}' section")
             return v
 
         def _require_list(value: Any, name: str) -> list[Any]:
             if not isinstance(value, list):
-                raise TradingPlanGenerationError(
-                    f"AI response section '{name}' is malformed"
-                )
+                raise TradingPlanGenerationError(f"AI response section '{name}' is malformed")
             return value
 
         trader = _require_dict("trader_profile")
@@ -473,9 +457,7 @@ class TradingPlanGenerator:
 
         raw_journal = parsed.get("journal", [])
         if not isinstance(raw_journal, list):
-            raise TradingPlanGenerationError(
-                "AI response section 'journal' is malformed"
-            )
+            raise TradingPlanGenerationError("AI response section 'journal' is malformed")
 
         def _journal_row(src: Any) -> dict[str, str]:
             if not isinstance(src, dict):
@@ -512,9 +494,7 @@ class TradingPlanGenerator:
                 "notes": str(src.get("notes", "")),
             }
 
-        journal: list[dict[str, str]] = [
-            _journal_row(r) for r in raw_journal[:JOURNAL_SEED_ROWS]
-        ]
+        journal: list[dict[str, str]] = [_journal_row(r) for r in raw_journal[:JOURNAL_SEED_ROWS]]
         while len(journal) < JOURNAL_SEED_ROWS:
             journal.append(_journal_row({}))
 
@@ -591,7 +571,7 @@ class TradingPlanGenerator:
             _INTERNAL_USER_ID_HEADER: user_id,
         }
 
-        last_status: Optional[int] = None
+        last_status: int | None = None
         last_body_preview: str = ""
         for attempt in range(_CALLBACK_MAX_ATTEMPTS):
             try:

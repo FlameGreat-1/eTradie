@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from engine.rag.constants import (
-    DocumentType,
     METADATA_KEY_CHUNK_HASH,
     METADATA_KEY_CHUNK_INDEX,
     METADATA_KEY_DIRECTION,
@@ -20,6 +19,7 @@ from engine.rag.constants import (
     METADATA_KEY_SUBSECTION,
     METADATA_KEY_TIMEFRAMES,
     METADATA_KEY_UPDATED_AT,
+    DocumentType,
 )
 from engine.rag.ingest.chunkers.base import RawChunk
 

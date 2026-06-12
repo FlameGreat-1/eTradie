@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from engine.rag.storage.repositories.chunk import ChunkRepository
 from engine.rag.storage.repositories.citation_log import CitationLogRepository

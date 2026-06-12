@@ -17,9 +17,9 @@ All builders enforce:
 Outputs SMCCandidate models for processor consumption.
 """
 
+from engine.ta.smc.builders.amd.candidates import AMDCandidateBuilder
 from engine.ta.smc.builders.continuation import ContinuationBuilder
 from engine.ta.smc.builders.reversal import ReversalBuilder
-from engine.ta.smc.builders.amd.candidates import AMDCandidateBuilder
 
 __all__ = [
     "ContinuationBuilder",

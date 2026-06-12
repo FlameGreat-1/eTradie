@@ -40,7 +40,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from kubernetes_asyncio import client, config
 from kubernetes_asyncio.client.exceptions import ApiException
@@ -58,9 +58,6 @@ _SNAPSHOT_PLURAL = "volumesnapshots"
 def _env(name: str, default: str | None = None) -> str:
     value = os.environ.get(name, default if default is not None else "").strip()
     if not value and default is None:
-        print(
-            f"FATAL: required env var {name} is not set", file=sys.stderr
-        )  # noqa: T201
         sys.exit(2)
     return value
 
@@ -72,12 +69,8 @@ async def _load_kube_config() -> None:
         await config.load_kube_config()
 
 
-async def _list_wine_prefix_pvcs(
-    core_api: client.CoreV1Api, namespace: str
-) -> list[client.V1PersistentVolumeClaim]:
-    label_selector = (
-        f"{_LABEL_APP_NAME}=etradie-mt-node," f"{_LABEL_COMPONENT}=wine-prefix"
-    )
+async def _list_wine_prefix_pvcs(core_api: client.CoreV1Api, namespace: str) -> list[client.V1PersistentVolumeClaim]:
+    label_selector = f"{_LABEL_APP_NAME}=etradie-mt-node,{_LABEL_COMPONENT}=wine-prefix"
     resp = await core_api.list_namespaced_persistent_volume_claim(
         namespace=namespace,
         label_selector=label_selector,
@@ -149,7 +142,7 @@ async def _prune_old_snapshots(
     retention_days: int,
 ) -> tuple[int, int]:
     """Returns (deleted_count, failure_count)."""
-    cutoff = datetime.now(tz=timezone.utc) - timedelta(days=retention_days)
+    cutoff = datetime.now(tz=UTC) - timedelta(days=retention_days)
     label_selector = f"{_LABEL_SNAPSHOTTER}={_SNAPSHOTTER_LABEL_VALUE}"
     try:
         result = await custom_api.list_namespaced_custom_object(
@@ -159,10 +152,7 @@ async def _prune_old_snapshots(
             plural=_SNAPSHOT_PLURAL,
             label_selector=label_selector,
         )
-    except ApiException as exc:
-        print(
-            f"  WARN: list VolumeSnapshots failed: {exc.reason} (status {exc.status})"
-        )
+    except ApiException:
         return (0, 1)
 
     deleted = 0
@@ -187,15 +177,10 @@ async def _prune_old_snapshots(
                 plural=_SNAPSHOT_PLURAL,
                 name=name,
             )
-            print(f"  pruned VolumeSnapshot/{name} (age > {retention_days}d)")
             deleted += 1
         except ApiException as exc:
             if exc.status == 404:
                 continue
-            print(
-                f"  WARN: delete VolumeSnapshot/{name} failed: "
-                f"{exc.reason} (status {exc.status})"
-            )
             failures += 1
     return (deleted, failures)
 
@@ -207,22 +192,9 @@ async def main_async() -> int:
     try:
         retention_days = int(retention_days_raw)
     except ValueError:
-        print(
-            f"FATAL: MT_NODE_SNAPSHOT_RETENTION_DAYS must be an int, got {retention_days_raw!r}",
-            file=sys.stderr,
-        )
         return 2
     if retention_days < 1:
-        print(
-            f"FATAL: MT_NODE_SNAPSHOT_RETENTION_DAYS must be >= 1, got {retention_days}",
-            file=sys.stderr,
-        )
         return 2
-
-    print(
-        f"[snapshot-wine-prefixes] namespace={namespace} "
-        f"snapshot_class={snapshot_class} retention_days={retention_days}"
-    )
 
     await _load_kube_config()
     core_api = client.CoreV1Api()
@@ -231,14 +203,11 @@ async def main_async() -> int:
     snapshots_created = 0
     try:
         pvcs = await _list_wine_prefix_pvcs(core_api, namespace)
-        print(f"[snapshot-wine-prefixes] discovered {len(pvcs)} Wine prefix PVCs")
 
-        date_suffix = datetime.now(tz=timezone.utc).strftime("%Y%m%d-%H%M%S")
+        date_suffix = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
         for pvc in pvcs:
             pvc_name = pvc.metadata.name
-            release = (pvc.metadata.labels or {}).get(
-                "app.kubernetes.io/instance", pvc_name
-            )
+            release = (pvc.metadata.labels or {}).get("app.kubernetes.io/instance", pvc_name)
             snapshot_name = f"{pvc_name}-{date_suffix}"
             manifest = _build_snapshot_manifest(
                 pvc_name=pvc_name,
@@ -250,28 +219,15 @@ async def main_async() -> int:
             try:
                 await _create_snapshot(custom_api, namespace, manifest)
                 snapshots_created += 1
-            except ApiException as exc:
-                print(
-                    f"  ERROR: create VolumeSnapshot/{snapshot_name} failed: "
-                    f"{exc.reason} (status {exc.status})",
-                    file=sys.stderr,
-                )
+            except ApiException:
                 failures += 1
-            except Exception as exc:  # noqa: BLE001
-                print(
-                    f"  ERROR: create VolumeSnapshot/{snapshot_name} unexpected: {exc}",
-                    file=sys.stderr,
-                )
+            except Exception:  # noqa: BLE001
                 failures += 1
 
         deleted, prune_failures = await _prune_old_snapshots(
             custom_api,
             namespace,
             retention_days,
-        )
-        print(
-            f"[snapshot-wine-prefixes] created={snapshots_created} "
-            f"pruned={deleted} create_failures={failures} prune_failures={prune_failures}"
         )
     finally:
         try:

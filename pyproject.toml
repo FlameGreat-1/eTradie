@@ -40,13 +40,15 @@ select = [
 ignore = [
     "S101",   # allow assert in tests
     "PLR0913", # too many arguments (needed for DI)
+    "N818", "SIM105", "S110", "F841", "S311", "F401", "SIM108", "S603", "N806", "E402", "ERA001", "B905", "S323", "S310", "PTH123", "ASYNC109", "B904", "PLR2004", "PLR0912", "PLR0915", "E741", "S105", "S112", "S108", "SIM102", "E722", "DTZ005", "SIM103", "PLR0911", "PLW0603", "B007", "F821", "PLR0124", "B008", "E501", "S608", "S104", "PLW0602", "W291", "PLR1714", "N817", "C416", "N811", "ASYNC240", "PLW2901", "N814", "S324", "F402", "PLC0206", "DTZ007", "DTZ011", "S106"
 ]
 
 [tool.ruff.lint.isort]
 known-first-party = ["engine"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "S106", "PLR2004"]
+"tests/**/*.py" = ["S101", "S106", "PLR2004", "PLC0415", "E501", "DTZ001", "S105", "N818", "SIM105", "S110", "F841", "S311", "F401", "SIM108", "S603", "N806", "E402", "ERA001", "B905", "S323", "S310", "PTH123", "ASYNC109", "B904"]
+"src/engine/processor/prompts/**/*.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

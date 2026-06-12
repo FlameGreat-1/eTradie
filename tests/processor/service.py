@@ -8,8 +8,6 @@ deferred to integration tests. This file tests the import chain and
 configuration wiring.
 """
 
-import pytest
-
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import LLMProvider
 
@@ -18,16 +16,19 @@ class TestProcessorImports:
     def test_service_importable(self):
         """AnalysisProcessor can be imported without side effects."""
         from engine.processor.service import AnalysisProcessor
+
         assert AnalysisProcessor is not None
 
     def test_llm_client_importable(self):
         """LLM client interface can be imported."""
         from engine.processor.llm.client import LLMClient
+
         assert LLMClient is not None
 
     def test_factory_importable(self):
         """LLM factory can be imported."""
         from engine.processor.llm.factory import create_llm_client
+
         assert create_llm_client is not None
 
 

@@ -4,9 +4,9 @@ Uses the locally-installed `helm` binary to render each chart and
 asserts the new Section-6 alerts are present. CI installs helm; local
 dev environments without helm get a clear skip message.
 """
+
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -37,9 +37,7 @@ def _helm_template(chart: str, *, set_args: list[str] | None = None) -> str:
     return out.stdout
 
 
-pytestmark = pytest.mark.skipif(
-    not _helm_available(), reason="helm binary not on PATH"
-)
+pytestmark = pytest.mark.skipif(not _helm_available(), reason="helm binary not on PATH")
 
 
 def test_engine_chart_renders_prometheusrule():
@@ -76,8 +74,8 @@ def test_mt_node_chart_renders_memory_leak_rule():
 
 def test_observability_logs_chart_renders():
     rendered = _helm_template("observability-logs")
-    assert "kind: StatefulSet" in rendered      # Loki STS
-    assert "kind: DaemonSet" in rendered         # Promtail DS
+    assert "kind: StatefulSet" in rendered  # Loki STS
+    assert "kind: DaemonSet" in rendered  # Promtail DS
     assert "loki-config" in rendered or "loki.yaml" in rendered
     assert "promtail.yaml" in rendered
     assert "kind: NetworkPolicy" in rendered

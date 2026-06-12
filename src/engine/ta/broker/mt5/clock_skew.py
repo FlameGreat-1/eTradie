@@ -25,7 +25,7 @@ import threading
 import time as _time
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from engine.shared.exceptions import EAClockSkewError
 from engine.shared.logging import get_logger
@@ -46,7 +46,7 @@ class EAClockSample:
     tick_time: int  # latest tick time on the EA's chart symbol
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "EAClockSample":
+    def from_dict(cls, raw: dict[str, Any]) -> EAClockSample:
         return cls(
             server_time=int(raw.get("server_time", 0) or 0),
             ea_local_time=int(raw.get("ea_local_time", 0) or 0),
@@ -119,7 +119,7 @@ class ClockSkewMonitor:
                 return 0.0
             return statistics.median(self._window)
 
-    def now_compensated(self, engine_now_unix: Optional[float] = None) -> float:
+    def now_compensated(self, engine_now_unix: float | None = None) -> float:
         """Return engine_now minus the current median skew.
 
         TickFreshnessGuard.assert_fresh passes the result of this

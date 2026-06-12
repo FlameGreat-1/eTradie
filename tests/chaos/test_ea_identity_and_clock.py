@@ -6,6 +6,7 @@ shape ZmqClient sends + the EA returns.
 
 Audit ref: CHECKLIST Section 4.
 """
+
 from __future__ import annotations
 
 import time as _time
@@ -25,17 +26,17 @@ from engine.ta.broker.mt5.ea_identity import (
 # EAIdentityVerifier
 # ---------------------------------------------------------------------
 def _snap(**overrides):
-    base = dict(
-        magic_number=20260321,
-        account_login="435112187",
-        account_server="Exness-MT5Trial9",
-        account_company="Exness",
-        account_name="Test User",
-        terminal_build=4200,
-        ea_version="2.10.0",
-        zmq_port=5555,
-        started_at=int(_time.time()),
-    )
+    base = {
+        "magic_number": 20260321,
+        "account_login": "435112187",
+        "account_server": "Exness-MT5Trial9",
+        "account_company": "Exness",
+        "account_name": "Test User",
+        "terminal_build": 4200,
+        "ea_version": "2.10.0",
+        "zmq_port": 5555,
+        "started_at": int(_time.time()),
+    }
     base.update(overrides)
     return EAIdentitySnapshot(**base)
 

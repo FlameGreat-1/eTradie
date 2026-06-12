@@ -46,11 +46,7 @@ class Retriever:
         scenario_outcomes: list[str] | None = None,
     ) -> list[RetrievedChunk]:
         effective_top_k = top_k or self._config.retrieval_top_k
-        effective_threshold = (
-            score_threshold
-            if score_threshold is not None
-            else self._config.retrieval_score_threshold
-        )
+        effective_threshold = score_threshold if score_threshold is not None else self._config.retrieval_score_threshold
 
         start = time.monotonic()
 

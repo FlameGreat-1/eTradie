@@ -156,11 +156,10 @@ class MarkdownLoader(BaseLoader):
                     subsection_buffer = []
                 else:
                     subsection_buffer.append((heading_text, level, []))
+            elif subsection_buffer:
+                subsection_buffer[-1][2].append(line)
             else:
-                if subsection_buffer:
-                    subsection_buffer[-1][2].append(line)
-                else:
-                    current_lines.append(line)
+                current_lines.append(line)
 
         _flush()
         return tuple(sections)

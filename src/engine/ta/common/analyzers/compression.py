@@ -1,5 +1,3 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.constants import Direction
 from engine.ta.models.candle import CandleSequence
@@ -9,7 +7,6 @@ logger = get_logger(__name__)
 
 
 class CompressionAnalyzer:
-
     def __init__(
         self,
         *,
@@ -43,7 +40,7 @@ class CompressionAnalyzer:
         self,
         sequence: CandleSequence,
         start_index: int,
-    ) -> Optional[CompressionEvent]:
+    ) -> CompressionEvent | None:
         candles = sequence.candles
 
         if start_index + self.min_candles > len(candles):
@@ -80,9 +77,7 @@ class CompressionAnalyzer:
                 if range_pips < self.min_range_pips:
                     continue
 
-                direction = self._determine_compression_direction(
-                    candles[start_index : end_index + 1]
-                )
+                direction = self._determine_compression_direction(candles[start_index : end_index + 1])
 
                 return CompressionEvent(
                     symbol=start_candle.symbol,
@@ -108,16 +103,15 @@ class CompressionAnalyzer:
 
         if last_close > first_close:
             return Direction.BULLISH
-        elif last_close < first_close:
+        if last_close < first_close:
             return Direction.BEARISH
-        else:
-            return Direction.NEUTRAL
+        return Direction.NEUTRAL
 
     def detect_breakout(
         self,
         compression: CompressionEvent,
         sequence: CandleSequence,
-    ) -> Optional[Direction]:
+    ) -> Direction | None:
         if compression.end_index is None:
             return None
 
@@ -128,7 +122,7 @@ class CompressionAnalyzer:
 
         if breakout_candle.close > compression.high:
             return Direction.BULLISH
-        elif breakout_candle.close < compression.low:
+        if breakout_candle.close < compression.low:
             return Direction.BEARISH
 
         return None

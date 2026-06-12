@@ -20,12 +20,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from engine.dependencies import Container
 from engine.helpers import _rate_limit
-from engine.processor.constants import MODEL_CATALOG, DEFAULT_MODELS, LLMProvider
+from engine.processor.constants import DEFAULT_MODELS, MODEL_CATALOG, LLMProvider
 from engine.processor.storage.repositories.llm_connection_repository import (
     LLMConnectionRepository,
 )
 from engine.schemas import CreateLLMConnectionRequest, UpdateLLMConnectionRequest
-from engine.shared.auth import AuthenticatedUser, get_current_user, get_admin_user
+from engine.shared.auth import AuthenticatedUser, get_admin_user, get_current_user
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -201,11 +201,7 @@ async def create_llm_connection(
         "model_name": resolved_model,
         "is_active": body.activate,
         "label": body.label or f"{body.provider} / {resolved_model}",
-        "message": (
-            "Connection created and activated."
-            if body.activate
-            else "Connection created."
-        ),
+        "message": ("Connection created and activated." if body.activate else "Connection created."),
     }
 
 
@@ -402,9 +398,7 @@ async def create_platform_llm_connection(
     admin: AuthenticatedUser = Depends(get_admin_user),
 ) -> dict:
     """Create or overwrite the Platform LLM connection."""
-    await _rate_limit(
-        request, "llm_platform_create", max_requests=10, window_seconds=60
-    )
+    await _rate_limit(request, "llm_platform_create", max_requests=10, window_seconds=60)
     container: Container = request.app.state.container
 
     valid_providers = {p.value for p in LLMProvider}

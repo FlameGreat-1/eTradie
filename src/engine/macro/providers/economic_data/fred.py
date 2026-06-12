@@ -13,10 +13,10 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from engine.shared.http import HttpClient
-from engine.shared.logging import get_logger
 from engine.macro.models.provider.economic import EconomicRelease
 from engine.macro.providers.economic_data.base import BaseEconomicDataProvider
+from engine.shared.http import HttpClient
+from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -123,11 +123,7 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
                 if actual is None:
                     continue
 
-                previous = (
-                    self._parse_float(observations[i + 1].get("value"))
-                    if i + 1 < len(observations)
-                    else None
-                )
+                previous = self._parse_float(observations[i + 1].get("value")) if i + 1 < len(observations) else None
 
                 date_str = str(obs.get("date", ""))
                 try:
@@ -158,7 +154,7 @@ class FREDEconomicProvider(BaseEconomicDataProvider):
 
     @staticmethod
     def _parse_float(val: Any) -> float | None:
-        if val is None or val == "" or val == ".":
+        if val is None or val in {"", "."}:
             return None
         try:
             return float(str(val).replace(",", ""))

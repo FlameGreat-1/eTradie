@@ -37,7 +37,6 @@ Responses:
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -81,7 +80,7 @@ _COOLDOWN_S = 60.0
 _TIMEOUT_S = 150.0
 
 
-async def _resolve_generator(container: Container) -> Optional[TradingPlanGenerator]:
+async def _resolve_generator(container: Container) -> TradingPlanGenerator | None:
     """Lazily build (and cache on the container) the generator instance.
 
     The generator depends on the platform LLM client which is built
@@ -149,12 +148,8 @@ async def dispatch_trading_plan_generation(
     # signature minimal and ensures both call sites (HTTP dispatch
     # and any future caller) populate the GenerationRequest the same
     # way.
-    role = (
-        body.role.strip() or request.headers.get("X-User-Role", "").strip() or "etradie"
-    ).lower()
-    tier = (
-        body.tier.strip() or request.headers.get("X-User-Tier", "").strip() or "free"
-    ).lower()
+    role = (body.role.strip() or request.headers.get("X-User-Role", "").strip() or "etradie").lower()
+    tier = (body.tier.strip() or request.headers.get("X-User-Tier", "").strip() or "free").lower()
 
     gen_req = GenerationRequest(
         user_id=body.user_id,

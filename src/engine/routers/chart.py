@@ -55,12 +55,11 @@ router = APIRouter()
 # the persistent broker_symbols table in the background; this cache
 # is only a hot-path shield against repeated DB reads during a single
 # dashboard render.
+import contextlib
 from collections import OrderedDict
 
 _BROKER_SYMBOLS_CACHE_CAPACITY: int = 1024
-_broker_symbols_cache: "OrderedDict[tuple[str, str, str], tuple[dict, float]]" = (
-    OrderedDict()
-)
+_broker_symbols_cache: OrderedDict[tuple[str, str, str], tuple[dict, float]] = OrderedDict()
 
 
 def _broker_symbols_cache_get(
@@ -160,9 +159,7 @@ async def broker_symbols(
                 # Fallback to fast broker call (names only) for initial display
                 try:
                     raw_names = await broker_client.get_all_symbol_names()
-                    symbols = [
-                        {"name": n, "description": n, "path": n} for n in raw_names
-                    ]
+                    symbols = [{"name": n, "description": n, "path": n} for n in raw_names]
                 except Exception:
                     # If even the fallback fails, return an empty list instead of crashing the UI
                     symbols = []
@@ -275,7 +272,7 @@ async def chart_candles(
     revalidate_coord_key = f"revalidate:{cache_key}"
 
     async def _fetch_from_broker(
-        target_tf: "TF",
+        target_tf: TF,
         target_tf_label: str,
         *,
         background: bool,
@@ -315,9 +312,7 @@ async def chart_candles(
 
     async def _store(key: str, payload: dict) -> None:
         try:
-            await container.cache.set_with_meta(
-                "candles", key, payload, ttl_seconds=TOTAL_TTL_S
-            )
+            await container.cache.set_with_meta("candles", key, payload, ttl_seconds=TOTAL_TTL_S)
         except Exception as e:
             logger.warning(
                 "candles_cache_set_failed",
@@ -327,9 +322,7 @@ async def chart_candles(
     async def _refresh_under_lock(*, background: bool) -> dict | None:
         """Acquire the single-flight lock and refresh the cache."""
         token = uuid.uuid4().hex
-        acquired = await container.cache.try_acquire_lock(
-            "candles", lock_key, token, ttl_seconds=LOCK_TTL_S
-        )
+        acquired = await container.cache.try_acquire_lock("candles", lock_key, token, ttl_seconds=LOCK_TTL_S)
         if not acquired:
             return None
         try:
@@ -346,7 +339,7 @@ async def chart_candles(
                 _refresh_under_lock(background=True),
                 timeout=BACKGROUND_FETCH_DEADLINE_S,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "candles_background_revalidate_timeout",
                 extra={
@@ -377,9 +370,7 @@ async def chart_candles(
 
             token = uuid.uuid4().hex
             lk = f"lock:{other_key}"
-            acquired = await container.cache.try_acquire_lock(
-                "candles", lk, token, ttl_seconds=LOCK_TTL_S
-            )
+            acquired = await container.cache.try_acquire_lock("candles", lk, token, ttl_seconds=LOCK_TTL_S)
             if not acquired:
                 continue
             try:
@@ -482,7 +473,7 @@ async def chart_candles(
             asyncio.shield(_refresh_under_lock(background=False)),
             timeout=COLD_FETCH_DEADLINE_S,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         payload = None
     except HTTPException:
         raise
@@ -532,9 +523,7 @@ async def chart_candles(
     )
     raise HTTPException(
         status_code=504,
-        detail=(
-            "Chart data is warming up from the broker. " "Please retry in a moment."
-        ),
+        detail=("Chart data is warming up from the broker. Please retry in a moment."),
     )
 
 
@@ -584,18 +573,14 @@ async def stream_ticks(websocket: WebSocket):
     except WebSocketDisconnect:
         return
     except Exception:
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close(code=4001, reason="Expected init message with symbol")
-        except Exception:
-            pass
         return
 
     symbol = init_msg.get("symbol", "")
     if not symbol:
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close(code=4002, reason="symbol required")
-        except Exception:
-            pass
         return
 
     # Step 3: If upgrade-time auth failed, try the init-frame token.
@@ -607,19 +592,15 @@ async def stream_ticks(websocket: WebSocket):
             user = await verify_token_from_websocket(websocket, init_message=init_msg)
             user_id = user.user_id
         except AuthError as exc:
-            try:
+            with contextlib.suppress(Exception):
                 await websocket.close(code=4003, reason=f"Unauthorized: {exc}")
-            except Exception:
-                pass
             return
 
     container: Container = websocket.app.state.container
     broker_client = await container.load_user_broker(user_id)
     if broker_client is None:
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close(code=4004, reason="No broker connection configured")
-        except Exception:
-            pass
         return
 
     logger.info(
@@ -641,7 +622,7 @@ async def stream_ticks(websocket: WebSocket):
                         "tick_stream_symbol_switch",
                         extra={"user_id": user_id, "new_symbol": symbol},
                     )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass  # No incoming message — continue streaming.
 
             # Fetch the latest tick from the broker.
@@ -680,10 +661,8 @@ async def stream_ticks(websocket: WebSocket):
             "tick_stream_error",
             extra={"user_id": user_id, "symbol": symbol, "error": str(exc)},
         )
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close(code=1011, reason="Internal error")
-        except Exception:
-            pass
 
 
 @router.websocket("/api/broker/stream-positions")
@@ -720,31 +699,23 @@ async def stream_positions(websocket: WebSocket):
         except WebSocketDisconnect:
             return
         except Exception:
-            try:
-                await websocket.close(
-                    code=4001, reason="Expected init message with token"
-                )
-            except Exception:
-                pass
+            with contextlib.suppress(Exception):
+                await websocket.close(code=4001, reason="Expected init message with token")
             return
 
         try:
             user = await verify_token_from_websocket(websocket, init_message=init_msg)
             user_id = user.user_id
         except AuthError as exc:
-            try:
+            with contextlib.suppress(Exception):
                 await websocket.close(code=4003, reason=f"Unauthorized: {exc}")
-            except Exception:
-                pass
             return
 
     container: Container = websocket.app.state.container
     broker_client = await container.load_user_broker(user_id)
     if broker_client is None:
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close(code=4004, reason="No broker connection configured")
-        except Exception:
-            pass
         return
 
     logger.info("position_stream_connected", extra={"user_id": user_id})
@@ -757,15 +728,13 @@ async def stream_positions(websocket: WebSocket):
             # Check for client disconnect
             try:
                 _ = await asyncio.wait_for(websocket.receive_text(), timeout=1.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass  # normal timeout, continue polling
             except WebSocketDisconnect:
                 break
 
             try:
-                positions = await asyncio.wait_for(
-                    broker_client.get_positions(), timeout=2.0
-                )
+                positions = await asyncio.wait_for(broker_client.get_positions(), timeout=2.0)
 
                 # Serialize
                 result = [
@@ -784,9 +753,7 @@ async def stream_positions(websocket: WebSocket):
                 ]
 
                 # Check for diff
-                current_hash = hashlib.md5(
-                    json.dumps(result, sort_keys=True).encode()
-                ).hexdigest()
+                current_hash = hashlib.md5(json.dumps(result, sort_keys=True).encode()).hexdigest()
                 if current_hash != last_state_hash:
                     await websocket.send_json(result)
                     last_state_hash = current_hash
@@ -801,12 +768,8 @@ async def stream_positions(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     except Exception as exc:
-        logger.error(
-            "position_stream_error", extra={"error": str(exc), "user_id": user_id}
-        )
-        try:
+        logger.error("position_stream_error", extra={"error": str(exc), "user_id": user_id})
+        with contextlib.suppress(Exception):
             await websocket.close(code=1011, reason="Internal error")
-        except Exception:
-            pass
     finally:
         logger.info("position_stream_disconnected", extra={"user_id": user_id})

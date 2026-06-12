@@ -1,4 +1,4 @@
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from engine.shared.logging import get_logger
 from engine.ta.common.utils.price.math import is_within_tolerance
@@ -10,7 +10,6 @@ logger = get_logger(__name__)
 
 
 class SwingAnalyzer:
-
     # Timeframe-adaptive bar requirements for higher timeframes.
     #
     # HTFs (D1, W1, MN1) naturally have far fewer candles per
@@ -112,9 +111,7 @@ class SwingAnalyzer:
                     left_bars=effective_left,
                     right_bars=effective_right,
                     is_equal_high=is_equal,
-                    equal_high_tolerance_pips=(
-                        self.equal_tolerance_pips if is_equal else None
-                    ),
+                    equal_high_tolerance_pips=(self.equal_tolerance_pips if is_equal else None),
                 )
 
                 swing_highs.append(swing_high)
@@ -162,9 +159,7 @@ class SwingAnalyzer:
                     left_bars=effective_left,
                     right_bars=effective_right,
                     is_equal_low=is_equal,
-                    equal_low_tolerance_pips=(
-                        self.equal_tolerance_pips if is_equal else None
-                    ),
+                    equal_low_tolerance_pips=(self.equal_tolerance_pips if is_equal else None),
                 )
 
                 swing_lows.append(swing_low)
@@ -190,18 +185,14 @@ class SwingAnalyzer:
 
         left_count = 0
         for i in range(index - 1, -1, -1):
-            if is_high and candles[i].high <= current.high:
-                left_count += 1
-            elif not is_high and candles[i].low >= current.low:
+            if is_high and candles[i].high <= current.high or not is_high and candles[i].low >= current.low:
                 left_count += 1
             else:
                 break
 
         right_count = 0
         for i in range(index + 1, len(candles)):
-            if is_high and candles[i].high <= current.high:
-                right_count += 1
-            elif not is_high and candles[i].low >= current.low:
+            if is_high and candles[i].high <= current.high or not is_high and candles[i].low >= current.low:
                 right_count += 1
             else:
                 break
@@ -210,16 +201,15 @@ class SwingAnalyzer:
 
         if total_dominated < 14:
             return 3  # Extremely minor
-        elif total_dominated < 20:
+        if total_dominated < 20:
             return 5  # Minor internal
-        elif total_dominated < 30:
+        if total_dominated < 30:
             return 7  # Intermediate
-        elif total_dominated < 40:
+        if total_dominated < 40:
             return 8  # Standard structural (CHOCH max cutoff)
-        elif total_dominated < 50:
+        if total_dominated < 50:
             return 9  # Strong structural
-        else:
-            return 10  # Major macro structural pivot
+        return 10  # Major macro structural pivot
 
     def _check_equal_high(
         self,
@@ -230,9 +220,7 @@ class SwingAnalyzer:
         if not existing_highs:
             return False
 
-        recent_highs = (
-            existing_highs[-5:] if len(existing_highs) > 5 else existing_highs
-        )
+        recent_highs = existing_highs[-5:] if len(existing_highs) > 5 else existing_highs
 
         for swing_high in recent_highs:
             if is_within_tolerance(
@@ -270,7 +258,7 @@ class SwingAnalyzer:
     def get_latest_swing_high(
         self,
         swing_highs: list[SwingHigh],
-    ) -> Optional[SwingHigh]:
+    ) -> SwingHigh | None:
         if not swing_highs:
             return None
         return max(swing_highs, key=lambda x: x.timestamp)
@@ -278,7 +266,7 @@ class SwingAnalyzer:
     def get_latest_swing_low(
         self,
         swing_lows: list[SwingLow],
-    ) -> Optional[SwingLow]:
+    ) -> SwingLow | None:
         if not swing_lows:
             return None
         return max(swing_lows, key=lambda x: x.timestamp)
@@ -286,7 +274,7 @@ class SwingAnalyzer:
     def get_highest_swing_high(
         self,
         swing_highs: list[SwingHigh],
-    ) -> Optional[SwingHigh]:
+    ) -> SwingHigh | None:
         if not swing_highs:
             return None
         return max(swing_highs, key=lambda x: x.price)
@@ -294,7 +282,7 @@ class SwingAnalyzer:
     def get_lowest_swing_low(
         self,
         swing_lows: list[SwingLow],
-    ) -> Optional[SwingLow]:
+    ) -> SwingLow | None:
         if not swing_lows:
             return None
         return min(swing_lows, key=lambda x: x.price)

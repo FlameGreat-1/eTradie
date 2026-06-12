@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from engine.macro.providers.base import BaseProvider
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import ACTIVE_PROVIDERS
 from engine.shared.models.events import ProviderCategory, ProviderStatus
-from engine.macro.providers.base import BaseProvider
 
 logger = get_logger(__name__)
 
@@ -27,11 +27,7 @@ class ProviderRegistry:
         return self._providers.get(name)
 
     def get_by_category(self, category: ProviderCategory) -> list[BaseProvider]:
-        return [
-            p
-            for p in self._providers.values()
-            if p.category == category and p.provider_name not in self._disabled
-        ]
+        return [p for p in self._providers.values() if p.category == category and p.provider_name not in self._disabled]
 
     def disable(self, name: str) -> None:
         self._disabled.add(name)
@@ -53,8 +49,7 @@ class ProviderRegistry:
             active = sum(
                 1
                 for name, status in results.items()
-                if self._providers[name].category == category
-                and status == ProviderStatus.HEALTHY
+                if self._providers[name].category == category and status == ProviderStatus.HEALTHY
             )
             ACTIVE_PROVIDERS.labels(category=category.value).set(active)
 

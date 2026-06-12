@@ -113,7 +113,8 @@ class TestRangeMarket:
 
 def _make_swing_seq(symbol="EURUSD", invert=False):
     """Creates a sequence with a guaranteed peak (or valley if invert=True)."""
-    from tests.factories import make_candle, CandleSequence
+    from tests.factories import CandleSequence, make_candle
+
     candles = []
     base = datetime.now(UTC)
     for i in range(21):
@@ -122,15 +123,17 @@ def _make_swing_seq(symbol="EURUSD", invert=False):
         price = 1.1000 - (dist * 0.0010)
         if invert:
             price = 2.0 - price
-        
-        candles.append(make_candle(
-            timestamp=base + timedelta(hours=i),
-            open=price - 0.0002,
-            high=price + 0.0002,
-            low=price - 0.0004,
-            close=price - 0.0001,
-            symbol=symbol
-        ))
+
+        candles.append(
+            make_candle(
+                timestamp=base + timedelta(hours=i),
+                open=price - 0.0002,
+                high=price + 0.0002,
+                low=price - 0.0004,
+                close=price - 0.0001,
+                symbol=symbol,
+            )
+        )
     return CandleSequence(symbol=symbol, timeframe=Timeframe.H1, candles=candles)
 
 

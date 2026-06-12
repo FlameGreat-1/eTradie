@@ -47,7 +47,6 @@ SMCDetector, and no side effects.  It can be exercised in isolation.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from engine.shared.exceptions import ConfigurationError
 from engine.shared.logging import get_logger
@@ -73,12 +72,12 @@ def _build(
     *,
     symbol: str,
     timeframe: Timeframe,
-    swing_high: Optional[float],
-    swing_low: Optional[float],
-    swing_high_timestamp: Optional[datetime],
-    swing_low_timestamp: Optional[datetime],
+    swing_high: float | None,
+    swing_low: float | None,
+    swing_high_timestamp: datetime | None,
+    swing_low_timestamp: datetime | None,
     is_bullish: bool,
-) -> Optional[FibonacciRetracement]:
+) -> FibonacciRetracement | None:
     """Construct a FibonacciRetracement from resolved endpoints.
 
     Returns None (never raises) when any endpoint is missing or the
@@ -124,9 +123,9 @@ def select_leg_for_sh_bms_rto(
     symbol: str,
     timeframe: Timeframe,
     htf_bms: BreakInMarketStructure,
-    sweep: Optional[LiquiditySweep],
+    sweep: LiquiditySweep | None,
     is_bullish: bool,
-) -> Optional[FibonacciRetracement]:
+) -> FibonacciRetracement | None:
     """Leg for SH + BMS + RTO (Patterns 2 / 7).
 
     The impulse starts at the liquidity sweep (SSL for bullish,
@@ -172,7 +171,7 @@ def select_leg_for_sms_bms_rto(
     htf_sms: ShiftInMarketStructure,
     ltf_bms: BreakInMarketStructure,
     is_bullish: bool,
-) -> Optional[FibonacciRetracement]:
+) -> FibonacciRetracement | None:
     """Leg for SMS + BMS + RTO (Patterns 3 / 8).
 
     The impulse is anchored by the SMS failure level (the swing that
@@ -207,7 +206,7 @@ def select_leg_for_choch_bms_rto(
     timeframe: Timeframe,
     htf_choch: ChangeOfCharacter,
     is_bullish: bool,
-) -> Optional[FibonacciRetracement]:
+) -> FibonacciRetracement | None:
     """Leg for CHOCH + BMS + RTO.
 
     CHoCH is the earliest reversal signal per SMC-CHOCH-001/002.  Its
@@ -241,13 +240,13 @@ def select_leg_for_amd(
     *,
     symbol: str,
     timeframe: Timeframe,
-    asian_range_high: Optional[float],
-    asian_range_low: Optional[float],
-    asian_range_start: Optional[datetime],
-    asian_range_end: Optional[datetime],
+    asian_range_high: float | None,
+    asian_range_low: float | None,
+    asian_range_start: datetime | None,
+    asian_range_end: datetime | None,
     ltf_bms: BreakInMarketStructure,
     is_bullish: bool,
-) -> Optional[FibonacciRetracement]:
+) -> FibonacciRetracement | None:
     """Leg for the AMD Distribution phase (Patterns 4 / 9).
 
     During the manipulation phase price sweeps the Asian range on the
@@ -300,7 +299,7 @@ def select_leg_for_turtle_soup_long(
     timeframe: Timeframe,
     sweep: LiquiditySweep,
     swing_highs: list[SwingHigh],
-) -> Optional[FibonacciRetracement]:
+) -> FibonacciRetracement | None:
     """Leg for TURTLE_SOUP_LONG (Pattern 6).
 
     The sweep takes an SSL below a prior structural low; the relevant
@@ -337,7 +336,7 @@ def select_leg_for_turtle_soup_short(
     timeframe: Timeframe,
     sweep: LiquiditySweep,
     swing_lows: list[SwingLow],
-) -> Optional[FibonacciRetracement]:
+) -> FibonacciRetracement | None:
     """Leg for TURTLE_SOUP_SHORT (Pattern 1).
 
     Symmetric to ``select_leg_for_turtle_soup_long``.  Anchors the

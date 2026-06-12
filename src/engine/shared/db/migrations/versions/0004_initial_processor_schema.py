@@ -7,16 +7,16 @@ Create Date: 2026-03-14
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0004"
-down_revision: Union[str, None] = "0003"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0003"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -58,9 +58,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
-    op.create_index(
-        "ix_ao_analysis_id", "analysis_outputs", ["analysis_id"], unique=True
-    )
+    op.create_index("ix_ao_analysis_id", "analysis_outputs", ["analysis_id"], unique=True)
     op.create_index("ix_ao_pair", "analysis_outputs", ["pair"])
     op.create_index("ix_ao_direction", "analysis_outputs", ["direction"])
     op.create_index("ix_ao_setup_grade", "analysis_outputs", ["setup_grade"])
@@ -81,25 +79,13 @@ def upgrade() -> None:
         sa.Column("analysis_id", sa.String(128), nullable=False),
         sa.Column("pair", sa.String(20), nullable=False),
         sa.Column("timestamp", sa.DateTime(timezone=True), nullable=False),
-        sa.Column(
-            "retrieval_query_summary", sa.Text, nullable=False, server_default=""
-        ),
+        sa.Column("retrieval_query_summary", sa.Text, nullable=False, server_default=""),
         sa.Column("retrieval_strategy", sa.String(32), nullable=True),
-        sa.Column(
-            "retrieval_chunks_count", sa.Integer, nullable=False, server_default="0"
-        ),
-        sa.Column(
-            "retrieval_coverage", sa.Boolean, nullable=False, server_default="false"
-        ),
-        sa.Column(
-            "retrieval_coverage_details", sa.Text, nullable=False, server_default=""
-        ),
-        sa.Column(
-            "retrieval_conflicts", sa.Boolean, nullable=False, server_default="false"
-        ),
-        sa.Column(
-            "retrieval_conflict_details", sa.Text, nullable=False, server_default=""
-        ),
+        sa.Column("retrieval_chunks_count", sa.Integer, nullable=False, server_default="0"),
+        sa.Column("retrieval_coverage", sa.Boolean, nullable=False, server_default="false"),
+        sa.Column("retrieval_coverage_details", sa.Text, nullable=False, server_default=""),
+        sa.Column("retrieval_conflicts", sa.Boolean, nullable=False, server_default="false"),
+        sa.Column("retrieval_conflict_details", sa.Text, nullable=False, server_default=""),
         sa.Column("llm_model", sa.String(64), nullable=False, server_default=""),
         sa.Column("llm_prompt_hash", sa.String(64), nullable=False, server_default=""),
         sa.Column("llm_input_tokens", sa.Integer, nullable=False, server_default="0"),
@@ -111,12 +97,8 @@ def upgrade() -> None:
         sa.Column("final_grade", sa.String(10), nullable=False, server_default=""),
         sa.Column("final_confidence", sa.String(20), nullable=False, server_default=""),
         sa.Column("final_proceed", sa.String(5), nullable=False, server_default=""),
-        sa.Column(
-            "validation_passed", sa.Boolean, nullable=False, server_default="false"
-        ),
-        sa.Column(
-            "validation_errors", postgresql.JSON, nullable=False, server_default="[]"
-        ),
+        sa.Column("validation_passed", sa.Boolean, nullable=False, server_default="false"),
+        sa.Column("validation_errors", postgresql.JSON, nullable=False, server_default="[]"),
         sa.Column("trace_id", sa.String(64), nullable=True),
         sa.Column(
             "created_at",

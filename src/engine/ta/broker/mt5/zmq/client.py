@@ -18,22 +18,23 @@ from __future__ import annotations
 
 import asyncio
 import time as _time
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import zmq
 import zmq.asyncio as zmq_async
 
 from engine.shared.exceptions import (
-    ProviderDisconnectedError,
     ProviderError,
     ProviderResponseError,
-    ProviderStalePriceError,
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
+    BROKER_INFLIGHT_GATE_REJECTIONS_TOTAL,
+    BROKER_INFLIGHT_GATE_WAIT_SECONDS,
+    BROKER_REQUEST_DEADLINE_EXCEEDED_TOTAL,
     PROVIDER_RESPONSE_SIZE,
     TA_BROKER_ERRORS_TOTAL,
     TA_BROKER_FETCH_DURATION,
@@ -42,10 +43,10 @@ from engine.ta.broker.base import (
     AccountInfo,
     BrokerBase,
     BrokerCapabilities,
+    HistoryDealInfo,
     OrderResult,
     PendingOrderInfo,
     PositionInfo,
-    HistoryDealInfo,
     TickPrice,
 )
 from engine.ta.broker.connectivity import (
@@ -53,11 +54,6 @@ from engine.ta.broker.connectivity import (
     OutboundRateLimiter,
     ReconnectPolicy,
     TickFreshnessGuard,
-)
-from engine.shared.metrics.prometheus import (
-    BROKER_INFLIGHT_GATE_REJECTIONS_TOTAL,
-    BROKER_INFLIGHT_GATE_WAIT_SECONDS,
-    BROKER_REQUEST_DEADLINE_EXCEEDED_TOTAL,
 )
 from engine.ta.broker.mt5.clock_skew import ClockSkewMonitor, EAClockSample
 from engine.ta.broker.mt5.config import MT5Config
@@ -97,12 +93,12 @@ class ZmqClient(BrokerBase):
         config: MT5Config,
         auth_token: str = "",
         *,
-        freshness_guard: Optional[TickFreshnessGuard] = None,
-        reconnect_policy: Optional[ReconnectPolicy] = None,
-        identity_verifier: Optional[EAIdentityVerifier] = None,
-        expected_identity: Optional[ExpectedEAIdentity] = None,
-        clock_skew_monitor: Optional[ClockSkewMonitor] = None,
-        outbound_limiter: Optional[OutboundRateLimiter] = None,
+        freshness_guard: TickFreshnessGuard | None = None,
+        reconnect_policy: ReconnectPolicy | None = None,
+        identity_verifier: EAIdentityVerifier | None = None,
+        expected_identity: ExpectedEAIdentity | None = None,
+        clock_skew_monitor: ClockSkewMonitor | None = None,
+        outbound_limiter: OutboundRateLimiter | None = None,
         inflight_limit: int = 0,
         outbound_limit_deadline_secs: float = 0.5,
     ) -> None:
@@ -128,14 +124,10 @@ class ZmqClient(BrokerBase):
         # lock+socket pair and must remain unthrottled to keep CANDLES
         # independent of trading throughput).
         self._outbound_limiter = outbound_limiter
-        self._outbound_limit_deadline_secs = max(
-            0.0, float(outbound_limit_deadline_secs)
-        )
+        self._outbound_limit_deadline_secs = max(0.0, float(outbound_limit_deadline_secs))
         self._inflight_limit = max(0, int(inflight_limit))
-        self._inflight_gate: Optional[asyncio.Semaphore] = (
-            asyncio.Semaphore(self._inflight_limit)
-            if self._inflight_limit > 0
-            else None
+        self._inflight_gate: asyncio.Semaphore | None = (
+            asyncio.Semaphore(self._inflight_limit) if self._inflight_limit > 0 else None
         )
         self._endpoint = f"tcp://{config.zmq_host}:{config.zmq_port}"
         # The trading socket carries every command except CANDLES: ticks,
@@ -210,12 +202,8 @@ class ZmqClient(BrokerBase):
         self._ensure_context()
         assert self._ctx is not None
         self._candles_socket = self._ctx.socket(zmq.REQ)
-        self._candles_socket.setsockopt(
-            zmq.RCVTIMEO, self.config.timeout_seconds * 1000
-        )
-        self._candles_socket.setsockopt(
-            zmq.SNDTIMEO, self.config.timeout_seconds * 1000
-        )
+        self._candles_socket.setsockopt(zmq.RCVTIMEO, self.config.timeout_seconds * 1000)
+        self._candles_socket.setsockopt(zmq.SNDTIMEO, self.config.timeout_seconds * 1000)
         self._candles_socket.setsockopt(zmq.LINGER, 0)
         self._candles_socket.connect(self._endpoint)
         self._candles_initialized = True
@@ -224,23 +212,17 @@ class ZmqClient(BrokerBase):
             extra={"endpoint": self._endpoint, "socket": "candles"},
         )
 
-    async def _send_recv_async(
-        self, request: dict[str, Any]
-    ) -> dict[str, Any] | list[Any]:
+    async def _send_recv_async(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
         """Send JSON request and receive JSON response on the trading socket."""
         return await self._send_recv_on(self._socket, request, socket_label="trading")
 
-    async def _send_recv_candles_async(
-        self, request: dict[str, Any]
-    ) -> dict[str, Any] | list[Any]:
+    async def _send_recv_candles_async(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
         """Send JSON request and receive JSON response on the candles socket."""
-        return await self._send_recv_on(
-            self._candles_socket, request, socket_label="candles"
-        )
+        return await self._send_recv_on(self._candles_socket, request, socket_label="candles")
 
     async def _send_recv_on(
         self,
-        sock: "zmq_async.Socket | None",
+        sock: zmq_async.Socket | None,
         request: dict[str, Any],
         *,
         socket_label: str,
@@ -258,7 +240,7 @@ class ZmqClient(BrokerBase):
         try:
             async with asyncio.timeout(self.config.timeout_seconds):
                 await sock.send(payload)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise ProviderTimeoutError(
                 "ZMQ send timed out",
                 details={
@@ -271,7 +253,7 @@ class ZmqClient(BrokerBase):
         try:
             async with asyncio.timeout(self.config.timeout_seconds):
                 raw_reply = await sock.recv()
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise ProviderTimeoutError(
                 "ZMQ recv timed out",
                 details={
@@ -282,10 +264,7 @@ class ZmqClient(BrokerBase):
             )
 
         decoded_reply = raw_reply.decode("utf-8")
-        if not decoded_reply:
-            reply = []
-        else:
-            reply = json.loads(decoded_reply)
+        reply = [] if not decoded_reply else json.loads(decoded_reply)
 
         # Check for EA-level errors.
         if isinstance(reply, dict) and reply.get("error"):
@@ -302,7 +281,7 @@ class ZmqClient(BrokerBase):
         self,
         request: dict[str, Any],
         *,
-        request_deadline_secs: Optional[float] = None,
+        request_deadline_secs: float | None = None,
     ) -> dict[str, Any] | list[Any]:
         """Thread-safe async wrapper around the trading-socket ZMQ call.
 
@@ -317,23 +296,17 @@ class ZmqClient(BrokerBase):
         """
         # 1) Outbound rate limit (per provider/account_id).
         if self._outbound_limiter is not None:
-            await self._outbound_limiter.raise_if_exhausted(
-                deadline_secs=self._outbound_limit_deadline_secs
-            )
+            await self._outbound_limiter.raise_if_exhausted(deadline_secs=self._outbound_limit_deadline_secs)
 
         # 2) In-flight gate. Bounded by request_deadline so a backlog
         # cannot silently build up.
-        gate_deadline = (
-            request_deadline_secs
-            if request_deadline_secs and request_deadline_secs > 0
-            else 5.0
-        )
+        gate_deadline = request_deadline_secs if request_deadline_secs and request_deadline_secs > 0 else 5.0
         if self._inflight_gate is not None:
             gate_start = _time.monotonic()
             try:
                 async with asyncio.timeout(gate_deadline):
                     await self._inflight_gate.acquire()
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 BROKER_INFLIGHT_GATE_REJECTIONS_TOTAL.labels(
                     provider="zmq",
                     account_id=self.account_id,
@@ -346,14 +319,10 @@ class ZmqClient(BrokerBase):
                         "inflight_limit": self._inflight_limit,
                     },
                 )
-            BROKER_INFLIGHT_GATE_WAIT_SECONDS.labels(provider="zmq").observe(
-                _time.monotonic() - gate_start
-            )
+            BROKER_INFLIGHT_GATE_WAIT_SECONDS.labels(provider="zmq").observe(_time.monotonic() - gate_start)
 
         try:
-            return await self._request_inner(
-                request, request_deadline_secs=request_deadline_secs
-            )
+            return await self._request_inner(request, request_deadline_secs=request_deadline_secs)
         finally:
             if self._inflight_gate is not None:
                 self._inflight_gate.release()
@@ -362,7 +331,7 @@ class ZmqClient(BrokerBase):
         self,
         request: dict[str, Any],
         *,
-        request_deadline_secs: Optional[float] = None,
+        request_deadline_secs: float | None = None,
     ) -> dict[str, Any] | list[Any]:
         """Original _request body. Kept as a separate inner method so
         the Section-5 gating wraps it without disturbing the legacy
@@ -380,13 +349,9 @@ class ZmqClient(BrokerBase):
                     "HEALTH",
                 ):
                     try:
-                        await self._send_recv_async(
-                            {"command": "PING", "auth_token": self.auth_token}
-                        )
+                        await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
                     except ProviderResponseError as e:
-                        logger.warning(
-                            "zmq_initial_auth_failed", extra={"error": str(e)}
-                        )
+                        logger.warning("zmq_initial_auth_failed", extra={"error": str(e)})
                 # Section 4 (CHECKLIST): one-shot identity verification on
                 # every fresh authenticated socket. Reset _identity_verified
                 # so a reconnect re-verifies. Skipped for EA_IDENTITY itself
@@ -406,14 +371,10 @@ class ZmqClient(BrokerBase):
                     )
                 ):
                     try:
-                        ident_raw = await self._send_recv_async(
-                            {"command": "EA_IDENTITY"}
-                        )
+                        ident_raw = await self._send_recv_async({"command": "EA_IDENTITY"})
                         if isinstance(ident_raw, dict):
                             snapshot = EAIdentitySnapshot.from_dict(ident_raw)
-                            self._identity_verifier.verify(
-                                snapshot, self._expected_identity
-                            )
+                            self._identity_verifier.verify(snapshot, self._expected_identity)
                             self._identity_verified = True
                     except ProviderResponseError:
                         # Old EA build does not understand EA_IDENTITY -
@@ -432,7 +393,7 @@ class ZmqClient(BrokerBase):
                         async with asyncio.timeout(request_deadline_secs):
                             return await self._send_recv_async(request)
                     return await self._send_recv_async(request)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     BROKER_REQUEST_DEADLINE_EXCEEDED_TOTAL.labels(
                         provider="zmq",
                         account_id=self.account_id,
@@ -448,9 +409,7 @@ class ZmqClient(BrokerBase):
                     # Re-auth inline if the EA was restarted (ZMQ socket is stateless, so EA forgets us)
                     if "Not authenticated" in str(e):
                         try:
-                            await self._send_recv_async(
-                                {"command": "PING", "auth_token": self.auth_token}
-                            )
+                            await self._send_recv_async({"command": "PING", "auth_token": self.auth_token})
                         except ProviderResponseError as ping_e:
                             raise ping_e from e
 
@@ -466,9 +425,7 @@ class ZmqClient(BrokerBase):
                 # the request, FastAPI raises CancelledError. We MUST destroy the ZMQ
                 # socket because it is still waiting for a reply from MT5. Leaving it
                 # open poisons the REQ/REP sequence for the next caller.
-                logger.warning(
-                    "zmq_request_cancelled_resetting", extra={"error": str(e)}
-                )
+                logger.warning("zmq_request_cancelled_resetting", extra={"error": str(e)})
                 if self._socket:
                     self._socket.close(linger=0)
                     self._socket = None
@@ -487,9 +444,7 @@ class ZmqClient(BrokerBase):
                 self._identity_verified = False
                 raise
 
-    async def _request_candles(
-        self, request: dict[str, Any]
-    ) -> dict[str, Any] | list[Any]:
+    async def _request_candles(self, request: dict[str, Any]) -> dict[str, Any] | list[Any]:
         """Thread-safe async wrapper around the candles-socket ZMQ call.
 
         Mirrors _request() but operates on the dedicated candles socket so a
@@ -507,9 +462,7 @@ class ZmqClient(BrokerBase):
                 # Each ZMQ socket is independently authenticated by the EA.
                 if not was_initialized:
                     try:
-                        await self._send_recv_candles_async(
-                            {"command": "PING", "auth_token": self.auth_token}
-                        )
+                        await self._send_recv_candles_async({"command": "PING", "auth_token": self.auth_token})
                     except ProviderResponseError as e:
                         logger.warning(
                             "zmq_candles_initial_auth_failed",
@@ -521,9 +474,7 @@ class ZmqClient(BrokerBase):
                 except ProviderResponseError as e:
                     if "Not authenticated" in str(e):
                         try:
-                            await self._send_recv_candles_async(
-                                {"command": "PING", "auth_token": self.auth_token}
-                            )
+                            await self._send_recv_candles_async({"command": "PING", "auth_token": self.auth_token})
                         except ProviderResponseError as ping_e:
                             raise ping_e from e
                         return await self._send_recv_candles_async(request)
@@ -568,9 +519,9 @@ class ZmqClient(BrokerBase):
         self,
         symbol: str,
         timeframe: Timeframe,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        count: Optional[int] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        count: int | None = None,
     ) -> CandleSequence:
         if start_time and end_time:
             self.validator.validate_time_range(start_time, end_time)
@@ -778,9 +729,7 @@ class ZmqClient(BrokerBase):
 
     async def health_check(self) -> bool:
         try:
-            reply = await self._request(
-                {"command": "PING", "auth_token": self.auth_token}
-            )
+            reply = await self._request({"command": "PING", "auth_token": self.auth_token})
             if isinstance(reply, dict):
                 return reply.get("status") == "ok"
             return False
@@ -1061,11 +1010,7 @@ class ZmqClient(BrokerBase):
                 uptime_seconds=float(raw.get("uptime_seconds") or 0.0),
                 raw=raw,
                 error_type="" if ok else "DisconnectedFromBroker",
-                error_message=(
-                    ""
-                    if ok
-                    else f"mt5_connected={broker_connected} authenticated={authenticated}"
-                ),
+                error_message=("" if ok else f"mt5_connected={broker_connected} authenticated={authenticated}"),
             )
         except Exception as exc:  # noqa: BLE001
             return HeartbeatResult(
@@ -1112,9 +1057,7 @@ class ZmqClient(BrokerBase):
         if not isinstance(raw, dict):
             raw = {}
 
-        status = raw.get(
-            "status", "FILLED" if order_type.upper() == "MARKET" else "PLACED"
-        )
+        status = raw.get("status", "FILLED" if order_type.upper() == "MARKET" else "PLACED")
 
         logger.info(
             "zmq_order_placed",
@@ -1298,7 +1241,7 @@ class ZmqClient(BrokerBase):
                 continue
 
             if isinstance(ts_raw, (int, float)):
-                ts = datetime.fromtimestamp(ts_raw, tz=timezone.utc)
+                ts = datetime.fromtimestamp(ts_raw, tz=UTC)
             elif isinstance(ts_raw, str):
                 ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
             else:

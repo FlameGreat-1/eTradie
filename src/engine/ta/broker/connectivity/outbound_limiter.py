@@ -23,7 +23,6 @@ from __future__ import annotations
 import asyncio
 import time as _time
 from dataclasses import dataclass
-from typing import Optional
 
 from engine.shared.exceptions import OutboundRateLimitExceededError
 from engine.shared.logging import get_logger
@@ -105,7 +104,7 @@ class OutboundRateLimiter:
         self,
         *,
         weight: int = 1,
-        deadline_secs: Optional[float] = None,
+        deadline_secs: float | None = None,
     ) -> _LimitDecision:
         """Blocking acquire. Waits up to ``deadline_secs`` for a token.
 
@@ -176,7 +175,7 @@ class OutboundRateLimiter:
         self,
         *,
         weight: int = 1,
-        deadline_secs: Optional[float] = None,
+        deadline_secs: float | None = None,
     ) -> None:
         """Convenience: acquire-or-raise.
 

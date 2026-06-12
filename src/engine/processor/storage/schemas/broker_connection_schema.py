@@ -17,7 +17,6 @@ Follows the exact same pattern as LLMConnectionRow.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Boolean, DateTime, Integer, SmallInteger, String, Text
@@ -69,15 +68,15 @@ class BrokerConnectionRow(ProcessorBase):
     )
 
     # -- EA (ZeroMQ) credentials -----------------------------------------------
-    ea_host: Mapped[Optional[str]] = mapped_column(
+    ea_host: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
     )
-    ea_port: Mapped[Optional[int]] = mapped_column(
+    ea_port: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
-    ea_auth_token_encrypted: Mapped[Optional[str]] = mapped_column(
+    ea_auth_token_encrypted: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
@@ -88,11 +87,11 @@ class BrokerConnectionRow(ProcessorBase):
     # var and is fetched from there at request time by the broker
     # factory. Each user only stores the cloud account_id provisioned
     # by MetaApiProvisioner from their MT5 broker credentials.
-    metaapi_account_id: Mapped[Optional[str]] = mapped_column(
+    metaapi_account_id: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
     )
-    metaapi_region: Mapped[Optional[str]] = mapped_column(
+    metaapi_region: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
     )
@@ -101,21 +100,21 @@ class BrokerConnectionRow(ProcessorBase):
     # The Docker container ID spawned by the HostedProvisioner for this
     # user's hosted connection. Used to stop/remove the container on
     # deletion and to resolve the container's internal IP for ZeroMQ.
-    hosted_container_id: Mapped[Optional[str]] = mapped_column(
+    hosted_container_id: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
     )
 
     # -- MT5 account info (common to both types) ------------------------------
-    mt5_server: Mapped[Optional[str]] = mapped_column(
+    mt5_server: Mapped[str | None] = mapped_column(
         String(200),
         nullable=True,
     )
-    mt5_login: Mapped[Optional[str]] = mapped_column(
+    mt5_login: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
     )
-    mt5_password_encrypted: Mapped[Optional[str]] = mapped_column(
+    mt5_password_encrypted: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
@@ -125,7 +124,7 @@ class BrokerConnectionRow(ProcessorBase):
     # / unknown version; it is operational metadata only and is never
     # load-bearing for decryption (the shared cipher decrypts legacy
     # tokens regardless). See migration 0033.
-    key_version: Mapped[Optional[int]] = mapped_column(
+    key_version: Mapped[int | None] = mapped_column(
         SmallInteger,
         nullable=True,
     )
@@ -135,7 +134,7 @@ class BrokerConnectionRow(ProcessorBase):
     # catalog from the broker's live Market Watch. NULL until the first
     # successful catalog sync. The full broker catalog lives in the
     # broker_symbols table; this column carries only the chart pick.
-    mt5_symbol: Mapped[Optional[str]] = mapped_column(
+    mt5_symbol: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
     )
@@ -166,7 +165,7 @@ class BrokerConnectionRow(ProcessorBase):
         nullable=False,
         server_default="",
     )
-    last_connected_at: Mapped[Optional[datetime]] = mapped_column(
+    last_connected_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

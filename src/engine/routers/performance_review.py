@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -67,7 +66,7 @@ _TIMEOUT_S = 240.0
 
 async def _resolve_generator(
     container: Container,
-) -> Optional[PerformanceReviewGenerator]:
+) -> PerformanceReviewGenerator | None:
     """Lazily build (and cache on the container) the generator instance.
 
     Same pattern as trading_plan: build under an asyncio.Lock so a
@@ -163,12 +162,8 @@ async def dispatch_performance_review(
 ) -> dict:
     container: Container = request.app.state.container
 
-    role = (
-        body.role.strip() or request.headers.get("X-User-Role", "").strip() or "etradie"
-    ).lower()
-    tier = (
-        body.tier.strip() or request.headers.get("X-User-Tier", "").strip() or "free"
-    ).lower()
+    role = (body.role.strip() or request.headers.get("X-User-Role", "").strip() or "etradie").lower()
+    tier = (body.tier.strip() or request.headers.get("X-User-Tier", "").strip() or "free").lower()
 
     gen_req = GenerationRequest(
         user_id=body.user_id,

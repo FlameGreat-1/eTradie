@@ -4,22 +4,22 @@ import abc
 import asyncio
 import time
 from datetime import UTC, datetime
-from typing import Any, ClassVar, Optional, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from engine.shared.cache import RedisCache
-from engine.shared.db import DatabaseManager
-from engine.shared.logging import get_logger
+from engine.macro.providers.base import BaseProvider
 from engine.macro.storage.repositories.snapshot.snapshot import (
     MacroSnapshotRepository,
 )
+from engine.shared.cache import RedisCache
+from engine.shared.db import DatabaseManager
+from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
     COLLECTOR_ITEMS_STORED,
     COLLECTOR_RUN_DURATION,
     COLLECTOR_RUN_TOTAL,
 )
-from engine.macro.providers.base import BaseProvider
 
 logger = get_logger(__name__)
 T = TypeVar("T")
@@ -58,7 +58,7 @@ class BaseCollector(abc.ABC):
     collector_name: ClassVar[str] = "base"
     cache_namespace: ClassVar[str] = "collector"
     cache_ttl: int = 600
-    cache_model: ClassVar[Optional[type[BaseModel]]] = None
+    cache_model: ClassVar[type[BaseModel] | None] = None
 
     def __init__(
         self,
@@ -73,7 +73,7 @@ class BaseCollector(abc.ABC):
         # so it binds to the correct running event loop. The guard
         # lock below protects concurrent first-use callers from each
         # creating a different Lock instance.
-        self._fetch_lock: Optional[asyncio.Lock] = None
+        self._fetch_lock: asyncio.Lock | None = None
         self._fetch_lock_guard = asyncio.Lock()
 
     async def _get_fetch_lock(self) -> asyncio.Lock:

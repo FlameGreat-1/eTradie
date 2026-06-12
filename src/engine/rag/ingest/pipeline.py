@@ -25,11 +25,11 @@ from engine.rag.ingest.normalizers.scenarios import ScenariosNormalizer
 from engine.rag.ingest.validators.chunk import validate_chunks
 from engine.rag.ingest.validators.document import validate_document
 from engine.rag.ingest.validators.scenario import validate_scenario
-from engine.rag.storage.uow import RAGUnitOfWork, RAGUnitOfWorkFactory
 from engine.rag.storage.schemas.chunk import ChunkRow
 from engine.rag.storage.schemas.document import DocumentRow
 from engine.rag.storage.schemas.document_version import DocumentVersionRow
 from engine.rag.storage.schemas.ingest_job import IngestJobRow
+from engine.rag.storage.uow import RAGUnitOfWork, RAGUnitOfWorkFactory
 from engine.shared.exceptions import RAGIngestError
 from engine.shared.logging import get_logger
 from engine.shared.metrics import (
@@ -104,10 +104,7 @@ class IngestPipeline:
             checksum = self._compute_checksum(loaded.content)
 
             validate_document(loaded, doc_type=doc_type, checksum=checksum)
-            if (
-                doc_type == DocumentType.CHART_SCENARIO_LIBRARY
-                and source_format == SourceFormat.SCENARIO_BUNDLE
-            ):
+            if doc_type == DocumentType.CHART_SCENARIO_LIBRARY and source_format == SourceFormat.SCENARIO_BUNDLE:
                 validate_scenario(loaded)
 
             loaded = self._normalize(loaded, doc_type)
@@ -159,9 +156,7 @@ class IngestPipeline:
 
                 await uow.chunk_repo.delete_by_document_version(version_row.id)
 
-                chunk_rows = await self._persist_chunks(
-                    uow, raw_chunks, doc_row, version_row
-                )
+                chunk_rows = await self._persist_chunks(uow, raw_chunks, doc_row, version_row)
 
                 await uow.ingest_job_repo.mark_completed(
                     job_row.id,
@@ -172,9 +167,7 @@ class IngestPipeline:
             elapsed = time.monotonic() - start
             RAG_INGEST_TOTAL.labels(doc_type=doc_type, status="success").inc()
             RAG_INGEST_DURATION.labels(doc_type=doc_type).observe(elapsed)
-            RAG_CHUNKS_GENERATED.labels(
-                doc_type=doc_type, chunker=type(chunker).__name__
-            ).inc(len(chunk_rows))
+            RAG_CHUNKS_GENERATED.labels(doc_type=doc_type, chunker=type(chunker).__name__).inc(len(chunk_rows))
 
             logger.info(
                 "ingest_completed",
@@ -223,10 +216,7 @@ class IngestPipeline:
         return RulebookChunker(**kwargs)
 
     def _normalize(self, doc: LoadedDocument, doc_type: str) -> LoadedDocument:
-        if (
-            doc_type == DocumentType.CHART_SCENARIO_LIBRARY
-            and doc.source_format == SourceFormat.SCENARIO_BUNDLE
-        ):
+        if doc_type == DocumentType.CHART_SCENARIO_LIBRARY and doc.source_format == SourceFormat.SCENARIO_BUNDLE:
             return self._scenarios_normalizer.normalize(doc)
         if doc_type in _MACRO_DOC_TYPES:
             return self._macro_normalizer.normalize(doc)
@@ -256,22 +246,16 @@ class IngestPipeline:
             framework_tags.append(fm_framework.lower())
         fm_tags = loaded.raw_metadata.get("framework_tags", "")
         if isinstance(fm_tags, str) and fm_tags:
-            framework_tags.extend(
-                t.strip().lower() for t in fm_tags.split(",") if t.strip()
-            )
+            framework_tags.extend(t.strip().lower() for t in fm_tags.split(",") if t.strip())
         elif isinstance(fm_tags, list):
-            framework_tags.extend(
-                str(t).strip().lower() for t in fm_tags if str(t).strip()
-            )
+            framework_tags.extend(str(t).strip().lower() for t in fm_tags if str(t).strip())
 
         # Preserve frontmatter doc_id as document-level metadata
         doc_metadata: dict[str, str] = {}
         fm_doc_id = loaded.raw_metadata.get("doc_id", "")
         if fm_doc_id:
             doc_metadata["canonical_doc_id"] = fm_doc_id
-        fm_version = loaded.raw_metadata.get(
-            "version", loaded.raw_metadata.get("doc_version", "")
-        )
+        fm_version = loaded.raw_metadata.get("version", loaded.raw_metadata.get("doc_version", ""))
         if fm_version:
             doc_metadata["source_version"] = fm_version
 

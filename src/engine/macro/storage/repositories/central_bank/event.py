@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Sequence
 
 from sqlalchemy import select
 
-from engine.shared.db.repositories.base_repository import BaseRepository
 from engine.macro.storage.schemas.central_bank import CentralBankEventRow
+from engine.shared.db.repositories.base_repository import BaseRepository
 
 
 class CentralBankRepository(BaseRepository[CentralBankEventRow]):

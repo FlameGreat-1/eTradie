@@ -25,9 +25,7 @@ class TestDeriveMacroSignalsPopulated:
     def test_central_bank_with_rate_decision(self):
         macro = {
             "central_bank": {
-                "rate_decisions": [
-                    {"bank": "FED", "tone": "HAWKISH", "rate_change_bps": 25}
-                ],
+                "rate_decisions": [{"bank": "FED", "tone": "HAWKISH", "rate_change_bps": 25}],
             },
         }
         signals = derive_macro_signals(macro)

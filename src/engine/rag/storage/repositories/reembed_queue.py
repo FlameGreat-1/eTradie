@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Sequence
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -30,17 +30,11 @@ class ReembedQueueRepository(BaseRepository[ReembedQueueRow]):
         self,
         document_id: UUID,
     ) -> Sequence[ReembedQueueRow]:
-        stmt = (
-            select(self.model)
-            .where(self.model.document_id == document_id)
-            .order_by(self.model.created_at.desc())
-        )
+        stmt = select(self.model).where(self.model.document_id == document_id).order_by(self.model.created_at.desc())
         return await self.execute_query(stmt)
 
     async def mark_processing(self, queue_id: UUID) -> None:
-        stmt = (
-            update(self.model).where(self.model.id == queue_id).values(status="running")
-        )
+        stmt = update(self.model).where(self.model.id == queue_id).values(status="running")
         await self._session.execute(stmt)
         await self._session.flush()
 

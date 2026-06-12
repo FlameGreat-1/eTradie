@@ -7,16 +7,16 @@ Create Date: 2026-03-16
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0005"
-down_revision: Union[str, None] = "0004"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0004"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -39,9 +39,7 @@ def upgrade() -> None:
     )
     op.add_column(
         "cot_reports",
-        sa.Column(
-            "asset_manager_short", sa.Integer, nullable=False, server_default="0"
-        ),
+        sa.Column("asset_manager_short", sa.Integer, nullable=False, server_default="0"),
     )
     op.add_column(
         "cot_reports",
@@ -53,24 +51,16 @@ def upgrade() -> None:
     )
     op.add_column(
         "cot_reports",
-        sa.Column(
-            "signal_strength", sa.String(20), nullable=False, server_default="NEUTRAL"
-        ),
+        sa.Column("signal_strength", sa.String(20), nullable=False, server_default="NEUTRAL"),
     )
     op.add_column(
         "cot_reports",
-        sa.Column(
-            "divergence_flag", sa.Boolean, nullable=False, server_default="false"
-        ),
+        sa.Column("divergence_flag", sa.Boolean, nullable=False, server_default="false"),
     )
-    op.create_index(
-        "ix_cot_extreme_flag", "cot_reports", ["extreme_flag", "report_date"]
-    )
+    op.create_index("ix_cot_extreme_flag", "cot_reports", ["extreme_flag", "report_date"])
 
     # -- Inflation type (Gap 5) --
-    op.add_column(
-        "economic_releases", sa.Column("inflation_type", sa.String(10), nullable=True)
-    )
+    op.add_column("economic_releases", sa.Column("inflation_type", sa.String(10), nullable=True))
     op.create_index(
         "ix_econ_inflation_type",
         "economic_releases",
@@ -80,15 +70,11 @@ def upgrade() -> None:
     # -- QE/QT metrics (Gap 7) --
     op.add_column(
         "central_bank_events",
-        sa.Column(
-            "policy_action", sa.String(10), nullable=False, server_default="NONE"
-        ),
+        sa.Column("policy_action", sa.String(10), nullable=False, server_default="NONE"),
     )
     op.add_column(
         "central_bank_events",
-        sa.Column(
-            "balance_sheet_direction", sa.String(20), nullable=False, server_default=""
-        ),
+        sa.Column("balance_sheet_direction", sa.String(20), nullable=False, server_default=""),
     )
     op.create_index(
         "ix_cb_events_policy_action",
@@ -97,16 +83,10 @@ def upgrade() -> None:
     )
 
     # -- Intermarket commodities (Gap 4) --
-    op.add_column(
-        "intermarket_snapshots", sa.Column("iron_ore", sa.Float, nullable=True)
-    )
-    op.add_column(
-        "intermarket_snapshots", sa.Column("dairy_gdt", sa.Float, nullable=True)
-    )
+    op.add_column("intermarket_snapshots", sa.Column("iron_ore", sa.Float, nullable=True))
+    op.add_column("intermarket_snapshots", sa.Column("dairy_gdt", sa.Float, nullable=True))
     op.add_column("intermarket_snapshots", sa.Column("copper", sa.Float, nullable=True))
-    op.add_column(
-        "intermarket_snapshots", sa.Column("natural_gas", sa.Float, nullable=True)
-    )
+    op.add_column("intermarket_snapshots", sa.Column("natural_gas", sa.Float, nullable=True))
 
     # -- DXY momentum and divergence (Gap 3) --
     op.add_column(

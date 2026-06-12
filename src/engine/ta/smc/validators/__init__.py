@@ -12,8 +12,8 @@ Validators enforce:
 No candidate is generated unless all validation rules pass.
 """
 
-from engine.ta.smc.validators.zone.validator import ZoneValidator
 from engine.ta.smc.validators.ltf.confirmation import LTFConfirmationValidator
+from engine.ta.smc.validators.zone.validator import ZoneValidator
 
 __all__ = [
     "ZoneValidator",

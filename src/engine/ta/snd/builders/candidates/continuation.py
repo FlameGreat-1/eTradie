@@ -1,9 +1,15 @@
+import datetime
 from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
-from engine.ta.constants import Direction, CandidatePattern
+from engine.ta.constants import (
+    FIBONACCI_VALUES,
+    OTE_LEVELS,
+    CandidatePattern,
+    Direction,
+)
 from engine.ta.models.candidate import SnDCandidate
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
@@ -12,15 +18,8 @@ from engine.ta.snd.builders.levels import compute_trade_levels
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detectors.fakeouts import FakeoutTest
 from engine.ta.snd.detectors.previous_levels import PreviousHighsLows
-from engine.ta.constants import (
-    Direction,
-    CandidatePattern,
-    OTE_LEVELS,
-    FIBONACCI_VALUES,
-)
-from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
 from engine.ta.snd.validators.ltf.confirmation import LTFConfirmationValidator
-import datetime
+from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
 
 logger = get_logger(__name__)
 
@@ -64,10 +63,10 @@ class ContinuationCandidateBuilder:
         qml: QuasiModoLevel,
         sr_flip_level: float,
         fakeout_tests: list[FakeoutTest],
-        breakout_candle_index: Optional[int],
-        previous_highs: Optional[PreviousHighsLows],
-        retracement: Optional[FibonacciRetracement],
-    ) -> Optional[SnDCandidate]:
+        breakout_candle_index: int | None,
+        previous_highs: PreviousHighsLows | None,
+        retracement: FibonacciRetracement | None,
+    ) -> SnDCandidate | None:
         """
         Build bearish continuation candidate.
 
@@ -115,9 +114,7 @@ class ContinuationCandidateBuilder:
         )
 
         # Universal Rule 1: Validate Marubozu on breakout candle
-        marubozu_valid, marubozu_ts = self._validate_marubozu(
-            ltf_sequence, breakout_candle_index, Direction.BEARISH
-        )
+        marubozu_valid, marubozu_ts = self._validate_marubozu(ltf_sequence, breakout_candle_index, Direction.BEARISH)
 
         # Continuation entries sit at the SR flip; no separate structural
         # extreme - the flip level itself is the SL anchor.
@@ -164,12 +161,8 @@ class ContinuationCandidateBuilder:
             marubozu_timestamp=marubozu_ts,
             previous_highs_count=previous_highs.touch_count,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=(
-                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
-            ),
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
-            ),
+            ltf_confirmation_timestamp=(ltf_sequence.candles[-1].timestamp if ltf_confirmed else None),
+            fib_level=(self._get_fib_level(entry_price, retracement) if retracement else None),
             metadata={
                 "confluences": confluences,
                 "pattern_type": "snd_continuation",
@@ -194,10 +187,10 @@ class ContinuationCandidateBuilder:
         qmh: QuasiModoLevel,
         rs_flip_level: float,
         fakeout_tests: list[FakeoutTest],
-        breakout_candle_index: Optional[int],
-        previous_lows: Optional[PreviousHighsLows],
-        retracement: Optional[FibonacciRetracement],
-    ) -> Optional[SnDCandidate]:
+        breakout_candle_index: int | None,
+        previous_lows: PreviousHighsLows | None,
+        retracement: FibonacciRetracement | None,
+    ) -> SnDCandidate | None:
         """
         Build bullish continuation candidate.
 
@@ -245,9 +238,7 @@ class ContinuationCandidateBuilder:
         )
 
         # Universal Rule 1: Validate Marubozu on breakout candle
-        marubozu_valid, marubozu_ts = self._validate_marubozu(
-            ltf_sequence, breakout_candle_index, Direction.BULLISH
-        )
+        marubozu_valid, marubozu_ts = self._validate_marubozu(ltf_sequence, breakout_candle_index, Direction.BULLISH)
 
         # Continuation entries sit at the RS flip; no separate structural
         # extreme - the flip level itself is the SL anchor.
@@ -294,12 +285,8 @@ class ContinuationCandidateBuilder:
             marubozu_timestamp=marubozu_ts,
             previous_lows_count=previous_lows.touch_count,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=(
-                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
-            ),
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
-            ),
+            ltf_confirmation_timestamp=(ltf_sequence.candles[-1].timestamp if ltf_confirmed else None),
+            fib_level=(self._get_fib_level(entry_price, retracement) if retracement else None),
             metadata={
                 "confluences": confluences,
                 "pattern_type": "snd_continuation",
@@ -321,8 +308,8 @@ class ContinuationCandidateBuilder:
         self,
         qm_level: QuasiModoLevel,
         fakeout_tests: list[FakeoutTest],
-        previous_levels: Optional[PreviousHighsLows],
-        retracement: Optional[FibonacciRetracement],
+        previous_levels: PreviousHighsLows | None,
+        retracement: FibonacciRetracement | None,
     ) -> int:
         confluences = 1
 
@@ -331,11 +318,8 @@ class ContinuationCandidateBuilder:
         if previous_levels and previous_levels.touch_count >= 2:
             confluences += previous_levels.touch_count
 
-        if retracement:
-            if self.ltf_validator.check_fibonacci_alignment(
-                qm_level.level, retracement
-            ):
-                confluences += 2
+        if retracement and self.ltf_validator.check_fibonacci_alignment(qm_level.level, retracement):
+            confluences += 2
 
         return confluences
 
@@ -356,7 +340,7 @@ class ContinuationCandidateBuilder:
         self,
         price: float,
         retracement: FibonacciRetracement,
-    ) -> Optional[str]:
+    ) -> str | None:
         pip_val = float(get_pip_value(retracement.symbol))
         tolerance = self.config.fibonacci_tolerance_pips * pip_val
 
@@ -378,12 +362,10 @@ class ContinuationCandidateBuilder:
     def _validate_marubozu(
         self,
         sequence: CandleSequence,
-        breakout_candle_index: Optional[int],
+        breakout_candle_index: int | None,
         direction: Direction,
     ) -> tuple[bool, Optional["datetime.datetime"]]:
-        if breakout_candle_index is None or breakout_candle_index >= len(
-            sequence.candles
-        ):
+        if breakout_candle_index is None or breakout_candle_index >= len(sequence.candles):
             return False, None
 
         candle = sequence.candles[breakout_candle_index]

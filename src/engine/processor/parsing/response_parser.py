@@ -8,21 +8,20 @@ via shared Prometheus counters.
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 import orjson
 from pydantic import ValidationError
 
+from engine.processor.constants import MAX_LLM_RESPONSE_LENGTH
+from engine.processor.llm.errors import LLMSchemaViolationError
+from engine.processor.models.analysis import AnalysisOutput
+from engine.processor.parsing.validators import validate_analysis_output
 from engine.shared.exceptions import ProcessorError
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
     TRADE_PLAN_GENERATED_TOTAL,
     TRADE_PLAN_VALIDATION_FAILURES,
 )
-from engine.processor.constants import MAX_LLM_RESPONSE_LENGTH
-from engine.processor.llm.errors import LLMSchemaViolationError
-from engine.processor.models.analysis import AnalysisOutput
-from engine.processor.parsing.validators import validate_analysis_output
 
 logger = get_logger(__name__)
 
@@ -95,7 +94,7 @@ def parse_llm_response(
     raw_text: str,
     *,
     require_citations: bool = True,
-    trace_id: Optional[str] = None,
+    trace_id: str | None = None,
 ) -> tuple[AnalysisOutput, list[str]]:
     """Parse raw LLM text into AnalysisOutput.
 

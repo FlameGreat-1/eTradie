@@ -16,8 +16,8 @@ operation in PostgreSQL when the new length is >= the old length, so
 the ALTER COLUMN runs in O(1) and never rewrites the table.
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0023"

@@ -22,8 +22,7 @@ This replaces the full TA pipeline re-run (~5-10s).
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, UTC
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, Field
 
@@ -34,7 +33,7 @@ from engine.ta.common.analyzers.session import SessionAnalyzer
 from engine.ta.common.analyzers.sweeps import SweepAnalyzer
 from engine.ta.common.analyzers.swings import SwingAnalyzer
 from engine.ta.common.timeframe import get_parent_timeframe
-from engine.ta.constants import Direction, Session, Timeframe, TIMEFRAME_MINUTES
+from engine.ta.constants import TIMEFRAME_MINUTES, Direction, Session, Timeframe
 from engine.ta.models.candle import CandleSequence
 from engine.ta.smc.config import SMCConfig
 from engine.ta.smc.detectors.bms import BMSDetector
@@ -54,13 +53,13 @@ class LTFConfirmationRequest(BaseModel):
     ob_upper: float = Field(gt=0)
     ob_lower: float = Field(gt=0)
     entry_price: float = Field(gt=0)
-    trace_id: Optional[str] = None
+    trace_id: str | None = None
 
     # Invalidation layer fields (optional for backward compatibility).
     # When provided, the service runs HTF invalidation checks before
     # the LTF confirmation checks.
-    stop_loss: Optional[float] = Field(default=None, gt=0)
-    htf_timeframe: Optional[str] = None  # e.g. "H4", "H1" - derived from LTF if not set
+    stop_loss: float | None = Field(default=None, gt=0)
+    htf_timeframe: str | None = None  # e.g. "H4", "H1" - derived from LTF if not set
 
 
 class LTFConfirmationResponse(BaseModel):
@@ -72,12 +71,12 @@ class LTFConfirmationResponse(BaseModel):
     ltf_timeframe: str
     checks: dict  # Individual check results
     duration_ms: float
-    error: Optional[str] = None
+    error: str | None = None
 
     # Invalidation layer results.
     invalidated: bool = False
-    invalidation_reason: Optional[str] = None
-    invalidation_checks: Optional[dict] = None
+    invalidation_reason: str | None = None
+    invalidation_checks: dict | None = None
 
 
 class LTFConfirmationService:
@@ -290,9 +289,9 @@ class LTFConfirmationService:
 
     def _resolve_htf_timeframe(
         self,
-        explicit_htf: Optional[str],
+        explicit_htf: str | None,
         ltf: Timeframe,
-    ) -> Optional[Timeframe]:
+    ) -> Timeframe | None:
         """Resolve the HTF timeframe for invalidation checks.
 
         Priority:
@@ -318,8 +317,7 @@ class LTFConfirmationService:
         if parent is not None:
             return parent
 
-        parent = get_parent_timeframe(ltf, steps=1)
-        return parent
+        return get_parent_timeframe(ltf, steps=1)
 
     async def _run_invalidation_layer(
         self,
@@ -328,9 +326,9 @@ class LTFConfirmationService:
         htf_tf: Timeframe,
         ob_upper: float,
         ob_lower: float,
-        stop_loss: Optional[float],
+        stop_loss: float | None,
         broker_client: BrokerBase,
-        trace_id: Optional[str],
+        trace_id: str | None,
     ) -> dict:
         """Run HTF invalidation checks against the exact approved candidate.
 
@@ -525,9 +523,7 @@ class LTFConfirmationService:
             # Only count BMS events that occurred in the recent window.
             if recent_candles:
                 recent_start_ts = recent_candles[0].timestamp
-                opposing_bms = [
-                    bms for bms in opposing_bms if bms.timestamp >= recent_start_ts
-                ]
+                opposing_bms = [bms for bms in opposing_bms if bms.timestamp >= recent_start_ts]
         else:
             # Check for BULLISH BMS (opposing to our bearish trade).
             opposing_bms = self._bms_detector.detect_bullish_bms(
@@ -536,9 +532,7 @@ class LTFConfirmationService:
             )
             if recent_candles:
                 recent_start_ts = recent_candles[0].timestamp
-                opposing_bms = [
-                    bms for bms in opposing_bms if bms.timestamp >= recent_start_ts
-                ]
+                opposing_bms = [bms for bms in opposing_bms if bms.timestamp >= recent_start_ts]
 
         if opposing_bms:
             latest = max(opposing_bms, key=lambda b: b.timestamp)
@@ -560,7 +554,7 @@ class LTFConfirmationService:
         self,
         sequence: CandleSequence,
         direction: Direction,
-        stop_loss: Optional[float],
+        stop_loss: float | None,
     ) -> bool:
         """Check that price has not closed beyond the stop loss.
 
@@ -577,17 +571,14 @@ class LTFConfirmationService:
 
         # Only check the most recent candles (last 10).
         # Older candles predate the watcher arming.
-        recent = (
-            sequence.candles[-10:] if len(sequence.candles) > 10 else sequence.candles
-        )
+        recent = sequence.candles[-10:] if len(sequence.candles) > 10 else sequence.candles
 
         for candle in recent:
             if direction == Direction.BULLISH:
                 if candle.close < stop_loss:
                     return False
-            elif direction == Direction.BEARISH:
-                if candle.close > stop_loss:
-                    return False
+            elif direction == Direction.BEARISH and candle.close > stop_loss:
+                return False
 
         return True
 
@@ -609,20 +600,12 @@ class LTFConfirmationService:
 
         if direction == Direction.BULLISH:
             bms_events = self._bms_detector.detect_bullish_bms(sequence, swing_highs)
-            choch_events = self._choch_detector.detect_bullish_choch(
-                sequence, swing_highs
-            )
-            inducements = self._inducement_detector.detect_bullish_inducement(
-                sequence, swing_lows
-            )
+            choch_events = self._choch_detector.detect_bullish_choch(sequence, swing_highs)
+            inducements = self._inducement_detector.detect_bullish_inducement(sequence, swing_lows)
         else:
             bms_events = self._bms_detector.detect_bearish_bms(sequence, swing_lows)
-            choch_events = self._choch_detector.detect_bearish_choch(
-                sequence, swing_lows
-            )
-            inducements = self._inducement_detector.detect_bearish_inducement(
-                sequence, swing_highs
-            )
+            choch_events = self._choch_detector.detect_bearish_choch(sequence, swing_lows)
+            inducements = self._inducement_detector.detect_bearish_inducement(sequence, swing_highs)
 
         sweeps = self._sweep_analyzer.detect_sweeps_in_sequence(
             sequence,
@@ -661,9 +644,7 @@ class LTFConfirmationService:
 
         # Check 6: Inducement cleared
         inducement_ok = True
-        relevant_inducements = [
-            idm for idm in inducements if idm.direction == direction
-        ]
+        relevant_inducements = [idm for idm in inducements if idm.direction == direction]
         if relevant_inducements:
             inducement_ok = all(idm.cleared for idm in relevant_inducements)
 
@@ -690,21 +671,20 @@ class LTFConfirmationService:
         timeframe: Timeframe,
         broker: BrokerBase,
         lookback: int,
-    ) -> Optional[CandleSequence]:
+    ) -> CandleSequence | None:
         """Fetch candles for a single timeframe."""
         end_time = datetime.now(UTC)
         minutes = TIMEFRAME_MINUTES.get(timeframe, 5)
         start_time = end_time - timedelta(minutes=minutes * lookback)
 
         try:
-            sequence = await broker.fetch_candles(
+            return await broker.fetch_candles(
                 symbol=symbol,
                 timeframe=timeframe,
                 start_time=start_time,
                 end_time=end_time,
                 count=lookback,
             )
-            return sequence
         except Exception as e:
             self._logger.error(
                 "candle_fetch_failed",

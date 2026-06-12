@@ -8,6 +8,7 @@ No external math libraries (no numpy/pandas) - the test runner must
 work on a minimal Python image. The Pearson correlation helper is a
 straight implementation.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -65,9 +66,12 @@ class SLOChecker:
             ctx = ssl._create_unverified_context()
 
         def _do() -> str:
-            req = urllib.request.Request(url, headers={
-                "Authorization": f"Bearer {self._admin_jwt}",
-            })
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "Authorization": f"Bearer {self._admin_jwt}",
+                },
+            )
             try:
                 with urllib.request.urlopen(req, timeout=10.0, context=ctx) as resp:
                     return resp.read().decode("utf-8")
@@ -132,8 +136,7 @@ class SLOChecker:
                 result.auth_uptime_per_tenant[t.connection_id] = uptime
                 if uptime < self.AUTH_UPTIME_MIN:
                     result.failures.append(
-                        f"tenant {t.connection_id[:12]} auth uptime "
-                        f"{uptime:.4f} < SLO {self.AUTH_UPTIME_MIN}"
+                        f"tenant {t.connection_id[:12]} auth uptime {uptime:.4f} < SLO {self.AUTH_UPTIME_MIN}"
                     )
 
             rss = rss_samples_per_tenant.get(t.connection_id, [])
@@ -145,8 +148,7 @@ class SLOChecker:
                     result.rss_growth_per_tenant[t.connection_id] = growth
                     if growth > self.RSS_GROWTH_MAX:
                         result.failures.append(
-                            f"tenant {t.connection_id[:12]} RSS growth "
-                            f"{growth:.3f} > SLO {self.RSS_GROWTH_MAX}"
+                            f"tenant {t.connection_id[:12]} RSS growth {growth:.3f} > SLO {self.RSS_GROWTH_MAX}"
                         )
 
         # Pairwise correlation. n*(n-1)/2 pairs; bounded at the
@@ -163,16 +165,11 @@ class SLOChecker:
                     max_r = r
         result.cross_tenant_max_correlation = max_r
         if abs(max_r) > self.CORRELATION_MAX:
-            result.failures.append(
-                f"cross-tenant Pearson r = {max_r:.3f} > SLO "
-                f"abs(r) <= {self.CORRELATION_MAX}"
-            )
+            result.failures.append(f"cross-tenant Pearson r = {max_r:.3f} > SLO abs(r) <= {self.CORRELATION_MAX}")
 
         # Aggregate engine-side scrape.
         engine_scrape = await self._scrape(self._engine_url + "/metrics")
-        recovery_errors = self._parse_metric_value(
-            engine_scrape, "etradie_hosted_recovery_runs_total"
-        )
+        recovery_errors = self._parse_metric_value(engine_scrape, "etradie_hosted_recovery_runs_total")
         if recovery_errors and recovery_errors > 0:
             # Only fail if outcome=error - the parser returns the
             # first match; for production this is fine as the

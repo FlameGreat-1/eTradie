@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import asyncio
 import time as _time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Optional
 
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
@@ -79,7 +79,7 @@ class BrokerClientPool:
         self._entries: dict[tuple[str, str], _PoolEntry] = {}
         self._key_locks: dict[tuple[str, str], asyncio.Lock] = {}
         self._global_lock = asyncio.Lock()
-        self._sweeper: Optional[asyncio.Task[None]] = None
+        self._sweeper: asyncio.Task[None] | None = None
         self._closing = False
 
     def _key_lock(self, key: tuple[str, str]) -> asyncio.Lock:
@@ -130,26 +130,20 @@ class BrokerClientPool:
                 account_id=account_id or "unknown",
             )
             self._entries[key] = entry
-            BROKER_CLIENT_POOL_SIZE.labels(provider=provider).set(
-                sum(1 for k in self._entries if k[0] == provider)
-            )
+            BROKER_CLIENT_POOL_SIZE.labels(provider=provider).set(sum(1 for k in self._entries if k[0] == provider))
             logger.info(
                 "broker_client_pool_added",
                 extra={
                     "provider": provider,
                     "account_id": (
-                        (account_id[:12] + "...")
-                        if account_id and len(account_id) > 12
-                        else (account_id or "unknown")
+                        (account_id[:12] + "...") if account_id and len(account_id) > 12 else (account_id or "unknown")
                     ),
                     "pool_size": len(self._entries),
                 },
             )
             return client
 
-    async def evict(
-        self, provider: str, account_id: str, *, reason: str = "explicit"
-    ) -> bool:
+    async def evict(self, provider: str, account_id: str, *, reason: str = "explicit") -> bool:
         """Evict a single entry. Returns True when an entry was removed."""
         key = (provider, account_id or "unknown")
         entry = self._entries.pop(key, None)
@@ -157,9 +151,7 @@ class BrokerClientPool:
             return False
         await self._close_client_quietly(entry.client)
         BROKER_CLIENT_POOL_EVICTIONS_TOTAL.labels(reason=reason).inc()
-        BROKER_CLIENT_POOL_SIZE.labels(provider=provider).set(
-            sum(1 for k in self._entries if k[0] == provider)
-        )
+        BROKER_CLIENT_POOL_SIZE.labels(provider=provider).set(sum(1 for k in self._entries if k[0] == provider))
         logger.info(
             "broker_client_pool_evicted",
             extra={"provider": provider, "reason": reason},
@@ -216,9 +208,7 @@ class BrokerClientPool:
     async def start(self) -> None:
         """Launch the background sweeper. Idempotent."""
         if self._sweeper is None:
-            self._sweeper = asyncio.create_task(
-                self._sweeper_loop(), name="broker-client-pool-sweeper"
-            )
+            self._sweeper = asyncio.create_task(self._sweeper_loop(), name="broker-client-pool-sweeper")
 
     async def stop(self) -> None:
         """Cancel the sweeper and close every cached client."""

@@ -21,6 +21,7 @@ Section 10 contracts):
     wait the 2h to verify the alert renders - that is a
     PrometheusRule unit test, not a chaos test).
 """
+
 from __future__ import annotations
 
 import os
@@ -47,6 +48,7 @@ async def test_random_kill_recovers_within_slo(
     if not real_cluster_available:
         pytest.skip("ETRADIE_CHAOS_KUBECONFIG not set")
     from tests.chaos._load.harness import build_harness_from_env
+
     harness = build_harness_from_env()
     if harness is None:
         pytest.skip(
@@ -85,9 +87,13 @@ async def test_random_kill_recovers_within_slo(
                     [
                         "kubectl",
                         f"--kubeconfig={kubeconfig}",
-                        "-n", namespace,
-                        "delete", "pod", pod_name,
-                        "--grace-period=0", "--force",
+                        "-n",
+                        namespace,
+                        "delete",
+                        "pod",
+                        pod_name,
+                        "--grace-period=0",
+                        "--force",
                     ],
                     check=False,
                     capture_output=True,

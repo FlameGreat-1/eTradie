@@ -13,6 +13,7 @@ is always the last good enriched value, never empty, with no API call.
 All infrastructure (Redis, Postgres) is faked; the snapshot repository is
 patched where BaseCollector imports it.
 """
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -24,7 +25,6 @@ from pydantic import BaseModel
 
 from engine.macro.collectors import base as base_module
 from engine.macro.collectors.base import BaseCollector
-
 
 # ── Fakes ───────────────────────────────────────────────────────────────
 
@@ -117,9 +117,7 @@ class _FakeSnapshotRepo:
 def _patch_snapshot_repo(monkeypatch):
     _FakeSnapshotRepo.payload_by_namespace = {}
     _FakeSnapshotRepo.upserts = []
-    monkeypatch.setattr(
-        base_module, "MacroSnapshotRepository", _FakeSnapshotRepo
-    )
+    monkeypatch.setattr(base_module, "MacroSnapshotRepository", _FakeSnapshotRepo)
     yield
 
 
@@ -128,9 +126,7 @@ def _patch_snapshot_repo(monkeypatch):
 
 async def test_cache_miss_serves_last_good_snapshot_not_empty():
     """Cache miss + persisted snapshot -> rehydrated dataset, never empty."""
-    _FakeSnapshotRepo.payload_by_namespace = {
-        "sample": {"value": 42, "collected_at": "2026-06-01T00:00:00+00:00"}
-    }
+    _FakeSnapshotRepo.payload_by_namespace = {"sample": {"value": 42, "collected_at": "2026-06-01T00:00:00+00:00"}}
     c = _ModelCollector([], _FakeCache(), _FakeDB())
 
     result = await c.collect()
@@ -141,9 +137,7 @@ async def test_cache_miss_serves_last_good_snapshot_not_empty():
 
 async def test_cache_miss_dict_collector_returns_raw_snapshot():
     """cache_model unset (sentiment): raw snapshot dict is returned as-is."""
-    _FakeSnapshotRepo.payload_by_namespace = {
-        "dictlike": {"hello": "persisted"}
-    }
+    _FakeSnapshotRepo.payload_by_namespace = {"dictlike": {"hello": "persisted"}}
     c = _DictCollector([], _FakeCache(), _FakeDB())
 
     result = await c.collect()
@@ -169,10 +163,7 @@ async def test_force_refresh_persists_snapshot():
 
     assert isinstance(result, _SampleDataSet)
     assert result.value == 7
-    assert any(
-        ns == "sample" and payload.get("value") == 7
-        for ns, payload in _FakeSnapshotRepo.upserts
-    )
+    assert any(ns == "sample" and payload.get("value") == 7 for ns, payload in _FakeSnapshotRepo.upserts)
 
 
 def test_cot_empty_dataset_is_valid():

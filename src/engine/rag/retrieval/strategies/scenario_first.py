@@ -42,9 +42,7 @@ class ScenarioFirstStrategy:
     ) -> list[RetrievedChunk]:
         seen_ids: set = set()
         merged: list[RetrievedChunk] = []
-        all_setup_fams = all_setup_families or (
-            [setup_family] if setup_family else None
-        )
+        all_setup_fams = all_setup_families or ([setup_family] if setup_family else None)
 
         # Weighted budget: frameworks and macro get the largest share,
         # scenarios get a small boost for pattern reasoning examples.

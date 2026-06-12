@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
-from typing import Any, Optional, Self
+from typing import Self
 from urllib.parse import parse_qs, urlparse
 
 from pydantic import (
@@ -51,18 +51,12 @@ class Settings(BaseSettings):
     app_name: str = "etradie-engine"
     app_env: AppEnvironment = AppEnvironment.DEVELOPMENT
     app_debug: bool = False
-    app_log_level: str = Field(
-        default="INFO", pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$"
-    )
+    app_log_level: str = Field(default="INFO", pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$")
 
     # ── PostgreSQL ───────────────────────────────────────────
     database_url: PostgresDsn
-    db_pool_size: int = Field(
-        default=10, ge=2, le=50, description="SQLAlchemy connection pool size"
-    )
-    db_max_overflow: int = Field(
-        default=20, ge=0, le=100, description="Max connections above pool_size"
-    )
+    db_pool_size: int = Field(default=10, ge=2, le=50, description="SQLAlchemy connection pool size")
+    db_max_overflow: int = Field(default=20, ge=0, le=100, description="Max connections above pool_size")
     db_pool_timeout: int = Field(
         default=30,
         ge=5,
@@ -75,15 +69,11 @@ class Settings(BaseSettings):
         le=7200,
         description="Seconds before a connection is recycled",
     )
-    db_echo: bool = Field(
-        default=False, description="Echo SQL statements to log (dev only)"
-    )
+    db_echo: bool = Field(default=False, description="Echo SQL statements to log (dev only)")
 
     # ── Redis ────────────────────────────────────────────────
     redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
-    redis_max_connections: int = Field(
-        default=20, ge=5, le=100, description="Redis connection pool max"
-    )
+    redis_max_connections: int = Field(default=20, ge=5, le=100, description="Redis connection pool max")
     redis_socket_timeout: float = Field(default=5.0, ge=1.0, le=30.0)
     redis_socket_connect_timeout: float = Field(default=5.0, ge=1.0, le=30.0)
 
@@ -119,32 +109,16 @@ class Settings(BaseSettings):
     # news-blackout guard requires. Replaced the Investing.com news RSS feed,
     # whose event_time was the article publish time (always past), leaving the
     # guard inert.
-    forexfactory_calendar_url: str = (
-        "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
-    )
+    forexfactory_calendar_url: str = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
     # ── Polling Intervals (seconds) ──────────────────────────
-    poll_interval_calendar: int = Field(
-        default=14400, ge=60, description="Calendar poll: 4H default"
-    )
-    poll_interval_cot: int = Field(
-        default=604800, ge=3600, description="COT poll: weekly default"
-    )
-    poll_interval_dxy: int = Field(
-        default=14400, ge=300, description="DXY poll: 4H default"
-    )
-    poll_interval_intermarket: int = Field(
-        default=86400, ge=3600, description="Intermarket poll: daily default"
-    )
-    poll_interval_sentiment: int = Field(
-        default=604800, ge=3600, description="Sentiment poll: weekly default"
-    )
-    poll_interval_economic_data: int = Field(
-        default=14400, ge=300, description="Economic data poll: 4H default"
-    )
-    analysis_cycle_interval: int = Field(
-        default=14400, ge=300, description="Analysis cycle: 4H default"
-    )
+    poll_interval_calendar: int = Field(default=14400, ge=60, description="Calendar poll: 4H default")
+    poll_interval_cot: int = Field(default=604800, ge=3600, description="COT poll: weekly default")
+    poll_interval_dxy: int = Field(default=14400, ge=300, description="DXY poll: 4H default")
+    poll_interval_intermarket: int = Field(default=86400, ge=3600, description="Intermarket poll: daily default")
+    poll_interval_sentiment: int = Field(default=604800, ge=3600, description="Sentiment poll: weekly default")
+    poll_interval_economic_data: int = Field(default=14400, ge=300, description="Economic data poll: 4H default")
+    analysis_cycle_interval: int = Field(default=14400, ge=300, description="Analysis cycle: 4H default")
 
     # ── HTTP Client ──────────────────────────────────────────
     http_timeout_seconds: int = Field(default=30, ge=5, le=120)
@@ -158,13 +132,11 @@ class Settings(BaseSettings):
 
     # ── Circuit Breaker ──────────────────────────────────────
     circuit_breaker_failure_threshold: int = Field(default=5, ge=2, le=20)
-    circuit_breaker_recovery_timeout: int = Field(
-        default=60, ge=10, le=600, description="Seconds before half-open"
-    )
+    circuit_breaker_recovery_timeout: int = Field(default=60, ge=10, le=600, description="Seconds before half-open")
     circuit_breaker_half_open_max_calls: int = Field(default=3, ge=1, le=10)
 
     # SSL Configuration (Enterprise Proxy Support)
-    ssl_ca_bundle_path: Optional[str] = Field(
+    ssl_ca_bundle_path: str | None = Field(
         default=None,
         description="Path to custom CA bundle (for enterprise proxies/security software)",
     )
@@ -221,12 +193,7 @@ class Settings(BaseSettings):
             # Fail closed on a non-TLS DB connection. Only require/
             # verify-ca/verify-full encrypt unconditionally; disable/
             # allow/prefer (and an absent sslmode) can yield plaintext.
-            sslmode = (
-                parse_qs(urlparse(str(self.database_url)).query)
-                .get("sslmode", [""])[0]
-                .strip()
-                .lower()
-            )
+            sslmode = parse_qs(urlparse(str(self.database_url)).query).get("sslmode", [""])[0].strip().lower()
             if sslmode not in {"require", "verify-ca", "verify-full"}:
                 raise ValueError(
                     f"DATABASE_URL is not TLS-encrypted in {self.app_env.value} "
@@ -345,9 +312,7 @@ class RAGConfig(BaseSettings):
         extra="ignore",
     )
 
-    enabled: bool = Field(
-        default=True, description="Master switch for the RAG subsystem"
-    )
+    enabled: bool = Field(default=True, description="Master switch for the RAG subsystem")
 
     # ── Embedding Provider ──────────────────────────────────────────
     embedding_provider: str = Field(
@@ -572,15 +537,9 @@ class RAGConfig(BaseSettings):
     @model_validator(mode="after")
     def _validate_chunk_bounds(self) -> Self:
         if self.chunk_overlap >= self.chunk_size:
-            raise ValueError(
-                f"chunk_overlap ({self.chunk_overlap}) must be less than "
-                f"chunk_size ({self.chunk_size})"
-            )
+            raise ValueError(f"chunk_overlap ({self.chunk_overlap}) must be less than chunk_size ({self.chunk_size})")
         if self.chunk_min_size >= self.chunk_size:
-            raise ValueError(
-                f"chunk_min_size ({self.chunk_min_size}) must be less than "
-                f"chunk_size ({self.chunk_size})"
-            )
+            raise ValueError(f"chunk_min_size ({self.chunk_min_size}) must be less than chunk_size ({self.chunk_size})")
         # rerank_top_k can be less than retrieval_top_k (that is the point)
         # but should not exceed a reasonable upper bound
         if self.rerank_top_k > 200:
@@ -595,8 +554,7 @@ class RAGConfig(BaseSettings):
             env = os.getenv("APP_ENV", "development")
             if env in {"production", "staging"}:
                 raise ValueError(
-                    "RAG_OPENAI_API_KEY is required when embedding_provider "
-                    "is 'openai' in production/staging"
+                    "RAG_OPENAI_API_KEY is required when embedding_provider is 'openai' in production/staging"
                 )
         return self
 

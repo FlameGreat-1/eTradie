@@ -12,18 +12,17 @@ Usage:
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Optional
 
 from engine.ta.constants import Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
-
 
 # ---------------------------------------------------------------------------
 # Candle factories
 # ---------------------------------------------------------------------------
 
+
 def make_candle(
-    timestamp: Optional[datetime] = None,
+    timestamp: datetime | None = None,
     open: float = 1.0,
     high: float = 1.05,
     low: float = 0.95,
@@ -52,7 +51,7 @@ def make_candle(
 def make_candle_sequence(
     count: int = 100,
     timeframe: Timeframe = Timeframe.H1,
-    start_time: Optional[datetime] = None,
+    start_time: datetime | None = None,
     symbol: str = "EURUSD",
     trend: str = "up",
     base_price: float = 1.10000,
@@ -110,6 +109,7 @@ def make_candle_sequence(
 # TA result factory (matches TAOrchestrator._build_result output)
 # ---------------------------------------------------------------------------
 
+
 def make_ta_result(
     symbol: str = "EURUSD",
     status: str = "success",
@@ -159,6 +159,7 @@ def make_ta_result(
 # ---------------------------------------------------------------------------
 # Macro result factory (matches /internal/macro/collect response)
 # ---------------------------------------------------------------------------
+
 
 def make_macro_result(
     has_central_bank: bool = True,

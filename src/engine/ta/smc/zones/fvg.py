@@ -1,5 +1,3 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.candles import CandleAnalyzer
 from engine.ta.common.utils.price.math import calculate_pips
@@ -94,7 +92,7 @@ class FVGDetector:
         self,
         fvg: FairValueGap,
         sequence: CandleSequence,
-    ) -> tuple[bool, Optional[float]]:
+    ) -> tuple[bool, float | None]:
         if fvg.candle_index >= len(sequence.candles) - 1:
             return False, None
 
@@ -106,15 +104,11 @@ class FVGDetector:
                 return True, fill_percentage
 
             if fvg.lower_bound <= candle.low <= fvg.upper_bound:
-                fill_percentage = (
-                    (candle.high - fvg.lower_bound) / fvg.range_size
-                ) * 100.0
+                fill_percentage = ((candle.high - fvg.lower_bound) / fvg.range_size) * 100.0
                 return True, fill_percentage
 
             if fvg.lower_bound <= candle.high <= fvg.upper_bound:
-                fill_percentage = (
-                    (fvg.upper_bound - candle.low) / fvg.range_size
-                ) * 100.0
+                fill_percentage = ((fvg.upper_bound - candle.low) / fvg.range_size) * 100.0
                 return True, fill_percentage
 
         return False, None

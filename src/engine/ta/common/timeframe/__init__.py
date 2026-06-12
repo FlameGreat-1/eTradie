@@ -7,9 +7,9 @@ Contains:
 
 from engine.ta.common.timeframe.manager import (
     TimeframeManager,
-    get_timeframe_relation,
-    get_parent_timeframe,
     get_child_timeframe,
+    get_parent_timeframe,
+    get_timeframe_relation,
     is_htf_of,
     is_ltf_of,
 )

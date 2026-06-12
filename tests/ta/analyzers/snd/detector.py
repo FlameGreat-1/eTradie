@@ -18,10 +18,12 @@ from engine.ta.constants import Direction, Timeframe
 class TestSnDDetectorImports:
     def test_detector_importable(self):
         from engine.ta.snd.detector import SnDDetector
+
         assert SnDDetector is not None
 
     def test_snd_config_importable(self):
         from engine.ta.snd.config import SnDConfig
+
         cfg = SnDConfig()
         assert cfg.enabled is True
 

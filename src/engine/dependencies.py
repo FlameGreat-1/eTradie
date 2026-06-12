@@ -1,16 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
 
-from engine.config import get_settings
-from engine.shared.alert_publisher import AlertPublisher
-from engine.shared.cache import RedisCache
-from engine.shared.concurrency import BackgroundTaskCoordinator
-from engine.shared.db import DatabaseManager
-from engine.shared.http import HttpClient
-from engine.shared.scheduler import SchedulerManager
-
+from engine.config import get_rag_config, get_settings
 from engine.macro.collectors.calendar.collector import CalendarCollector
 from engine.macro.collectors.central_bank.collector import CentralBankCollector
 from engine.macro.collectors.cot.collector import COTCollector
@@ -41,30 +33,10 @@ from engine.macro.providers.market_data.fred_intermarket import (
 from engine.macro.providers.market_data.yahoo_metals import YahooMetalsProvider
 from engine.macro.providers.registry import ProviderRegistry
 from engine.macro.providers.sentiment.cot_derived import COTDerivedSentimentProvider
-
-
-from engine.ta.broker.twelve_data.client import TwelveDataClient
-from engine.ta.broker.twelve_data.config import TwelveDataConfig
-from engine.ta.common.analyzers.candles import CandleAnalyzer
-from engine.ta.common.analyzers.swings import SwingAnalyzer
-from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
-from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
-from engine.ta.common.analyzers.compression import CompressionAnalyzer
-from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
-from engine.ta.common.analyzers.sweeps import SweepAnalyzer
-from engine.ta.common.analyzers.session import SessionAnalyzer
-from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
-from engine.ta.common.services.snapshot.builder import SnapshotBuilder
-from engine.ta.common.services.alignment.service import AlignmentService
-from engine.ta.common.timeframe.manager import TimeframeManager
-from engine.ta.smc.config import SMCConfig
-from engine.ta.smc.detector import SMCDetector
-from engine.ta.snd.config import SnDConfig
-from engine.ta.snd.detector import SnDDetector
-from engine.ta.storage.uow import ta_uow_factory, ta_read_uow_factory
-from engine.ta.orchestrator import TAOrchestrator
-
-from engine.config import get_rag_config
+from engine.processor.config import ProcessorConfig, get_processor_config
+from engine.processor.llm.factory import create_llm_client
+from engine.processor.service import AnalysisProcessor
+from engine.processor.storage.uow import processor_uow_factory
 from engine.rag.embeddings.factory import create_embedding_provider
 from engine.rag.embeddings.pipeline import EmbeddingPipeline
 from engine.rag.ingest.pipeline import IngestPipeline
@@ -80,15 +52,33 @@ from engine.rag.services.sync import SyncService
 from engine.rag.services.versioning import VersioningService
 from engine.rag.storage.uow import rag_uow_factory
 from engine.rag.vectorstore.factory import create_vector_store
-
-from engine.processor.config import ProcessorConfig, get_processor_config
-from engine.processor.llm.factory import create_llm_client
-from engine.processor.service import AnalysisProcessor
-from engine.processor.storage.uow import processor_uow_factory
-from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
-from engine.processor.storage.repositories.audit_repository import AuditRepository
-
+from engine.shared.alert_publisher import AlertPublisher
+from engine.shared.cache import RedisCache
+from engine.shared.concurrency import BackgroundTaskCoordinator
+from engine.shared.db import DatabaseManager
+from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
+from engine.shared.scheduler import SchedulerManager
+from engine.ta.broker.twelve_data.client import TwelveDataClient
+from engine.ta.broker.twelve_data.config import TwelveDataConfig
+from engine.ta.common.analyzers.candles import CandleAnalyzer
+from engine.ta.common.analyzers.compression import CompressionAnalyzer
+from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
+from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
+from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
+from engine.ta.common.analyzers.session import SessionAnalyzer
+from engine.ta.common.analyzers.sweeps import SweepAnalyzer
+from engine.ta.common.analyzers.swings import SwingAnalyzer
+from engine.ta.common.services.alignment.service import AlignmentService
+from engine.ta.common.services.snapshot.builder import SnapshotBuilder
+from engine.ta.common.timeframe.manager import TimeframeManager
+from engine.ta.orchestrator import TAOrchestrator
+from engine.ta.smc.config import SMCConfig
+from engine.ta.smc.detector import SMCDetector
+from engine.ta.snd.config import SnDConfig
+from engine.ta.snd.detector import SnDDetector
+from engine.ta.storage.uow import ta_read_uow_factory, ta_uow_factory
 
 _logger = get_logger(__name__)
 
@@ -98,6 +88,7 @@ _logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 
+import contextlib
 from dataclasses import dataclass as _dataclass
 
 
@@ -210,16 +201,12 @@ class Container:
         # dict below is kept only as a (user_id -> (provider, account_id))
         # index so invalidate_user_broker can translate user_id to
         # pool key without re-reading the database.
-        from engine.ta.broker.mt5.client_pool import BrokerClientPool
-
         import os as _os
 
-        _pool_idle = float(
-            _os.environ.get("ENGINE_BROKER_POOL_IDLE_TIMEOUT_SECS", "600") or 600
-        )
-        _pool_sweep = float(
-            _os.environ.get("ENGINE_BROKER_POOL_SWEEP_INTERVAL_SECS", "60") or 60
-        )
+        from engine.ta.broker.mt5.client_pool import BrokerClientPool
+
+        _pool_idle = float(_os.environ.get("ENGINE_BROKER_POOL_IDLE_TIMEOUT_SECS", "600") or 600)
+        _pool_sweep = float(_os.environ.get("ENGINE_BROKER_POOL_SWEEP_INTERVAL_SECS", "60") or 60)
         self.broker_client_pool = BrokerClientPool(
             idle_timeout_secs=_pool_idle if _pool_idle > 0 else 600.0,
             sweep_interval_secs=_pool_sweep if _pool_sweep > 0 else 60.0,
@@ -235,9 +222,9 @@ class Container:
         # provisioning (alembic env.py, pytest collection, ad-hoc
         # scripts) can import Container without VAULT_ADDR or the
         # other VAULT_* env vars present.
-        self._vault_client: Optional["VaultClient"] = None  # type: ignore[name-defined]
-        self._hosted_provisioner: Optional["HostedProvisioner"] = None  # type: ignore[name-defined]
-        self._hosted_recovery_service: Optional["HostedRecoveryService"] = None  # type: ignore[name-defined]
+        self._vault_client: VaultClient | None = None  # type: ignore[name-defined]
+        self._hosted_provisioner: HostedProvisioner | None = None  # type: ignore[name-defined]
+        self._hosted_recovery_service: HostedRecoveryService | None = None  # type: ignore[name-defined]
 
     def _build_providers(self) -> None:
         s = self.settings
@@ -375,9 +362,7 @@ class Container:
         )
         self.economic_collector.cache_ttl = s.cache_ttl_economic_data
 
-        self.calendar_collector = CalendarCollector(
-            [self.forexfactory_cal_provider], c, d
-        )
+        self.calendar_collector = CalendarCollector([self.forexfactory_cal_provider], c, d)
         self.calendar_collector.cache_ttl = s.cache_ttl_calendar
 
         self.dxy_collector = DXYCollector(
@@ -638,9 +623,7 @@ class Container:
         except asyncio.CancelledError:
             return
 
-    async def start_active_connections_refresh(
-        self, interval_secs: float = 30.0
-    ) -> None:
+    async def start_active_connections_refresh(self, interval_secs: float = 30.0) -> None:
         """Launch the periodic gauge refresher.
 
         Idempotent: a second call is a no-op once the task is running.
@@ -657,7 +640,7 @@ class Container:
             name="active-user-connections-refresh",
         )
 
-    async def _resolve_broker_row_meta(self, user_id: str) -> Optional[tuple[str, str]]:
+    async def _resolve_broker_row_meta(self, user_id: str) -> tuple[str, str] | None:
         """Read the active broker_connections row JUST to get the pool
         key (provider, account_id). Cheap; one indexed lookup.
         """
@@ -736,14 +719,14 @@ class Container:
         """
         if self._hosted_provisioner is not None:
             return self._hosted_provisioner
+        from engine.processor.storage.repositories.broker_connection_repository import (
+            BrokerConnectionRepository,
+        )
         from engine.ta.broker.base import BrokerBase
         from engine.ta.broker.mt5.config import MT5Config
         from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
         from engine.ta.broker.mt5.zmq.client import ZmqClient
         from engine.ta.broker.sync import BrokerSyncService
-        from engine.processor.storage.repositories.broker_connection_repository import (
-            BrokerConnectionRepository,
-        )
 
         async def _build_sync_client(
             dns_name: str,
@@ -798,7 +781,7 @@ class Container:
             dns_name: str,
             zmq_port: int,
             auth_token: str,
-        ) -> Optional[str]:
+        ) -> str | None:
             """Provision-time catalog hand-off.
 
             Runs ONE fast ZMQ call (get_all_symbol_names) to pick the
@@ -927,9 +910,7 @@ class Container:
                 row = await repo.get_active(user_id=user_id)
 
             if row is None:
-                _logger.debug(
-                    "no_active_broker_connection_in_db", extra={"user_id": user_id}
-                )
+                _logger.debug("no_active_broker_connection_in_db", extra={"user_id": user_id})
                 return None
 
             # Decrypt EA auth token if applicable.
@@ -1073,9 +1054,7 @@ class Container:
         # built later via resolve_user_processor() get the correct
         # platform/BYOK flag from _processor_config_from_row().
         startup_cfg = get_processor_config()
-        self.processor_config = startup_cfg.model_copy(
-            update={"uses_platform_key": True}
-        )
+        self.processor_config = startup_cfg.model_copy(update={"uses_platform_key": True})
 
         self.processor_llm_client = create_llm_client(
             config=self.processor_config,
@@ -1089,9 +1068,7 @@ class Container:
             alert_publisher=self.alert_publisher,
         )
 
-    async def resolve_user_processor(
-        self, user: "AuthenticatedUser"
-    ) -> "AnalysisProcessor":
+    async def resolve_user_processor(self, user: AuthenticatedUser) -> AnalysisProcessor:
         """Resolve the authenticated user's LLM processor.
 
         Uses a per-user cache to avoid rebuilding the LLM client on
@@ -1123,10 +1100,7 @@ class Container:
                     "Please add a connection on the LLM Settings page, "
                     "or upgrade to Pro Managed to use the platform key."
                 )
-            raise ValueError(
-                "No LLM connection configured. "
-                "Please set up an LLM connection via the dashboard."
-            )
+            raise ValueError("No LLM connection configured. Please set up an LLM connection via the dashboard.")
 
         user_llm_client = create_llm_client(user_config)
         user_processor = AnalysisProcessor(
@@ -1158,18 +1132,14 @@ class Container:
         """
         old_processor = self._user_processors.pop(user_id, None)
         if old_processor is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await old_processor._llm.close()
-            except Exception:
-                pass
             _logger.info(
                 "user_processor_invalidated",
                 extra={"user_id": user_id},
             )
 
-    async def load_user_llm_config(
-        self, user: "AuthenticatedUser"
-    ) -> "ProcessorConfig | None":
+    async def load_user_llm_config(self, user: AuthenticatedUser) -> ProcessorConfig | None:
         """Load the active LLM connection for a specific user.
 
         Called at request time. Returns a ProcessorConfig built from
@@ -1180,7 +1150,7 @@ class Container:
     # -- LLM connection -> ProcessorConfig (shared helpers) -----------------
 
     @staticmethod
-    def _processor_config_from_row(row, *, is_platform: bool) -> "ProcessorConfig":
+    def _processor_config_from_row(row, *, is_platform: bool) -> ProcessorConfig:
         """Build a ProcessorConfig from a saved llm_connections row.
 
         Used by both the analysis-path resolver and the background
@@ -1197,10 +1167,11 @@ class Container:
         per-provider API key on the env baseline is overridden by
         the row's decrypted key for the row's provider.
         """
+        from pydantic import SecretStr
+
         from engine.processor.storage.repositories.llm_connection_repository import (
             decrypt_api_key,
         )
-        from pydantic import SecretStr
 
         api_key = decrypt_api_key(row.api_key_encrypted)
         env_cfg = get_processor_config()
@@ -1251,7 +1222,7 @@ class Container:
         )
         return cfg
 
-    async def _load_platform_processor_config(self) -> "ProcessorConfig":
+    async def _load_platform_processor_config(self) -> ProcessorConfig:
         """Return the platform LLM ProcessorConfig.
 
         Resolution order (single source of truth for every caller
@@ -1300,15 +1271,11 @@ class Container:
         """
         if (role or "").strip().lower() == "admin":
             return True
-        if (tier or "").strip().lower() == "pro_managed":
-            return True
-        return False
+        return (tier or "").strip().lower() == "pro_managed"
 
     # -- Analysis-path resolver (request-scoped, has AuthenticatedUser) ----
 
-    async def _load_active_llm_connection(
-        self, user: "AuthenticatedUser"
-    ) -> "ProcessorConfig | None":
+    async def _load_active_llm_connection(self, user: AuthenticatedUser) -> ProcessorConfig | None:
         """Load the active LLM connection from the database for a user.
 
         Tier policy (defense-in-depth):
@@ -1361,7 +1328,7 @@ class Container:
         role: str,
         tier: str,
         allow_platform_fallback: bool,
-    ) -> tuple[Optional["LLMClient"], Optional["ProcessorConfig"]]:
+    ) -> tuple[LLMClient | None, ProcessorConfig | None]:
         """Resolve (and cache) the LLM client for a background generator.
 
         This is the single entry point for both the trading-plan and
@@ -1558,9 +1525,7 @@ class Container:
                 extra={"count": len(users)},
             )
 
-    async def load_user_llm_client_by_id(
-        self, user_id: str
-    ) -> tuple[Optional["LLMClient"], Optional["ProcessorConfig"]]:
+    async def load_user_llm_client_by_id(self, user_id: str) -> tuple[LLMClient | None, ProcessorConfig | None]:
         """Personal-key-only background loader (compatibility shim).
 
         Equivalent to load_llm_client_for_background with
@@ -1600,9 +1565,7 @@ class Container:
             except asyncio.CancelledError:
                 pass
             except Exception as exc:
-                _logger.warning(
-                    "active_connections_task_shutdown_error", extra={"error": str(exc)}
-                )
+                _logger.warning("active_connections_task_shutdown_error", extra={"error": str(exc)})
 
         # Cancel pending background work BEFORE we tear down the resources
         # those tasks may be holding (broker clients, http client, redis).
@@ -1620,16 +1583,14 @@ class Container:
         # concurrent invalidate_user_processor call cannot mutate the
         # dict mid-iteration and raise RuntimeError. The dict is
         # cleared after the loop. Audit ref: ADMIN-QUOTA-AUDIT-V2-8.
-        for user_id, proc in list(self._user_processors.items()):
-            try:
+        for _user_id, proc in list(self._user_processors.items()):
+            with contextlib.suppress(Exception):
                 await proc._llm.close()
-            except Exception:
-                pass
         self._user_processors.clear()
 
         # Close per-user cached background LLM clients (trading-plan +
         # performance-review). Same snapshot pattern as above.
-        for user_id, entry in list(self._user_background_llm.items()):
+        for _user_id, entry in list(self._user_background_llm.items()):
             try:
                 await entry.client.close()  # type: ignore[attr-defined]
             except Exception:

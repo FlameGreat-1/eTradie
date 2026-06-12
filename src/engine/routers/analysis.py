@@ -12,9 +12,10 @@ Routes:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+from datetime import UTC
 from datetime import datetime as dt
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -114,7 +115,7 @@ async def get_my_usage(
 @router.get("/api/analysis/latest")
 async def get_latest_analyses(
     request: Request,
-    pair: Optional[str] = None,
+    pair: str | None = None,
     limit: int = 20,
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict:
@@ -129,9 +130,7 @@ async def get_latest_analyses(
         repo = AnalysisRepository(session)
 
         if pair:
-            rows = await repo.get_latest_by_pair(
-                pair.upper(), user_id=user.user_id, limit=limit
-            )
+            rows = await repo.get_latest_by_pair(pair.upper(), user_id=user.user_id, limit=limit)
         else:
             rows = await repo.list_recent_all(user_id=user.user_id, limit=limit)
 
@@ -155,18 +154,12 @@ async def get_latest_analyses(
             elif entry_zone.get("low") is not None:
                 entry_price = float(entry_zone["low"])
 
-            sl_price = (
-                float(sl_obj["price"]) if sl_obj.get("price") is not None else None
-            )
+            sl_price = float(sl_obj["price"]) if sl_obj.get("price") is not None else None
 
             tp_price = None
             if tps_list:
                 # Prefer the final TP (TP3) for the chart line; fall back to the highest available.
-                tp_entry = (
-                    tps_list[-1]
-                    if isinstance(tps_list, list) and len(tps_list) > 0
-                    else None
-                )
+                tp_entry = tps_list[-1] if isinstance(tps_list, list) and len(tps_list) > 0 else None
                 if tp_entry and tp_entry.get("level") is not None:
                     tp_price = float(tp_entry["level"])
 
@@ -210,12 +203,12 @@ async def get_latest_analyses(
 @router.get("/api/analysis/history")
 async def get_analysis_history(
     request: Request,
-    pair: Optional[str] = None,
-    status: Optional[str] = None,
-    grade: Optional[str] = None,
-    provider: Optional[str] = None,
-    since: Optional[str] = None,
-    until: Optional[str] = None,
+    pair: str | None = None,
+    status: str | None = None,
+    grade: str | None = None,
+    provider: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
     offset: int = 0,
     limit: int = 20,
     user: AuthenticatedUser = Depends(get_current_user),
@@ -245,20 +238,15 @@ async def get_analysis_history(
         try:
             since_dt = dt.fromisoformat(since.replace("Z", "+00:00"))
         except ValueError:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid 'since' datetime: {since}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid 'since' datetime: {since}")
     if until:
         try:
             until_dt = dt.fromisoformat(until.replace("Z", "+00:00"))
         except ValueError:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid 'until' datetime: {until}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid 'until' datetime: {until}")
 
     limit = min(limit, 100)
-    if offset < 0:
-        offset = 0
+    offset = max(offset, 0)
 
     async with container.db.read_session() as session:
         repo = AnalysisRepository(session)
@@ -313,9 +301,9 @@ async def get_analysis_history(
 @router.get("/api/analysis/stats")
 async def get_analysis_stats(
     request: Request,
-    pair: Optional[str] = None,
-    since: Optional[str] = None,
-    until: Optional[str] = None,
+    pair: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict:
     """Aggregate analysis statistics for the dashboard.
@@ -334,23 +322,16 @@ async def get_analysis_stats(
         try:
             since_dt = dt.fromisoformat(since.replace("Z", "+00:00"))
         except ValueError:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid 'since' datetime: {since}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid 'since' datetime: {since}")
     if until:
         try:
             until_dt = dt.fromisoformat(until.replace("Z", "+00:00"))
         except ValueError:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid 'until' datetime: {until}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid 'until' datetime: {until}")
 
     async with container.db.read_session() as session:
         repo = AnalysisRepository(session)
-        stats = await repo.get_stats(
-            user_id=user.user_id, pair=pair, since=since_dt, until=until_dt
-        )
-    return stats
+        return await repo.get_stats(user_id=user.user_id, pair=pair, since=since_dt, until=until_dt)
 
 
 # NOTE: The SSE /api/analysis/stream-live route is registered BEFORE
@@ -401,10 +382,7 @@ async def stream_live_analysis(
                 if message and message.get("type") == "message":
                     try:
                         data_raw = message["data"]
-                        if isinstance(data_raw, bytes):
-                            data_str = data_raw.decode("utf-8")
-                        else:
-                            data_str = str(data_raw)
+                        data_str = data_raw.decode("utf-8") if isinstance(data_raw, bytes) else str(data_raw)
                         yield f"data: {data_str}\n\n"
                         last_keepalive = asyncio.get_event_loop().time()
 
@@ -445,14 +423,10 @@ async def stream_live_analysis(
         finally:
 
             async def _cleanup_pubsub():
-                try:
+                with contextlib.suppress(Exception):
                     await pubsub.unsubscribe(channel_name)
-                except Exception:
-                    pass
-                try:
+                with contextlib.suppress(Exception):
                     await pubsub.aclose()
-                except Exception:
-                    pass
 
             # Run cleanup in a background task so it doesn't get cancelled
             # by the exact CancelledError that triggered this finally block.
@@ -491,14 +465,10 @@ async def get_analysis_detail(
 
         audit_rows = []
         audit_repo = AuditRepository(session)
-        audit_rows = await audit_repo.get_by_analysis_id(
-            analysis_id, user_id=user.user_id
-        )
+        audit_rows = await audit_repo.get_by_analysis_id(analysis_id, user_id=user.user_id)
 
     if not row:
-        raise HTTPException(
-            status_code=404, detail=f"Analysis '{analysis_id}' not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Analysis '{analysis_id}' not found")
 
     audit_data = None
     if audit_rows:
@@ -569,7 +539,7 @@ async def get_analysis_detail(
 async def rerun_analysis(
     request: Request,
     symbol: str,
-    trace_id: Optional[str] = None,
+    trace_id: str | None = None,
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict:
     """Re-trigger analysis for a single symbol on demand.
@@ -609,10 +579,11 @@ async def rerun_analysis(
     if not symbol:
         raise HTTPException(status_code=400, detail="Symbol is required")
 
+    from datetime import timedelta
+
     from engine.processor.storage.repositories.billing_repository import (
         BillingRepository,
     )
-    from datetime import timezone, timedelta
 
     async with container.db.session() as session:
         billing_repo = BillingRepository(session)
@@ -622,10 +593,10 @@ async def rerun_analysis(
         if not user.is_admin and user.tier == "free":
             last_analysis = usage.get("last_analysis_at")
             if last_analysis:
-                now = dt.now(timezone.utc)
+                now = dt.now(UTC)
                 # Ensure last_analysis is timezone aware
                 if last_analysis.tzinfo is None:
-                    last_analysis = last_analysis.replace(tzinfo=timezone.utc)
+                    last_analysis = last_analysis.replace(tzinfo=UTC)
 
                 time_since_last = now - last_analysis
                 if time_since_last < timedelta(hours=24):
@@ -671,9 +642,7 @@ async def rerun_analysis(
     # returned an error or insufficient_data status with no candidates,
     # fail early with 500 rather than proceeding to macro/RAG/processor.
     ta_status = ta_analysis.get("status", "")
-    ta_has_candidates = bool(ta_analysis.get("smc_candidates")) or bool(
-        ta_analysis.get("snd_candidates")
-    )
+    ta_has_candidates = bool(ta_analysis.get("smc_candidates")) or bool(ta_analysis.get("snd_candidates"))
     if ta_status in ("error", "insufficient_data") and not ta_has_candidates:
         ta_error = ta_analysis.get("error", "unknown error")
         _save_debug_output(symbol, ta_data=ta_analysis, subdirectory="rerun")
@@ -702,7 +671,7 @@ async def rerun_analysis(
         }
         tasks = {name: c.collect() for name, c in collector_map.items()}
         raw_results = await asyncio.gather(*tasks.values(), return_exceptions=True)
-        for name, result in zip(tasks.keys(), raw_results):
+        for name, result in zip(tasks.keys(), raw_results, strict=False):
             if isinstance(result, Exception):
                 macro_analysis[name] = None
             elif isinstance(result, dict):
@@ -711,9 +680,7 @@ async def rerun_analysis(
                 macro_analysis[name] = result.model_dump(mode="json")
             else:
                 macro_analysis[name] = {"raw": str(result)}
-        await pulse.emit(
-            "CLAUDING", "Macro intelligence collected", source="macro", completed=True
-        )
+        await pulse.emit("CLAUDING", "Macro intelligence collected", source="macro", completed=True)
     except Exception as exc:
         logger.error("rerun_macro_failed", extra={"symbol": symbol, "error": str(exc)})
         raise HTTPException(
@@ -757,9 +724,7 @@ async def rerun_analysis(
         bank = macro_signals.get("qe_qt_bank", "central bank")
         query_parts.append(f"{bank} {action}")
         if macro_signals.get("balance_sheet_direction"):
-            query_parts.append(
-                f"balance sheet {macro_signals['balance_sheet_direction'].lower()}"
-            )
+            query_parts.append(f"balance sheet {macro_signals['balance_sheet_direction'].lower()}")
         if action == "qe":
             query_parts.append("quantitative easing asset purchases")
         elif action == "qt":
@@ -788,13 +753,8 @@ async def rerun_analysis(
         query_parts.append("safe haven demand elevated JPY CHF gold")
     if macro_signals["commodity_currencies_weak"]:
         query_parts.append("commodity currencies weak AUD NZD CAD risk-off")
-    if (
-        macro_signals["risk_environment"]
-        and macro_signals["risk_environment"] != "NEUTRAL"
-    ):
-        query_parts.append(
-            f"risk environment {macro_signals['risk_environment'].lower()}"
-        )
+    if macro_signals["risk_environment"] and macro_signals["risk_environment"] != "NEUTRAL":
+        query_parts.append(f"risk environment {macro_signals['risk_environment'].lower()}")
     query_text = " ".join(query_parts)
 
     # Step 3: RAG retrieval (mandatory).
@@ -814,11 +774,7 @@ async def rerun_analysis(
             user.user_id,
             strategy=None,
             framework=ta_signals["framework"] or None,
-            setup_family=(
-                ta_signals["setup_families"][0]
-                if ta_signals["setup_families"]
-                else None
-            ),
+            setup_family=(ta_signals["setup_families"][0] if ta_signals["setup_families"] else None),
             direction=ta_signals["direction"] or None,
             timeframe=None,
             style=None,
@@ -830,8 +786,7 @@ async def rerun_analysis(
             has_snd_candidates=ta_signals["has_snd"],
             has_macro_data=macro_signals["has_macro_data"],
             has_cot_data=macro_signals["has_cot_data"],
-            has_rate_decision=macro_signals["has_rate_decision"]
-            or macro_signals.get("has_rate_change", False),
+            has_rate_decision=macro_signals["has_rate_decision"] or macro_signals.get("has_rate_change", False),
             has_high_impact_event=macro_signals["has_high_impact_event"],
             has_dxy_data=macro_signals["has_dxy_data"],
             has_qe_qt=macro_signals["has_qe_qt"],
@@ -863,9 +818,7 @@ async def rerun_analysis(
             detail="RAG returned empty knowledge base. The LLM cannot reason without rulebook context.",
         )
 
-    await pulse.emit(
-        "GERMINATING", "Knowledge retrieval complete", source="rag", completed=True
-    )
+    await pulse.emit("GERMINATING", "Knowledge retrieval complete", source="rag", completed=True)
     await pulse.emit("REASONING", "Preparing AI processor", source="processor")
 
     # --- rerun_analysis continues in _rerun_process_and_return below ---
@@ -889,7 +842,7 @@ async def _rerun_process_and_return(
     processor,
     user: AuthenticatedUser,
     symbol: str,
-    trace_id: Optional[str],
+    trace_id: str | None,
     ta_analysis: dict,
     macro_analysis: dict,
     macro_signals: dict,
@@ -937,9 +890,7 @@ async def _rerun_process_and_return(
     if macro_signals["has_qe_qt"]:
         metadata["qe_qt_action"] = macro_signals.get("qe_qt_action", "")
         metadata["qe_qt_bank"] = macro_signals.get("qe_qt_bank", "")
-        metadata["balance_sheet_direction"] = macro_signals.get(
-            "balance_sheet_direction", ""
-        )
+        metadata["balance_sheet_direction"] = macro_signals.get("balance_sheet_direction", "")
     metadata["has_core_inflation"] = macro_signals["has_core_inflation"]
     # Propagate RAG metadata if present in the bundle.
     for key in [
@@ -968,9 +919,7 @@ async def _rerun_process_and_return(
             trace_id=trace_id,
         )
     except ProcessorInsufficientDataError as exc:
-        logger.info(
-            "rerun_processor_no_setup", extra={"symbol": symbol, "reason": str(exc)}
-        )
+        logger.info("rerun_processor_no_setup", extra={"symbol": symbol, "reason": str(exc)})
         _save_debug_output(
             symbol,
             ta_data=ta_analysis,
@@ -988,9 +937,7 @@ async def _rerun_process_and_return(
             },
         }
     except Exception as exc:
-        logger.error(
-            "rerun_processor_failed", extra={"symbol": symbol, "error": str(exc)}
-        )
+        logger.error("rerun_processor_failed", extra={"symbol": symbol, "error": str(exc)})
         _save_debug_output(
             symbol,
             ta_data=ta_analysis,

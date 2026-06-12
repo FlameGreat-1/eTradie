@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections import defaultdict
 
 from engine.rag.constants import (
-    ConflictResult,
-    DocumentType,
     METADATA_KEY_DIRECTION,
     METADATA_KEY_FRAMEWORK,
+    ConflictResult,
+    DocumentType,
 )
 from engine.rag.models.retrieval import RetrievedChunk
 from engine.shared.logging import get_logger
@@ -65,9 +65,7 @@ def detect_conflicts(
         # Verify it's a genuine cross-framework conflict
         direction_values = set(conflicting_frameworks.values())
         if len(direction_values) > 1:
-            conflict_desc = ", ".join(
-                f"{fw}={d}" for fw, d in sorted(conflicting_frameworks.items())
-            )
+            conflict_desc = ", ".join(f"{fw}={d}" for fw, d in sorted(conflicting_frameworks.items()))
             details.append(f"Cross-framework directional conflict: {conflict_desc}")
 
     if details:

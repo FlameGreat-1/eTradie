@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Iterator, Optional
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from opentelemetry import trace
@@ -62,19 +63,13 @@ def _validate_otlp_endpoint(endpoint: str) -> None:
     if "://" not in value:
         host_part, _, port_part = value.partition(":")
         if not host_part:
-            raise TracingValidationError(
-                f"Invalid OTLP endpoint: missing host in {endpoint!r}"
-            )
+            raise TracingValidationError(f"Invalid OTLP endpoint: missing host in {endpoint!r}")
         if port_part:
             if not port_part.isdigit():
-                raise TracingValidationError(
-                    f"Invalid OTLP endpoint: non-numeric port in {endpoint!r}"
-                )
+                raise TracingValidationError(f"Invalid OTLP endpoint: non-numeric port in {endpoint!r}")
             port_num = int(port_part)
             if not (1 <= port_num <= 65535):
-                raise TracingValidationError(
-                    f"Invalid OTLP endpoint: port out of range in {endpoint!r}"
-                )
+                raise TracingValidationError(f"Invalid OTLP endpoint: port out of range in {endpoint!r}")
         return
 
     # Full scheme://host[:port] URL form.

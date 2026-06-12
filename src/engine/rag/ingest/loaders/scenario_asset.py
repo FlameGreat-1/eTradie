@@ -3,7 +3,7 @@ from __future__ import annotations
 import json as json_lib
 from pathlib import Path
 
-from engine.rag.constants import SourceFormat, SUPPORTED_IMAGE_FORMATS
+from engine.rag.constants import SUPPORTED_IMAGE_FORMATS, SourceFormat
 from engine.rag.ingest.loaders.base import BaseLoader, LoadedDocument
 from engine.shared.exceptions import RAGLoaderError
 from engine.shared.logging import get_logger
@@ -91,18 +91,10 @@ class ScenarioAssetLoader(BaseLoader):
             if child.suffix.lower() in SUPPORTED_IMAGE_FORMATS:
                 image_refs.append(str(child.relative_to(path)))
 
-        raw_metadata = {
-            k: str(v)
-            for k, v in metadata.items()
-            if isinstance(v, (str, int, float, bool))
-        }
+        raw_metadata = {k: str(v) for k, v in metadata.items() if isinstance(v, (str, int, float, bool))}
         raw_metadata["image_refs"] = json_lib.dumps(image_refs)
-        if "confluence_tags" in metadata and isinstance(
-            metadata["confluence_tags"], list
-        ):
-            raw_metadata["confluence_tags"] = json_lib.dumps(
-                metadata["confluence_tags"]
-            )
+        if "confluence_tags" in metadata and isinstance(metadata["confluence_tags"], list):
+            raw_metadata["confluence_tags"] = json_lib.dumps(metadata["confluence_tags"])
 
         title = metadata.get("title", path.name.replace("_", " ").title())
 

@@ -106,20 +106,14 @@ def _normalize_optional_to_nullable(node: Any) -> Any:
     if isinstance(node, dict):
         any_of = node.get("anyOf")
         if isinstance(any_of, list) and len(any_of) == 2:
-            non_null = [
-                s for s in any_of if isinstance(s, dict) and s.get("type") != "null"
-            ]
-            has_null = any(
-                isinstance(s, dict) and s.get("type") == "null" for s in any_of
-            )
+            non_null = [s for s in any_of if isinstance(s, dict) and s.get("type") != "null"]
+            has_null = any(isinstance(s, dict) and s.get("type") == "null" for s in any_of)
             if len(non_null) == 1 and has_null:
                 inner = copy.deepcopy(non_null[0])
                 inner["nullable"] = True
                 merged = {k: v for k, v in node.items() if k != "anyOf"}
                 merged.update(inner)
-                return {
-                    k: _normalize_optional_to_nullable(v) for k, v in merged.items()
-                }
+                return {k: _normalize_optional_to_nullable(v) for k, v in merged.items()}
         return {k: _normalize_optional_to_nullable(v) for k, v in node.items()}
     if isinstance(node, list):
         return [_normalize_optional_to_nullable(item) for item in node]
@@ -162,11 +156,7 @@ def _force_required_and_no_additional(node: Any) -> Any:
 def _drop_additional_properties(node: Any) -> Any:
     """Strip ``additionalProperties`` entries. Used for Gemini."""
     if isinstance(node, dict):
-        return {
-            k: _drop_additional_properties(v)
-            for k, v in node.items()
-            if k != "additionalProperties"
-        }
+        return {k: _drop_additional_properties(v) for k, v in node.items() if k != "additionalProperties"}
     if isinstance(node, list):
         return [_drop_additional_properties(item) for item in node]
     return node

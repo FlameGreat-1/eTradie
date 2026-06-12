@@ -39,16 +39,16 @@ providers never populated data. Surprise enums fall back to
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import inspect
 
 revision: str = "0024"
-down_revision: Union[str, None] = "0023"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0023"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 _TABLE = "economic_releases"
 
@@ -79,9 +79,7 @@ def _existing_indexes(insp, table_name: str) -> set[str]:
 
 
 def _existing_constraints(insp, table_name: str) -> set[str]:
-    return {
-        uc["name"] for uc in insp.get_unique_constraints(table_name) if uc.get("name")
-    }
+    return {uc["name"] for uc in insp.get_unique_constraints(table_name) if uc.get("name")}
 
 
 def _existing_columns(insp, table_name: str) -> set[str]:

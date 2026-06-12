@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Sequence
+from typing import Any
 
 from sqlalchemy import select
 
-from engine.shared.db.repositories.base_repository import BaseRepository
 from engine.macro.storage.schemas.dxy import DXYSnapshotRow
+from engine.shared.db.repositories.base_repository import BaseRepository
 
 
 class DXYRepository(BaseRepository[DXYSnapshotRow]):

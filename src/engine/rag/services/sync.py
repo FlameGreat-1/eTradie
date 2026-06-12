@@ -32,9 +32,7 @@ class SyncService:
                 return 0
 
             all_chunks = await uow.chunk_repo.get_by_document(document_id)
-            stale = [
-                c for c in all_chunks if c.document_version_id != active_version.id
-            ]
+            stale = [c for c in all_chunks if c.document_version_id != active_version.id]
 
             if not stale:
                 return 0

@@ -30,7 +30,6 @@ provider-specific reasoning parameter.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from engine.processor.llm.capabilities import ModelCapabilities
 
@@ -44,8 +43,8 @@ class ReasoningBudget:
     operator only ever configures one knob.
     """
 
-    budget_tokens: Optional[int]
-    effort: Optional[str]  # "low" | "medium" | "high" | None
+    budget_tokens: int | None
+    effort: str | None  # "low" | "medium" | "high" | None
 
     @property
     def is_active(self) -> bool:
@@ -71,7 +70,7 @@ def _budget_to_effort(budget_tokens: int) -> str:
 
 def resolve_reasoning_budget(
     *,
-    operator_budget_tokens: Optional[int],
+    operator_budget_tokens: int | None,
     capabilities: ModelCapabilities,
 ) -> ReasoningBudget:
     """Pick the active reasoning budget for this call.
@@ -98,10 +97,7 @@ def resolve_reasoning_budget(
             effort=_budget_to_effort(operator_budget_tokens),
         )
 
-    if (
-        capabilities.is_thinking
-        and capabilities.default_reasoning_budget_tokens is not None
-    ):
+    if capabilities.is_thinking and capabilities.default_reasoning_budget_tokens is not None:
         default = capabilities.default_reasoning_budget_tokens
         return ReasoningBudget(
             budget_tokens=default,

@@ -50,9 +50,8 @@ def validate_chunks(
             )
         seen_hashes.add(content_hash)
 
-        if chunk.parent_chunk_index is not None:
-            if chunk.parent_chunk_index >= chunk.chunk_index:
-                raise RAGValidationError(
-                    f"Chunk {chunk.chunk_index} has invalid parent index {chunk.parent_chunk_index}",
-                    details={"chunk_index": chunk.chunk_index},
-                )
+        if chunk.parent_chunk_index is not None and chunk.parent_chunk_index >= chunk.chunk_index:
+            raise RAGValidationError(
+                f"Chunk {chunk.chunk_index} has invalid parent index {chunk.parent_chunk_index}",
+                details={"chunk_index": chunk.chunk_index},
+            )

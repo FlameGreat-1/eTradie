@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, DateTime, Index, JSON, Text
+from sqlalchemy import JSON, DateTime, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from engine.shared.db.migrations._schema_registry import Base
@@ -38,9 +38,7 @@ class SnapshotSchema(Base):
 
     timeframe: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
 
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     swing_highs: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
@@ -78,9 +76,7 @@ class SnapshotSchema(Base):
 
     demand_zones: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
-    fibonacci_retracements: Mapped[dict] = mapped_column(
-        JSON, nullable=False, default=dict
-    )
+    fibonacci_retracements: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
     dealing_ranges: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 

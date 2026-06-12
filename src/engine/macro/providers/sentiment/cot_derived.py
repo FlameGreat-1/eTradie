@@ -12,13 +12,12 @@ external API calls and zero cost.
 from __future__ import annotations
 
 import time
-from typing import Any
 
+from engine.macro.models.provider.sentiment import SentimentReading
+from engine.macro.providers.sentiment.base import BaseSentimentProvider
 from engine.shared.cache import RedisCache
 from engine.shared.logging import get_logger
 from engine.shared.models.currency import Currency
-from engine.macro.models.provider.sentiment import SentimentReading
-from engine.macro.providers.sentiment.base import BaseSentimentProvider
 
 logger = get_logger(__name__)
 
@@ -91,10 +90,7 @@ class COTDerivedSentimentProvider(BaseSentimentProvider):
                 # percentile_rank is 0-100 where high = extreme positioning.
                 # If net > 0, high percentile = very long.
                 # If net < 0, high percentile = very short.
-                if net >= 0:
-                    long_pct = min(50.0 + (percentile / 2.0), 100.0)
-                else:
-                    long_pct = max(50.0 - (percentile / 2.0), 0.0)
+                long_pct = min(50.0 + percentile / 2.0, 100.0) if net >= 0 else max(50.0 - percentile / 2.0, 0.0)
 
                 short_pct = 100.0 - long_pct
                 net_positioning = round(long_pct - short_pct, 2)

@@ -15,16 +15,15 @@ the ZMQ socket directly, because the load test must exercise the
 FULL engine -> ZmqClient -> EA round-trip plus every middleware
 (in-flight gate, outbound rate limiter, request-deadline propagation).
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
 import ssl
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Any
 
 from tests.chaos._load.tenant_provisioner import Tenant
 
@@ -80,6 +79,7 @@ class WorkloadDriver:
         url = self._engine_url + path
         if params:
             from urllib.parse import urlencode
+
             url = url + "?" + urlencode(params)
         headers = {
             "Authorization": f"Bearer {self._admin_jwt}",
@@ -128,21 +128,23 @@ class WorkloadDriver:
             now = time.monotonic()
             tasks: list[asyncio.Task] = []
             if now >= next_tick:
-                tasks.append(asyncio.create_task(
-                    self._call(tenant, "/internal/broker/tick_price",
-                               params={"symbol": "EURUSD"})
-                ))
+                tasks.append(
+                    asyncio.create_task(self._call(tenant, "/internal/broker/tick_price", params={"symbol": "EURUSD"}))
+                )
                 next_tick = now + _TICK_INTERVAL_SECS
             if now >= next_account:
-                tasks.append(asyncio.create_task(
-                    self._call(tenant, "/internal/broker/account_info")
-                ))
+                tasks.append(asyncio.create_task(self._call(tenant, "/internal/broker/account_info")))
                 next_account = now + _ACCOUNT_INTERVAL_SECS
             if now >= next_candles:
-                tasks.append(asyncio.create_task(
-                    self._call(tenant, "/internal/broker/candles",
-                               params={"symbol": "EURUSD", "timeframe": "H1", "count": "100"})
-                ))
+                tasks.append(
+                    asyncio.create_task(
+                        self._call(
+                            tenant,
+                            "/internal/broker/candles",
+                            params={"symbol": "EURUSD", "timeframe": "H1", "count": "100"},
+                        )
+                    )
+                )
                 next_candles = now + _CANDLES_INTERVAL_SECS
             if tasks:
                 results = await asyncio.gather(*tasks, return_exceptions=False)
@@ -155,7 +157,7 @@ class WorkloadDriver:
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=sleep_for)
                 return  # stop_event was set
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass  # next tick due
 
     async def run(
@@ -166,17 +168,14 @@ class WorkloadDriver:
     ) -> WorkloadOutcome:
         outcomes = {t.connection_id: TenantOutcome(t.user_id, t.connection_id) for t in tenants}
         stop_event = asyncio.Event()
-        coros = [
-            self._drive_tenant(t, outcomes[t.connection_id], stop_event)
-            for t in tenants
-        ]
+        coros = [self._drive_tenant(t, outcomes[t.connection_id], stop_event) for t in tenants]
         start = time.monotonic()
         try:
             await asyncio.wait_for(
                 asyncio.gather(*coros, return_exceptions=False),
                 timeout=duration_secs,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             stop_event.set()
             # Give the per-tenant coroutines a moment to exit cleanly.
             await asyncio.gather(*coros, return_exceptions=True)

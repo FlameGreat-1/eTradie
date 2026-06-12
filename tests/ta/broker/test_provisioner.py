@@ -10,6 +10,7 @@ rejected before any Kubernetes call is made.
 No real K8s, no real Vault, no real DB. Mirrors the mocking pattern in
 tests/integration/test_hosted_provisioner_release_naming.py.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock

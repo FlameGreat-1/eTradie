@@ -37,7 +37,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
-from typing import Optional
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -86,7 +85,7 @@ def _constant_time_equal(a: str, b: str) -> bool:
     return hmac.compare_digest(a.encode(), b.encode())
 
 
-def _read_csrf_cookie(request: Request) -> Optional[str]:
+def _read_csrf_cookie(request: Request) -> str | None:
     """Return the CSRF cookie value, trying prefixed then unprefixed name."""
     for name in _CSRF_COOKIE_NAMES:
         val = request.cookies.get(name, "").strip()
@@ -95,9 +94,7 @@ def _read_csrf_cookie(request: Request) -> Optional[str]:
     return None
 
 
-def _verify_csrf(
-    request: Request, header_name: str, signed: bool, secret: bytes
-) -> bool:
+def _verify_csrf(request: Request, header_name: str, signed: bool, secret: bytes) -> bool:
     """Return True iff the CSRF cookie + header pair is valid.
 
     In signed mode the authenticated user_id is read from

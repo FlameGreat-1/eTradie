@@ -13,11 +13,12 @@ Key design notes:
     CI (1800), nightly (86400), and weekly (259200) modes without
     code changes.
 """
+
 from __future__ import annotations
 
 import os
 import secrets
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 import pytest
 

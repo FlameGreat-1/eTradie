@@ -1,13 +1,13 @@
 """Tests for the Candle and CandleSequence domain models."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
 
 from engine.shared.exceptions import ConfigurationError
 from engine.ta.constants import CandleType, Timeframe
-from engine.ta.models.candle import Candle, CandleSequence
+from engine.ta.models.candle import CandleSequence
 from tests.factories import make_candle, make_candle_sequence
 
 

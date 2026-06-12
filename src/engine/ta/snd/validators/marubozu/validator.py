@@ -1,8 +1,7 @@
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
 from engine.ta.common.utils.price.math import calculate_body_percentage
-from engine.ta.models.candle import Candle
-from engine.ta.models.candle import CandleSequence
+from engine.ta.models.candle import Candle, CandleSequence
 from engine.ta.snd.config import SnDConfig
 
 logger = get_logger(__name__)
@@ -236,5 +235,4 @@ class MarubozuValidator:
 
         if is_bullish:
             return self.validate_bullish_marubozu(candle)
-        else:
-            return self.validate_bearish_marubozu(candle)
+        return self.validate_bearish_marubozu(candle)

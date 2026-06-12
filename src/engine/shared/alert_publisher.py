@@ -41,8 +41,8 @@ from __future__ import annotations
 
 import os
 import secrets
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from engine.shared.cache.redis_cache import RedisCache
 from engine.shared.logging import get_logger
@@ -106,7 +106,7 @@ def _generate_event_id() -> str:
     any other format silently breaks history-catchup pagination for
     every event this publisher emits.
     """
-    now = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    now = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     suffix = secrets.token_hex(4)
     return f"{now}-{suffix}"
 
@@ -119,7 +119,7 @@ def _rfc3339_nano_utc() -> str:
     timestamps without complaint (the "Nano" name is a Go convention,
     not a width requirement).
     """
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +159,7 @@ class AlertPublisher:
         severity: str,
         message: str,
         user_id: str = "",
-        details: Optional[dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         """Emit one event on the alert channel.
 

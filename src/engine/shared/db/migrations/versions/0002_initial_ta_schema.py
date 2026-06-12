@@ -7,16 +7,16 @@ Create Date: 2026-03-08
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0002"
-down_revision: Union[str, None] = "0001"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0001"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -87,25 +87,15 @@ def upgrade() -> None:
         sa.Column("choch_events", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("sms_events", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("order_blocks", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column(
-            "fair_value_gaps", postgresql.JSON, nullable=False, server_default="{}"
-        ),
-        sa.Column(
-            "liquidity_sweeps", postgresql.JSON, nullable=False, server_default="{}"
-        ),
-        sa.Column(
-            "inducement_events", postgresql.JSON, nullable=False, server_default="{}"
-        ),
+        sa.Column("fair_value_gaps", postgresql.JSON, nullable=False, server_default="{}"),
+        sa.Column("liquidity_sweeps", postgresql.JSON, nullable=False, server_default="{}"),
+        sa.Column("inducement_events", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("qm_levels", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("sr_flips", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("rs_flips", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column(
-            "previous_levels", postgresql.JSON, nullable=False, server_default="{}"
-        ),
+        sa.Column("previous_levels", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("mpl_levels", postgresql.JSON, nullable=False, server_default="{}"),
-        sa.Column(
-            "fakeout_tests", postgresql.JSON, nullable=False, server_default="{}"
-        ),
+        sa.Column("fakeout_tests", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("supply_zones", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("demand_zones", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column(
@@ -178,9 +168,7 @@ def upgrade() -> None:
         sa.Column("sweep_timestamp", sa.DateTime(timezone=True), nullable=True),
         sa.Column("inducement_cleared", sa.Boolean, nullable=True),
         sa.Column("ltf_confirmation", sa.Boolean, nullable=True),
-        sa.Column(
-            "ltf_confirmation_timestamp", sa.DateTime(timezone=True), nullable=True
-        ),
+        sa.Column("ltf_confirmation_timestamp", sa.DateTime(timezone=True), nullable=True),
         sa.Column("displacement_pips", sa.Float, nullable=True),
         sa.Column("fib_level", sa.String(20), nullable=True),
         sa.Column("session_context", sa.String(50), nullable=True),

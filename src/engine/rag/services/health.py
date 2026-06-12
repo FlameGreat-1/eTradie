@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 
 from engine.config import RAGConfig
@@ -44,10 +45,8 @@ class HealthService:
         )
 
         db_ok = False
-        try:
+        with contextlib.suppress(Exception):
             db_ok = await self._db.health_check()
-        except Exception:
-            pass
 
         embed_ok = False
         try:

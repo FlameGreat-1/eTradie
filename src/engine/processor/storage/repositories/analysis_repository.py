@@ -6,15 +6,16 @@ Idempotent upsert on analysis_id to handle retries safely.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Optional, Sequence
+from typing import Any
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from engine.processor.storage.schemas.processor_schema import AnalysisOutputRow
 from engine.shared.db.repositories.base_repository import BaseRepository
 from engine.shared.logging import get_logger
-from engine.processor.storage.schemas.processor_schema import AnalysisOutputRow
 
 logger = get_logger(__name__)
 
@@ -39,22 +40,22 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
         confluence_score: float,
         confidence: str,
         proceed_to_module_b: str,
-        rr_ratio: Optional[float] = None,
-        entry_price_low: Optional[float] = None,
-        entry_price_high: Optional[float] = None,
-        stop_loss_price: Optional[float] = None,
-        tp1_price: Optional[float] = None,
-        tp2_price: Optional[float] = None,
-        tp3_price: Optional[float] = None,
+        rr_ratio: float | None = None,
+        entry_price_low: float | None = None,
+        entry_price_high: float | None = None,
+        stop_loss_price: float | None = None,
+        tp1_price: float | None = None,
+        tp2_price: float | None = None,
+        tp3_price: float | None = None,
         trading_style: str = "",
         session: str = "",
         llm_provider: str = "",
         llm_model: str = "",
         status: str = "success",
-        error_message: Optional[str] = None,
+        error_message: str | None = None,
         duration_ms: float = 0.0,
-        trace_id: Optional[str] = None,
-        raw_output: Optional[dict] = None,
+        trace_id: str | None = None,
+        raw_output: dict | None = None,
     ) -> None:
         """Idempotent upsert of an analysis output, scoped to user."""
         await self.upsert(
@@ -121,7 +122,7 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
         self,
         analysis_id: str,
         user_id: str,
-    ) -> Optional[AnalysisOutputRow]:
+    ) -> AnalysisOutputRow | None:
         """Retrieve a single analysis by its unique analysis_id, scoped to user."""
         stmt = select(AnalysisOutputRow).where(
             AnalysisOutputRow.user_id == user_id,
@@ -152,12 +153,12 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
         self,
         user_id: str,
         *,
-        pair: Optional[str] = None,
-        status: Optional[str] = None,
-        grade: Optional[str] = None,
-        provider: Optional[str] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
+        pair: str | None = None,
+        status: str | None = None,
+        grade: str | None = None,
+        provider: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[Sequence[AnalysisOutputRow], int]:
@@ -182,11 +183,7 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
 
         total = await self.count(base)
 
-        page_stmt = (
-            base.order_by(AnalysisOutputRow.created_at.desc())
-            .offset(offset)
-            .limit(limit)
-        )
+        page_stmt = base.order_by(AnalysisOutputRow.created_at.desc()).offset(offset).limit(limit)
         rows = await self.execute_query(page_stmt)
 
         return rows, total
@@ -195,9 +192,9 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
         self,
         user_id: str,
         *,
-        pair: Optional[str] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
+        pair: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
     ) -> dict[str, Any]:
         """Compute aggregate statistics for the dashboard.
 
@@ -308,12 +305,12 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
     def _apply_filters(
         stmt: Any,
         *,
-        pair: Optional[str],
-        status: Optional[str],
-        grade: Optional[str],
-        provider: Optional[str],
-        since: Optional[datetime],
-        until: Optional[datetime],
+        pair: str | None,
+        status: str | None,
+        grade: str | None,
+        provider: str | None,
+        since: datetime | None,
+        until: datetime | None,
     ) -> Any:
         """Apply WHERE clauses to a SELECT(AnalysisOutputRow) statement."""
         T = AnalysisOutputRow  # noqa: N806
@@ -335,9 +332,9 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
     def _apply_scalar_filters(
         stmt: Any,
         *,
-        pair: Optional[str],
-        since: Optional[datetime],
-        until: Optional[datetime],
+        pair: str | None,
+        since: datetime | None,
+        until: datetime | None,
     ) -> Any:
         """Apply WHERE clauses to aggregate (non-row) statements."""
         T = AnalysisOutputRow  # noqa: N806

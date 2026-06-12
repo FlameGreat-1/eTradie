@@ -3,11 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from engine.shared.logging import get_logger
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.risk_environment import assess_risk_environment
-from engine.macro.providers.sentiment.base import BaseSentimentProvider
 from engine.macro.storage.repositories.sentiment.reading import SentimentRepository
+from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -51,9 +50,7 @@ class SentimentCollector(BaseCollector):
                             if hasattr(s, "currency") and hasattr(s.currency, "value")
                             else str(getattr(s, "currency", ""))
                         ),
-                        "source": (
-                            getattr(s, "source", "") if hasattr(s, "source") else ""
-                        ),
+                        "source": (getattr(s, "source", "") if hasattr(s, "source") else ""),
                         "long_percentage": getattr(s, "long_percentage", 50.0),
                         "short_percentage": getattr(s, "short_percentage", 50.0),
                         "net_positioning": getattr(s, "net_positioning", 0.0),
@@ -95,10 +92,7 @@ class SentimentCollector(BaseCollector):
         )
 
         result = {
-            "sentiments": [
-                s.model_dump(mode="json") if hasattr(s, "model_dump") else s
-                for s in all_sentiments
-            ],
+            "sentiments": [s.model_dump(mode="json") if hasattr(s, "model_dump") else s for s in all_sentiments],
             "sources": sources,
             "risk_environment": risk_assessment.environment.value,
             "risk_assessment": risk_assessment.model_dump(mode="json"),

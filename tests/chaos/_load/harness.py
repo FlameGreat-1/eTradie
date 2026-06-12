@@ -10,6 +10,7 @@ The harness wires the four components in tests/chaos/_load/:
     10s during the workload and records the RSS + auth time-series.
   - SLOChecker: evaluates the time-series against the runbook SLOs.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,7 +20,6 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from typing import Any
 
 from tests.chaos._load.slo_checker import SLOChecker, SLOResult
 from tests.chaos._load.tenant_provisioner import (
@@ -104,18 +104,14 @@ class LoadHarness:
             ]
             scrapes = await asyncio.gather(*scrape_coros, return_exceptions=False)
             for t, scrape in zip(tenants, scrapes):
-                rss[t.connection_id].append(
-                    scrape.get("mt_node_mt5_process_rss_bytes", 0.0)
-                )
-                auth[t.connection_id].append(
-                    int(scrape.get("mt_node_ea_authenticated", 0.0))
-                )
+                rss[t.connection_id].append(scrape.get("mt_node_mt5_process_rss_bytes", 0.0))
+                auth[t.connection_id].append(int(scrape.get("mt_node_ea_authenticated", 0.0)))
             elapsed = time.monotonic() - tick_start
             sleep_for = max(0.0, _METRICS_SCRAPE_INTERVAL_SECS - elapsed)
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=sleep_for)
                 return rss, auth
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
         return rss, auth
 
@@ -147,16 +143,16 @@ class LoadHarness:
                 return HarnessResult(
                     provisioning=provisioning,
                     workload=WorkloadOutcome(duration_secs=0.0, per_tenant={}),
-                    slo=SLOResult(failures=[
-                        f"provisioning failed for {len(provisioning.failed)} tenants: "
-                        + "; ".join(f"{login}: {err[:80]}" for login, err in provisioning.failed[:5])
-                    ]),
+                    slo=SLOResult(
+                        failures=[
+                            f"provisioning failed for {len(provisioning.failed)} tenants: "
+                            + "; ".join(f"{login}: {err[:80]}" for login, err in provisioning.failed[:5])
+                        ]
+                    ),
                 )
             tenants = provisioning.successful
             stop_event = asyncio.Event()
-            collector_task = asyncio.create_task(
-                self._collect_metrics(tenants, stop_event)
-            )
+            collector_task = asyncio.create_task(self._collect_metrics(tenants, stop_event))
             workload = await driver.run(tenants, duration_secs=duration_secs)
             stop_event.set()
             rss_samples, auth_samples = await collector_task
@@ -178,16 +174,11 @@ def build_harness_from_env() -> LoadHarness | None:
     tests can pytest.skip cleanly."""
     engine_url = os.environ.get("ETRADIE_CHAOS_ENGINE_URL", "").strip()
     admin_jwt = os.environ.get("ETRADIE_CHAOS_ADMIN_JWT", "").strip()
-    watchdog_template = os.environ.get(
-        "ETRADIE_CHAOS_WATCHDOG_URL_TEMPLATE", ""
-    ).strip()
+    watchdog_template = os.environ.get("ETRADIE_CHAOS_WATCHDOG_URL_TEMPLATE", "").strip()
     creds_file = os.environ.get("ETRADIE_CHAOS_TEST_CREDS_FILE", "").strip()
     if not (engine_url and admin_jwt and watchdog_template and creds_file):
         return None
-    insecure = (
-        os.environ.get("ETRADIE_CHAOS_INSECURE_TLS", "false").strip().lower()
-        in ("1", "true", "yes")
-    )
+    insecure = os.environ.get("ETRADIE_CHAOS_INSECURE_TLS", "false").strip().lower() in ("1", "true", "yes")
     return LoadHarness(
         engine_url=engine_url,
         admin_jwt=admin_jwt,

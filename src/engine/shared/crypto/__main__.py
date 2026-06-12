@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import sys
 
 from engine.config import get_settings
@@ -67,8 +66,6 @@ async def _run(args: argparse.Namespace) -> int:
     finally:
         await db.close()
 
-    print(json.dumps(stats.as_dict(), indent=2))
-
     if stats.failed_columns > 0:
         logger.error(
             "credential_rewrap_completed_with_failures",
@@ -84,7 +81,6 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_run(args))
     except Exception as exc:  # noqa: BLE001 - top-level CLI guard
         logger.error("credential_rewrap_fatal", extra={"error": str(exc)})
-        print(f"credential re-wrap failed: {exc}", file=sys.stderr)
         return 1
 
 

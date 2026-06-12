@@ -16,8 +16,8 @@ from engine.processor.config import ProcessorConfig
 from engine.processor.constants import (
     AVAILABLE_MODELS,
     DEFAULT_MODELS,
-    LLMProvider,
     MODEL_CATALOG,
+    LLMProvider,
 )
 from engine.processor.llm.factory import create_llm_client
 from engine.processor.service import AnalysisProcessor
@@ -115,11 +115,7 @@ async def update_processor_config(
     new_provider = body.llm_provider or old_cfg.llm_provider
     new_model = body.model_name or old_cfg.model_name
     new_temp = body.temperature if body.temperature is not None else old_cfg.temperature
-    new_max_tokens = (
-        body.max_output_tokens
-        if body.max_output_tokens is not None
-        else old_cfg.max_output_tokens
-    )
+    new_max_tokens = body.max_output_tokens if body.max_output_tokens is not None else old_cfg.max_output_tokens
 
     valid_providers = {p.value for p in LLMProvider}
     if new_provider not in valid_providers:

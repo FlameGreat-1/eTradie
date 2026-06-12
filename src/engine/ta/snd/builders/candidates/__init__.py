@@ -20,9 +20,9 @@ Builds all 14 SnD pattern candidates:
 Each builder validates all requirements before generating candidates.
 """
 
+from engine.ta.snd.builders.candidates.continuation import ContinuationCandidateBuilder
 from engine.ta.snd.builders.candidates.fakeout import FakeoutCandidateBuilder
 from engine.ta.snd.builders.candidates.qm import QMCandidateBuilder
-from engine.ta.snd.builders.candidates.continuation import ContinuationCandidateBuilder
 
 __all__ = [
     "FakeoutCandidateBuilder",

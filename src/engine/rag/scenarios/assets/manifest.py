@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from engine.rag.constants import SUPPORTED_IMAGE_FORMATS
@@ -29,13 +29,7 @@ def build_scenario_manifest(scenario_root: Path) -> list[ScenarioManifestEntry]:
         if not explanation.is_file() or not metadata.is_file():
             continue
 
-        images = tuple(
-            sorted(
-                f
-                for f in child.iterdir()
-                if f.suffix.lower() in SUPPORTED_IMAGE_FORMATS
-            )
-        )
+        images = tuple(sorted(f for f in child.iterdir() if f.suffix.lower() in SUPPORTED_IMAGE_FORMATS))
 
         entries.append(
             ScenarioManifestEntry(

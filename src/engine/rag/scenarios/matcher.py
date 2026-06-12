@@ -44,22 +44,12 @@ class ScenarioMatcher:
                     outcome=row.outcome,
                     title=row.title,
                     explanation_text=row.explanation_text,
-                    image_refs=(
-                        tuple(row.image_refs)
-                        if isinstance(row.image_refs, list)
-                        else ()
-                    ),
+                    image_refs=(tuple(row.image_refs) if isinstance(row.image_refs, list) else ()),
                     confluence_tags=(
-                        frozenset(row.confluence_tags)
-                        if isinstance(row.confluence_tags, list)
-                        else frozenset()
+                        frozenset(row.confluence_tags) if isinstance(row.confluence_tags, list) else frozenset()
                     ),
-                    style_tags=(
-                        frozenset(row.style_tags)
-                        if isinstance(row.style_tags, list)
-                        else frozenset()
-                    ),
-                    linked_chunk_ids=tuple(),
+                    style_tags=(frozenset(row.style_tags) if isinstance(row.style_tags, list) else frozenset()),
+                    linked_chunk_ids=(),
                     metadata=row.meta_data if isinstance(row.meta_data, dict) else {},
                     is_active=row.is_active,
                     notes=row.notes,

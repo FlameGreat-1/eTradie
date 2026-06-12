@@ -71,21 +71,13 @@ class ChromaVectorStore(BaseVectorStore):
                 metadata={"hnsw:space": "cosine", "dimensions": dimensions},
             )
             elapsed = time.monotonic() - start
-            RAG_VECTORSTORE_OPS_TOTAL.labels(
-                operation="create_collection", collection=name, status="success"
-            ).inc()
-            RAG_VECTORSTORE_OPS_DURATION.labels(
-                operation="create_collection", collection=name
-            ).observe(elapsed)
-            logger.info(
-                "chroma_collection_created", collection=name, dimensions=dimensions
-            )
+            RAG_VECTORSTORE_OPS_TOTAL.labels(operation="create_collection", collection=name, status="success").inc()
+            RAG_VECTORSTORE_OPS_DURATION.labels(operation="create_collection", collection=name).observe(elapsed)
+            logger.info("chroma_collection_created", collection=name, dimensions=dimensions)
         except RAGVectorStoreConnectionError:
             raise
         except Exception as exc:
-            RAG_VECTORSTORE_OPS_TOTAL.labels(
-                operation="create_collection", collection=name, status="error"
-            ).inc()
+            RAG_VECTORSTORE_OPS_TOTAL.labels(operation="create_collection", collection=name, status="error").inc()
             raise RAGVectorStoreError(
                 f"Failed to create collection {name}",
                 details={"error": str(exc)},
@@ -95,13 +87,9 @@ class ChromaVectorStore(BaseVectorStore):
         try:
             client = self._get_client()
             await self._run_sync(client.delete_collection, name=name)
-            RAG_VECTORSTORE_OPS_TOTAL.labels(
-                operation="delete_collection", collection=name, status="success"
-            ).inc()
+            RAG_VECTORSTORE_OPS_TOTAL.labels(operation="delete_collection", collection=name, status="success").inc()
         except Exception as exc:
-            RAG_VECTORSTORE_OPS_TOTAL.labels(
-                operation="delete_collection", collection=name, status="error"
-            ).inc()
+            RAG_VECTORSTORE_OPS_TOTAL.labels(operation="delete_collection", collection=name, status="error").inc()
             raise RAGVectorStoreError(
                 f"Failed to delete collection {name}",
                 details={"error": str(exc)},
@@ -131,12 +119,8 @@ class ChromaVectorStore(BaseVectorStore):
                 metadatas=metadatas,
             )
             elapsed = time.monotonic() - start
-            RAG_VECTORSTORE_OPS_TOTAL.labels(
-                operation="upsert", collection=collection, status="success"
-            ).inc()
-            RAG_VECTORSTORE_OPS_DURATION.labels(
-                operation="upsert", collection=collection
-            ).observe(elapsed)
+            RAG_VECTORSTORE_OPS_TOTAL.labels(operation="upsert", collection=collection, status="success").inc()
+            RAG_VECTORSTORE_OPS_DURATION.labels(operation="upsert", collection=collection).observe(elapsed)
             logger.info(
                 "chroma_upsert",
                 collection=collection,
@@ -144,9 +128,7 @@ class ChromaVectorStore(BaseVectorStore):
                 elapsed_s=round(elapsed, 3),
             )
         except Exception as exc:
-            RAG_VECTORSTORE_OPS_TOTAL.labels(
-                operation="upsert", collection=collection, status="error"
-            ).inc()
+            RAG_VECTORSTORE_OPS_TOTAL.labels(operation="upsert", collection=collection, status="error").inc()
             raise RAGVectorStoreUpsertError(
                 f"Failed to upsert {len(ids)} vectors into {collection}",
                 details={"error": str(exc), "count": len(ids)},
@@ -159,13 +141,9 @@ class ChromaVectorStore(BaseVectorStore):
             client = self._get_client()
             col = await self._run_sync(client.get_collection, name=collection)
             await self._run_sync(col.delete, ids=ids)
-            RAG_VECTORSTORE_OPS_TOTAL.labels(
-                operation="delete", collection=collection, status="success"
-            ).inc()
+            RAG_VECTORSTORE_OPS_TOTAL.labels(operation="delete", collection=collection, status="success").inc()
         except Exception as exc:
-            RAG_VECTORSTORE_OPS_TOTAL.labels(
-                operation="delete", collection=collection, status="error"
-            ).inc()
+            RAG_VECTORSTORE_OPS_TOTAL.labels(operation="delete", collection=collection, status="error").inc()
             raise RAGVectorStoreError(
                 f"Failed to delete {len(ids)} vectors from {collection}",
                 details={"error": str(exc)},
@@ -195,12 +173,8 @@ class ChromaVectorStore(BaseVectorStore):
             raw = await self._run_sync(col.query, **query_kwargs)
 
             elapsed = time.monotonic() - start
-            RAG_VECTORSTORE_OPS_TOTAL.labels(
-                operation="query", collection=collection, status="success"
-            ).inc()
-            RAG_VECTORSTORE_OPS_DURATION.labels(
-                operation="query", collection=collection
-            ).observe(elapsed)
+            RAG_VECTORSTORE_OPS_TOTAL.labels(operation="query", collection=collection, status="success").inc()
+            RAG_VECTORSTORE_OPS_DURATION.labels(operation="query", collection=collection).observe(elapsed)
 
             results: list[VectorSearchResult] = []
             if raw and raw.get("ids") and raw["ids"][0]:
@@ -226,9 +200,7 @@ class ChromaVectorStore(BaseVectorStore):
         except RAGVectorStoreConnectionError:
             raise
         except Exception as exc:
-            RAG_VECTORSTORE_OPS_TOTAL.labels(
-                operation="query", collection=collection, status="error"
-            ).inc()
+            RAG_VECTORSTORE_OPS_TOTAL.labels(operation="query", collection=collection, status="error").inc()
             raise RAGVectorStoreError(
                 f"Failed to query collection {collection}",
                 details={"error": str(exc)},

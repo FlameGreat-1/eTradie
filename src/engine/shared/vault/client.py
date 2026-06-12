@@ -22,7 +22,7 @@ import os
 import time as _time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from engine.shared.exceptions import (
     ConfigurationError,
@@ -58,7 +58,7 @@ class VaultConfig:
     renew_safety_secs: float
 
     @classmethod
-    def from_env(cls) -> "VaultConfig":
+    def from_env(cls) -> VaultConfig:
         address = os.environ.get("VAULT_ADDR", "").strip().rstrip("/")
         if not address:
             raise ConfigurationError(
@@ -91,16 +91,11 @@ class VaultConfig:
         return cls(
             address=address,
             namespace=os.environ.get("VAULT_NAMESPACE", "").strip(),
-            kv_mount=os.environ.get("VAULT_MOUNT", _DEFAULT_KV_MOUNT).strip()
-            or _DEFAULT_KV_MOUNT,
-            k8s_auth_path=os.environ.get(
-                "VAULT_K8S_AUTH_PATH", _DEFAULT_K8S_AUTH_PATH
-            ).strip()
+            kv_mount=os.environ.get("VAULT_MOUNT", _DEFAULT_KV_MOUNT).strip() or _DEFAULT_KV_MOUNT,
+            k8s_auth_path=os.environ.get("VAULT_K8S_AUTH_PATH", _DEFAULT_K8S_AUTH_PATH).strip()
             or _DEFAULT_K8S_AUTH_PATH,
             k8s_auth_role=role,
-            sa_token_path=os.environ.get(
-                "VAULT_K8S_SA_TOKEN_PATH", _DEFAULT_SA_TOKEN_PATH
-            ).strip()
+            sa_token_path=os.environ.get("VAULT_K8S_SA_TOKEN_PATH", _DEFAULT_SA_TOKEN_PATH).strip()
             or _DEFAULT_SA_TOKEN_PATH,
             renew_safety_secs=renew_safety,
         )
@@ -112,7 +107,7 @@ class VaultClient:
     def __init__(self, *, http_client: HttpClient, config: VaultConfig) -> None:
         self._http = http_client
         self._config = config
-        self._token: Optional[str] = None
+        self._token: str | None = None
         self._token_expires_mono: float = 0.0
         self._renewable: bool = False
         self._lock = asyncio.Lock()
@@ -149,10 +144,7 @@ class VaultClient:
         """Return a valid Vault token, refreshing when within the safety window."""
         async with self._lock:
             now = _time.monotonic()
-            if (
-                self._token is not None
-                and now + self._config.renew_safety_secs < self._token_expires_mono
-            ):
+            if self._token is not None and now + self._config.renew_safety_secs < self._token_expires_mono:
                 return self._token
             await self._login_locked()
             assert self._token is not None
@@ -217,7 +209,7 @@ class VaultClient:
         method: str,
         url: str,
         *,
-        json_body: Optional[dict[str, Any]] = None,
+        json_body: dict[str, Any] | None = None,
         category: str = "unknown",
     ) -> Any:
         """Execute a Vault request with one auto-reauth on 403."""
@@ -252,9 +244,7 @@ class VaultClient:
             details={"url": url, "category": category},
         )
 
-    def _headers(
-        self, *, include_token: bool, token: Optional[str] = None
-    ) -> dict[str, str]:
+    def _headers(self, *, include_token: bool, token: str | None = None) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
         if self._config.namespace:
             headers["X-Vault-Namespace"] = self._config.namespace

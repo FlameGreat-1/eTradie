@@ -1,9 +1,6 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
-from engine.ta.constants import Direction
 from engine.ta.models.candle import CandleSequence
-from engine.ta.models.zone import SupplyZone, DemandZone
+from engine.ta.models.zone import DemandZone, SupplyZone
 from engine.ta.snd.config import SnDConfig
 
 logger = get_logger(__name__)

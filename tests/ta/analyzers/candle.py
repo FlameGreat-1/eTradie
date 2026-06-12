@@ -8,8 +8,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from engine.ta.common.analyzers.candles import CandleAnalyzer
-from engine.ta.constants import CandleType, Timeframe
-from engine.ta.models.candle import Candle
+from engine.ta.constants import CandleType
 from tests.factories import make_candle, make_candle_sequence
 
 
@@ -103,11 +102,17 @@ class TestDetectImbalance:
         c1 = make_candle(timestamp=ts, open=1.10, high=1.12, low=1.09, close=1.11)
         c2 = make_candle(
             timestamp=ts + timedelta(hours=1),
-            open=1.11, high=1.13, low=1.10, close=1.12,
+            open=1.11,
+            high=1.13,
+            low=1.10,
+            close=1.12,
         )
         c3 = make_candle(
             timestamp=ts + timedelta(hours=2),
-            open=1.12, high=1.14, low=1.11, close=1.13,
+            open=1.12,
+            high=1.14,
+            low=1.11,
+            close=1.13,
         )
         assert analyzer.detect_imbalance(c1, c2, c3) is None
 
@@ -125,11 +130,17 @@ class TestDetectImbalance:
         c1 = make_candle(timestamp=ts, open=1.20, high=1.22, low=1.18, close=1.19)
         c2 = make_candle(
             timestamp=ts + timedelta(hours=1),
-            open=1.15, high=1.16, low=1.12, close=1.13,
+            open=1.15,
+            high=1.16,
+            low=1.12,
+            close=1.13,
         )
         c3 = make_candle(
             timestamp=ts + timedelta(hours=2),
-            open=1.19, high=1.21, low=1.17, close=1.20,
+            open=1.19,
+            high=1.21,
+            low=1.17,
+            close=1.20,
         )
         result = analyzer.detect_imbalance(c1, c2, c3)
         if result is not None:
@@ -147,11 +158,18 @@ class TestIsEngulfing:
         """Large bullish candle engulfs small bearish candle."""
         ts = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
         prev = make_candle(
-            timestamp=ts, open=1.1050, high=1.1060, low=1.0990, close=1.1000,
+            timestamp=ts,
+            open=1.1050,
+            high=1.1060,
+            low=1.0990,
+            close=1.1000,
         )
         curr = make_candle(
             timestamp=ts + timedelta(hours=1),
-            open=1.0980, high=1.1080, low=1.0970, close=1.1070,
+            open=1.0980,
+            high=1.1080,
+            low=1.0970,
+            close=1.1070,
         )
         assert analyzer.is_engulfing(curr, prev) is True
 
@@ -159,11 +177,18 @@ class TestIsEngulfing:
         """Similar-sized candles don't engulf."""
         ts = datetime(2024, 6, 1, 10, 0, tzinfo=UTC)
         prev = make_candle(
-            timestamp=ts, open=1.1000, high=1.1050, low=1.0950, close=1.1020,
+            timestamp=ts,
+            open=1.1000,
+            high=1.1050,
+            low=1.0950,
+            close=1.1020,
         )
         curr = make_candle(
             timestamp=ts + timedelta(hours=1),
-            open=1.1010, high=1.1040, low=1.0960, close=1.1030,
+            open=1.1010,
+            high=1.1040,
+            low=1.0960,
+            close=1.1030,
         )
         assert analyzer.is_engulfing(curr, prev) is False
 

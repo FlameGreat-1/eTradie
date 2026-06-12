@@ -1,5 +1,3 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.constants import Direction, Timeframe
 from engine.ta.models.candle import CandleSequence
@@ -50,9 +48,7 @@ class CHOCHDetector:
 
     def __init__(self, config: SMCConfig) -> None:
         self.config = config
-        self._choch_max_strength = getattr(
-            config, "choch_max_swing_strength", self.DEFAULT_CHOCH_MAX_SWING_STRENGTH
-        )
+        self._choch_max_strength = getattr(config, "choch_max_swing_strength", self.DEFAULT_CHOCH_MAX_SWING_STRENGTH)
         self._logger = get_logger(__name__)
 
     # ------------------------------------------------------------------
@@ -95,7 +91,7 @@ class CHOCHDetector:
                 continue
 
             # Scan forward for the first candle that closes above the internal swing high.
-            first_break_idx: Optional[int] = None
+            first_break_idx: int | None = None
             for j in range(break_start, len(candles)):
                 if candles[j].close > level:
                     first_break_idx = j
@@ -191,7 +187,7 @@ class CHOCHDetector:
                 continue
 
             # Scan forward for the first candle that closes below the internal swing low.
-            first_break_idx: Optional[int] = None
+            first_break_idx: int | None = None
             for j in range(break_start, len(candles)):
                 if candles[j].close < level:
                     first_break_idx = j
@@ -254,7 +250,7 @@ class CHOCHDetector:
     def get_latest_choch(
         self,
         choch_events: list[ChangeOfCharacter],
-    ) -> Optional[ChangeOfCharacter]:
+    ) -> ChangeOfCharacter | None:
         if not choch_events:
             return None
         return max(choch_events, key=lambda x: x.timestamp)

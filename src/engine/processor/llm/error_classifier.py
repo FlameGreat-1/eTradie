@@ -28,7 +28,6 @@ inline.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import httpx
 
@@ -62,7 +61,7 @@ CODE_TRANSIENT = "transient"
 CODE_UNKNOWN = "unknown"
 
 
-def is_transient_llm_error(exc: Optional[BaseException]) -> bool:
+def is_transient_llm_error(exc: BaseException | None) -> bool:
     """Return True when the failure is worth retrying.
 
     Provider SDKs raise their own error types (anthropic.APIError,
@@ -99,7 +98,7 @@ def is_transient_llm_error(exc: Optional[BaseException]) -> bool:
     )
 
 
-def classify_llm_failure(exc: Optional[BaseException]) -> ClassifiedFailure:
+def classify_llm_failure(exc: BaseException | None) -> ClassifiedFailure:
     """Map an LLM-call exception to a (code, user-safe message) tuple.
 
     The user message is the SAME one the gateway will render in the
@@ -141,17 +140,11 @@ def classify_llm_failure(exc: Optional[BaseException]) -> ClassifiedFailure:
     ):
         return ClassifiedFailure(
             CODE_QUOTA_EXCEEDED,
-            "Your AI provider quota or credit is exhausted; "
-            "please top up or switch keys and retry.",
+            "Your AI provider quota or credit is exhausted; please top up or switch keys and retry.",
         )
 
     # Rate-limit. Provider SDKs typically raise a 429.
-    if (
-        "rate limit" in msg
-        or "ratelimit" in name
-        or "429" in msg
-        or "too many requests" in msg
-    ):
+    if "rate limit" in msg or "ratelimit" in name or "429" in msg or "too many requests" in msg:
         return ClassifiedFailure(
             CODE_RATE_LIMITED,
             "AI provider rate limit reached; please wait a moment and retry.",
@@ -182,8 +175,7 @@ def classify_llm_failure(exc: Optional[BaseException]) -> ClassifiedFailure:
     ):
         return ClassifiedFailure(
             CODE_AUTH_INVALID,
-            "AI provider rejected the API key; "
-            "please verify your key in Settings and retry.",
+            "AI provider rejected the API key; please verify your key in Settings and retry.",
         )
 
     # Model mis-configuration: the configured model does not exist
@@ -207,8 +199,7 @@ def classify_llm_failure(exc: Optional[BaseException]) -> ClassifiedFailure:
     ):
         return ClassifiedFailure(
             CODE_MODEL_NOT_FOUND,
-            "The configured AI model is not available for this key; "
-            "please update the model in Settings and retry.",
+            "The configured AI model is not available for this key; please update the model in Settings and retry.",
         )
 
     # Timeout (either client-side or provider-side). Surfaced
@@ -232,6 +223,5 @@ def classify_llm_failure(exc: Optional[BaseException]) -> ClassifiedFailure:
     # or partial payloads in their error strings.
     return ClassifiedFailure(
         CODE_UNKNOWN,
-        "AI service returned an unexpected error; please retry. "
-        "If this persists, contact support.",
+        "AI service returned an unexpected error; please retry. If this persists, contact support.",
     )

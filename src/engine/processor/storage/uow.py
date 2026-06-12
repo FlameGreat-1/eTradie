@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
 from engine.processor.storage.repositories.audit_repository import AuditRepository
@@ -22,8 +22,8 @@ class ProcessorUnitOfWork:
         self._db = db
         self._ctx = None
         self._session = None
-        self.analysis_repo: Optional[AnalysisRepository] = None
-        self.audit_repo: Optional[AuditRepository] = None
+        self.analysis_repo: AnalysisRepository | None = None
+        self.audit_repo: AuditRepository | None = None
 
     async def __aenter__(self) -> ProcessorUnitOfWork:
         self._ctx = self._db.session()

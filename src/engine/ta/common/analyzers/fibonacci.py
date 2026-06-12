@@ -1,11 +1,9 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import (
-    FibonacciLevel,
     FIBONACCI_VALUES,
     OTE_LEVELS,
+    FibonacciLevel,
     PriceZone,
 )
 from engine.ta.models.fibonacci import FibonacciRetracement, PremiumDiscountZone
@@ -15,7 +13,6 @@ logger = get_logger(__name__)
 
 
 class FibonacciAnalyzer:
-
     def __init__(
         self,
         *,
@@ -59,8 +56,7 @@ class FibonacciAnalyzer:
         # FibonacciRetracement.get_level_price -- keep both in lockstep.
         if is_bullish:
             return swing_high - (range_size * fib_value)
-        else:
-            return swing_low + (range_size * fib_value)
+        return swing_low + (range_size * fib_value)
 
     def get_ote_zone(
         self,
@@ -84,9 +80,7 @@ class FibonacciAnalyzer:
         return PremiumDiscountZone(
             symbol=retracement.symbol,
             timeframe=retracement.timeframe,
-            zone_type=(
-                PriceZone.DISCOUNT if retracement.is_bullish else PriceZone.PREMIUM
-            ),
+            zone_type=(PriceZone.DISCOUNT if retracement.is_bullish else PriceZone.PREMIUM),
             upper_bound=upper,
             lower_bound=lower,
             equilibrium=equilibrium,
@@ -102,11 +96,7 @@ class FibonacciAnalyzer:
 
         tolerance = tolerance_pips * float(get_pip_value(retracement.symbol))
 
-        return (
-            ote_zone.lower_bound - tolerance
-            <= price
-            <= ote_zone.upper_bound + tolerance
-        )
+        return ote_zone.lower_bound - tolerance <= price <= ote_zone.upper_bound + tolerance
 
     def get_zone_for_price(
         self,
@@ -140,7 +130,7 @@ class FibonacciAnalyzer:
         self,
         price: float,
         retracement: FibonacciRetracement,
-    ) -> Optional[FibonacciLevel]:
+    ) -> FibonacciLevel | None:
         all_levels = retracement.get_all_levels()
 
         if not all_levels:

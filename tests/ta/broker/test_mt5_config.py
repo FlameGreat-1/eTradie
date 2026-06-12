@@ -20,7 +20,6 @@ class TestMT5ConfigProviderValidation:
                 metaapi_account_id="acc-123",
             )
 
-
     def test_metaapi_provider_valid(self):
         cfg = MT5Config(
             provider="metaapi",

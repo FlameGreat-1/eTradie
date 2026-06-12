@@ -1,5 +1,5 @@
 import asyncio
-from typing import Optional
+
 from engine.shared.logging import get_logger
 from engine.ta.broker.base import BrokerBase
 from engine.ta.storage.uow import TAUOWFactory

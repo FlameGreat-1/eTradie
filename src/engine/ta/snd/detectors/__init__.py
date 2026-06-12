@@ -13,12 +13,12 @@ Each detector implements deterministic pattern recognition for specific SnD conc
 All detectors use shared analyzers and produce domain models.
 """
 
-from engine.ta.snd.detectors.qm import QMDetector
-from engine.ta.snd.detectors.sr_flip import SRFlipDetector
-from engine.ta.snd.detectors.rs_flip import RSFlipDetector
-from engine.ta.snd.detectors.previous_levels import PreviousLevelDetector
-from engine.ta.snd.detectors.mpl import MPLDetector
 from engine.ta.snd.detectors.fakeouts import FakeoutDetector
+from engine.ta.snd.detectors.mpl import MPLDetector
+from engine.ta.snd.detectors.previous_levels import PreviousLevelDetector
+from engine.ta.snd.detectors.qm import QMDetector
+from engine.ta.snd.detectors.rs_flip import RSFlipDetector
+from engine.ta.snd.detectors.sr_flip import SRFlipDetector
 from engine.ta.snd.detectors.supply_demand import SupplyDemandDetector
 
 __all__ = [

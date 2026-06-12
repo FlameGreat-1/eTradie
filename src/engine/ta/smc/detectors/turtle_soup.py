@@ -1,6 +1,5 @@
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.sweeps import SweepAnalyzer
-from engine.ta.constants import Direction
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.liquidity_event import LiquiditySweep
 from engine.ta.models.swing import SwingHigh, SwingLow

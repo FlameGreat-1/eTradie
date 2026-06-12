@@ -16,17 +16,18 @@ Routes:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 
 from engine.dependencies import Container
 from engine.helpers import _rate_limit
 from engine.processor.storage.repositories.broker_connection_repository import (
-    BrokerConnectionRepository,
     STATUS_CONNECTED,
     STATUS_ERROR,
     VALID_CONNECTION_TYPES,
+    BrokerConnectionRepository,
     decrypt_credential,
 )
 from engine.schemas import CreateBrokerConnectionRequest, UpdateBrokerConnectionRequest
@@ -34,7 +35,6 @@ from engine.shared.auth import AuthenticatedUser, get_current_user
 from engine.shared.logging import get_logger
 from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
 from engine.ta.broker.mt5.metaapi.provisioner import MetaApiProvisioner
-from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -84,9 +84,7 @@ def _serialize_broker_connection(row) -> dict:
         "is_primary": row.is_primary,
         "status": row.status,
         "status_message": row.status_message,
-        "last_connected_at": (
-            row.last_connected_at.isoformat() if row.last_connected_at else None
-        ),
+        "last_connected_at": (row.last_connected_at.isoformat() if row.last_connected_at else None),
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
@@ -331,9 +329,7 @@ async def create_broker_connection(
         # Pin the row id to the pre-allocated connection_id for hosted
         # rows so the persisted id equals the K8s release suffix. Other
         # connection types let the repository allocate as before.
-        _row_id_override = (
-            allocated_connection_id if body.connection_type == "hosted" else None
-        )
+        _row_id_override = allocated_connection_id if body.connection_type == "hosted" else None
         async with container.db.session() as session:
             repo = BrokerConnectionRepository(session)
             row = await repo.create(
@@ -345,18 +341,14 @@ async def create_broker_connection(
                 ea_auth_token=ea_auth_token,
                 metaapi_account_id=metaapi_account_id,
                 metaapi_region=metaapi_region,
-                hosted_container_id=(
-                    hosted_container_id if body.connection_type == "hosted" else None
-                ),
+                hosted_container_id=(hosted_container_id if body.connection_type == "hosted" else None),
                 mt5_server=body.mt5_server,
                 mt5_login=body.mt5_login,
                 mt5_password=body.mt5_password,
                 platform=body.platform,
                 activate=body.activate,
                 id=_row_id_override,
-                status=(
-                    "provisioning" if body.connection_type == "hosted" else "untested"
-                ),
+                status=("provisioning" if body.connection_type == "hosted" else "untested"),
                 status_message=(
                     "Connecting to your broker... This may take up to 3 minutes."
                     if body.connection_type == "hosted"
@@ -364,16 +356,14 @@ async def create_broker_connection(
                 ),
             )
             result = _serialize_broker_connection(row)
-            connection_id = str(row.id)
+            str(row.id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
     if body.activate:
         await container.invalidate_user_broker(user.user_id)
 
-    result["message"] = (
-        "Connection created and activated." if body.activate else "Connection created."
-    )
+    result["message"] = "Connection created and activated." if body.activate else "Connection created."
     return result
 
 
@@ -501,21 +491,13 @@ async def update_broker_connection(
     # if it fails, the HostedRecoveryService will re-provision the
     # connection on its next sweep, but the user may see up to
     # ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS of downtime.
-    if (
-        row.connection_type == "hosted"
-        and row.hosted_container_id
-        and body.mt5_password is not None
-    ):
+    if row.connection_type == "hosted" and row.hosted_container_id and body.mt5_password is not None:
         try:
             provisioner = container.hosted_provisioner
             ea_auth_token = ""
             if row.ea_auth_token_encrypted:
                 ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
-            password_plain = (
-                decrypt_credential(row.mt5_password_encrypted)
-                if row.mt5_password_encrypted
-                else ""
-            )
+            password_plain = decrypt_credential(row.mt5_password_encrypted) if row.mt5_password_encrypted else ""
             # Preserve the previously-resolved chart-attach symbol so
             # a password-rotation triggered re-provision does not
             # silently change the user's mt5_symbol. Same H-4 guard
@@ -708,10 +690,8 @@ async def test_broker_connection(
             extra={"connection_id": connection_id, "error": str(exc)},
         )
     finally:
-        try:
+        with contextlib.suppress(Exception):
             await temp_client.shutdown()
-        except Exception:
-            pass
 
     # Update status in DB.
     new_status = STATUS_CONNECTED if healthy else STATUS_ERROR
@@ -779,9 +759,7 @@ async def delete_broker_connection(
                 # Background task to avoid blocking the user API response
                 asyncio.create_task(provisioner.cleanup_account(metaapi_account_id))
             except Exception as exc:
-                logger.error(
-                    "failed_to_start_metaapi_cleanup", extra={"error": str(exc)}
-                )
+                logger.error("failed_to_start_metaapi_cleanup", extra={"error": str(exc)})
     elif is_hosted and hosted_container_id:
         try:
             provisioner = container.hosted_provisioner

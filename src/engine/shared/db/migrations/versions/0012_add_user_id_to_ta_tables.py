@@ -22,16 +22,16 @@ Create Date: 2026-04-06
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import inspect
 
 revision: str = "0012"
-down_revision: Union[str, None] = "0011"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0011"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 _TABLES = [
     "candles",
@@ -72,9 +72,7 @@ def upgrade() -> None:
         )
 
         # Step 2: Backfill existing rows with 'system' placeholder.
-        op.execute(
-            sa.text(f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL")
-        )
+        op.execute(sa.text(f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL"))
 
         # Step 3: Alter column to NOT NULL.
         op.alter_column(
@@ -115,9 +113,7 @@ def upgrade() -> None:
 
     # Step 6: Add user_id to snapshot composite indexes.
     if "technical_snapshots" in existing_tables:
-        existing_indexes = {
-            idx["name"] for idx in inspector.get_indexes("technical_snapshots")
-        }
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes("technical_snapshots")}
 
         # Drop old indexes and recreate with user_id.
         old_new_pairs = [
@@ -198,9 +194,7 @@ def downgrade() -> None:
 
     # Restore snapshot indexes.
     if "technical_snapshots" in existing_tables:
-        existing_indexes = {
-            idx["name"] for idx in inspector.get_indexes("technical_snapshots")
-        }
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes("technical_snapshots")}
         restore_pairs = [
             (
                 "ix_snapshots_user_symbol_timeframe_timestamp",

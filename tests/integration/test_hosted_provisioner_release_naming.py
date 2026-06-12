@@ -12,6 +12,7 @@ helpers + a single inspection of the StatefulSet body the
 provisioner builds on a happy-path create. No real K8s, no real
 Vault, no real DB.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock
@@ -45,9 +46,7 @@ def test_headless_service_name_is_derived_from_release() -> None:
 
 def test_service_dns_is_derived_from_release_and_namespace() -> None:
     release = release_name_for(CONNECTION_ID)
-    assert service_dns_for(release, "etradie-system") == (
-        f"{release}.etradie-system.svc.cluster.local"
-    )
+    assert service_dns_for(release, "etradie-system") == (f"{release}.etradie-system.svc.cluster.local")
 
 
 @pytest.mark.asyncio

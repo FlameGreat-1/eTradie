@@ -25,8 +25,9 @@ from __future__ import annotations
 
 import asyncio
 import random
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Awaitable, Callable, TypeVar
+from typing import TypeVar
 
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import BROKER_RECONNECT_ATTEMPTS_TOTAL
@@ -102,9 +103,7 @@ class ReconnectPolicy:
                 )
                 if last_exc is not None:
                     raise last_exc
-                raise RuntimeError(
-                    f"ReconnectPolicy exhausted with no exception captured (op={operation_label})"
-                )
+                raise RuntimeError(f"ReconnectPolicy exhausted with no exception captured (op={operation_label})")
             try:
                 return await coro_factory()
             except retry_on as exc:

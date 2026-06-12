@@ -14,16 +14,11 @@ strict path or the hardened free-text parser.
 from __future__ import annotations
 
 import time
-from typing import Any, AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import openai
 
-from engine.shared.logging import get_logger
-from engine.shared.metrics.prometheus import (
-    LLM_REQUEST_DURATION,
-    LLM_REQUEST_TOTAL,
-    LLM_TOKENS_USED,
-)
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import LLMProvider
 from engine.processor.llm.capabilities import get_model_capabilities
@@ -33,6 +28,12 @@ from engine.processor.llm.errors import (
     LLMTransientError,
 )
 from engine.processor.llm.schema_compiler import compile_for_openai_compatible
+from engine.shared.logging import get_logger
+from engine.shared.metrics.prometheus import (
+    LLM_REQUEST_DURATION,
+    LLM_REQUEST_TOTAL,
+    LLM_TOKENS_USED,
+)
 
 logger = get_logger(__name__)
 
@@ -63,12 +64,7 @@ def _translate_provider_error(exc: Exception) -> Exception:
     msg = str(exc).lower()
     if "ratelimit" in name or "429" in msg or "rate limit" in msg:
         return LLMRateLimitedError(str(exc))
-    if (
-        "timeout" in name
-        or "timeout" in msg
-        or "connection" in msg
-        or "unavailable" in msg
-    ):
+    if "timeout" in name or "timeout" in msg or "connection" in msg or "unavailable" in msg:
         return LLMTransientError(str(exc))
     return exc
 
@@ -97,9 +93,7 @@ class OpenAICompatibleClient(LLMClient):
         # try once"). When the operator later flips the catalog entry
         # for a known good self-hosted model, the probe succeeds and
         # this flag latches True.
-        self._response_format_supported: Optional[bool] = (
-            True if self._capabilities.supports_structured_output else None
-        )
+        self._response_format_supported: bool | None = True if self._capabilities.supports_structured_output else None
 
     def _build_request_kwargs(
         self,
@@ -142,7 +136,7 @@ class OpenAICompatibleClient(LLMClient):
         *,
         system_prompt: str,
         user_message: str,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
         use_structured_output: bool = True,
     ) -> LLMResponse:
         model = self._config.model_name
@@ -156,9 +150,7 @@ class OpenAICompatibleClient(LLMClient):
         # and we do NOT mutate the latched probe value -- the latch
         # exists to remember server capability for the analysis path
         # and a free-text call must not flip it.
-        attempt_with_format = (
-            use_structured_output and self._response_format_supported is not False
-        )
+        attempt_with_format = use_structured_output and self._response_format_supported is not False
 
         async def _do_call(use_format: bool):
             return await self._client.chat.completions.create(
@@ -173,11 +165,7 @@ class OpenAICompatibleClient(LLMClient):
         try:
             try:
                 response = await _do_call(attempt_with_format)
-                if (
-                    use_structured_output
-                    and attempt_with_format
-                    and self._response_format_supported is None
-                ):
+                if use_structured_output and attempt_with_format and self._response_format_supported is None:
                     # First successful probe latches True. Only the
                     # analysis path (use_structured_output=True) is
                     # allowed to latch; a free-text call leaves the
@@ -185,11 +173,7 @@ class OpenAICompatibleClient(LLMClient):
                     # first call still performs its own probe.
                     self._response_format_supported = True
             except Exception as exc:
-                if (
-                    use_structured_output
-                    and attempt_with_format
-                    and _is_unsupported_response_format(exc)
-                ):
+                if use_structured_output and attempt_with_format and _is_unsupported_response_format(exc):
                     self._response_format_supported = False
                     logger.warning(
                         "self_hosted_response_format_unsupported",
@@ -205,12 +189,8 @@ class OpenAICompatibleClient(LLMClient):
                     raise
         except Exception as exc:
             elapsed_ms = (time.monotonic() - start) * 1000
-            LLM_REQUEST_TOTAL.labels(
-                provider=self.PROVIDER, model=model, status="error"
-            ).inc()
-            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(
-                elapsed_ms / 1000
-            )
+            LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="error").inc()
+            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(elapsed_ms / 1000)
             logger.error(
                 "llm_call_failed",
                 extra={
@@ -264,8 +244,8 @@ class OpenAICompatibleClient(LLMClient):
         *,
         system_prompt: str,
         user_message: str,
-        trace_id: Optional[str] = None,
-        usage_out: Optional[dict] = None,
+        trace_id: str | None = None,
+        usage_out: dict | None = None,
         use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
@@ -282,24 +262,14 @@ class OpenAICompatibleClient(LLMClient):
 
         # See call() for the rationale: AND of caller intent and
         # latched probe, and only the analysis path mutates the probe.
-        attempt_with_format = (
-            use_structured_output and self._response_format_supported is not False
-        )
+        attempt_with_format = use_structured_output and self._response_format_supported is not False
         try:
             try:
                 response = await _open_stream(attempt_with_format)
-                if (
-                    use_structured_output
-                    and attempt_with_format
-                    and self._response_format_supported is None
-                ):
+                if use_structured_output and attempt_with_format and self._response_format_supported is None:
                     self._response_format_supported = True
             except Exception as exc:
-                if (
-                    use_structured_output
-                    and attempt_with_format
-                    and _is_unsupported_response_format(exc)
-                ):
+                if use_structured_output and attempt_with_format and _is_unsupported_response_format(exc):
                     self._response_format_supported = False
                     logger.warning(
                         "self_hosted_response_format_unsupported_stream",
@@ -352,15 +322,7 @@ class OpenAICompatibleClient(LLMClient):
         return self._response_format_supported is True
 
     def _record_metrics(self, model: str, inp: int, out: int, ms: float) -> None:
-        LLM_REQUEST_TOTAL.labels(
-            provider=self.PROVIDER, model=model, status="success"
-        ).inc()
-        LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(
-            ms / 1000
-        )
-        LLM_TOKENS_USED.labels(
-            provider=self.PROVIDER, model=model, token_type="input"
-        ).inc(inp)
-        LLM_TOKENS_USED.labels(
-            provider=self.PROVIDER, model=model, token_type="output"
-        ).inc(out)
+        LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="success").inc()
+        LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(ms / 1000)
+        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="input").inc(inp)
+        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="output").inc(out)

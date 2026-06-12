@@ -103,8 +103,10 @@ class TestSectionBonus:
         """Chunks with section metadata get a small score bonus."""
         no_section = _make_chunk(doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.80)
         with_section = _make_chunk(
-            doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.80,
-            section="rules", subsection="entry",
+            doc_type=DocumentType.CHART_SCENARIO_LIBRARY,
+            score=0.80,
+            section="rules",
+            subsection="entry",
         )
 
         ranked = reranker.rerank([no_section, with_section])

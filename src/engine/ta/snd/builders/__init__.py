@@ -20,9 +20,9 @@ All builders enforce:
 Outputs SnDCandidate models for processor consumption.
 """
 
+from engine.ta.snd.builders.candidates.continuation import ContinuationCandidateBuilder
 from engine.ta.snd.builders.candidates.fakeout import FakeoutCandidateBuilder
 from engine.ta.snd.builders.candidates.qm import QMCandidateBuilder
-from engine.ta.snd.builders.candidates.continuation import ContinuationCandidateBuilder
 
 __all__ = [
     "FakeoutCandidateBuilder",

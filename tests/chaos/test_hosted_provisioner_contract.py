@@ -23,6 +23,7 @@ chart shape), so these tests exercise the *_namespaced_stateful_set
 call surface on the AppsV1Api mock and the Vault write/destroy surface
 on a fake VaultClient.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -31,7 +32,6 @@ import pytest
 
 from engine.shared.exceptions import (
     ConfigurationError,
-    ProviderError,
     ProviderTimeoutError,
 )
 from engine.ta.broker.mt5.hosted.provisioner import (
@@ -55,14 +55,13 @@ class _FakeApiException(Exception):
         self.body = body
 
 
-def _patch_kube_api(
-    monkeypatch: pytest.MonkeyPatch, core_api: MagicMock, apps_api: MagicMock
-) -> None:
+def _patch_kube_api(monkeypatch: pytest.MonkeyPatch, core_api: MagicMock, apps_api: MagicMock) -> None:
     """Patch HostedProvisioner._api_clients to return the supplied mocks
     and swap the module's ApiException for our local fake so the
     provisioner's `except ApiException` branches match what the mocks
     raise.
     """
+
     async def _fake_api_clients(self):
         return core_api, apps_api
 
@@ -220,19 +219,14 @@ async def test_provision_happy_path(
 
     # The two service-create calls are one headless (clusterIP="None")
     # and one regular (clusterIP unset, allocated by K8s).
-    cluster_ips = [
-        call.kwargs["body"].spec.cluster_ip
-        for call in core_api.create_namespaced_service.await_args_list
-    ]
+    cluster_ips = [call.kwargs["body"].spec.cluster_ip for call in core_api.create_namespaced_service.await_args_list]
     assert "None" in cluster_ips
     assert any(ip is None for ip in cluster_ips)
 
     # Catalog hand-off + symbol patch + DB write-back all ran.
     prov._catalog_sync_runner.assert_awaited_once()
     assert apps_api.patch_namespaced_stateful_set.await_count == 1
-    prov._chart_symbol_writer.assert_awaited_once_with(
-        sample_connection["connection_id"], "EURUSD"
-    )
+    prov._chart_symbol_writer.assert_awaited_once_with(sample_connection["connection_id"], "EURUSD")
 
 
 async def test_provision_is_idempotent_on_409(
@@ -267,9 +261,7 @@ async def test_provision_is_idempotent_on_409(
     apps_api.create_namespaced_stateful_set = AsyncMock(side_effect=_FakeApiException(409))
     existing_sts = MagicMock()
     existing_sts.metadata = MagicMock(resource_version="44")
-    apps_api.read_namespaced_stateful_set = AsyncMock(
-        side_effect=[existing_sts, _ready_statefulset()]
-    )
+    apps_api.read_namespaced_stateful_set = AsyncMock(side_effect=[existing_sts, _ready_statefulset()])
     apps_api.replace_namespaced_stateful_set = AsyncMock(return_value=None)
     apps_api.patch_namespaced_stateful_set = AsyncMock(return_value=None)
     apps_api.api_client = MagicMock(close=AsyncMock())
@@ -356,9 +348,7 @@ async def test_delete_is_idempotent(monkeypatch: pytest.MonkeyPatch):
     core_api.delete_namespaced_service_account = AsyncMock(side_effect=_FakeApiException(404))
     core_api.delete_namespaced_secret = AsyncMock(side_effect=_FakeApiException(404))
     core_api.delete_namespaced_config_map = AsyncMock(side_effect=_FakeApiException(404))
-    core_api.delete_namespaced_persistent_volume_claim = AsyncMock(
-        side_effect=_FakeApiException(404)
-    )
+    core_api.delete_namespaced_persistent_volume_claim = AsyncMock(side_effect=_FakeApiException(404))
     core_api.api_client = MagicMock(close=AsyncMock())
     apps_api.api_client = MagicMock(close=AsyncMock())
 
@@ -374,8 +364,7 @@ async def test_delete_is_idempotent(monkeypatch: pytest.MonkeyPatch):
     # deleted explicitly because StatefulSet GC does not cascade to its
     # volumeClaimTemplate PVCs.
     pvc_deletion_names = [
-        call.kwargs["name"]
-        for call in core_api.delete_namespaced_persistent_volume_claim.await_args_list
+        call.kwargs["name"] for call in core_api.delete_namespaced_persistent_volume_claim.await_args_list
     ]
     assert f"wine-prefix-{_RELEASE}-0" in pvc_deletion_names
 

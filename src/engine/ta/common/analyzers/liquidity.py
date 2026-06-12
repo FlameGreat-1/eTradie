@@ -1,17 +1,13 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.utils.price.math import is_within_tolerance
 from engine.ta.constants import LiquidityType
-from engine.ta.models.candle import CandleSequence
-from engine.ta.models.liquidity_event import LiquidityPool, EqualHighsLows
+from engine.ta.models.liquidity_event import EqualHighsLows, LiquidityPool
 from engine.ta.models.swing import SwingHigh, SwingLow
 
 logger = get_logger(__name__)
 
 
 class LiquidityAnalyzer:
-
     def __init__(
         self,
         *,
@@ -192,7 +188,7 @@ class LiquidityAnalyzer:
         current_price: float,
         pools: list[LiquidityPool],
         above: bool = True,
-    ) -> Optional[LiquidityPool]:
+    ) -> LiquidityPool | None:
         if not pools:
             return None
 
@@ -201,11 +197,10 @@ class LiquidityAnalyzer:
             if not above_pools:
                 return None
             return min(above_pools, key=lambda p: abs(p.price_level - current_price))
-        else:
-            below_pools = [p for p in pools if p.price_level < current_price]
-            if not below_pools:
-                return None
-            return min(below_pools, key=lambda p: abs(p.price_level - current_price))
+        below_pools = [p for p in pools if p.price_level < current_price]
+        if not below_pools:
+            return None
+        return min(below_pools, key=lambda p: abs(p.price_level - current_price))
 
     def calculate_liquidity_draw(
         self,

@@ -7,12 +7,9 @@ Verifies response JSON shapes match what Go services expect.
 
 from __future__ import annotations
 
-import asyncio
-from datetime import UTC, datetime
-from typing import Any, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import time
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt as pyjwt
 import pytest
@@ -21,6 +18,7 @@ from httpx import ASGITransport, AsyncClient
 
 # Deterministic JWT for broker integration tests
 _BROKER_TEST_JWT_SECRET = "test-secret-key-for-jwt-signing-must-be-long-enough-64chars-ok"
+
 
 def _broker_test_jwt() -> str:
     now = int(time.time())
@@ -45,8 +43,6 @@ from engine.ta.broker.base import (
     PositionInfo,
     TickPrice,
 )
-from engine.ta.constants import Timeframe
-from engine.ta.models.candle import Candle, CandleSequence
 
 pytestmark = pytest.mark.integration
 
@@ -64,17 +60,30 @@ class MockBroker(BrokerBase):
         self._balance = 10000.0
         self._positions: list[PositionInfo] = [
             PositionInfo(
-                symbol="EURUSD", direction="BUY", entry_price=1.1000,
-                current_price=1.1050, stop_loss=1.0950, take_profit=1.1200,
-                volume=0.10, profit=50.0, ticket="12345", comment="test-analysis",
+                symbol="EURUSD",
+                direction="BUY",
+                entry_price=1.1000,
+                current_price=1.1050,
+                stop_loss=1.0950,
+                take_profit=1.1200,
+                volume=0.10,
+                profit=50.0,
+                ticket="12345",
+                comment="test-analysis",
                 open_time=1700000000,
             ),
         ]
         self._orders: list[PendingOrderInfo] = [
             PendingOrderInfo(
-                symbol="GBPUSD", order_type=2, price=1.2500,
-                stop_loss=1.2450, take_profit=1.2600, volume=0.05,
-                ticket="67890", comment="test-limit", open_time=1700001000,
+                symbol="GBPUSD",
+                order_type=2,
+                price=1.2500,
+                stop_loss=1.2450,
+                take_profit=1.2600,
+                volume=0.05,
+                ticket="67890",
+                comment="test-limit",
+                open_time=1700001000,
             ),
         ]
         self._next_order_id = 99999
@@ -107,11 +116,17 @@ class MockBroker(BrokerBase):
 
     async def get_symbol_info(self, symbol: str) -> dict:
         return {
-            "symbol": symbol, "description": f"{symbol} pair",
-            "point": 0.00001, "digits": 5, "spread": 12,
-            "trade_contract_size": 100000, "volume_min": 0.01,
-            "volume_max": 100.0, "volume_step": 0.01,
-            "trade_tick_value": 10.0, "trade_tick_size": 0.00001,
+            "symbol": symbol,
+            "description": f"{symbol} pair",
+            "point": 0.00001,
+            "digits": 5,
+            "spread": 12,
+            "trade_contract_size": 100000,
+            "volume_min": 0.01,
+            "volume_max": 100.0,
+            "volume_step": 0.01,
+            "trade_tick_value": 10.0,
+            "trade_tick_size": 0.00001,
         }
 
     async def validate_symbol(self, symbol: str) -> bool:
@@ -125,8 +140,11 @@ class MockBroker(BrokerBase):
 
     async def get_account_info(self) -> AccountInfo:
         return AccountInfo(
-            balance=self._balance, equity=self._balance + 50.0,
-            margin=100.0, free_margin=self._balance - 50.0, currency="USD",
+            balance=self._balance,
+            equity=self._balance + 50.0,
+            margin=100.0,
+            free_margin=self._balance - 50.0,
+            currency="USD",
         )
 
     async def get_positions(self) -> list[PositionInfo]:
@@ -135,9 +153,17 @@ class MockBroker(BrokerBase):
     async def get_history(self, days: int = 30) -> list[HistoryDealInfo]:
         return [
             HistoryDealInfo(
-                ticket="55501", position_id="12345", symbol="EURUSD",
-                direction="BUY", volume=0.10, price=1.1000, profit=50.0,
-                commission=-0.7, swap=0.0, time=1699990000, comment="closed-deal",
+                ticket="55501",
+                position_id="12345",
+                symbol="EURUSD",
+                direction="BUY",
+                volume=0.10,
+                price=1.1000,
+                profit=50.0,
+                commission=-0.7,
+                swap=0.0,
+                time=1699990000,
+                comment="closed-deal",
             ),
         ]
 
@@ -153,7 +179,9 @@ class MockBroker(BrokerBase):
     async def get_tick_price(self, symbol: str) -> TickPrice:
         return TickPrice(bid=1.1050, ask=1.1052, time=1700002000)
 
-    async def place_order(self, *, symbol, direction, order_type, price, stop_loss, take_profit, lot_size, comment="") -> OrderResult:
+    async def place_order(
+        self, *, symbol, direction, order_type, price, stop_loss, take_profit, lot_size, comment=""
+    ) -> OrderResult:
         self._next_order_id += 1
         status = "FILLED" if order_type.upper() == "MARKET" else "PLACED"
         return OrderResult(order_id=self._next_order_id, price=price or 1.1050, status=status, error="")
@@ -185,6 +213,7 @@ def mock_broker() -> MockBroker:
 async def client(mock_broker):
     """FastAPI test client with mock broker injected into Container."""
     import os
+
     env_overrides = {
         "AUTH_JWT_SECRET": _BROKER_TEST_JWT_SECRET,
         "AUTH_ISSUER": "etradie",
@@ -206,6 +235,7 @@ async def client(mock_broker):
         MockContainer.return_value = container
 
         from engine.main import create_app
+
         app = create_app()
         # Manually set container on app state (lifespan won't run in test)
         app.state.container = container
@@ -353,12 +383,19 @@ class TestPosition:
 class TestPlaceOrder:
     @pytest.mark.asyncio
     async def test_market_order(self, client):
-        resp = await client.post("/internal/broker/place_order", json={
-            "symbol": "EURUSD", "direction": "BUY",
-            "order_type": "MARKET", "price": 0,
-            "stop_loss": 1.0950, "take_profit": 1.1200,
-            "lot_size": 0.10, "comment": "test",
-        })
+        resp = await client.post(
+            "/internal/broker/place_order",
+            json={
+                "symbol": "EURUSD",
+                "direction": "BUY",
+                "order_type": "MARKET",
+                "price": 0,
+                "stop_loss": 1.0950,
+                "take_profit": 1.1200,
+                "lot_size": 0.10,
+                "comment": "test",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["order_id"] > 0
@@ -367,21 +404,32 @@ class TestPlaceOrder:
 
     @pytest.mark.asyncio
     async def test_limit_order(self, client):
-        resp = await client.post("/internal/broker/place_order", json={
-            "symbol": "GBPUSD", "direction": "SELL",
-            "order_type": "LIMIT", "price": 1.2600,
-            "stop_loss": 1.2650, "take_profit": 1.2500,
-            "lot_size": 0.05, "comment": "test-limit",
-        })
+        resp = await client.post(
+            "/internal/broker/place_order",
+            json={
+                "symbol": "GBPUSD",
+                "direction": "SELL",
+                "order_type": "LIMIT",
+                "price": 1.2600,
+                "stop_loss": 1.2650,
+                "take_profit": 1.2500,
+                "lot_size": 0.05,
+                "comment": "test-limit",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "PLACED"
 
     @pytest.mark.asyncio
     async def test_missing_symbol_returns_400(self, client):
-        resp = await client.post("/internal/broker/place_order", json={
-            "direction": "BUY", "order_type": "MARKET",
-        })
+        resp = await client.post(
+            "/internal/broker/place_order",
+            json={
+                "direction": "BUY",
+                "order_type": "MARKET",
+            },
+        )
         assert resp.status_code == 400
 
 
@@ -393,9 +441,12 @@ class TestPlaceOrder:
 class TestCancelOrder:
     @pytest.mark.asyncio
     async def test_cancel_success(self, client):
-        resp = await client.post("/internal/broker/cancel_order", json={
-            "order_id": "67890",
-        })
+        resp = await client.post(
+            "/internal/broker/cancel_order",
+            json={
+                "order_id": "67890",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
@@ -410,18 +461,26 @@ class TestCancelOrder:
 class TestModifyPosition:
     @pytest.mark.asyncio
     async def test_modify_success(self, client):
-        resp = await client.post("/internal/broker/modify_position", json={
-            "ticket": "12345", "stop_loss": 1.1000, "take_profit": 1.1300,
-        })
+        resp = await client.post(
+            "/internal/broker/modify_position",
+            json={
+                "ticket": "12345",
+                "stop_loss": 1.1000,
+                "take_profit": 1.1300,
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
 
     @pytest.mark.asyncio
     async def test_missing_ticket_returns_400(self, client):
-        resp = await client.post("/internal/broker/modify_position", json={
-            "stop_loss": 1.1000,
-        })
+        resp = await client.post(
+            "/internal/broker/modify_position",
+            json={
+                "stop_loss": 1.1000,
+            },
+        )
         assert resp.status_code == 400
 
 
@@ -433,9 +492,13 @@ class TestModifyPosition:
 class TestClosePartial:
     @pytest.mark.asyncio
     async def test_partial_close_success(self, client):
-        resp = await client.post("/internal/broker/close_partial", json={
-            "ticket": "12345", "volume": 0.05,
-        })
+        resp = await client.post(
+            "/internal/broker/close_partial",
+            json={
+                "ticket": "12345",
+                "volume": 0.05,
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
@@ -443,9 +506,13 @@ class TestClosePartial:
 
     @pytest.mark.asyncio
     async def test_zero_volume_returns_400(self, client):
-        resp = await client.post("/internal/broker/close_partial", json={
-            "ticket": "12345", "volume": 0,
-        })
+        resp = await client.post(
+            "/internal/broker/close_partial",
+            json={
+                "ticket": "12345",
+                "volume": 0,
+            },
+        )
         assert resp.status_code == 400
 
 
@@ -457,9 +524,12 @@ class TestClosePartial:
 class TestClosePosition:
     @pytest.mark.asyncio
     async def test_close_success(self, client):
-        resp = await client.post("/internal/broker/close_position", json={
-            "ticket": "12345",
-        })
+        resp = await client.post(
+            "/internal/broker/close_position",
+            json={
+                "ticket": "12345",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True

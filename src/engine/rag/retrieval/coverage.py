@@ -67,27 +67,15 @@ def check_coverage(
 
     # Baseline checks
     if rule_count < config.coverage_min_rule_chunks:
-        missing_doc_types.update(
-            dt for dt in _RULE_DOC_TYPES if dt not in retrieved_doc_types
-        )
-        gaps.append(
-            f"Rule chunks: {rule_count}/{config.coverage_min_rule_chunks} required"
-        )
+        missing_doc_types.update(dt for dt in _RULE_DOC_TYPES if dt not in retrieved_doc_types)
+        gaps.append(f"Rule chunks: {rule_count}/{config.coverage_min_rule_chunks} required")
 
     if framework_count < config.coverage_min_framework_chunks:
-        missing_doc_types.update(
-            dt for dt in _FRAMEWORK_DOC_TYPES if dt not in retrieved_doc_types
-        )
-        gaps.append(
-            f"Framework chunks: {framework_count}/{config.coverage_min_framework_chunks} required"
-        )
+        missing_doc_types.update(dt for dt in _FRAMEWORK_DOC_TYPES if dt not in retrieved_doc_types)
+        gaps.append(f"Framework chunks: {framework_count}/{config.coverage_min_framework_chunks} required")
 
     if required_framework:
-        framework_specific = [
-            c
-            for c in chunks
-            if _FRAMEWORK_DOC_TYPES.get(c.doc_type) == required_framework
-        ]
+        framework_specific = [c for c in chunks if _FRAMEWORK_DOC_TYPES.get(c.doc_type) == required_framework]
         if not framework_specific:
             missing_frameworks.add(required_framework)
             gaps.append(f"No chunks from required framework '{required_framework}'")
@@ -98,9 +86,7 @@ def check_coverage(
     if scenario_required and scenario_count == 0:
         scenario_ok = False
         missing_doc_types.add(DocumentType.CHART_SCENARIO_LIBRARY)
-        gaps.append(
-            f"No scenario chunks retrieved (strategy={strategy} requires scenarios)"
-        )
+        gaps.append(f"No scenario chunks retrieved (strategy={strategy} requires scenarios)")
 
     # Mandatory requirements checks (per-doc-type minimums)
     mandatory_ok = True
@@ -131,13 +117,7 @@ def check_coverage(
     rule_ok = rule_count >= config.coverage_min_rule_chunks
     framework_ok = framework_count >= config.coverage_min_framework_chunks
 
-    if (
-        rule_ok
-        and framework_ok
-        and not missing_frameworks
-        and scenario_ok
-        and mandatory_ok
-    ):
+    if rule_ok and framework_ok and not missing_frameworks and scenario_ok and mandatory_ok:
         result = CoverageResult.SUFFICIENT
     elif rule_ok or framework_ok:
         result = CoverageResult.PARTIAL

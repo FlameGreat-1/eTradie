@@ -33,13 +33,13 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
+from engine.macro.models.provider.central_bank import RateDecision
+from engine.macro.providers.base import BaseProvider
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
 from engine.shared.models.events import CentralBank, ProviderCategory
-from engine.macro.models.provider.central_bank import RateDecision
-from engine.macro.providers.base import BaseProvider
 
 logger = get_logger(__name__)
 
@@ -65,7 +65,7 @@ class BaseFREDRateProvider(BaseProvider):
     category = ProviderCategory.CENTRAL_BANK
     bank: CentralBank
     upper_series: str
-    lower_series: Optional[str] = None
+    lower_series: str | None = None
 
     def __init__(self, http_client: HttpClient, *, base_url: str, api_key: str) -> None:
         super().__init__()
@@ -88,9 +88,7 @@ class BaseFREDRateProvider(BaseProvider):
 
         try:
             upper = await self._fetch_series(self.upper_series)
-            lower = (
-                await self._fetch_series(self.lower_series) if self.lower_series else []
-            )
+            lower = await self._fetch_series(self.lower_series) if self.lower_series else []
 
             decisions = self._build_history(upper, lower)
             if not decisions:
@@ -122,9 +120,7 @@ class BaseFREDRateProvider(BaseProvider):
         descending sort order is preserved so element 0 is the most recent
         reading.
         """
-        obs_start = (
-            datetime.now(UTC) - timedelta(days=365 * _LOOKBACK_YEARS)
-        ).strftime("%Y-%m-%d")
+        obs_start = (datetime.now(UTC) - timedelta(days=365 * _LOOKBACK_YEARS)).strftime("%Y-%m-%d")
         raw = await self._http.get(
             f"{self._base_url}/series/observations",
             provider_name=self.provider_name,
@@ -219,7 +215,7 @@ class BaseFREDRateProvider(BaseProvider):
 
     @staticmethod
     def _parse_float(val: Any) -> float | None:
-        if val is None or val == "" or val == ".":
+        if val is None or val in {"", "."}:
             return None
         try:
             return float(str(val).replace(",", ""))

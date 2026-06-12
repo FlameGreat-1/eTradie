@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime as dt, timezone
+from datetime import UTC
+from datetime import datetime as dt
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from engine.shared.exceptions import AuthUserMissingError, DatabaseIntegrityError
+from engine.shared.exceptions import AuthUserMissingError
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -57,7 +58,7 @@ class BillingRepository:
         # Ensure we reset daily limits if last_reset_at was yesterday
         # We handle the day check in Python logic for simplicity
         stmt = text("""
-            INSERT INTO billing_usage (user_id) 
+            INSERT INTO billing_usage (user_id)
             VALUES (:user_id)
             ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
             RETURNING analyses_today, llm_tokens_used, execution_attempts, watcher_count, last_reset_at
@@ -83,7 +84,7 @@ class BillingRepository:
         last_reset = usage.get("last_reset_at")
 
         if last_reset:
-            now = dt.now(timezone.utc)
+            now = dt.now(UTC)
             # If the calendar day has changed
             if last_reset.date() != now.date():
                 stmt = text("""
@@ -98,13 +99,13 @@ class BillingRepository:
         """Increment the analyses_today count and record the timestamp atomically."""
         stmt = text("""
             UPDATE billing_usage
-            SET analyses_today = CASE 
-                    WHEN DATE(last_reset_at) < CURRENT_DATE THEN 1 
-                    ELSE analyses_today + 1 
+            SET analyses_today = CASE
+                    WHEN DATE(last_reset_at) < CURRENT_DATE THEN 1
+                    ELSE analyses_today + 1
                 END,
-                last_reset_at = CASE 
-                    WHEN DATE(last_reset_at) < CURRENT_DATE THEN NOW() 
-                    ELSE last_reset_at 
+                last_reset_at = CASE
+                    WHEN DATE(last_reset_at) < CURRENT_DATE THEN NOW()
+                    ELSE last_reset_at
                 END,
                 last_analysis_at = NOW()
             WHERE user_id = :user_id

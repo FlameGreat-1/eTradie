@@ -23,17 +23,18 @@ from __future__ import annotations
 
 import asyncio
 import random
-from typing import Any, Awaitable, Callable, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar
 
-from engine.shared.exceptions import ProcessorError
-from engine.shared.logging import get_logger
-from engine.shared.metrics.prometheus import LLM_ERRORS_TOTAL
 from engine.processor.config import ProcessorConfig
 from engine.processor.llm.errors import (
     LLMError,
     LLMRateLimitedError,
     LLMTransientError,
 )
+from engine.shared.exceptions import ProcessorError
+from engine.shared.logging import get_logger
+from engine.shared.metrics.prometheus import LLM_ERRORS_TOTAL
 
 logger = get_logger(__name__)
 
@@ -108,14 +109,7 @@ def _is_retryable(exc: Exception) -> bool:
     if "timeout" in msg or "connection" in msg:
         return True
 
-    if error_type in (
-        "InternalServerError",
-        "APIConnectionError",
-        "APITimeoutError",
-    ):
-        return True
-
-    return False
+    return error_type in ("InternalServerError", "APIConnectionError", "APITimeoutError")
 
 
 def _compute_delay(attempt: int, config: ProcessorConfig) -> float:
@@ -125,7 +119,7 @@ def _compute_delay(attempt: int, config: ProcessorConfig) -> float:
     return random.uniform(0, capped)  # noqa: S311
 
 
-async def retry_llm_call(
+async def retry_llm_call[T](
     fn: Callable[..., Awaitable[T]],
     *args: Any,
     config: ProcessorConfig,

@@ -11,20 +11,19 @@ Fixture categories:
 
 from __future__ import annotations
 
-import asyncio
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fakeredis.aioredis import FakeRedis
 
-from engine.config import Settings, TAConfig, RAGConfig
+from engine.config import RAGConfig, Settings, TAConfig
 from engine.ta.constants import Timeframe
-
 
 # ---------------------------------------------------------------------------
 # Configuration fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def settings(monkeypatch) -> Settings:
@@ -66,6 +65,7 @@ def rag_config() -> RAGConfig:
 # ---------------------------------------------------------------------------
 # Infrastructure mocks
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 async def fake_redis() -> AsyncGenerator[FakeRedis, None]:

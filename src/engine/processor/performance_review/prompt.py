@@ -147,11 +147,7 @@ def build_user_prompt(
     rather than reformatting in prose is the well-tested pattern from
     the existing trading_plan generator.
     """
-    period_label = (
-        "Weekly (trailing 7 days)"
-        if period == "weekly"
-        else "Monthly (last calendar month)"
-    )
+    period_label = "Weekly (trailing 7 days)" if period == "weekly" else "Monthly (last calendar month)"
     period_capital = period.capitalize()
 
     prior_block: str

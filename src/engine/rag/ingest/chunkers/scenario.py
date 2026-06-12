@@ -51,10 +51,7 @@ class ScenarioChunker(BaseChunker):
             start = match.start()
 
             # End is either the next scenario header or end of content
-            if i + 1 < len(scenario_matches):
-                end = scenario_matches[i + 1].start()
-            else:
-                end = len(content)
+            end = scenario_matches[i + 1].start() if i + 1 < len(scenario_matches) else len(content)
 
             scenario_text = content[start:end].strip()
 

@@ -3,11 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from engine.shared.logging import get_logger
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.market_data import MarketDataSet
 from engine.macro.models.provider.market_data import IntermarketSnapshot
 from engine.macro.storage.repositories.intermarket.snapshot import IntermarketRepository
+from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -180,11 +180,7 @@ def _compute_trend_signals(
         else:
             out["us10y_trend"] = "STABLE"
 
-    if (
-        current.gold_price is not None
-        and previous.gold_price is not None
-        and previous.gold_price != 0
-    ):
+    if current.gold_price is not None and previous.gold_price is not None and previous.gold_price != 0:
         pct = round(
             (current.gold_price - previous.gold_price) / previous.gold_price * 100,
             2,
@@ -283,6 +279,4 @@ class IntermarketCollector(BaseCollector):
         return dataset
 
     def _empty_dataset(self) -> MarketDataSet:
-        return MarketDataSet(
-            snapshots=[], latest=None, sources=[], collected_at=datetime.now(UTC)
-        )
+        return MarketDataSet(snapshots=[], latest=None, sources=[], collected_at=datetime.now(UTC))

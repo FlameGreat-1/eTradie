@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from engine.rag.constants import DocumentType, Framework, SetupFamily
+from engine.rag.constants import DocumentType, Framework
 from engine.rag.models.retrieval import RetrievalFilter
 
 

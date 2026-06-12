@@ -34,7 +34,6 @@ truth.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.utils.price.math import (
@@ -75,12 +74,12 @@ def compute_trade_levels(
     symbol: str,
     direction: Direction,
     entry_price: float,
-    structural_extreme: Optional[float],
+    structural_extreme: float | None,
     sl_buffer_pips: float,
-    risk_reward: Optional[float] = None,
-    timeframe: Optional[Timeframe] = None,
+    risk_reward: float | None = None,
+    timeframe: Timeframe | None = None,
     logger_event_prefix: str = "snd_builder",
-) -> Optional[TradeLevels]:
+) -> TradeLevels | None:
     """Compute entry / SL / TP from structure + a pip-denominated SL buffer.
 
     The SL is placed beyond the structural extreme (the QM ``hh_price``
@@ -141,10 +140,7 @@ def compute_trade_levels(
     # explicit risk_reward was supplied by the caller.  Falls back to
     # 3.0 (legacy SnD default) only when neither is available.
     if risk_reward is None:
-        if timeframe is not None:
-            risk_reward = resolve_min_tp_rr(timeframe)
-        else:
-            risk_reward = 3.0
+        risk_reward = resolve_min_tp_rr(timeframe) if timeframe is not None else 3.0
     if not _is_positive_finite(risk_reward):
         return None
     if structural_extreme is not None and not _is_positive_finite(structural_extreme):
@@ -165,17 +161,13 @@ def compute_trade_levels(
     # indices/crypto/synthetics 1.0).
     effective_buffer_pips = float(sl_buffer_pips)
     if timeframe is not None:
-        effective_buffer_pips = max(
-            effective_buffer_pips, timeframe_floor_pips(timeframe)
-        )
+        effective_buffer_pips = max(effective_buffer_pips, timeframe_floor_pips(timeframe))
     sl_buffer_pips = effective_buffer_pips
     sl_buffer_price = float(get_pip_value(symbol)) * float(sl_buffer_pips)
 
     if direction == Direction.BEARISH:
         # SL sits ABOVE the structural extreme (or entry if absent).
-        sl_anchor = (
-            structural_extreme if structural_extreme is not None else entry_price
-        )
+        sl_anchor = structural_extreme if structural_extreme is not None else entry_price
         stop_loss = calculate_price_from_pips(
             base_price=sl_anchor,
             pips=sl_buffer_pips,
@@ -192,9 +184,7 @@ def compute_trade_levels(
         take_profit = entry_price - (risk * risk_reward)
     else:  # BULLISH
         # SL sits BELOW the structural extreme (or entry if absent).
-        sl_anchor = (
-            structural_extreme if structural_extreme is not None else entry_price
-        )
+        sl_anchor = structural_extreme if structural_extreme is not None else entry_price
         stop_loss = calculate_price_from_pips(
             base_price=sl_anchor,
             pips=sl_buffer_pips,
@@ -274,18 +264,17 @@ def _validate_geometry(
                 },
             )
             return False
-    else:  # BULLISH
-        if not (stop_loss < entry_price < take_profit):
-            logger.debug(
-                f"{logger_event_prefix}_skipped_invalid_long_geometry",
-                extra={
-                    "symbol": symbol,
-                    "entry_price": entry_price,
-                    "stop_loss": stop_loss,
-                    "take_profit": take_profit,
-                },
-            )
-            return False
+    elif not (stop_loss < entry_price < take_profit):
+        logger.debug(
+            f"{logger_event_prefix}_skipped_invalid_long_geometry",
+            extra={
+                "symbol": symbol,
+                "entry_price": entry_price,
+                "stop_loss": stop_loss,
+                "take_profit": take_profit,
+            },
+        )
+        return False
 
     return True
 

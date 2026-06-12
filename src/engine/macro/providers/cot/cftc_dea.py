@@ -24,13 +24,12 @@ from __future__ import annotations
 import re
 import time
 from datetime import UTC, date, datetime
-from typing import Any
 
+from engine.macro.models.provider.cot import COTPosition, COTReport
+from engine.macro.providers.cot.base import BaseCOTProvider
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
 from engine.shared.models.currency import Currency
-from engine.macro.models.provider.cot import COTPosition, COTReport
-from engine.macro.providers.cot.base import BaseCOTProvider
 
 logger = get_logger(__name__)
 
@@ -97,9 +96,7 @@ class CFTCDEAProvider(BaseCOTProvider):
             )
 
             if not isinstance(raw_text, str):
-                raise ValueError(
-                    f"Expected text response from CFTC DEA page, got {type(raw_text).__name__}"
-                )
+                raise ValueError(f"Expected text response from CFTC DEA page, got {type(raw_text).__name__}")
 
             positions = self._parse_html(raw_text)
 
@@ -171,10 +168,7 @@ class CFTCDEAProvider(BaseCOTProvider):
 
         blocks: list[tuple[Currency, str]] = []
         for i, (currency, _, start_idx) in enumerate(results):
-            if i + 1 < len(results):
-                end_idx = results[i + 1][2]
-            else:
-                end_idx = len(text)
+            end_idx = results[i + 1][2] if i + 1 < len(results) else len(text)
             block_text = text[start_idx:end_idx]
             blocks.append((currency, block_text))
 
@@ -199,7 +193,7 @@ class CFTCDEAProvider(BaseCOTProvider):
         after_commitments = block[commitments_idx + len("COMMITMENTS") :]
 
         # Extract the contract name from the first line
-        first_line = block.split("\n")[0] if "\n" in block else block[:100]
+        first_line = block.split("\n", maxsplit=1)[0] if "\n" in block else block[:100]
         contract_name = first_line.strip()[:100]
 
         # Parse commitment numbers: find the first line with 9+ numbers

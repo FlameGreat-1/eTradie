@@ -581,23 +581,18 @@ def build_user_message(context: ProcessorInput) -> str:
                     continue
                 cleaned[k] = v_clean
             return cleaned
-        elif isinstance(d, list):
+        if isinstance(d, list):
             cleaned = [_clean_dict(item) for item in d]
-            return [
-                item
-                for item in cleaned
-                if item is not None and item != "" and item != [] and item != {}
-            ]
-        elif isinstance(d, bool):
+            return [item for item in cleaned if item is not None and item != "" and item != [] and item != {}]
+        if isinstance(d, bool):
             # Booleans must be returned BEFORE the float branch because
             # isinstance(True, int) is True in Python; without this
             # guard True/False would silently round-trip through
             # _round_float and lose type fidelity.
             return d
-        elif isinstance(d, float):
+        if isinstance(d, float):
             return _round_float(d)
-        else:
-            return d
+        return d
 
     clean_ta = _clean_dict(context.ta_analysis) if context.ta_analysis else {}
     clean_macro = _clean_dict(context.macro_analysis) if context.macro_analysis else {}
@@ -664,9 +659,7 @@ def build_user_message(context: ProcessorInput) -> str:
     # downstream consumers to function.
     _METADATA_STRIP_KEYS = {"trace_id"}
     clean_metadata = {
-        k: v
-        for k, v in (context.metadata or {}).items()
-        if not k.startswith("rag_") and k not in _METADATA_STRIP_KEYS
+        k: v for k, v in (context.metadata or {}).items() if not k.startswith("rag_") and k not in _METADATA_STRIP_KEYS
     }
 
     payload: dict[str, Any] = {

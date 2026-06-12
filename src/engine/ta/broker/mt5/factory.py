@@ -131,7 +131,7 @@ def _ea_verify_enabled() -> bool:
 def _build_ea_verification_kwargs(
     provider: str,
     account_id: str,
-    row: "BrokerConnectionRow | None",
+    row: BrokerConnectionRow | None,
 ) -> dict[str, Any]:
     """Construct the Section-4 EA identity verifier + clock skew
     monitor kwargs the ZmqClient accepts.
@@ -172,7 +172,7 @@ def _build_ea_verification_kwargs(
 
 def create_mt5_broker(
     config: MT5Config,
-    http_client: "HttpClient | None" = None,
+    http_client: HttpClient | None = None,
 ) -> BrokerBase:
     """Create the MT5 broker client based on the configured provider.
 
@@ -234,8 +234,8 @@ def create_mt5_broker(
 
 
 def create_mt5_broker_from_connection(
-    row: "BrokerConnectionRow",
-    http_client: "HttpClient",
+    row: BrokerConnectionRow,
+    http_client: HttpClient,
     *,
     ea_auth_token: str = "",
     platform_token: str = "",
@@ -331,14 +331,12 @@ def create_mt5_broker_from_connection(
     if row.connection_type == "metaapi":
         if not platform_token:
             raise ConfigurationError(
-                "MT5_METAAPI_TOKEN env var is required for MetaAPI connections. "
-                "Set this in your .env file.",
+                "MT5_METAAPI_TOKEN env var is required for MetaAPI connections. Set this in your .env file.",
                 details={"connection_id": str(row.id)},
             )
         if not row.metaapi_account_id:
             raise ConfigurationError(
-                "MetaAPI connection has no provisioned account_id. "
-                "The account may not have been provisioned yet.",
+                "MetaAPI connection has no provisioned account_id. The account may not have been provisioned yet.",
                 details={"connection_id": str(row.id)},
             )
 
@@ -372,9 +370,7 @@ def create_mt5_broker_from_connection(
         client = MetaApiClient(
             config=config,
             http_client=http_client,
-            **_build_connectivity_kwargs(
-                "metaapi", row.metaapi_account_id or "unknown"
-            ),
+            **_build_connectivity_kwargs("metaapi", row.metaapi_account_id or "unknown"),
         )
         acct_id = row.metaapi_account_id
         logger.info(
@@ -405,8 +401,7 @@ def create_mt5_broker_from_connection(
             )
         if not row.hosted_container_id:
             raise ConfigurationError(
-                "Hosted connection has no container_id. "
-                "The container may not have been provisioned yet.",
+                "Hosted connection has no container_id. The container may not have been provisioned yet.",
                 details={"connection_id": str(row.id)},
             )
 
@@ -433,8 +428,7 @@ def create_mt5_broker_from_connection(
 
         if not zmq_host:
             raise ConfigurationError(
-                "Cannot resolve hosted mt-node Service DNS. "
-                "The release may have been deleted.",
+                "Cannot resolve hosted mt-node Service DNS. The release may have been deleted.",
                 details={
                     "connection_id": str(row.id),
                     "container_id": row.hosted_container_id,
@@ -455,8 +449,7 @@ def create_mt5_broker_from_connection(
         # re-provision via the dashboard.
         if not ea_auth_token:
             raise ConfigurationError(
-                "Hosted connection has no ea_auth_token. "
-                "Re-provision via the dashboard to regenerate one.",
+                "Hosted connection has no ea_auth_token. Re-provision via the dashboard to regenerate one.",
                 details={
                     "connection_id": str(row.id),
                     "container_id": row.hosted_container_id,

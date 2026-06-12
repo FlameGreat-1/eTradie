@@ -1,17 +1,15 @@
 from datetime import datetime
-from typing import Optional
 
 from engine.shared.logging import get_logger
+from engine.ta.constants import PriceZone
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import DealingRange, PremiumDiscountZone
 from engine.ta.models.session import SessionRange
-from engine.ta.constants import PriceZone, Timeframe
 
 logger = get_logger(__name__)
 
 
 class DealingRangeAnalyzer:
-
     def __init__(
         self,
         *,
@@ -24,7 +22,7 @@ class DealingRangeAnalyzer:
     def create_from_session(
         self,
         session_range: SessionRange,
-    ) -> Optional[DealingRange]:
+    ) -> DealingRange | None:
         from engine.ta.common.utils.price.math import calculate_pips
 
         range_pips = calculate_pips(
@@ -50,12 +48,8 @@ class DealingRangeAnalyzer:
         sequence: CandleSequence,
         start_index: int,
         end_index: int,
-    ) -> Optional[DealingRange]:
-        if (
-            start_index < 0
-            or end_index >= len(sequence.candles)
-            or start_index > end_index
-        ):
+    ) -> DealingRange | None:
+        if start_index < 0 or end_index >= len(sequence.candles) or start_index > end_index:
             return None
 
         range_candles = sequence.candles[start_index : end_index + 1]
@@ -97,9 +91,7 @@ class DealingRangeAnalyzer:
     def is_at_equilibrium(self, price: float, dealing_range: DealingRange) -> bool:
         return dealing_range.is_at_equilibrium(price)
 
-    def get_zone_for_price(
-        self, price: float, dealing_range: DealingRange
-    ) -> PriceZone:
+    def get_zone_for_price(self, price: float, dealing_range: DealingRange) -> PriceZone:
         return dealing_range.get_zone_for_price(price)
 
     def calculate_distance_from_equilibrium(

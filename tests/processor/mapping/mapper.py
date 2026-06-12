@@ -97,18 +97,22 @@ class TestMapValidLongSetup:
 
 class TestMapNoSetup:
     def test_no_setup_invalid(self):
-        output = map_to_processor_output(_make_analysis({
-            "direction": "NO SETUP",
-            "proceed_to_module_b": "NO",
-            "setup_grade": "REJECT",
-            "confidence": "NO SETUP",
-            "entry_zone": {"low": None, "high": None},
-            "stop_loss": {"price": None, "reason": "", "evidence": []},
-            "take_profits": [],
-            "rr_ratio": None,
-            "execution_mode": None,
-            "confluence_score": {"score": 0.0, "factors": []},
-        }))
+        output = map_to_processor_output(
+            _make_analysis(
+                {
+                    "direction": "NO SETUP",
+                    "proceed_to_module_b": "NO",
+                    "setup_grade": "REJECT",
+                    "confidence": "NO SETUP",
+                    "entry_zone": {"low": None, "high": None},
+                    "stop_loss": {"price": None, "reason": "", "evidence": []},
+                    "take_profits": [],
+                    "rr_ratio": None,
+                    "execution_mode": None,
+                    "confluence_score": {"score": 0.0, "factors": []},
+                }
+            )
+        )
         assert output.trade_valid is False
         assert output.direction is None
         assert output.risk_percentage is None
@@ -117,10 +121,14 @@ class TestMapNoSetup:
 
 class TestMapRejectGrade:
     def test_reject_grade_overrides_direction(self):
-        output = map_to_processor_output(_make_analysis({
-            "direction": "LONG",
-            "proceed_to_module_b": "YES",
-            "setup_grade": "REJECT",
-        }))
+        output = map_to_processor_output(
+            _make_analysis(
+                {
+                    "direction": "LONG",
+                    "proceed_to_module_b": "YES",
+                    "setup_grade": "REJECT",
+                }
+            )
+        )
         assert output.trade_valid is False
         assert output.risk_percentage is None

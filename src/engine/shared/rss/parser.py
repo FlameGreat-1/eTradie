@@ -67,9 +67,7 @@ class RSSParser:
             category=category,
         )
         if not isinstance(raw_text, str):
-            logger.error(
-                "rss_unexpected_response_type", url=url, type=type(raw_text).__name__
-            )
+            logger.error("rss_unexpected_response_type", url=url, type=type(raw_text).__name__)
             return []
 
         feed = feedparser.parse(raw_text)
@@ -87,9 +85,7 @@ class RSSParser:
                     title=getattr(entry, "title", ""),
                     link=getattr(entry, "link", ""),
                     summary=getattr(entry, "summary", ""),
-                    published_at=_struct_time_to_utc(
-                        getattr(entry, "published_parsed", None)
-                    ),
+                    published_at=_struct_time_to_utc(getattr(entry, "published_parsed", None)),
                     raw_tags=[t.get("term", "") for t in getattr(entry, "tags", [])],
                 ),
             )

@@ -46,9 +46,7 @@ class JsonLoader(BaseLoader):
 
         content = json_lib.dumps(data, indent=2, ensure_ascii=False)
         title = data.get("title", path.stem.replace("_", " ").title())
-        raw_metadata = {
-            k: str(v) for k, v in data.items() if isinstance(v, (str, int, float, bool))
-        }
+        raw_metadata = {k: str(v) for k, v in data.items() if isinstance(v, (str, int, float, bool))}
 
         logger.info("loaded_json", path=str(path), title=title)
 

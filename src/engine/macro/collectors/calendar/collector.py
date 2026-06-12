@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from engine.shared.logging import get_logger
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.calendar import CalendarDataSet
+from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -23,9 +23,7 @@ class CalendarCollector(BaseCollector):
                 all_events.extend(events)
                 sources.append(provider.provider_name)
             except Exception:
-                logger.warning(
-                    "calendar_provider_skipped", provider=provider.provider_name
-                )
+                logger.warning("calendar_provider_skipped", provider=provider.provider_name)
 
         # Upsert with deduplication: event + currency + time = one row.
         async with self._db.session() as session:

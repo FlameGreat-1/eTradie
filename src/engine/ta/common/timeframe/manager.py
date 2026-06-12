@@ -1,11 +1,8 @@
-from typing import Optional
-
 from engine.shared.exceptions import ConfigurationError
-from engine.ta.constants import Timeframe, TimeframeRelation, TIMEFRAME_MINUTES
+from engine.ta.constants import TIMEFRAME_MINUTES, Timeframe, TimeframeRelation
 
 
 class TimeframeManager:
-
     _HIERARCHY: list[Timeframe] = [
         Timeframe.M1,
         Timeframe.M5,
@@ -40,7 +37,7 @@ class TimeframeManager:
 
         return TimeframeRelation.CHILD
 
-    def get_parent(self, timeframe: Timeframe, steps: int = 1) -> Optional[Timeframe]:
+    def get_parent(self, timeframe: Timeframe, steps: int = 1) -> Timeframe | None:
         if steps < 1:
             raise ConfigurationError(
                 "Steps must be at least 1",
@@ -59,7 +56,7 @@ class TimeframeManager:
 
         return self._HIERARCHY[parent_idx]
 
-    def get_child(self, timeframe: Timeframe, steps: int = 1) -> Optional[Timeframe]:
+    def get_child(self, timeframe: Timeframe, steps: int = 1) -> Timeframe | None:
         if steps < 1:
             raise ConfigurationError(
                 "Steps must be at least 1",
@@ -130,7 +127,7 @@ class TimeframeManager:
         return target_minutes // source_minutes
 
 
-_manager: Optional[TimeframeManager] = None
+_manager: TimeframeManager | None = None
 
 
 def _get_manager() -> TimeframeManager:
@@ -146,11 +143,11 @@ def get_timeframe_relation(tf1: Timeframe, tf2: Timeframe) -> TimeframeRelation:
     return _get_manager().get_relation(tf1, tf2)
 
 
-def get_parent_timeframe(timeframe: Timeframe, steps: int = 1) -> Optional[Timeframe]:
+def get_parent_timeframe(timeframe: Timeframe, steps: int = 1) -> Timeframe | None:
     return _get_manager().get_parent(timeframe, steps)
 
 
-def get_child_timeframe(timeframe: Timeframe, steps: int = 1) -> Optional[Timeframe]:
+def get_child_timeframe(timeframe: Timeframe, steps: int = 1) -> Timeframe | None:
     return _get_manager().get_child(timeframe, steps)
 
 

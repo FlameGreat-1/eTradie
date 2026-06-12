@@ -2,11 +2,12 @@
 
 All tests are pure in-process (no broker, no DB, no Redis).
 """
+
 from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 
@@ -32,9 +33,7 @@ from engine.ta.models.candle import Candle, CandleSequence
 # ---------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_limiter_initial_burst_passes():
-    lim = OutboundRateLimiter(
-        provider="zmq", account_id="a", rate_per_second=1.0, burst_size=3
-    )
+    lim = OutboundRateLimiter(provider="zmq", account_id="a", rate_per_second=1.0, burst_size=3)
     # 3 immediate acquisitions succeed (initial burst).
     for _ in range(3):
         assert await lim.try_acquire() is True
@@ -44,9 +43,7 @@ async def test_limiter_initial_burst_passes():
 
 @pytest.mark.asyncio
 async def test_limiter_blocks_until_refill_and_raises_on_deadline():
-    lim = OutboundRateLimiter(
-        provider="zmq", account_id="a", rate_per_second=100.0, burst_size=1
-    )
+    lim = OutboundRateLimiter(provider="zmq", account_id="a", rate_per_second=100.0, burst_size=1)
     # Drain.
     assert await lim.try_acquire() is True
     # With deadline_secs=0.05 and rate 100/s, a refill is plenty fast.
@@ -63,9 +60,7 @@ async def test_limiter_blocks_until_refill_and_raises_on_deadline():
 
 @pytest.mark.asyncio
 async def test_limiter_raise_if_exhausted():
-    lim = OutboundRateLimiter(
-        provider="zmq", account_id="a", rate_per_second=0.5, burst_size=1
-    )
+    lim = OutboundRateLimiter(provider="zmq", account_id="a", rate_per_second=0.5, burst_size=1)
     await lim.try_acquire()  # drain
     with pytest.raises(OutboundRateLimitExceededError):
         await lim.raise_if_exhausted(deadline_secs=0)
@@ -74,9 +69,7 @@ async def test_limiter_raise_if_exhausted():
 @pytest.mark.asyncio
 async def test_limiter_concurrent_one_token():
     """Two coroutines, one token left -> exactly one wins."""
-    lim = OutboundRateLimiter(
-        provider="zmq", account_id="a", rate_per_second=0.01, burst_size=1
-    )
+    lim = OutboundRateLimiter(provider="zmq", account_id="a", rate_per_second=0.01, burst_size=1)
 
     results: list[bool] = []
 
@@ -128,9 +121,9 @@ class _FakeBroker(BrokerBase):
         self,
         symbol: str,
         timeframe: Timeframe,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        count: Optional[int] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        count: int | None = None,
     ) -> CandleSequence:
         raise NotImplementedError
 

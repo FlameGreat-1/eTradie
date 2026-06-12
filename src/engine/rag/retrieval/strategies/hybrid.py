@@ -88,9 +88,7 @@ class HybridStrategy:
         frameworks_to_retrieve.add("wyckoff")
 
         per_fw_k = max(2, framework_k // max(1, len(frameworks_to_retrieve)))
-        all_setup_fams = all_setup_families or (
-            [setup_family] if setup_family else None
-        )
+        all_setup_fams = all_setup_families or ([setup_family] if setup_family else None)
 
         for fw in frameworks_to_retrieve:
             doc_type = framework_doc_map[fw]

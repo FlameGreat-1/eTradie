@@ -40,9 +40,8 @@ contract):
      N=100 -> 600s (worst-case PVC reclaim + Pod deletion +
      Secret + Service cleanup).
 """
-from __future__ import annotations
 
-import os
+from __future__ import annotations
 
 import pytest
 
@@ -64,6 +63,7 @@ async def test_mt_node_n_tenants_steady_state(
     if not real_cluster_available:
         pytest.skip("ETRADIE_CHAOS_KUBECONFIG not set; load tests require a real cluster")
     from tests.chaos._load.harness import build_harness_from_env
+
     harness = build_harness_from_env()
     if harness is None:
         pytest.skip(
@@ -75,8 +75,7 @@ async def test_mt_node_n_tenants_steady_state(
     # Provisioning SLO: bounded elapsed time per N.
     provisioning_slo = {10: 60.0, 50: 180.0, 100: 300.0}[n_tenants]
     assert result.provisioning.elapsed_secs <= provisioning_slo, (
-        f"N={n_tenants} provisioning took "
-        f"{result.provisioning.elapsed_secs:.1f}s > SLO {provisioning_slo}s"
+        f"N={n_tenants} provisioning took {result.provisioning.elapsed_secs:.1f}s > SLO {provisioning_slo}s"
     )
     # SLO failures surface every breached invariant in one message.
     assert result.slo.passed, "\n".join(result.slo.failures)

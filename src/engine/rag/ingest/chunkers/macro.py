@@ -29,9 +29,7 @@ class MacroChunker(BaseChunker):
             for sub in section.subsections:
                 section_text += f"\n\n### {sub.heading}\n\n{sub.content}"
 
-            parts = self._split_by_token_limit(
-                section_text, max_tokens=self._chunk_size
-            )
+            parts = self._split_by_token_limit(section_text, max_tokens=self._chunk_size)
             for part in parts:
                 chunks.append(
                     RawChunk(

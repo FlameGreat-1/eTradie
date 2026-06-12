@@ -12,6 +12,7 @@ restart budget.
 
 This test is an integration test that requires the real cluster.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,6 +25,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.chaos]
 
 async def _scrape(host: str, port: int) -> dict[str, float]:
     from tests.chaos.test_mt_node_soak import _scrape_watchdog
+
     return await _scrape_watchdog(host, port)
 
 

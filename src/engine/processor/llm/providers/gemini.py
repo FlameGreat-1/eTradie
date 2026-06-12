@@ -21,17 +21,11 @@ request config and not billed against ``prompt_token_count`` or
 from __future__ import annotations
 
 import time
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 
 from google import genai
 from google.genai import types
 
-from engine.shared.logging import get_logger
-from engine.shared.metrics.prometheus import (
-    LLM_REQUEST_DURATION,
-    LLM_REQUEST_TOTAL,
-    LLM_TOKENS_USED,
-)
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import LLMProvider
 from engine.processor.llm.capabilities import get_model_capabilities
@@ -42,6 +36,12 @@ from engine.processor.llm.errors import (
 )
 from engine.processor.llm.reasoning import resolve_reasoning_budget
 from engine.processor.llm.schema_compiler import compile_for_gemini
+from engine.shared.logging import get_logger
+from engine.shared.metrics.prometheus import (
+    LLM_REQUEST_DURATION,
+    LLM_REQUEST_TOTAL,
+    LLM_TOKENS_USED,
+)
 
 logger = get_logger(__name__)
 
@@ -74,7 +74,7 @@ def _translate_provider_error(exc: Exception) -> Exception:
     return exc
 
 
-def classify_finish_reason_as_safety(finish_reason: Optional[str]) -> bool:
+def classify_finish_reason_as_safety(finish_reason: str | None) -> bool:
     """Return True if the Gemini finish_reason is a safety/policy block."""
     return finish_reason is not None and finish_reason.upper() in _SAFETY_FINISH_REASONS
 
@@ -114,9 +114,7 @@ class GeminiClient(LLMClient):
             kwargs["response_schema"] = compile_for_gemini()
 
         budget = resolve_reasoning_budget(
-            operator_budget_tokens=getattr(
-                self._config, "reasoning_budget_tokens", None
-            ),
+            operator_budget_tokens=getattr(self._config, "reasoning_budget_tokens", None),
             capabilities=self._capabilities,
         )
         if budget.is_active and self._capabilities.is_thinking:
@@ -133,7 +131,7 @@ class GeminiClient(LLMClient):
         *,
         system_prompt: str,
         user_message: str,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
         use_structured_output: bool = True,
     ) -> LLMResponse:
         model = self._config.model_name
@@ -156,12 +154,8 @@ class GeminiClient(LLMClient):
             )
         except Exception as exc:
             elapsed_ms = (time.monotonic() - start) * 1000
-            LLM_REQUEST_TOTAL.labels(
-                provider=self.PROVIDER, model=model, status="error"
-            ).inc()
-            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(
-                elapsed_ms / 1000
-            )
+            LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="error").inc()
+            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(elapsed_ms / 1000)
             logger.error(
                 "llm_call_failed",
                 extra={
@@ -176,9 +170,7 @@ class GeminiClient(LLMClient):
 
         elapsed_ms = (time.monotonic() - start) * 1000
         text = response.text or ""
-        stop_reason = (
-            response.candidates[0].finish_reason.name if response.candidates else None
-        )
+        stop_reason = response.candidates[0].finish_reason.name if response.candidates else None
         usage = response.usage_metadata
         input_tokens = usage.prompt_token_count if usage else 0
         output_tokens = usage.candidates_token_count if usage else 0
@@ -213,8 +205,8 @@ class GeminiClient(LLMClient):
         *,
         system_prompt: str,
         user_message: str,
-        trace_id: Optional[str] = None,
-        usage_out: Optional[dict] = None,
+        trace_id: str | None = None,
+        usage_out: dict | None = None,
         use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
@@ -258,13 +250,9 @@ class GeminiClient(LLMClient):
                 # __bool__ is not stable across SDK versions.
                 if usage_out is not None and chunk.usage_metadata is not None:
                     if chunk.usage_metadata.prompt_token_count is not None:
-                        usage_out["input_tokens"] = (
-                            chunk.usage_metadata.prompt_token_count
-                        )
+                        usage_out["input_tokens"] = chunk.usage_metadata.prompt_token_count
                     if chunk.usage_metadata.candidates_token_count is not None:
-                        usage_out["output_tokens"] = (
-                            chunk.usage_metadata.candidates_token_count
-                        )
+                        usage_out["output_tokens"] = chunk.usage_metadata.candidates_token_count
                 # Capture the finish_reason from every chunk. The final
                 # chunk carries the authoritative reason (STOP,
                 # MAX_TOKENS, SAFETY, RECITATION, OTHER). Earlier
@@ -274,9 +262,7 @@ class GeminiClient(LLMClient):
                     try:
                         fr = chunk.candidates[0].finish_reason
                         if fr is not None:
-                            usage_out["finish_reason"] = (
-                                fr.name if hasattr(fr, "name") else str(fr)
-                            )
+                            usage_out["finish_reason"] = fr.name if hasattr(fr, "name") else str(fr)
                     except (IndexError, AttributeError):
                         pass
                 if chunk.text:
@@ -295,23 +281,13 @@ class GeminiClient(LLMClient):
 
     async def close(self) -> None:
         """Close the underlying genai client HTTP transport."""
-        if hasattr(self._client, "_http_client") and hasattr(
-            self._client._http_client, "close"
-        ):
+        if hasattr(self._client, "_http_client") and hasattr(self._client._http_client, "close"):
             await self._client._http_client.close()
         elif hasattr(self._client, "close"):
             self._client.close()
 
     def _record_metrics(self, model: str, inp: int, out: int, ms: float) -> None:
-        LLM_REQUEST_TOTAL.labels(
-            provider=self.PROVIDER, model=model, status="success"
-        ).inc()
-        LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(
-            ms / 1000
-        )
-        LLM_TOKENS_USED.labels(
-            provider=self.PROVIDER, model=model, token_type="input"
-        ).inc(inp)
-        LLM_TOKENS_USED.labels(
-            provider=self.PROVIDER, model=model, token_type="output"
-        ).inc(out)
+        LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="success").inc()
+        LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(ms / 1000)
+        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="input").inc(inp)
+        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="output").inc(out)

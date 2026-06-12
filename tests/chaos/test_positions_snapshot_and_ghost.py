@@ -35,6 +35,7 @@ Skipped when:
   - psycopg2 is not installed.
   - The postgres connection fails.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -42,14 +43,14 @@ import hashlib
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="module")
 def db_pool():
@@ -92,6 +93,7 @@ def conn(db_pool):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _canonical_hash(positions: list[dict]) -> str:
     """Compute the sha256 of the canonicalised positions slice.
 
@@ -114,7 +116,7 @@ def _insert_snapshot(
     canonical = sorted(positions, key=lambda p: p.get("order_id", ""))
     json_bytes = json.dumps(canonical, separators=(",", ":"), sort_keys=True).encode()
     content_hash = hashlib.sha256(json_bytes).hexdigest()
-    ts = snapshot_ts or datetime.now(timezone.utc)
+    ts = snapshot_ts or datetime.now(dt.UTC)
 
     with conn.cursor() as cur:
         cur.execute(
@@ -168,10 +170,7 @@ def _snapshots_between(conn, user_id: str, since: datetime, until: datetime) -> 
             (user_id, since, until),
         )
         rows = cur.fetchall()
-    return [
-        {"id": r[0], "snapshot_ts": r[1], "position_count": r[2], "content_hash": r[3]}
-        for r in rows
-    ]
+    return [{"id": r[0], "snapshot_ts": r[1], "position_count": r[2], "content_hash": r[3]} for r in rows]
 
 
 def _make_position(order_id: str, symbol: str = "EURUSD") -> dict:
@@ -189,6 +188,7 @@ def _make_position(order_id: str, symbol: str = "EURUSD") -> dict:
 # ---------------------------------------------------------------------------
 # DB-backed tests: PositionSnapshotStore round-trip
 # ---------------------------------------------------------------------------
+
 
 def test_snapshot_write_and_latest(conn):
     """WriteSnapshot -> LatestSnapshot round-trip."""
@@ -239,8 +239,8 @@ def test_snapshot_different_positions_different_hash(conn):
 def test_latest_snapshot_returns_most_recent(conn):
     """LatestSnapshot returns the row with the highest snapshot_ts."""
     user_id = f"test-ghost-{uuid.uuid4().hex[:8]}"
-    t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-    t2 = datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc)
+    t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=dt.UTC)
+    t2 = datetime(2026, 1, 1, 0, 1, 0, tzinfo=dt.UTC)
 
     _insert_snapshot(conn, user_id, [_make_position("old")], snapshot_ts=t1)
     _insert_snapshot(conn, user_id, [_make_position("new")], snapshot_ts=t2)
@@ -252,10 +252,10 @@ def test_latest_snapshot_returns_most_recent(conn):
 def test_snapshots_between_range(conn):
     """SnapshotsBetween returns rows in the inclusive range, ordered chronologically."""
     user_id = f"test-ghost-{uuid.uuid4().hex[:8]}"
-    t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-    t2 = datetime(2026, 1, 1, 0, 1, 0, tzinfo=timezone.utc)
-    t3 = datetime(2026, 1, 1, 0, 2, 0, tzinfo=timezone.utc)
-    t4 = datetime(2026, 1, 1, 0, 3, 0, tzinfo=timezone.utc)
+    t1 = datetime(2026, 1, 1, 0, 0, 0, tzinfo=dt.UTC)
+    t2 = datetime(2026, 1, 1, 0, 1, 0, tzinfo=dt.UTC)
+    t3 = datetime(2026, 1, 1, 0, 2, 0, tzinfo=dt.UTC)
+    t4 = datetime(2026, 1, 1, 0, 3, 0, tzinfo=dt.UTC)
 
     for ts, oid in [(t1, "a"), (t2, "b"), (t3, "c"), (t4, "d")]:
         _insert_snapshot(conn, user_id, [_make_position(oid)], snapshot_ts=ts)
@@ -276,6 +276,7 @@ def test_no_snapshot_returns_none(conn):
 # DB-backed tests: immutability triggers (Section 7 Step B)
 # ---------------------------------------------------------------------------
 
+
 def test_snapshot_update_is_blocked(conn):
     """BEFORE UPDATE trigger must block any UPDATE on execution_positions_snapshot."""
     try:
@@ -295,9 +296,11 @@ def test_snapshot_update_is_blocked(conn):
         conn.commit()
     conn.rollback()
     # The trigger raises restrict_violation (SQLSTATE 23001).
-    assert "restrict_violation" in str(exc_info.value).lower() or \
-           "immutability" in str(exc_info.value).lower() or \
-           "23001" in str(exc_info.value)
+    assert (
+        "restrict_violation" in str(exc_info.value).lower()
+        or "immutability" in str(exc_info.value).lower()
+        or "23001" in str(exc_info.value)
+    )
 
 
 def test_audit_log_update_is_blocked(conn):
@@ -320,10 +323,27 @@ def test_audit_log_update_is_blocked(conn):
             RETURNING id
             """,
             (
-                "test-user", "LIMIT_ORDER_PLACED", "EURUSD", "BUY",
-                "order-1", "analysis-1", "trace-1", "LIMIT",
-                1.1000, 1.0950, 0.10, 100.0, 1.0, "A", "INTRADAY",
-                "LONDON_OPEN", 2.0, 0.85, 0, "", "{}",
+                "test-user",
+                "LIMIT_ORDER_PLACED",
+                "EURUSD",
+                "BUY",
+                "order-1",
+                "analysis-1",
+                "trace-1",
+                "LIMIT",
+                1.1000,
+                1.0950,
+                0.10,
+                100.0,
+                1.0,
+                "A",
+                "INTRADAY",
+                "LONDON_OPEN",
+                2.0,
+                0.85,
+                0,
+                "",
+                "{}",
             ),
         )
         row_id = cur.fetchone()[0]
@@ -337,15 +357,18 @@ def test_audit_log_update_is_blocked(conn):
             )
         conn.commit()
     conn.rollback()
-    assert "restrict_violation" in str(exc_info.value).lower() or \
-           "immutability" in str(exc_info.value).lower() or \
-           "23001" in str(exc_info.value)
+    assert (
+        "restrict_violation" in str(exc_info.value).lower()
+        or "immutability" in str(exc_info.value).lower()
+        or "23001" in str(exc_info.value)
+    )
 
 
 # ---------------------------------------------------------------------------
 # In-process logic tests: ghost-position detection algorithm
 # (no DB required; these run in any environment)
 # ---------------------------------------------------------------------------
+
 
 def _apply_ghost_detection(
     snapshot_positions: list[dict],
@@ -360,10 +383,7 @@ def _apply_ghost_detection(
     if snapshot_age_secs < ghost_min_age_secs:
         return []
     broker_set = {p["order_id"] for p in broker_positions}
-    return [
-        p for p in snapshot_positions
-        if p.get("order_id") and p["order_id"] not in broker_set
-    ]
+    return [p for p in snapshot_positions if p.get("order_id") and p["order_id"] not in broker_set]
 
 
 def test_ghost_detection_removes_stale_missing_position():
@@ -371,7 +391,7 @@ def test_ghost_detection_removes_stale_missing_position():
     ghosts = _apply_ghost_detection(
         snapshot_positions=[_make_position("42")],
         broker_positions=[],
-        snapshot_age_secs=600,   # 10 min
+        snapshot_age_secs=600,  # 10 min
         ghost_min_age_secs=300,  # 5 min
     )
     assert len(ghosts) == 1
@@ -383,7 +403,7 @@ def test_ghost_detection_skips_fresh_snapshot():
     ghosts = _apply_ghost_detection(
         snapshot_positions=[_make_position("42")],
         broker_positions=[],
-        snapshot_age_secs=60,    # 1 min
+        snapshot_age_secs=60,  # 1 min
         ghost_min_age_secs=300,  # 5 min
     )
     assert ghosts == [], "Fresh snapshot must not trigger ghost detection"
@@ -408,9 +428,7 @@ def test_ghost_detection_no_snapshot_is_safe():
     if latest_snapshot is None:
         ghosts = []
     else:
-        ghosts = _apply_ghost_detection(
-            latest_snapshot["positions"], [], 999, 300
-        )
+        ghosts = _apply_ghost_detection(latest_snapshot["positions"], [], 999, 300)
     assert ghosts == []
 
 

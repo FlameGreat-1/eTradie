@@ -31,15 +31,11 @@ class EconomicReleaseRow(Base):
 
     __tablename__ = "economic_releases"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     indicator_name: Mapped[str] = mapped_column(String(200), nullable=False)
     actual: Mapped[float | None] = mapped_column(Float, nullable=True)
     previous: Mapped[float | None] = mapped_column(Float, nullable=True)
-    release_time: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    release_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

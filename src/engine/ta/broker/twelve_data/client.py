@@ -1,22 +1,19 @@
 import asyncio
-import json
 import time as _time
-from datetime import datetime, timezone
-from typing import Optional, Any
+from datetime import UTC, datetime
+from typing import Any
 
 from engine.shared.cache.redis_cache import RedisCache
 from engine.shared.exceptions import (
     ProviderError,
     ProviderResponseError,
-    ProviderTimeoutError,
-    ProviderUnavailableError,
 )
 from engine.shared.http.client import HttpClient
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
-    TA_BROKER_FETCH_DURATION,
-    TA_BROKER_ERRORS_TOTAL,
     PROVIDER_RESPONSE_SIZE,
+    TA_BROKER_ERRORS_TOTAL,
+    TA_BROKER_FETCH_DURATION,
 )
 from engine.ta.broker.base import (
     AccountInfo,
@@ -66,7 +63,7 @@ class TwelveDataClient(BrokerBase):
         self,
         config: TwelveDataConfig,
         http_client: HttpClient,
-        cache: Optional[RedisCache] = None,
+        cache: RedisCache | None = None,
     ) -> None:
         super().__init__(broker_id="twelve_data")
         self.config = config
@@ -92,9 +89,9 @@ class TwelveDataClient(BrokerBase):
         self,
         symbol: str,
         timeframe: Timeframe,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        count: Optional[int] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        count: int | None = None,
     ) -> CandleSequence:
         if start_time and end_time:
             self.validator.validate_time_range(start_time, end_time)
@@ -106,9 +103,7 @@ class TwelveDataClient(BrokerBase):
                 details={"timeframe": timeframe},
             )
 
-        cache_key = self._build_cache_key(
-            symbol, timeframe, start_time, end_time, count
-        )
+        cache_key = self._build_cache_key(symbol, timeframe, start_time, end_time, count)
         cached = await self._get_cached(cache_key)
         if cached is not None:
             return cached
@@ -345,8 +340,7 @@ class TwelveDataClient(BrokerBase):
     # --------------------------------------------------------------------------
 
     _TRADING_NOT_SUPPORTED = (
-        "Twelve Data is a market-data-only provider.  "
-        "Trading operations require the MT5 broker (MetaApi or ZeroMQ)."
+        "Twelve Data is a market-data-only provider.  Trading operations require the MT5 broker (MetaApi or ZeroMQ)."
     )
 
     async def get_account_info(self) -> AccountInfo:
@@ -500,14 +494,10 @@ class TwelveDataClient(BrokerBase):
 
         for record in values:
             try:
-                timestamp = datetime.strptime(
-                    record["datetime"], "%Y-%m-%d %H:%M:%S"
-                ).replace(tzinfo=timezone.utc)
+                timestamp = datetime.strptime(record["datetime"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
             except (KeyError, ValueError):
                 try:
-                    timestamp = datetime.strptime(
-                        record["datetime"], "%Y-%m-%d"
-                    ).replace(tzinfo=timezone.utc)
+                    timestamp = datetime.strptime(record["datetime"], "%Y-%m-%d").replace(tzinfo=UTC)
                 except (KeyError, ValueError):
                     logger.warning(
                         "twelve_data_parse_skip",
@@ -534,9 +524,9 @@ class TwelveDataClient(BrokerBase):
         self,
         symbol: str,
         timeframe: Timeframe,
-        start_time: Optional[datetime],
-        end_time: Optional[datetime],
-        count: Optional[int],
+        start_time: datetime | None,
+        end_time: datetime | None,
+        count: int | None,
     ) -> str:
         parts = [
             _CACHE_KEY_PREFIX,
@@ -553,7 +543,7 @@ class TwelveDataClient(BrokerBase):
 
         return ":".join(parts)
 
-    async def _get_cached(self, key: str) -> Optional[CandleSequence]:
+    async def _get_cached(self, key: str) -> CandleSequence | None:
         if self.cache is None:
             return None
 

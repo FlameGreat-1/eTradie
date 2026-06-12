@@ -1,11 +1,10 @@
-import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from redis.exceptions import ConnectionError, TimeoutError
 
 from engine.shared.cache.redis_cache import MAX_CACHE_VALUE_SIZE, RedisCache
-from engine.shared.exceptions import CacheConnectionError, CacheTimeoutError, CacheValidationError
+from engine.shared.exceptions import CacheConnectionError, CacheValidationError
 
 
 @pytest.fixture
@@ -43,9 +42,9 @@ def test_url_validation_failure():
 async def test_get_success(cache, mock_redis_client):
     """Cache hit string returns JSON parsed dictionary."""
     mock_redis_client.get.return_value = b'{"hello": "world"}'
-    
+
     result = await cache.get("test_ns", "test_key")
-    
+
     # Prefix defaults to 'etradie'
     mock_redis_client.get.assert_called_once_with("etradie:test_ns:test_key")
     assert result == {"hello": "world"}
@@ -83,9 +82,9 @@ async def test_get_key_validation(cache):
 async def test_set_success(cache, mock_redis_client):
     """Valid dictionary value persists correctly."""
     mock_redis_client.set.return_value = True
-    
+
     result = await cache.set("ns", "key", {"foo": "bar"}, ttl_seconds=60)
-    
+
     mock_redis_client.set.assert_called_once_with(
         "etradie:ns:key",
         b'{"foo":"bar"}',
@@ -113,9 +112,9 @@ async def test_set_ttl_validation(cache):
 async def test_delete_success(cache, mock_redis_client):
     "Delete operates against correct key."
     mock_redis_client.delete.return_value = 1
-    
+
     result = await cache.delete("ns", "key")
-    
+
     mock_redis_client.delete.assert_called_once_with("etradie:ns:key")
     assert result is True
 
@@ -138,12 +137,12 @@ async def test_health_check_failure(cache, mock_redis_client):
 async def test_retry_on_timeout(cache, mock_redis_client):
     """Cache operations must retry transient errors."""
     cache = RedisCache(url="redis://localhost:6379/0", max_retries=2)
-    
+
     # First fails with timeout, second succeeds
     mock_redis_client.get.side_effect = [TimeoutError("Timeout"), b'{"success": true}']
-    
+
     result = await cache.get("ns", "key")
-    
+
     assert mock_redis_client.get.call_count == 2
     assert result == {"success": True}
 
@@ -152,13 +151,13 @@ async def test_retry_on_timeout(cache, mock_redis_client):
 async def test_exhausted_retries(cache, mock_redis_client):
     """Exhausted retries eventually raise connection error."""
     cache = RedisCache(url="redis://localhost:6379/0", max_retries=2)
-    
+
     # Always fail
     mock_redis_client.get.side_effect = ConnectionError("Offline")
-    
+
     with pytest.raises(CacheConnectionError):
         await cache.get("ns", "key")
-    
+
     assert mock_redis_client.get.call_count == 2
 
 
@@ -167,6 +166,6 @@ async def test_close(cache, mock_redis_client):
     """Graceful shutdown should close pool and client."""
     cache._pool.disconnect = AsyncMock()
     await cache.close()
-    
+
     mock_redis_client.aclose.assert_called_once()
     cache._pool.disconnect.assert_called_once()

@@ -4,8 +4,8 @@ from typing import Any
 
 from sqlalchemy import select
 
-from engine.shared.db.repositories.base_repository import BaseRepository
 from engine.macro.storage.schemas.intermarket import IntermarketSnapshotRow
+from engine.shared.db.repositories.base_repository import BaseRepository
 
 
 class IntermarketRepository(BaseRepository[IntermarketSnapshotRow]):

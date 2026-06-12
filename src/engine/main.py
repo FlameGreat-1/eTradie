@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,12 +12,6 @@ from prometheus_client import make_asgi_app
 from engine.config import get_rag_config, get_settings
 from engine.dependencies import Container
 from engine.macro.scheduler_jobs import register_macro_jobs
-from engine.shared.retention import RetentionPruner, register_retention_jobs
-from engine.shared.logging import configure_logging, get_logger
-from engine.shared.metrics.prometheus import APP_INFO
-from engine.shared.models.currency import get_correlation_config
-from engine.shared.store import RedisSymbolReader
-from engine.shared.tracing.otel import init_tracing
 
 # Import modular routers
 from engine.routers import (
@@ -32,6 +26,12 @@ from engine.routers import (
     processor_config,
     trading_plan,
 )
+from engine.shared.logging import configure_logging, get_logger
+from engine.shared.metrics.prometheus import APP_INFO
+from engine.shared.models.currency import get_correlation_config
+from engine.shared.retention import RetentionPruner, register_retention_jobs
+from engine.shared.store import RedisSymbolReader
+from engine.shared.tracing.otel import init_tracing
 
 logger = get_logger(__name__)
 

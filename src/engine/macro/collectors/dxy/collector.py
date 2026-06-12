@@ -3,11 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from engine.shared.logging import get_logger
-from engine.shared.models.events import DXYMomentum, MacroBias, TrendDirection
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.market_data import MarketDataSet
 from engine.macro.storage.repositories.dxy.snapshot import DXYRepository
+from engine.shared.logging import get_logger
+from engine.shared.models.events import DXYMomentum, MacroBias, TrendDirection
 
 logger = get_logger(__name__)
 
@@ -107,9 +107,7 @@ def _detect_divergence(
     trend_up = trend == TrendDirection.UP
     trend_down = trend == TrendDirection.DOWN
 
-    divergence_detected = (momentum_bullish and trend_down) or (
-        momentum_bearish and trend_up
-    )
+    divergence_detected = (momentum_bullish and trend_down) or (momentum_bearish and trend_up)
 
     signal_type = "NONE"
     if momentum_bearish and trend_up:
@@ -214,6 +212,4 @@ class DXYCollector(BaseCollector):
         return dataset
 
     def _empty_dataset(self) -> MarketDataSet:
-        return MarketDataSet(
-            snapshots=[], latest=None, sources=[], collected_at=datetime.now(UTC)
-        )
+        return MarketDataSet(snapshots=[], latest=None, sources=[], collected_at=datetime.now(UTC))

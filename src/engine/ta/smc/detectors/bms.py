@@ -1,8 +1,6 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.utils.price.math import calculate_pips
-from engine.ta.constants import Direction, Timeframe, TIMEFRAME_MINUTES
+from engine.ta.constants import Direction, Timeframe
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.structure_event import BreakInMarketStructure
 from engine.ta.models.swing import SwingHigh, SwingLow
@@ -101,7 +99,7 @@ class BMSDetector:
                 continue
 
             # Scan forward for the first candle that closes above the level.
-            first_break_idx: Optional[int] = None
+            first_break_idx: int | None = None
             for j in range(break_start, len(candles)):
                 if candles[j].close > level:
                     first_break_idx = j
@@ -221,7 +219,7 @@ class BMSDetector:
                 continue
 
             # Scan forward for the first candle that closes below the level.
-            first_break_idx: Optional[int] = None
+            first_break_idx: int | None = None
             for j in range(break_start, len(candles)):
                 if candles[j].close < level:
                     first_break_idx = j
@@ -303,7 +301,7 @@ class BMSDetector:
     def get_latest_bms(
         self,
         bms_events: list[BreakInMarketStructure],
-    ) -> Optional[BreakInMarketStructure]:
+    ) -> BreakInMarketStructure | None:
         if not bms_events:
             return None
         return max(bms_events, key=lambda x: x.timestamp)

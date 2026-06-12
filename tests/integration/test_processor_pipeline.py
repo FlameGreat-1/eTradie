@@ -7,7 +7,7 @@ validate -> map -> ProcessorOutput.
 from __future__ import annotations
 
 import json
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import pytest
 
@@ -22,33 +22,47 @@ pytestmark = pytest.mark.integration
 
 
 def _valid_json(direction="LONG", grade="A", proceed="YES") -> str:
-    return json.dumps({
-        "analysis_id": "analysis_EURUSD_20250101_1200_ab12",
-        "pair": "EURUSD", "timestamp": "2025-01-01T12:00:00Z",
-        "trading_style": "INTRADAY", "session": "NEW_YORK",
-        "macro_bias": {"base_currency": {"bias": "BULLISH", "evidence": []}, "quote_currency": {"bias": "BEARISH", "evidence": []}},
-        "dxy_bias": {"direction": "BEARISH", "evidence": []},
-        "cot_signal": {"summary": "Longs increasing", "extreme_flag": False, "evidence": []},
-        "event_risk": [],
-        "htf_bias": {"structure": "bullish", "key_levels": [1.12]},
-        "mtf_bias": {"structure": "bullish", "key_levels": [1.105]},
-        "entry_setup": {"type": "OB", "bounds": [1.1, 1.101], "evidence": []},
-        "wyckoff_phase": {"phase": "markup", "evidence": []},
-        "confluence_score": {"score": 8.0, "factors": [{"name": "htf", "present": True, "value": 1.0, "notes": "ok"}]},
-        "setup_grade": grade, "direction": direction,
-        "entry_zone": {"low": 1.1000, "high": 1.1010},
-        "stop_loss": {"price": 1.0950, "reason": "Below OB", "evidence": []},
-        "take_profits": [
-            {"level": 1.11, "size_pct": 40, "basis": "R1"},
-            {"level": 1.115, "size_pct": 30, "basis": "R2"},
-            {"level": 1.12, "size_pct": 30, "basis": "R3"}
-        ],
-        "rr_ratio": 3.0, "confidence": "HIGH", "proceed_to_module_b": proceed,
-        "execution_mode": "LIMIT", "ltf_confirmed": False,
-        "explainable_reasoning": "Strong bullish structure.",
-        "rag_sources": [{"doc_id": "d1", "chunk_id": "c1", "relevance_score": 0.9}],
-        "audit": {"retrieval": {"query_summary": "test", "top_k": 5}, "citations": []},
-    })
+    return json.dumps(
+        {
+            "analysis_id": "analysis_EURUSD_20250101_1200_ab12",
+            "pair": "EURUSD",
+            "timestamp": "2025-01-01T12:00:00Z",
+            "trading_style": "INTRADAY",
+            "session": "NEW_YORK",
+            "macro_bias": {
+                "base_currency": {"bias": "BULLISH", "evidence": []},
+                "quote_currency": {"bias": "BEARISH", "evidence": []},
+            },
+            "dxy_bias": {"direction": "BEARISH", "evidence": []},
+            "cot_signal": {"summary": "Longs increasing", "extreme_flag": False, "evidence": []},
+            "event_risk": [],
+            "htf_bias": {"structure": "bullish", "key_levels": [1.12]},
+            "mtf_bias": {"structure": "bullish", "key_levels": [1.105]},
+            "entry_setup": {"type": "OB", "bounds": [1.1, 1.101], "evidence": []},
+            "wyckoff_phase": {"phase": "markup", "evidence": []},
+            "confluence_score": {
+                "score": 8.0,
+                "factors": [{"name": "htf", "present": True, "value": 1.0, "notes": "ok"}],
+            },
+            "setup_grade": grade,
+            "direction": direction,
+            "entry_zone": {"low": 1.1000, "high": 1.1010},
+            "stop_loss": {"price": 1.0950, "reason": "Below OB", "evidence": []},
+            "take_profits": [
+                {"level": 1.11, "size_pct": 40, "basis": "R1"},
+                {"level": 1.115, "size_pct": 30, "basis": "R2"},
+                {"level": 1.12, "size_pct": 30, "basis": "R3"},
+            ],
+            "rr_ratio": 3.0,
+            "confidence": "HIGH",
+            "proceed_to_module_b": proceed,
+            "execution_mode": "LIMIT",
+            "ltf_confirmed": False,
+            "explainable_reasoning": "Strong bullish structure.",
+            "rag_sources": [{"doc_id": "d1", "chunk_id": "c1", "relevance_score": 0.9}],
+            "audit": {"retrieval": {"query_summary": "test", "top_k": 5}, "citations": []},
+        }
+    )
 
 
 class MockLLM(LLMClient):
@@ -113,9 +127,13 @@ class MockLLM(LLMClient):
 @pytest.fixture
 def cfg():
     return ProcessorConfig(
-        llm_provider=LLMProvider.ANTHROPIC, anthropic_api_key="k", max_retries=0,
-        persist_audit_logs=False, require_citations=False,
-        total_timeout_seconds=30, llm_timeout_seconds=15
+        llm_provider=LLMProvider.ANTHROPIC,
+        anthropic_api_key="k",
+        max_retries=0,
+        persist_audit_logs=False,
+        require_citations=False,
+        total_timeout_seconds=30,
+        llm_timeout_seconds=15,
     )
 
 
@@ -123,10 +141,14 @@ def cfg():
 def ctx():
     return ProcessorInput(
         symbol="EURUSD",
-        ta_analysis={"status": "success", "smc_candidates": [{"pattern": "X", "direction": "BULLISH"}], "snd_candidates": []},
+        ta_analysis={
+            "status": "success",
+            "smc_candidates": [{"pattern": "X", "direction": "BULLISH"}],
+            "snd_candidates": [],
+        },
         macro_analysis={},
         retrieved_knowledge={"chunks": [{"id": "c1"}]},
-        metadata={"trace_id": "t"}
+        metadata={"trace_id": "t"},
     )
 
 
@@ -159,8 +181,7 @@ class TestInsufficientData:
         p = AnalysisProcessor(config=cfg, llm_client=llm)
         with pytest.raises(ProcessorInsufficientDataError):
             await p.process(
-                ProcessorInput(symbol="X", ta_analysis={}, retrieved_knowledge={"c": 1}),
-                user_id="test_user_id_123"
+                ProcessorInput(symbol="X", ta_analysis={}, retrieved_knowledge={"c": 1}), user_id="test_user_id_123"
             )
         assert llm.call_count == 0
 
@@ -170,8 +191,10 @@ class TestInsufficientData:
         p = AnalysisProcessor(config=cfg, llm_client=llm)
         with pytest.raises(ProcessorInsufficientDataError):
             await p.process(
-                ProcessorInput(symbol="X", ta_analysis={"smc_candidates": [], "snd_candidates": []}, retrieved_knowledge={"c": 1}),
-                user_id="test_user_id_123"
+                ProcessorInput(
+                    symbol="X", ta_analysis={"smc_candidates": [], "snd_candidates": []}, retrieved_knowledge={"c": 1}
+                ),
+                user_id="test_user_id_123",
             )
 
     @pytest.mark.asyncio
@@ -181,7 +204,7 @@ class TestInsufficientData:
         with pytest.raises(ProcessorInsufficientDataError):
             await p.process(
                 ProcessorInput(symbol="X", ta_analysis={"smc_candidates": [{"p": 1}]}, retrieved_knowledge={}),
-                user_id="test_user_id_123"
+                user_id="test_user_id_123",
             )
 
 

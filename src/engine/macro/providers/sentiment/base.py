@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import abc
 
-from engine.shared.models.events import ProviderCategory
 from engine.macro.models.provider.sentiment import SentimentReading
 from engine.macro.providers.base import BaseProvider
+from engine.shared.models.events import ProviderCategory
 
 
 class BaseSentimentProvider(BaseProvider, abc.ABC):

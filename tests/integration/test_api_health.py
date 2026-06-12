@@ -1,9 +1,11 @@
 from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 pytestmark = pytest.mark.integration
+
 
 @pytest_asyncio.fixture
 async def client():
@@ -20,11 +22,13 @@ async def client():
         c.shutdown = AsyncMock()
         MC.return_value = c
         from engine.main import create_app
+
         app = create_app()
         app.state.container = c
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
             yield ac
+
 
 class TestHealth:
     @pytest.mark.asyncio

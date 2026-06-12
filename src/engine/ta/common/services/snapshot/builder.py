@@ -1,48 +1,43 @@
-from datetime import datetime
-from typing import Optional
-
 from engine.shared.logging import get_logger
-from engine.ta.common.analyzers.swings import SwingAnalyzer
-from engine.ta.common.analyzers.session import SessionAnalyzer
-from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
-from engine.ta.common.analyzers.sweeps import SweepAnalyzer
-from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
-from engine.ta.constants import Timeframe, Direction
+from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
+from engine.ta.common.analyzers.session import SessionAnalyzer
+from engine.ta.common.analyzers.sweeps import SweepAnalyzer
+from engine.ta.common.analyzers.swings import SwingAnalyzer
+from engine.ta.constants import Direction
+from engine.ta.models.candidate import TechnicalCandidate
 from engine.ta.models.candle import CandleSequence
+from engine.ta.models.fibonacci import DealingRange, FibonacciRetracement
+from engine.ta.models.liquidity_event import (
+    EqualHighsLows,
+    InducementEvent,
+    LiquidityGrab,
+    LiquiditySweep,
+)
 from engine.ta.models.snapshot import TechnicalSnapshot
 from engine.ta.models.structure_event import (
+    BreakInMarketStructure,
     BreakOfStructure,
     ChangeOfCharacter,
-    BreakInMarketStructure,
+    RSFlip,
     ShiftInMarketStructure,
     SRFlip,
-    RSFlip,
-)
-from engine.ta.models.liquidity_event import (
-    LiquiditySweep,
-    LiquidityGrab,
-    InducementEvent,
-    EqualHighsLows,
 )
 from engine.ta.models.zone import (
-    OrderBlock,
-    FairValueGap,
     BreakerBlock,
-    SupplyZone,
     DemandZone,
-    QuasiModoLevel,
+    FairValueGap,
     MiniPriceLevel,
+    OrderBlock,
+    QuasiModoLevel,
+    SupplyZone,
 )
-from engine.ta.models.fibonacci import FibonacciRetracement, DealingRange
-from engine.ta.models.session import SessionState
-from engine.ta.models.candidate import TechnicalCandidate
 
 logger = get_logger(__name__)
 
 
 class SnapshotBuilder:
-
     def __init__(
         self,
         swing_analyzer: SwingAnalyzer,
@@ -63,27 +58,27 @@ class SnapshotBuilder:
     def build_snapshot(
         self,
         candles: CandleSequence,
-        bos_events: Optional[list[BreakOfStructure]] = None,
-        choch_events: Optional[list[ChangeOfCharacter]] = None,
-        bms_events: Optional[list[BreakInMarketStructure]] = None,
-        sms_events: Optional[list[ShiftInMarketStructure]] = None,
-        sr_flips: Optional[list[SRFlip]] = None,
-        rs_flips: Optional[list[RSFlip]] = None,
-        liquidity_sweeps: Optional[list[LiquiditySweep]] = None,
-        liquidity_grabs: Optional[list[LiquidityGrab]] = None,
-        inducement_events: Optional[list[InducementEvent]] = None,
-        equal_highs_lows: Optional[list[EqualHighsLows]] = None,
-        order_blocks: Optional[list[OrderBlock]] = None,
-        fvgs: Optional[list[FairValueGap]] = None,
-        breaker_blocks: Optional[list[BreakerBlock]] = None,
-        supply_zones: Optional[list[SupplyZone]] = None,
-        demand_zones: Optional[list[DemandZone]] = None,
-        qml_levels: Optional[list[QuasiModoLevel]] = None,
-        mpl_levels: Optional[list[MiniPriceLevel]] = None,
-        fibonacci_retracements: Optional[list[FibonacciRetracement]] = None,
-        dealing_ranges: Optional[list[DealingRange]] = None,
-        candidates: Optional[list[TechnicalCandidate]] = None,
-        metadata: Optional[dict] = None,
+        bos_events: list[BreakOfStructure] | None = None,
+        choch_events: list[ChangeOfCharacter] | None = None,
+        bms_events: list[BreakInMarketStructure] | None = None,
+        sms_events: list[ShiftInMarketStructure] | None = None,
+        sr_flips: list[SRFlip] | None = None,
+        rs_flips: list[RSFlip] | None = None,
+        liquidity_sweeps: list[LiquiditySweep] | None = None,
+        liquidity_grabs: list[LiquidityGrab] | None = None,
+        inducement_events: list[InducementEvent] | None = None,
+        equal_highs_lows: list[EqualHighsLows] | None = None,
+        order_blocks: list[OrderBlock] | None = None,
+        fvgs: list[FairValueGap] | None = None,
+        breaker_blocks: list[BreakerBlock] | None = None,
+        supply_zones: list[SupplyZone] | None = None,
+        demand_zones: list[DemandZone] | None = None,
+        qml_levels: list[QuasiModoLevel] | None = None,
+        mpl_levels: list[MiniPriceLevel] | None = None,
+        fibonacci_retracements: list[FibonacciRetracement] | None = None,
+        dealing_ranges: list[DealingRange] | None = None,
+        candidates: list[TechnicalCandidate] | None = None,
+        metadata: dict | None = None,
     ) -> TechnicalSnapshot:
         swing_highs = self.swing_analyzer.detect_swing_highs(candles)
         swing_lows = self.swing_analyzer.detect_swing_lows(candles)
@@ -209,14 +204,8 @@ class SnapshotBuilder:
         latest_bms = max(bms_events, key=lambda x: x.timestamp) if bms_events else None
         # Only MAJOR CHoCH events flip macro bias; minor CHoCH events
         # describe internal pullbacks, not a structural reversal.
-        major_choch_events = [
-            c for c in choch_events if not getattr(c, "is_minor", False)
-        ]
-        latest_choch = (
-            max(major_choch_events, key=lambda x: x.timestamp)
-            if major_choch_events
-            else None
-        )
+        major_choch_events = [c for c in choch_events if not getattr(c, "is_minor", False)]
+        latest_choch = max(major_choch_events, key=lambda x: x.timestamp) if major_choch_events else None
 
         if latest_bms and latest_choch:
             if latest_bms.timestamp > latest_choch.timestamp:
@@ -233,7 +222,7 @@ class SnapshotBuilder:
         # high but still below an older higher swing high does NOT
         # count as bullish.  A break here is unambiguous by
         # construction.
-        latest_close: Optional[float] = None
+        latest_close: float | None = None
         if candles is not None and candles.candles:
             latest_close = candles.candles[-1].close
 
@@ -251,18 +240,12 @@ class SnapshotBuilder:
         recent_lows = sorted(swing_lows, key=lambda x: x.timestamp)[-3:]
 
         if len(recent_highs) >= 2:
-            higher_highs = all(
-                recent_highs[i].price > recent_highs[i - 1].price
-                for i in range(1, len(recent_highs))
-            )
+            higher_highs = all(recent_highs[i].price > recent_highs[i - 1].price for i in range(1, len(recent_highs)))
             if higher_highs:
                 return Direction.BULLISH
 
         if len(recent_lows) >= 2:
-            lower_lows = all(
-                recent_lows[i].price < recent_lows[i - 1].price
-                for i in range(1, len(recent_lows))
-            )
+            lower_lows = all(recent_lows[i].price < recent_lows[i - 1].price for i in range(1, len(recent_lows)))
             if lower_lows:
                 return Direction.BEARISH
 

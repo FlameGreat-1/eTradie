@@ -13,7 +13,6 @@ from engine.rag.retrieval.conflicts import detect_conflicts
 from engine.rag.retrieval.coverage import check_coverage
 from engine.rag.retrieval.gap_filler import GapFiller
 from engine.rag.retrieval.mandatory import (
-    MandatoryRequirements,
     compute_mandatory_requirements,
 )
 from engine.rag.retrieval.reranker import Reranker
@@ -156,9 +155,7 @@ class RAGOrchestrator:
         citations = build_citations(chunks, version_map=version_map)
 
         # Scenario matching uses ALL setup families, not just primary
-        effective_setup_families = all_setup_families or (
-            [setup_family] if setup_family else []
-        )
+        effective_setup_families = all_setup_families or ([setup_family] if setup_family else [])
         scenarios = await self._match_scenarios(
             framework=framework,
             setup_families=effective_setup_families,

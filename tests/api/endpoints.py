@@ -32,6 +32,7 @@ def registered_paths() -> set[str]:
     # Settings is an lru_cache singleton; clear it so the env above is
     # honoured even if a prior import already populated the cache.
     from engine.config import get_settings
+
     get_settings.cache_clear()
 
     from engine.main import create_app
@@ -44,6 +45,7 @@ class TestAppFactory:
     def test_create_app_importable(self):
         """create_app factory can be imported."""
         from engine.main import create_app
+
         assert callable(create_app)
 
 
@@ -76,9 +78,7 @@ class TestEndpointPaths:
 
         # The single-position lookup is registered under
         # /internal/broker/position (optionally with a path parameter).
-        assert any(
-            p.startswith("/internal/broker/position") for p in registered_paths
-        )
+        assert any(p.startswith("/internal/broker/position") for p in registered_paths)
 
     def test_health_endpoint_registered(self, registered_paths):
         assert "/health" in registered_paths

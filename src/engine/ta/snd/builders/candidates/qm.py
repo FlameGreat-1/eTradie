@@ -5,21 +5,21 @@ from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import (
-    Direction,
-    CandidatePattern,
-    OTE_LEVELS,
     FIBONACCI_VALUES,
+    OTE_LEVELS,
+    CandidatePattern,
+    Direction,
 )
 from engine.ta.models.candidate import SnDCandidate
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
-from engine.ta.models.zone import QuasiModoLevel, MiniPriceLevel
+from engine.ta.models.zone import MiniPriceLevel, QuasiModoLevel
 from engine.ta.snd.builders.levels import compute_trade_levels
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detectors.fakeouts import FakeoutTest
 from engine.ta.snd.detectors.previous_levels import PreviousHighsLows
-from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
 from engine.ta.snd.validators.ltf.confirmation import LTFConfirmationValidator
+from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
 
 logger = get_logger(__name__)
 
@@ -64,9 +64,9 @@ class QMCandidateBuilder:
         qml: QuasiModoLevel,
         sr_flip_level: float,
         fakeout_tests: list[FakeoutTest],
-        breakout_candle_index: Optional[int],
-        retracement: Optional[FibonacciRetracement],
-    ) -> Optional[SnDCandidate]:
+        breakout_candle_index: int | None,
+        retracement: FibonacciRetracement | None,
+    ) -> SnDCandidate | None:
         if not qml.is_valid:
             return None
 
@@ -91,9 +91,7 @@ class QMCandidateBuilder:
         )
 
         # Universal Rule 1: Validate Marubozu on breakout candle
-        marubozu_valid, marubozu_ts = self._validate_marubozu(
-            ltf_sequence, breakout_candle_index, Direction.BEARISH
-        )
+        marubozu_valid, marubozu_ts = self._validate_marubozu(ltf_sequence, breakout_candle_index, Direction.BEARISH)
 
         # SL above the structural extreme (HH that formed the QM pattern).
         # All level geometry is delegated to compute_trade_levels which
@@ -141,12 +139,8 @@ class QMCandidateBuilder:
                 fakeout_tests,
             ),
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=(
-                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
-            ),
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
-            ),
+            ltf_confirmation_timestamp=(ltf_sequence.candles[-1].timestamp if ltf_confirmed else None),
+            fib_level=(self._get_fib_level(entry_price, retracement) if retracement else None),
             metadata={"confluences": confluences, "pattern_type": "qml_baseline"},
         )
 
@@ -169,11 +163,11 @@ class QMCandidateBuilder:
         qml: QuasiModoLevel,
         sr_flip_level: float,
         fakeout_tests: list[FakeoutTest],
-        breakout_candle_index: Optional[int],
+        breakout_candle_index: int | None,
         previous_highs: PreviousHighsLows,
-        mpl: Optional[MiniPriceLevel],
-        retracement: Optional[FibonacciRetracement],
-    ) -> Optional[SnDCandidate]:
+        mpl: MiniPriceLevel | None,
+        retracement: FibonacciRetracement | None,
+    ) -> SnDCandidate | None:
         if not qml.is_valid:
             return None
 
@@ -201,9 +195,7 @@ class QMCandidateBuilder:
         )
 
         # Universal Rule 1: Validate Marubozu on breakout candle
-        marubozu_valid, marubozu_ts = self._validate_marubozu(
-            ltf_sequence, breakout_candle_index, Direction.BEARISH
-        )
+        marubozu_valid, marubozu_ts = self._validate_marubozu(ltf_sequence, breakout_candle_index, Direction.BEARISH)
 
         # SL above the structural extreme (HH that formed the QM pattern).
         levels = compute_trade_levels(
@@ -222,11 +214,7 @@ class QMCandidateBuilder:
         stop_loss = levels.stop_loss
         take_profit = levels.take_profit
 
-        pattern_type = (
-            CandidatePattern.QML_KILLER_TYPE1
-            if mpl and mpl.is_type1
-            else CandidatePattern.QML_KILLER_TYPE2
-        )
+        pattern_type = CandidatePattern.QML_KILLER_TYPE1 if mpl and mpl.is_type1 else CandidatePattern.QML_KILLER_TYPE2
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -257,17 +245,11 @@ class QMCandidateBuilder:
             mpl_detected=mpl is not None,
             mpl_price=mpl.level if mpl else None,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=(
-                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
-            ),
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
-            ),
+            ltf_confirmation_timestamp=(ltf_sequence.candles[-1].timestamp if ltf_confirmed else None),
+            fib_level=(self._get_fib_level(entry_price, retracement) if retracement else None),
             metadata={
                 "confluences": confluences,
-                "pattern_type": (
-                    "qml_killer_type1" if mpl and mpl.is_type1 else "qml_killer_type2"
-                ),
+                "pattern_type": ("qml_killer_type1" if mpl and mpl.is_type1 else "qml_killer_type2"),
                 "is_90_percent_setup": True,
             },
         )
@@ -293,9 +275,9 @@ class QMCandidateBuilder:
         qmh: QuasiModoLevel,
         rs_flip_level: float,
         fakeout_tests: list[FakeoutTest],
-        breakout_candle_index: Optional[int],
-        retracement: Optional[FibonacciRetracement],
-    ) -> Optional[SnDCandidate]:
+        breakout_candle_index: int | None,
+        retracement: FibonacciRetracement | None,
+    ) -> SnDCandidate | None:
         if not qmh.is_valid:
             return None
 
@@ -320,9 +302,7 @@ class QMCandidateBuilder:
         )
 
         # Universal Rule 1: Validate Marubozu on breakout candle
-        marubozu_valid, marubozu_ts = self._validate_marubozu(
-            ltf_sequence, breakout_candle_index, Direction.BULLISH
-        )
+        marubozu_valid, marubozu_ts = self._validate_marubozu(ltf_sequence, breakout_candle_index, Direction.BULLISH)
 
         # SL below the structural extreme (LL that formed the QM pattern).
         levels = compute_trade_levels(
@@ -367,12 +347,8 @@ class QMCandidateBuilder:
                 fakeout_tests,
             ),
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=(
-                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
-            ),
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
-            ),
+            ltf_confirmation_timestamp=(ltf_sequence.candles[-1].timestamp if ltf_confirmed else None),
+            fib_level=(self._get_fib_level(entry_price, retracement) if retracement else None),
             metadata={"confluences": confluences, "pattern_type": "qmh_baseline"},
         )
 
@@ -395,11 +371,11 @@ class QMCandidateBuilder:
         qmh: QuasiModoLevel,
         rs_flip_level: float,
         fakeout_tests: list[FakeoutTest],
-        breakout_candle_index: Optional[int],
+        breakout_candle_index: int | None,
         previous_lows: PreviousHighsLows,
-        mpl: Optional[MiniPriceLevel],
-        retracement: Optional[FibonacciRetracement],
-    ) -> Optional[SnDCandidate]:
+        mpl: MiniPriceLevel | None,
+        retracement: FibonacciRetracement | None,
+    ) -> SnDCandidate | None:
         if not qmh.is_valid:
             return None
 
@@ -427,9 +403,7 @@ class QMCandidateBuilder:
         )
 
         # Universal Rule 1: Validate Marubozu on breakout candle
-        marubozu_valid, marubozu_ts = self._validate_marubozu(
-            ltf_sequence, breakout_candle_index, Direction.BULLISH
-        )
+        marubozu_valid, marubozu_ts = self._validate_marubozu(ltf_sequence, breakout_candle_index, Direction.BULLISH)
 
         # SL below the structural extreme (LL that formed the QM pattern).
         levels = compute_trade_levels(
@@ -448,11 +422,7 @@ class QMCandidateBuilder:
         stop_loss = levels.stop_loss
         take_profit = levels.take_profit
 
-        pattern_type = (
-            CandidatePattern.QMH_KILLER_TYPE1
-            if mpl and mpl.is_type1
-            else CandidatePattern.QMH_KILLER_TYPE2
-        )
+        pattern_type = CandidatePattern.QMH_KILLER_TYPE1 if mpl and mpl.is_type1 else CandidatePattern.QMH_KILLER_TYPE2
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -483,17 +453,11 @@ class QMCandidateBuilder:
             mpl_detected=mpl is not None,
             mpl_price=mpl.level if mpl else None,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=(
-                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
-            ),
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
-            ),
+            ltf_confirmation_timestamp=(ltf_sequence.candles[-1].timestamp if ltf_confirmed else None),
+            fib_level=(self._get_fib_level(entry_price, retracement) if retracement else None),
             metadata={
                 "confluences": confluences,
-                "pattern_type": (
-                    "qmh_killer_type1" if mpl and mpl.is_type1 else "qmh_killer_type2"
-                ),
+                "pattern_type": ("qmh_killer_type1" if mpl and mpl.is_type1 else "qmh_killer_type2"),
                 "is_90_percent_setup": True,
             },
         )
@@ -516,9 +480,9 @@ class QMCandidateBuilder:
         self,
         qml: QuasiModoLevel,
         fakeout_tests: list[FakeoutTest],
-        previous_highs: Optional[PreviousHighsLows],
-        mpl: Optional[MiniPriceLevel],
-        retracement: Optional[FibonacciRetracement],
+        previous_highs: PreviousHighsLows | None,
+        mpl: MiniPriceLevel | None,
+        retracement: FibonacciRetracement | None,
     ) -> int:
         confluences = 1
 
@@ -530,9 +494,8 @@ class QMCandidateBuilder:
         if mpl:
             confluences += 2 if mpl.is_type1 else 1
 
-        if retracement:
-            if self.ltf_validator.check_fibonacci_alignment(qml.level, retracement):
-                confluences += 2
+        if retracement and self.ltf_validator.check_fibonacci_alignment(qml.level, retracement):
+            confluences += 2
 
         return confluences
 
@@ -540,9 +503,9 @@ class QMCandidateBuilder:
         self,
         qmh: QuasiModoLevel,
         fakeout_tests: list[FakeoutTest],
-        previous_lows: Optional[PreviousHighsLows],
-        mpl: Optional[MiniPriceLevel],
-        retracement: Optional[FibonacciRetracement],
+        previous_lows: PreviousHighsLows | None,
+        mpl: MiniPriceLevel | None,
+        retracement: FibonacciRetracement | None,
     ) -> int:
         confluences = 1
 
@@ -554,9 +517,8 @@ class QMCandidateBuilder:
         if mpl:
             confluences += 2 if mpl.is_type1 else 1
 
-        if retracement:
-            if self.ltf_validator.check_fibonacci_alignment(qmh.level, retracement):
-                confluences += 2
+        if retracement and self.ltf_validator.check_fibonacci_alignment(qmh.level, retracement):
+            confluences += 2
 
         return confluences
 
@@ -568,7 +530,7 @@ class QMCandidateBuilder:
         """Check if real compression exists at the fakeout zone."""
         if not fakeout_tests:
             return False
-        last_fakeout = fakeout_tests[-1]
+        fakeout_tests[-1]
         return self.ltf_validator.validate_compression_at_zone(
             sequence,
             fakeout_tests,
@@ -578,7 +540,7 @@ class QMCandidateBuilder:
         self,
         price: float,
         retracement: FibonacciRetracement,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Return the OTE fib level (0.5, 0.618, 0.705, 0.79) closest to price,
         but only if within the configured tolerance. Returns None if no OTE
         level is close enough — never returns 0.0 or 1.0."""
@@ -603,7 +565,7 @@ class QMCandidateBuilder:
     def _validate_marubozu(
         self,
         sequence: CandleSequence,
-        breakout_candle_index: Optional[int],
+        breakout_candle_index: int | None,
         direction: Direction,
     ) -> tuple[bool, Optional["datetime"]]:
         """Validate whether the breakout candle is a valid Marubozu.

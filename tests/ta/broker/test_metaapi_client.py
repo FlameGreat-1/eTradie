@@ -1,6 +1,5 @@
 """Tests for MetaApiClient candle parsing and capabilities."""
 
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -62,9 +61,30 @@ class TestMetaApiCandleParsing:
 
     def test_parse_multiple_candles(self):
         raw = [
-            {"time": "2024-01-15T10:00:00.000Z", "open": 1.09, "high": 1.10, "low": 1.08, "close": 1.095, "tickVolume": 100},
-            {"time": "2024-01-15T11:00:00.000Z", "open": 1.095, "high": 1.11, "low": 1.09, "close": 1.10, "tickVolume": 200},
-            {"time": "2024-01-15T12:00:00.000Z", "open": 1.10, "high": 1.12, "low": 1.09, "close": 1.11, "tickVolume": 300},
+            {
+                "time": "2024-01-15T10:00:00.000Z",
+                "open": 1.09,
+                "high": 1.10,
+                "low": 1.08,
+                "close": 1.095,
+                "tickVolume": 100,
+            },
+            {
+                "time": "2024-01-15T11:00:00.000Z",
+                "open": 1.095,
+                "high": 1.11,
+                "low": 1.09,
+                "close": 1.10,
+                "tickVolume": 200,
+            },
+            {
+                "time": "2024-01-15T12:00:00.000Z",
+                "open": 1.10,
+                "high": 1.12,
+                "low": 1.09,
+                "close": 1.11,
+                "tickVolume": 300,
+            },
         ]
 
         candles = MetaApiClient._parse_candles(raw, "GBPUSD", Timeframe.M15)
@@ -105,6 +125,7 @@ class TestMetaApiCapabilities:
         assert caps.requires_authentication is True
         assert caps.max_candles_per_request == 5000
 
+
 class TestMetaApiExecutionIdempotency:
     """Test idempotency key (clientId) injection on execution endpoints."""
 
@@ -118,7 +139,7 @@ class TestMetaApiExecutionIdempotency:
         mock_post.return_value.__aenter__ = AsyncMock(return_value=mock_resp)
         mock_post.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        with patch.object(client, '_api_post', new_callable=AsyncMock) as mock_api_post:
+        with patch.object(client, "_api_post", new_callable=AsyncMock) as mock_api_post:
             mock_api_post.return_value = {"orderId": "123", "stringCode": "TRADE_RETCODE_DONE"}
 
             await client.place_order(
@@ -134,7 +155,7 @@ class TestMetaApiExecutionIdempotency:
 
             mock_api_post.assert_called_once()
             _, kwargs = mock_api_post.call_args
-            payload = kwargs.get("payload", args[0] if (args := mock_api_post.call_args.args) else {})
+            kwargs.get("payload", args[0] if (args := mock_api_post.call_args.args) else {})
             # The second positional arg to _api_post is the payload dict
             call_args = mock_api_post.call_args
             actual_payload = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("payload", {})
@@ -143,7 +164,7 @@ class TestMetaApiExecutionIdempotency:
     @pytest.mark.asyncio
     async def test_place_order_no_comment_omits_client_id(self, client):
         """Test that place_order omits clientId when no comment is provided."""
-        with patch.object(client, '_api_post', new_callable=AsyncMock) as mock_api_post:
+        with patch.object(client, "_api_post", new_callable=AsyncMock) as mock_api_post:
             mock_api_post.return_value = {"orderId": "123", "stringCode": "TRADE_RETCODE_DONE"}
 
             await client.place_order(

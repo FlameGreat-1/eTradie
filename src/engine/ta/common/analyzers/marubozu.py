@@ -1,5 +1,3 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.utils.price.math import calculate_body_percentage
 from engine.ta.constants import Direction, Timeframe
@@ -29,7 +27,6 @@ _TF_DISPLACEMENT_SCALE: dict[Timeframe, float] = {
 
 
 class MarubozuAnalyzer:
-
     def __init__(
         self,
         *,
@@ -71,10 +68,7 @@ class MarubozuAnalyzer:
             candle.symbol,
         )
 
-        if displacement < self.min_displacement_pips:
-            return False
-
-        return True
+        return not displacement < self.min_displacement_pips
 
     def is_marubozu_for_timeframe(
         self,
@@ -115,10 +109,7 @@ class MarubozuAnalyzer:
         scale = _TF_DISPLACEMENT_SCALE.get(timeframe, 1.0)
         scaled_threshold = self.min_displacement_pips * scale
 
-        if displacement < scaled_threshold:
-            return False
-
-        return True
+        return not displacement < scaled_threshold
 
     def is_bullish_marubozu(self, candle: Candle) -> bool:
         return candle.is_bullish and self.is_marubozu(candle)
@@ -168,9 +159,7 @@ class MarubozuAnalyzer:
                 if not self.is_marubozu_for_timeframe(next_candle, sequence.timeframe):
                     break
 
-                next_direction = (
-                    Direction.BULLISH if next_candle.is_bullish else Direction.BEARISH
-                )
+                next_direction = Direction.BULLISH if next_candle.is_bullish else Direction.BEARISH
 
                 if next_direction != direction:
                     break
@@ -217,7 +206,7 @@ class MarubozuAnalyzer:
     def find_strongest_marubozu(
         self,
         sequence: CandleSequence,
-    ) -> Optional[tuple[int, Candle, float]]:
+    ) -> tuple[int, Candle, float] | None:
         strongest_idx = None
         strongest_candle = None
         strongest_displacement = 0.0

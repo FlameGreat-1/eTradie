@@ -9,9 +9,7 @@ import pytest
 
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.constants import (
-    FIBONACCI_VALUES,
     FibonacciLevel,
-    OTE_LEVELS,
     PriceZone,
     Timeframe,
 )

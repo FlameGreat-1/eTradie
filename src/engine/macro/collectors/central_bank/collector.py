@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from engine.shared.logging import get_logger
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.central_bank import CentralBankDataSet
 from engine.macro.models.provider.central_bank import RateDecision
+from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 

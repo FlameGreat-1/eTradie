@@ -12,13 +12,9 @@ from engine.processor.constants import (
     CONFLUENCE_SCORE_MAX,
     CONFLUENCE_SCORE_MIN,
     MAX_CITATIONS,
-    MAX_EVIDENCE_ITEMS,
     MAX_REASONING_LENGTH,
     MAX_TAKE_PROFIT_LEVELS,
     MIN_RR_INTRADAY,
-    MIN_RR_POSITIONAL,
-    MIN_RR_SCALPING,
-    MIN_RR_SWING,
 )
 from engine.processor.models.analysis import AnalysisOutput
 from engine.shared.risk import style_min_tp_rr
@@ -67,9 +63,7 @@ def _validate_direction_consistency(o: AnalysisOutput) -> list[str]:
 
     if o.direction == "NO SETUP":
         if o.setup_grade != "REJECT":
-            errors.append(
-                f"direction is NO SETUP but setup_grade is '{o.setup_grade}' (expected REJECT)"
-            )
+            errors.append(f"direction is NO SETUP but setup_grade is '{o.setup_grade}' (expected REJECT)")
         if o.proceed_to_module_b == "YES":
             errors.append("direction is NO SETUP but proceed_to_module_b is YES")
     return errors
@@ -79,9 +73,7 @@ def _validate_confluence_score(o: AnalysisOutput) -> list[str]:
     errors: list[str] = []
     score = o.confluence_score.score
     if score < CONFLUENCE_SCORE_MIN or score > CONFLUENCE_SCORE_MAX:
-        errors.append(
-            f"confluence_score {score} outside bounds [{CONFLUENCE_SCORE_MIN}, {CONFLUENCE_SCORE_MAX}]"
-        )
+        errors.append(f"confluence_score {score} outside bounds [{CONFLUENCE_SCORE_MIN}, {CONFLUENCE_SCORE_MAX}]")
     return errors
 
 
@@ -111,9 +103,7 @@ def _validate_trade_construction(o: AnalysisOutput) -> list[str]:
             errors.append("trade approved but take_profits is empty")
         if o.entry_zone.low is not None and o.entry_zone.high is not None:
             if o.entry_zone.low > o.entry_zone.high:
-                errors.append(
-                    f"entry_zone.low ({o.entry_zone.low}) > entry_zone.high ({o.entry_zone.high})"
-                )
+                errors.append(f"entry_zone.low ({o.entry_zone.low}) > entry_zone.high ({o.entry_zone.high})")
             if o.entry_zone.low <= 0:
                 errors.append(f"entry_zone.low ({o.entry_zone.low}) must be positive")
         if o.stop_loss.price is not None and o.stop_loss.price <= 0:
@@ -154,9 +144,7 @@ def _validate_proceed_consistency(o: AnalysisOutput) -> list[str]:
     errors: list[str] = []
     if o.proceed_to_module_b == "YES":
         if o.setup_grade not in ("A+", "A", "B"):
-            errors.append(
-                f"proceed_to_module_b is YES but grade is '{o.setup_grade}' (requires A+, A, or B)"
-            )
+            errors.append(f"proceed_to_module_b is YES but grade is '{o.setup_grade}' (requires A+, A, or B)")
         if o.direction == "NO SETUP":
             errors.append("proceed_to_module_b is YES but direction is NO SETUP")
     return errors
@@ -178,9 +166,7 @@ def _validate_tp_structure(o: AnalysisOutput) -> list[str]:
         return errors
 
     if len(o.take_profits) > MAX_TAKE_PROFIT_LEVELS:
-        errors.append(
-            f"take_profits has {len(o.take_profits)} levels (max {MAX_TAKE_PROFIT_LEVELS})"
-        )
+        errors.append(f"take_profits has {len(o.take_profits)} levels (max {MAX_TAKE_PROFIT_LEVELS})")
 
     total_pct = sum(tp.size_pct for tp in o.take_profits)
     if o.take_profits and total_pct != 100:
@@ -197,7 +183,5 @@ def _validate_citations(o: AnalysisOutput) -> list[str]:
     if not o.rag_sources:
         errors.append("rag_sources is empty (citations required)")
     if len(o.rag_sources) > MAX_CITATIONS:
-        errors.append(
-            f"rag_sources has {len(o.rag_sources)} items (max {MAX_CITATIONS})"
-        )
+        errors.append(f"rag_sources has {len(o.rag_sources)} items (max {MAX_CITATIONS})")
     return errors

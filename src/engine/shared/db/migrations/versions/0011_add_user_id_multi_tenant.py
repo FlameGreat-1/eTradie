@@ -19,16 +19,16 @@ Create Date: 2026-04-05
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import inspect
 
 revision: str = "0011"
-down_revision: Union[str, None] = "0010"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0010"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # Tables that need the user_id column.
 _TABLES = [
@@ -77,9 +77,7 @@ def upgrade() -> None:
         # Step 2: Backfill existing rows with 'system' placeholder.
         # This preserves all pre-auth data. The operator should reassign
         # these to the actual admin user ID after first startup.
-        op.execute(
-            sa.text(f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL")
-        )
+        op.execute(sa.text(f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL"))
 
         # Step 3: Alter column to NOT NULL now that all rows have a value.
         op.alter_column(

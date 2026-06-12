@@ -5,14 +5,14 @@ Extends BaseRepository. Audit logs are append-only and immutable.
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from engine.processor.storage.schemas.processor_schema import AnalysisAuditLogRow
 from engine.shared.db.repositories.base_repository import BaseRepository
 from engine.shared.logging import get_logger
-from engine.processor.storage.schemas.processor_schema import AnalysisAuditLogRow
 
 logger = get_logger(__name__)
 
@@ -42,7 +42,7 @@ class AuditRepository(BaseRepository[AnalysisAuditLogRow]):
         pair: str,
         timestamp: object,
         retrieval_query_summary: str = "",
-        retrieval_strategy: Optional[str] = None,
+        retrieval_strategy: str | None = None,
         retrieval_chunks_count: int = 0,
         retrieval_coverage: bool = False,
         retrieval_coverage_details: str = "",
@@ -53,15 +53,15 @@ class AuditRepository(BaseRepository[AnalysisAuditLogRow]):
         llm_input_tokens: int = 0,
         llm_output_tokens: int = 0,
         llm_duration_ms: float = 0.0,
-        llm_response: Optional[dict] = None,
-        citations: Optional[list] = None,
+        llm_response: dict | None = None,
+        citations: list | None = None,
         final_direction: str = "",
         final_grade: str = "",
         final_confidence: str = "",
         final_proceed: str = "",
         validation_passed: bool = False,
-        validation_errors: Optional[list] = None,
-        trace_id: Optional[str] = None,
+        validation_errors: list | None = None,
+        trace_id: str | None = None,
     ) -> None:
         """Append an immutable audit log entry."""
         # Defensive truncation: retrieval_strategy is sourced from the
@@ -71,10 +71,7 @@ class AuditRepository(BaseRepository[AnalysisAuditLogRow]):
         # upgrades could emit even longer values, so cap here and
         # log a structured warning instead of letting asyncpg raise
         # StringDataRightTruncationError and abort the INSERT.
-        if (
-            retrieval_strategy is not None
-            and len(retrieval_strategy) > _RETRIEVAL_STRATEGY_MAX_LEN
-        ):
+        if retrieval_strategy is not None and len(retrieval_strategy) > _RETRIEVAL_STRATEGY_MAX_LEN:
             logger.warning(
                 "audit_retrieval_strategy_truncated",
                 extra={

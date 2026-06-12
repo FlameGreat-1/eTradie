@@ -13,9 +13,7 @@ from engine.shared.db.migrations._schema_registry import Base
 class ChunkRow(Base):
     __tablename__ = "rag_chunks"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("rag_documents.id", ondelete="CASCADE"),
@@ -31,14 +29,10 @@ class ChunkRow(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    embedding_status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="pending"
-    )
+    embedding_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     section: Mapped[str | None] = mapped_column(String(256), nullable=True)
     subsection: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    parent_chunk_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True
-    )
+    parent_chunk_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     hierarchy_level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     meta_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(

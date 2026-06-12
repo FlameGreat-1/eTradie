@@ -8,11 +8,11 @@ the provider modules themselves.
 
 from __future__ import annotations
 
-from engine.shared.exceptions import ConfigurationError
-from engine.shared.logging import get_logger
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import LLMProvider
 from engine.processor.llm.client import LLMClient
+from engine.shared.exceptions import ConfigurationError
+from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 

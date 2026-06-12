@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from engine.shared.logging import get_logger
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.economic import EconomicDataSet
+from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 

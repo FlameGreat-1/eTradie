@@ -1,5 +1,3 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.constants import Direction
 from engine.ta.models.candle import CandleSequence
@@ -188,13 +186,6 @@ class MPLDetector:
     ) -> bool:
         if candle.is_bullish:
             return (
-                prev_candle.close < candle.open
-                and next_candle.open > candle.close
-                and next_candle.close < candle.open
+                prev_candle.close < candle.open and next_candle.open > candle.close and next_candle.close < candle.open
             )
-        else:
-            return (
-                prev_candle.close > candle.open
-                and next_candle.open < candle.close
-                and next_candle.close > candle.open
-            )
+        return prev_candle.close > candle.open and next_candle.open < candle.close and next_candle.close > candle.open

@@ -1,12 +1,10 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.session import SessionAnalyzer
-from engine.ta.constants import Session, Direction
+from engine.ta.constants import Direction, Session
 from engine.ta.models.candle import CandleSequence
-from engine.ta.models.liquidity_event import LiquiditySweep, InducementEvent
-from engine.ta.models.structure_event import ChangeOfCharacter, BreakInMarketStructure
-from engine.ta.models.zone import OrderBlock, FairValueGap
+from engine.ta.models.liquidity_event import InducementEvent, LiquiditySweep
+from engine.ta.models.structure_event import BreakInMarketStructure, ChangeOfCharacter
+from engine.ta.models.zone import FairValueGap, OrderBlock
 from engine.ta.smc.config import SMCConfig
 
 logger = get_logger(__name__)
@@ -48,7 +46,7 @@ class LTFConfirmationValidator:
 
     def validate_liquidity_taken(
         self,
-        sweep: Optional[LiquiditySweep],
+        sweep: LiquiditySweep | None,
     ) -> bool:
         """Confirmation 1: Liquidity has been taken."""
         if not sweep:
@@ -58,8 +56,8 @@ class LTFConfirmationValidator:
 
     def validate_choch_present(
         self,
-        choch: Optional[ChangeOfCharacter],
-        sweep: Optional[LiquiditySweep],
+        choch: ChangeOfCharacter | None,
+        sweep: LiquiditySweep | None,
     ) -> bool:
         """Confirmation 2: CHOCH on LTF."""
         if not choch:
@@ -75,8 +73,8 @@ class LTFConfirmationValidator:
 
     def validate_bms_confirmed(
         self,
-        bms: Optional[BreakInMarketStructure],
-        choch: Optional[ChangeOfCharacter],
+        bms: BreakInMarketStructure | None,
+        choch: ChangeOfCharacter | None,
     ) -> bool:
         """Confirmation 3: BMS confirmed on LTF."""
         if not bms:
@@ -88,14 +86,12 @@ class LTFConfirmationValidator:
 
         # Compare candle_index to decouple the actual breakout moment from the
         # variable delays caused by dynamic multi-candle confirmations.
-        return (
-            bms.candle_index >= choch.candle_index and bms.direction == choch.direction
-        )
+        return bms.candle_index >= choch.candle_index and bms.direction == choch.direction
 
     def validate_rto_to_ob(
         self,
-        ob: Optional[OrderBlock],
-        bms: Optional[BreakInMarketStructure],
+        ob: OrderBlock | None,
+        bms: BreakInMarketStructure | None,
         current_price: float,
     ) -> bool:
         """Confirmation 4: Price returns to LTF Order Block."""
@@ -107,8 +103,7 @@ class LTFConfirmationValidator:
 
         if ob.direction == Direction.BULLISH:
             return ob.lower_bound <= current_price <= ob.upper_bound
-        else:
-            return ob.lower_bound <= current_price <= ob.upper_bound
+        return ob.lower_bound <= current_price <= ob.upper_bound
 
     def validate_session_timing(
         self,
@@ -128,29 +123,25 @@ class LTFConfirmationValidator:
     def validate_inducement_cleared(
         self,
         inducement_events: list[InducementEvent],
-        ob: Optional[OrderBlock],
+        ob: OrderBlock | None,
     ) -> bool:
         """Confirmation 6: Inducement has been cleared."""
         if not ob:
             return False
 
         relevant_inducements = [
-            idm
-            for idm in inducement_events
-            if idm.timestamp < ob.timestamp and idm.direction == ob.direction
+            idm for idm in inducement_events if idm.timestamp < ob.timestamp and idm.direction == ob.direction
         ]
 
         if not relevant_inducements:
             return True
 
-        all_cleared = all(idm.cleared for idm in relevant_inducements)
-
-        return all_cleared
+        return all(idm.cleared for idm in relevant_inducements)
 
     def validate_ltf_fvg_present(
         self,
         ltf_fvgs: list[FairValueGap],
-        ob: Optional[OrderBlock],
+        ob: OrderBlock | None,
     ) -> bool:
         """Confirmation 7: FVG present on LTF aligned with OB direction.
 
@@ -168,14 +159,14 @@ class LTFConfirmationValidator:
 
     def validate_all_ltf_confirmations(
         self,
-        sweep: Optional[LiquiditySweep],
-        choch: Optional[ChangeOfCharacter],
-        bms: Optional[BreakInMarketStructure],
-        ob: Optional[OrderBlock],
+        sweep: LiquiditySweep | None,
+        choch: ChangeOfCharacter | None,
+        bms: BreakInMarketStructure | None,
+        ob: OrderBlock | None,
         inducement_events: list[InducementEvent],
         sequence: CandleSequence,
         current_price: float,
-        ltf_fvgs: Optional[list[FairValueGap]] = None,
+        ltf_fvgs: list[FairValueGap] | None = None,
     ) -> bool:
         """Validate all 7 LTF confirmations.
 
@@ -194,24 +185,14 @@ class LTFConfirmationValidator:
         inducement_ok = self.validate_inducement_cleared(inducement_events, ob)
         fvg_ok = self.validate_ltf_fvg_present(ltf_fvgs or [], ob)
 
-        all_confirmed = (
-            liquidity_ok
-            and choch_ok
-            and bms_ok
-            and rto_ok
-            and session_ok
-            and inducement_ok
-            and fvg_ok
-        )
+        all_confirmed = liquidity_ok and choch_ok and bms_ok and rto_ok and session_ok and inducement_ok and fvg_ok
 
         # Diagnostic logging at INFO level
         self._logger.info(
             "ltf_confirmation_result",
             extra={
                 "symbol": sequence.symbol if hasattr(sequence, "symbol") else "unknown",
-                "timeframe": str(
-                    sequence.timeframe if hasattr(sequence, "timeframe") else "unknown"
-                ),
+                "timeframe": str(sequence.timeframe if hasattr(sequence, "timeframe") else "unknown"),
                 "liquidity_taken": liquidity_ok,
                 "choch_present": choch_ok,
                 "bms_confirmed": bms_ok,

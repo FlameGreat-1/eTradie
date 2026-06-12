@@ -1,11 +1,12 @@
-import pytest
-from unittest.mock import AsyncMock, Mock, MagicMock
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, Mock
 
-from engine.ta.orchestrator import TAOrchestrator
+import pytest
+
 from engine.ta.broker.base import BrokerBase
-from engine.ta.models.candle import CandleSequence, Candle
 from engine.ta.constants import Timeframe
+from engine.ta.models.candle import Candle, CandleSequence
+from engine.ta.orchestrator import TAOrchestrator
 
 
 def _make_sequence(symbol="EURUSD", timeframe=Timeframe.H1):
@@ -13,7 +14,7 @@ def _make_sequence(symbol="EURUSD", timeframe=Timeframe.H1):
     candle = Candle(
         symbol=symbol,
         timeframe=timeframe,
-        timestamp=datetime(2024, 1, 15, 10, 0, 0, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 15, 10, 0, 0, tzinfo=UTC),
         open=1.1000,
         high=1.1050,
         low=1.0950,

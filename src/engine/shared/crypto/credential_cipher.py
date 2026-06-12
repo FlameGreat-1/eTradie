@@ -79,7 +79,6 @@ import base64
 import hashlib
 import os
 import threading
-from typing import Optional
 
 from cryptography.exceptions import InvalidTag
 from cryptography.fernet import Fernet, InvalidToken
@@ -156,9 +155,7 @@ class CredentialCipher:
             raise ConfigurationError(
                 "CredentialCipher requires at least one KEK version",
             )
-        self._keks: dict[int, Fernet] = {
-            ver: Fernet(key) for ver, key in keks_by_version.items()
-        }
+        self._keks: dict[int, Fernet] = {ver: Fernet(key) for ver, key in keks_by_version.items()}
         # Active = highest configured version (the write key).
         self._active_version: int = max(self._keks)
         # Decryption trial order: active first, then the rest descending,
@@ -287,7 +284,7 @@ class CredentialCipher:
             return False  # malformed; leave it for decrypt() to surface
         return version != self._active_version
 
-    def key_version_of(self, token: str) -> Optional[int]:
+    def key_version_of(self, token: str) -> int | None:
         """Return the KEK version a v2 token is wrapped under, else None.
 
         None for legacy (no versioned wrap) or malformed tokens. Used by
@@ -325,7 +322,7 @@ class CredentialCipher:
 # ---------------------------------------------------------------------------
 
 _singleton_lock = threading.Lock()
-_singleton: Optional[CredentialCipher] = None
+_singleton: CredentialCipher | None = None
 
 
 def _resolve_keks_from_env() -> dict[int, bytes]:
@@ -423,7 +420,7 @@ def active_key_version() -> int:
     return get_cipher().active_version
 
 
-def key_version_of(token: str) -> Optional[int]:
+def key_version_of(token: str) -> int | None:
     """KEK version a v2 token is wrapped under, or None (legacy/malformed)."""
     return get_cipher().key_version_of(token)
 

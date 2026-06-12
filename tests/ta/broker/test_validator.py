@@ -1,13 +1,11 @@
 """Tests for BrokerDataValidator."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 
 from engine.shared.exceptions import ProviderValidationError
 from engine.ta.broker.validator import BrokerDataValidator
-from engine.ta.constants import Timeframe
-from engine.ta.models.candle import CandleSequence
 from tests.factories import make_candle, make_candle_sequence
 
 

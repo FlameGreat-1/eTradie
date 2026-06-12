@@ -1,9 +1,7 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.constants import Direction
 from engine.ta.models.candle import CandleSequence
-from engine.ta.models.zone import OrderBlock, BreakerBlock
+from engine.ta.models.zone import BreakerBlock, OrderBlock
 from engine.ta.smc.config import SMCConfig
 
 logger = get_logger(__name__)
@@ -31,7 +29,7 @@ class BreakerDetector:
         self,
         sequence: CandleSequence,
         ob: OrderBlock,
-    ) -> Optional[BreakerBlock]:
+    ) -> BreakerBlock | None:
         if ob.candle_index >= len(sequence.candles) - 1:
             return None
 
@@ -47,20 +45,15 @@ class BreakerDetector:
                     broken_timestamp = candle.timestamp
                     break
 
-            else:
-                if candle.close > ob.upper_bound:
-                    broken = True
-                    broken_timestamp = candle.timestamp
-                    break
+            elif candle.close > ob.upper_bound:
+                broken = True
+                broken_timestamp = candle.timestamp
+                break
 
         if not broken or not broken_timestamp:
             return None
 
-        new_direction = (
-            Direction.BEARISH
-            if ob.direction == Direction.BULLISH
-            else Direction.BULLISH
-        )
+        new_direction = Direction.BEARISH if ob.direction == Direction.BULLISH else Direction.BULLISH
 
         breaker = BreakerBlock(
             symbol=ob.symbol,
@@ -103,8 +96,7 @@ class BreakerDetector:
                 if candle.low <= breaker.lower_bound:
                     return True
 
-            else:
-                if candle.high >= breaker.upper_bound:
-                    return True
+            elif candle.high >= breaker.upper_bound:
+                return True
 
         return False

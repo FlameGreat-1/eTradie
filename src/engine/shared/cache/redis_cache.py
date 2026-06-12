@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 import orjson
 import redis.asyncio as aioredis
 from redis.exceptions import (
     ConnectionError as RedisConnectionError,
-    TimeoutError as RedisTimeoutError,
+)
+from redis.exceptions import (
     RedisError,
+)
+from redis.exceptions import (
+    TimeoutError as RedisTimeoutError,
 )
 
 from engine.shared.exceptions import (
@@ -21,8 +25,8 @@ from engine.shared.exceptions import (
 )
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
-    CACHE_OPERATIONS_TOTAL,
     CACHE_OPERATION_DURATION,
+    CACHE_OPERATIONS_TOTAL,
     CACHE_VALUE_SIZE,
 )
 
@@ -105,14 +109,10 @@ class RedisCache:
             raise CacheValidationError("Namespace cannot be empty")
 
         if len(namespace) > MAX_NAMESPACE_LENGTH:
-            raise CacheValidationError(
-                f"Namespace exceeds maximum length of {MAX_NAMESPACE_LENGTH}"
-            )
+            raise CacheValidationError(f"Namespace exceeds maximum length of {MAX_NAMESPACE_LENGTH}")
 
         if not namespace.replace("_", "").replace("-", "").isalnum():
-            raise CacheValidationError(
-                "Namespace must contain only alphanumeric characters, hyphens, and underscores"
-            )
+            raise CacheValidationError("Namespace must contain only alphanumeric characters, hyphens, and underscores")
 
     def _validate_key(self, key: str) -> None:
         """Validate key format and length."""
@@ -120,9 +120,7 @@ class RedisCache:
             raise CacheValidationError("Key cannot be empty")
 
         if len(key) > MAX_KEY_LENGTH:
-            raise CacheValidationError(
-                f"Key exceeds maximum length of {MAX_KEY_LENGTH}"
-            )
+            raise CacheValidationError(f"Key exceeds maximum length of {MAX_KEY_LENGTH}")
 
         # Prevent key injection attacks
         if any(char in key for char in ("\n", "\r", " ")):
@@ -151,7 +149,7 @@ class RedisCache:
         operation: str,
         status: str,
         start: float,
-        value_size: Optional[int] = None,
+        value_size: int | None = None,
     ) -> None:
         """Record cache operation metrics."""
         duration = time.monotonic() - start
@@ -198,7 +196,7 @@ class RedisCache:
                 async with asyncio.timeout(self._operation_timeout):
                     return await func(*args, **kwargs)
 
-            except asyncio.TimeoutError as e:
+            except TimeoutError as e:
                 last_error = e
                 logger.warning(
                     "cache_operation_timeout",
@@ -227,22 +225,17 @@ class RedisCache:
 
         # All retries exhausted
         if isinstance(last_error, asyncio.TimeoutError):
-            raise CacheTimeoutError(
-                f"{operation} exceeded timeout of {self._operation_timeout}s"
-            ) from last_error
-        elif isinstance(last_error, (RedisConnectionError, RedisTimeoutError)):
+            raise CacheTimeoutError(f"{operation} exceeded timeout of {self._operation_timeout}s") from last_error
+        if isinstance(last_error, (RedisConnectionError, RedisTimeoutError)):
             raise CacheConnectionError(f"{operation} connection failed") from last_error
-        else:
-            raise CacheError(
-                f"{operation} failed after {self._max_retries} retries"
-            ) from last_error
+        raise CacheError(f"{operation} failed after {self._max_retries} retries") from last_error
 
     async def get(
         self,
         namespace: str,
         key: str,
         *,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> Any | None:
         """
         Retrieve value from cache.
@@ -333,7 +326,7 @@ class RedisCache:
         value: Any,
         ttl_seconds: int,
         *,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> bool:
         """
         Store value in cache with TTL.
@@ -364,9 +357,7 @@ class RedisCache:
 
             # Security: Validate value size
             if len(raw) > MAX_CACHE_VALUE_SIZE:
-                raise CacheValidationError(
-                    f"Value size {len(raw)} exceeds maximum of {MAX_CACHE_VALUE_SIZE} bytes"
-                )
+                raise CacheValidationError(f"Value size {len(raw)} exceeds maximum of {MAX_CACHE_VALUE_SIZE} bytes")
 
             await self._execute_with_retry(
                 "set",
@@ -408,7 +399,7 @@ class RedisCache:
             )
             return False
 
-        except Exception as e:
+        except Exception:
             self._observe_operation("set", "error", start)
             logger.exception(
                 "cache_set_unexpected_error",
@@ -425,7 +416,7 @@ class RedisCache:
         namespace: str,
         key: str,
         *,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> bool:
         """
         Delete value from cache.
@@ -590,7 +581,7 @@ class RedisCache:
         value: Any,
         ttl_seconds: int,
         *,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> bool:
         """Store value with an embedded stored-at timestamp.
 
@@ -605,7 +596,7 @@ class RedisCache:
         namespace: str,
         key: str,
         *,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> tuple[Any | None, int | None]:
         """Return (value, age_seconds) for an entry written by set_with_meta.
 
@@ -630,7 +621,7 @@ class RedisCache:
         namespace: str,
         key: str,
         *,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> tuple[bool, int | None]:
         """Return (exists, age_seconds) without materialising the payload.
 
@@ -733,10 +724,7 @@ class RedisCache:
         full_key = self._make_key(namespace, key)
         if not token:
             return False
-        script = (
-            "if redis.call('get', KEYS[1]) == ARGV[1] then "
-            "return redis.call('del', KEYS[1]) else return 0 end"
-        )
+        script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
         try:
             result = await self._execute_with_retry(
                 "release_lock",

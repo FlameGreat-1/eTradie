@@ -1,20 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import random
 import ssl
 import time
 from asyncio import Lock
 from enum import StrEnum, unique
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 import aiohttp
 
 from engine.shared.exceptions import (
     HttpClientError,
-    ProviderRateLimitError,
     ProviderTimeoutError,
     ProviderUnavailableError,
     ProviderValidationError,
@@ -160,7 +158,7 @@ class HttpClient:
         cb_recovery_timeout: int = 60,
         cb_half_open_max: int = 3,
         max_response_size: int = MAX_RESPONSE_SIZE,
-        ssl_ca_bundle_path: Optional[str] = None,
+        ssl_ca_bundle_path: str | None = None,
         ssl_verify: bool = True,
     ) -> None:
         self._timeout = aiohttp.ClientTimeout(total=timeout_seconds)
@@ -242,25 +240,18 @@ class HttpClient:
         if not headers:
             return {}
 
-        return {
-            k: "***REDACTED***" if k.lower() in _SENSITIVE_HEADERS else v
-            for k, v in headers.items()
-        }
+        return {k: "***REDACTED***" if k.lower() in _SENSITIVE_HEADERS else v for k, v in headers.items()}
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session."""
         if self._session is None or self._session.closed:
             ssl_context: ssl.SSLContext | bool = self._ssl_verify
             if self._ssl_ca_bundle_path:
-                ssl_context = ssl.create_default_context(
-                    cafile=self._ssl_ca_bundle_path
-                )
+                ssl_context = ssl.create_default_context(cafile=self._ssl_ca_bundle_path)
 
             self._session = aiohttp.ClientSession(
                 timeout=self._timeout,
-                connector=aiohttp.TCPConnector(
-                    limit=100, limit_per_host=30, ssl=ssl_context
-                ),
+                connector=aiohttp.TCPConnector(limit=100, limit_per_host=30, ssl=ssl_context),
             )
         return self._session
 
@@ -288,8 +279,8 @@ class HttpClient:
         headers: dict[str, str] | None = None,
         params: dict[str, Any] | None = None,
         json_body: dict[str, Any] | None = None,
-        trace_id: Optional[str] = None,
-        timeout_override: Optional[int] = None,
+        trace_id: str | None = None,
+        timeout_override: int | None = None,
     ) -> dict[str, Any] | list[Any] | str:
         """
         Execute HTTP request with retry logic and circuit breaker.
@@ -349,11 +340,7 @@ class HttpClient:
         session = await self._get_session()
 
         # Apply timeout override if provided
-        timeout = (
-            aiohttp.ClientTimeout(total=timeout_override)
-            if timeout_override
-            else self._timeout
-        )
+        timeout = aiohttp.ClientTimeout(total=timeout_override) if timeout_override else self._timeout
 
         for attempt in range(self._max_retries + 1):
             start = time.monotonic()
@@ -420,8 +407,7 @@ class HttpClient:
                             delay = self._backoff_delay(attempt)
                             await asyncio.sleep(delay)
                             continue
-                        else:
-                            raise last_exc
+                        raise last_exc
 
                     # Success path
                     response_data = await self._parse_response(
@@ -456,7 +442,7 @@ class HttpClient:
 
                     return response_data
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 elapsed = time.monotonic() - start
 
                 PROVIDER_FETCH_DURATION.labels(
@@ -608,7 +594,7 @@ class HttpClient:
         provider_name: str,
         category: str,
         attempt: int,
-        trace_id: Optional[str],
+        trace_id: str | None,
     ) -> None:
         """Handle 429 rate limit response."""
         PROVIDER_ERRORS_TOTAL.labels(
@@ -617,9 +603,7 @@ class HttpClient:
             error_type="rate_limit",
         ).inc()
 
-        retry_after = float(
-            resp.headers.get("Retry-After", self._backoff_delay(attempt))
-        )
+        retry_after = float(resp.headers.get("Retry-After", self._backoff_delay(attempt)))
 
         logger.warning(
             "rate_limited",
@@ -639,7 +623,7 @@ class HttpClient:
         provider_name: str,
         category: str,
         url: str,
-        trace_id: Optional[str],
+        trace_id: str | None,
     ) -> None:
         """Handle non-retryable 4xx errors."""
         PROVIDER_FETCH_TOTAL.labels(
@@ -677,7 +661,7 @@ class HttpClient:
         category: str,
         url: str,
         attempt: int,
-        trace_id: Optional[str],
+        trace_id: str | None,
     ) -> None:
         """Handle 5xx server errors."""
         circuit = await self._get_circuit(provider_name)
@@ -702,7 +686,7 @@ class HttpClient:
         resp: aiohttp.ClientResponse,
         provider_name: str,
         category: str,
-        trace_id: Optional[str],
+        trace_id: str | None,
     ) -> dict[str, Any] | list[Any] | str:
         """
         Parse HTTP response with size validation.
@@ -767,8 +751,8 @@ class HttpClient:
         category: str = "unknown",
         headers: dict[str, str] | None = None,
         params: dict[str, Any] | None = None,
-        trace_id: Optional[str] = None,
-        timeout_override: Optional[int] = None,
+        trace_id: str | None = None,
+        timeout_override: int | None = None,
     ) -> dict[str, Any] | list[Any] | str:
         """
         Execute HTTP GET request.
@@ -805,8 +789,8 @@ class HttpClient:
         headers: dict[str, str] | None = None,
         params: dict[str, Any] | None = None,
         json_body: dict[str, Any] | None = None,
-        trace_id: Optional[str] = None,
-        timeout_override: Optional[int] = None,
+        trace_id: str | None = None,
+        timeout_override: int | None = None,
     ) -> dict[str, Any] | list[Any] | str:
         """
         Execute HTTP POST request.
@@ -844,8 +828,8 @@ class HttpClient:
         category: str = "unknown",
         headers: dict[str, str] | None = None,
         params: dict[str, Any] | None = None,
-        trace_id: Optional[str] = None,
-        timeout_override: Optional[int] = None,
+        trace_id: str | None = None,
+        timeout_override: int | None = None,
     ) -> dict[str, Any] | list[Any] | str:
         """
         Execute HTTP DELETE request.

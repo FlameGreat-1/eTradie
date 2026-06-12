@@ -19,16 +19,16 @@ Create Date: 2026-04-13
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import inspect
 
 revision: str = "0014"
-down_revision: Union[str, None] = "0013"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0013"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -131,9 +131,7 @@ def upgrade() -> None:
 
     # SnD: Compression
     _add_if_missing(existing_columns, "compression_detected", sa.Boolean, nullable=True)
-    _add_if_missing(
-        existing_columns, "compression_candle_count", sa.Integer, nullable=True
-    )
+    _add_if_missing(existing_columns, "compression_candle_count", sa.Integer, nullable=True)
 
     # SnD: Sweep timestamp (SMC liquidity_swept exists, but sweep_timestamp may be missing)
     _add_if_missing(
@@ -150,9 +148,7 @@ def upgrade() -> None:
     # ── 3. Drop obsolete columns ────────────────────────────────────────
     # These existed in migration 0002 but are not in the current ORM.
     # Re-read columns after adds/renames above.
-    existing_columns_after = {
-        col["name"] for col in inspector.get_columns("candidates")
-    }
+    existing_columns_after = {col["name"] for col in inspector.get_columns("candidates")}
 
     obsolete_columns = [
         "qml_level",  # replaced by qml_detected + qml_price
@@ -207,19 +203,12 @@ def downgrade() -> None:
     _add_if_missing(existing_columns, "mpl_level", sa.Float, nullable=True)
 
     # ── Rename meta_data -> metadata ────────────────────────────────────
-    existing_columns_after = {
-        col["name"] for col in inspector.get_columns("candidates")
-    }
-    if (
-        "meta_data" in existing_columns_after
-        and "metadata" not in existing_columns_after
-    ):
+    existing_columns_after = {col["name"] for col in inspector.get_columns("candidates")}
+    if "meta_data" in existing_columns_after and "metadata" not in existing_columns_after:
         op.alter_column("candidates", "meta_data", new_column_name="metadata")
 
     # ── Drop columns added in upgrade ───────────────────────────────────
-    existing_columns_final = {
-        col["name"] for col in inspector.get_columns("candidates")
-    }
+    existing_columns_final = {col["name"] for col in inspector.get_columns("candidates")}
 
     new_columns = [
         "fvg_upper",

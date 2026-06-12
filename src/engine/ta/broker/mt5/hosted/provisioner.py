@@ -43,7 +43,8 @@ import json
 import os
 import secrets
 import time as _time
-from typing import Any, Awaitable, Callable, Iterable, Optional
+from collections.abc import Awaitable, Callable, Iterable
+from typing import Any
 
 import zmq
 import zmq.asyncio as zmq_async
@@ -77,7 +78,7 @@ SYMBOL_PENDING_SENTINEL = "__pending__"
 # Runs BrokerSyncService against a freshly-ready Pod and returns the
 # chart-attach symbol name (the first instrument the broker publishes,
 # or None when the broker exposes nothing). Injected by Container.
-CatalogSyncRunner = Callable[..., Awaitable[Optional[str]]]
+CatalogSyncRunner = Callable[..., Awaitable[str | None]]
 
 # Persists the chart-attach symbol onto broker_connections.mt5_symbol.
 # Injected by Container; keeps DB coupling out of the K8s module.
@@ -91,9 +92,7 @@ ChartSymbolWriter = Callable[[str, str], Awaitable[None]]
 # helm/engine/values.yaml::config.mtNode.image). The constructor
 # enforces this contract via _resolve_image() below.
 MT_NODE_IMAGE_DEV_FALLBACK = "etradie-mt-node:dev"
-CONTAINER_PREFIX = (
-    "etradie-mt-"  # release-name prefix; first 12 chars of connection_id appended
-)
+CONTAINER_PREFIX = "etradie-mt-"  # release-name prefix; first 12 chars of connection_id appended
 DEFAULT_ZMQ_PORT = 5555
 DEFAULT_WATCHDOG_PORT = 9100
 NAMESPACE_DEFAULT = "etradie-system"
@@ -211,10 +210,7 @@ _ZMQ_PROBE_TIMEOUT_SECS = float(os.environ.get("MT_NODE_ZMQ_PROBE_TIMEOUT_SECS",
 _VAULT_TENANT_PATH_PREFIX = "tenants/mt-node"
 # Vault role the per-tenant Pod's Vault Agent uses (matches
 # infrastructure/cluster/vault-paths/mt_node_tenant_secrets.tf).
-_VAULT_TENANT_ROLE = (
-    os.environ.get("MT_NODE_VAULT_TENANT_ROLE", "mt-node-tenant").strip()
-    or "mt-node-tenant"
-)
+_VAULT_TENANT_ROLE = os.environ.get("MT_NODE_VAULT_TENANT_ROLE", "mt-node-tenant").strip() or "mt-node-tenant"
 # File the Vault Agent Injector renders the credentials into; the
 # mt-node entrypoint sources it.
 _VAULT_SECRETS_FILE = "mt-credentials.env"
@@ -253,17 +249,15 @@ class HostedProvisioner:
         namespace: str | None = None,
         image: str | None = None,
         platform_default_token_secret_name: str | None = None,
-        vault_client: Optional[VaultClient] = None,
-        catalog_sync_runner: Optional[CatalogSyncRunner] = None,
-        chart_symbol_writer: Optional[ChartSymbolWriter] = None,
+        vault_client: VaultClient | None = None,
+        catalog_sync_runner: CatalogSyncRunner | None = None,
+        chart_symbol_writer: ChartSymbolWriter | None = None,
     ) -> None:
         self._namespace = namespace or namespace_default()
         self._image = image or self._resolve_image()
         # Platform Secret name the chart provisions. Defaults to the
         # release-scoped name helm/mt-node renders for a release.
-        self._platform_secret_template = (
-            platform_default_token_secret_name or "{release}-platform"
-        )
+        self._platform_secret_template = platform_default_token_secret_name or "{release}-platform"
         self._vault = vault_client
         # Injected by Container: keeps DB + broker-client coupling out
         # of the K8s module. Both are required for hosted provisioning;
@@ -581,11 +575,7 @@ class HostedProvisioner:
             # only ApiException) and re-raises so the router still
             # surfaces the original error to the dashboard.
             try:
-                timeout = (
-                    readiness_timeout_secs
-                    if readiness_timeout_secs is not None
-                    else _READINESS_TIMEOUT_SECS
-                )
+                timeout = readiness_timeout_secs if readiness_timeout_secs is not None else _READINESS_TIMEOUT_SECS
                 await self._wait_ready(
                     core_api=core_api,
                     apps_api=apps_api,
@@ -689,11 +679,7 @@ class HostedProvisioner:
 
             ready = int(sts.status.ready_replicas or 0)
             replicas = int(sts.status.replicas or 0)
-            current = (
-                int(sts.status.current_replicas or 0)
-                if hasattr(sts.status, "current_replicas")
-                else replicas
-            )
+            current = int(sts.status.current_replicas or 0) if hasattr(sts.status, "current_replicas") else replicas
             running = ready >= 1
             return {
                 "container_id": container_id,
@@ -702,11 +688,7 @@ class HostedProvisioner:
                 "ready_replicas": ready,
                 "replicas": replicas,
                 "current_replicas": current,
-                "started_at": (
-                    str(sts.metadata.creation_timestamp)
-                    if sts.metadata.creation_timestamp
-                    else None
-                ),
+                "started_at": (str(sts.metadata.creation_timestamp) if sts.metadata.creation_timestamp else None),
                 "exit_code": 0 if running else -1,
             }
         finally:
@@ -952,9 +934,7 @@ class HostedProvisioner:
                             name=name,
                             namespace=self._namespace,
                         )
-                        body.metadata.resource_version = (
-                            existing.metadata.resource_version
-                        )
+                        body.metadata.resource_version = existing.metadata.resource_version
                         await core_api.replace_namespaced_config_map(
                             name=name,
                             namespace=self._namespace,
@@ -1001,9 +981,7 @@ class HostedProvisioner:
                             name=name,
                             namespace=self._namespace,
                         )
-                        body.metadata.resource_version = (
-                            existing.metadata.resource_version
-                        )
+                        body.metadata.resource_version = existing.metadata.resource_version
                         await core_api.replace_namespaced_service_account(
                             name=name,
                             namespace=self._namespace,
@@ -1055,9 +1033,7 @@ class HostedProvisioner:
             client.V1EnvVar(
                 name="POD_NAMESPACE",
                 value_from=client.V1EnvVarSource(
-                    field_ref=client.V1ObjectFieldSelector(
-                        field_path="metadata.namespace"
-                    ),
+                    field_ref=client.V1ObjectFieldSelector(field_path="metadata.namespace"),
                 ),
             ),
         ]
@@ -1116,9 +1092,7 @@ class HostedProvisioner:
             env=env,
             env_from=env_from,
             ports=[
-                client.V1ContainerPort(
-                    name="zmq", container_port=zmq_port, protocol="TCP"
-                ),
+                client.V1ContainerPort(name="zmq", container_port=zmq_port, protocol="TCP"),
             ],
             resources=self._resource_requirements(),
             security_context=container_security_ctx,
@@ -1158,9 +1132,7 @@ class HostedProvisioner:
             volume_mounts=[
                 # wine-prefix is supplied by volumeClaimTemplates below;
                 # K8s wires the per-replica PVC automatically.
-                client.V1VolumeMount(
-                    name=_PVC_TEMPLATE_NAME, mount_path="/home/mt/.wine"
-                ),
+                client.V1VolumeMount(name=_PVC_TEMPLATE_NAME, mount_path="/home/mt/.wine"),
                 client.V1VolumeMount(name="mt-cache", mount_path="/home/mt/.cache"),
                 client.V1VolumeMount(name="tmp", mount_path="/tmp"),
                 client.V1VolumeMount(name="var-tmp", mount_path="/var/tmp"),
@@ -1220,9 +1192,7 @@ class HostedProvisioner:
             client.V1EnvVar(
                 name="POD_NAMESPACE",
                 value_from=client.V1EnvVarSource(
-                    field_ref=client.V1ObjectFieldSelector(
-                        field_path="metadata.namespace"
-                    ),
+                    field_ref=client.V1ObjectFieldSelector(field_path="metadata.namespace"),
                 ),
             ),
         ]
@@ -1240,9 +1210,7 @@ class HostedProvisioner:
             env=watchdog_env,
             env_from=watchdog_env_from,
             ports=[
-                client.V1ContainerPort(
-                    name="watchdog", container_port=watchdog_port, protocol="TCP"
-                ),
+                client.V1ContainerPort(name="watchdog", container_port=watchdog_port, protocol="TCP"),
             ],
             resources=watchdog_resources,
             security_context=container_security_ctx,
@@ -1362,9 +1330,7 @@ class HostedProvisioner:
             "vault.hashicorp.com/role": _VAULT_TENANT_ROLE,
             "vault.hashicorp.com/agent-pre-populate-only": "false",
             "vault.hashicorp.com/agent-init-first": "true",
-            f"vault.hashicorp.com/agent-inject-secret-{_VAULT_SECRETS_FILE}": self._vault_data_path(
-                vault_path
-            ),
+            f"vault.hashicorp.com/agent-inject-secret-{_VAULT_SECRETS_FILE}": self._vault_data_path(vault_path),
             f"vault.hashicorp.com/agent-inject-template-{_VAULT_SECRETS_FILE}": vault_template,
         }
         # Stamp the sentinel-or-real symbol's resolution moment on the
@@ -1376,9 +1342,7 @@ class HostedProvisioner:
         if pod_annotations:
             merged_annotations.update(pod_annotations)
         if credentials_checksum:
-            merged_annotations["etradie.io/vault-credentials-checksum"] = (
-                credentials_checksum
-            )
+            merged_annotations["etradie.io/vault-credentials-checksum"] = credentials_checksum
 
         pod_template_metadata = client.V1ObjectMeta(
             labels=selector
@@ -1417,18 +1381,14 @@ class HostedProvisioner:
         )
 
         sts = client.V1StatefulSet(
-            metadata=client.V1ObjectMeta(
-                name=release, namespace=self._namespace, labels=labels
-            ),
+            metadata=client.V1ObjectMeta(name=release, namespace=self._namespace, labels=labels),
             spec=client.V1StatefulSetSpec(
                 replicas=1,
                 service_name=headless_service_name,
                 pod_management_policy="OrderedReady",
                 update_strategy=client.V1StatefulSetUpdateStrategy(
                     type="RollingUpdate",
-                    rolling_update=client.V1RollingUpdateStatefulSetStrategy(
-                        partition=0
-                    ),
+                    rolling_update=client.V1RollingUpdateStatefulSetStrategy(partition=0),
                 ),
                 revision_history_limit=5,
                 selector=client.V1LabelSelector(match_labels=selector),
@@ -1502,9 +1462,7 @@ class HostedProvisioner:
             ports=ports,
         )
         service = client.V1Service(
-            metadata=client.V1ObjectMeta(
-                name=name, namespace=self._namespace, labels=labels
-            ),
+            metadata=client.V1ObjectMeta(name=name, namespace=self._namespace, labels=labels),
             spec=service_spec,
         )
         async for attempt in await self._retrying():
@@ -1526,9 +1484,7 @@ class HostedProvisioner:
                         # we keep it; for a regular service it's the
                         # allocated IP and we must also keep it.
                         service.spec.cluster_ip = existing.spec.cluster_ip
-                        service.metadata.resource_version = (
-                            existing.metadata.resource_version
-                        )
+                        service.metadata.resource_version = existing.metadata.resource_version
                         await core_api.replace_namespaced_service(
                             name=name,
                             namespace=self._namespace,
@@ -1818,7 +1774,7 @@ class HostedProvisioner:
         *,
         core_api: client.CoreV1Api,
         apps_api: client.AppsV1Api,
-        vault: Optional[VaultClient],
+        vault: VaultClient | None,
         release: str,
         service_name: str,
         headless_service_name: str,

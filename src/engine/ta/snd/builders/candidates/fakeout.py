@@ -1,9 +1,15 @@
+import datetime
 from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
-from engine.ta.constants import Direction, CandidatePattern
+from engine.ta.constants import (
+    FIBONACCI_VALUES,
+    OTE_LEVELS,
+    CandidatePattern,
+    Direction,
+)
 from engine.ta.models.candidate import SnDCandidate
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
@@ -11,16 +17,8 @@ from engine.ta.snd.builders.levels import compute_trade_levels
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detectors.fakeouts import FakeoutTest
 from engine.ta.snd.detectors.previous_levels import PreviousHighsLows
-from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
-from engine.ta.constants import (
-    Direction,
-    CandidatePattern,
-    OTE_LEVELS,
-    FIBONACCI_VALUES,
-)
-
 from engine.ta.snd.validators.ltf.confirmation import LTFConfirmationValidator
-import datetime
+from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
 
 logger = get_logger(__name__)
 
@@ -62,10 +60,10 @@ class FakeoutCandidateBuilder:
         ltf_sequence: CandleSequence,
         sr_flip_level: float,
         fakeout_tests: list[FakeoutTest],
-        breakout_candle_index: Optional[int],
-        previous_highs: Optional[PreviousHighsLows],
-        retracement: Optional[FibonacciRetracement],
-    ) -> Optional[SnDCandidate]:
+        breakout_candle_index: int | None,
+        previous_highs: PreviousHighsLows | None,
+        retracement: FibonacciRetracement | None,
+    ) -> SnDCandidate | None:
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
 
@@ -86,9 +84,7 @@ class FakeoutCandidateBuilder:
         )
 
         # Universal Rule 1: Validate Marubozu on breakout candle
-        marubozu_valid, marubozu_ts = self._validate_marubozu(
-            ltf_sequence, breakout_candle_index, Direction.BEARISH
-        )
+        marubozu_valid, marubozu_ts = self._validate_marubozu(ltf_sequence, breakout_candle_index, Direction.BEARISH)
 
         # Fakeout-king entries sit at the SR flip; the flip level is the
         # SL anchor (no separate structural extreme).
@@ -108,11 +104,7 @@ class FakeoutCandidateBuilder:
         stop_loss = levels.stop_loss
         take_profit = levels.take_profit
 
-        pattern = (
-            CandidatePattern.FAKEOUT_KING
-            if len(fakeout_tests) >= 3
-            else CandidatePattern.SOP
-        )
+        pattern = CandidatePattern.FAKEOUT_KING if len(fakeout_tests) >= 3 else CandidatePattern.SOP
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -138,12 +130,8 @@ class FakeoutCandidateBuilder:
             marubozu_timestamp=marubozu_ts,
             previous_highs_count=previous_highs.touch_count if previous_highs else 0,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=(
-                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
-            ),
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
-            ),
+            ltf_confirmation_timestamp=(ltf_sequence.candles[-1].timestamp if ltf_confirmed else None),
+            fib_level=(self._get_fib_level(entry_price, retracement) if retracement else None),
             metadata={
                 "confluences": confluences,
                 "pattern_type": "fakeout_king" if len(fakeout_tests) >= 3 else "sop",
@@ -168,10 +156,10 @@ class FakeoutCandidateBuilder:
         ltf_sequence: CandleSequence,
         rs_flip_level: float,
         fakeout_tests: list[FakeoutTest],
-        breakout_candle_index: Optional[int],
-        previous_lows: Optional[PreviousHighsLows],
-        retracement: Optional[FibonacciRetracement],
-    ) -> Optional[SnDCandidate]:
+        breakout_candle_index: int | None,
+        previous_lows: PreviousHighsLows | None,
+        retracement: FibonacciRetracement | None,
+    ) -> SnDCandidate | None:
         if len(fakeout_tests) < self.config.min_fakeout_tests:
             return None
 
@@ -192,9 +180,7 @@ class FakeoutCandidateBuilder:
         )
 
         # Universal Rule 1: Validate Marubozu on breakout candle
-        marubozu_valid, marubozu_ts = self._validate_marubozu(
-            ltf_sequence, breakout_candle_index, Direction.BULLISH
-        )
+        marubozu_valid, marubozu_ts = self._validate_marubozu(ltf_sequence, breakout_candle_index, Direction.BULLISH)
 
         # Fakeout-king entries sit at the RS flip; the flip level is the
         # SL anchor (no separate structural extreme).
@@ -214,11 +200,7 @@ class FakeoutCandidateBuilder:
         stop_loss = levels.stop_loss
         take_profit = levels.take_profit
 
-        pattern = (
-            CandidatePattern.FAKEOUT_KING
-            if len(fakeout_tests) >= 3
-            else CandidatePattern.SOP
-        )
+        pattern = CandidatePattern.FAKEOUT_KING if len(fakeout_tests) >= 3 else CandidatePattern.SOP
 
         candidate = SnDCandidate(
             symbol=ltf_sequence.symbol,
@@ -244,12 +226,8 @@ class FakeoutCandidateBuilder:
             marubozu_timestamp=marubozu_ts,
             previous_lows_count=previous_lows.touch_count if previous_lows else 0,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=(
-                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
-            ),
-            fib_level=(
-                self._get_fib_level(entry_price, retracement) if retracement else None
-            ),
+            ltf_confirmation_timestamp=(ltf_sequence.candles[-1].timestamp if ltf_confirmed else None),
+            fib_level=(self._get_fib_level(entry_price, retracement) if retracement else None),
             metadata={
                 "confluences": confluences,
                 "pattern_type": "fakeout_king" if len(fakeout_tests) >= 3 else "sop",
@@ -271,8 +249,8 @@ class FakeoutCandidateBuilder:
     def _count_fakeout_confluences(
         self,
         fakeout_tests: list[FakeoutTest],
-        previous_levels: Optional[PreviousHighsLows],
-        retracement: Optional[FibonacciRetracement],
+        previous_levels: PreviousHighsLows | None,
+        retracement: FibonacciRetracement | None,
         zone_price: float,
     ) -> int:
         confluences = 0
@@ -282,9 +260,8 @@ class FakeoutCandidateBuilder:
         if previous_levels and previous_levels.touch_count >= 2:
             confluences += previous_levels.touch_count
 
-        if retracement:
-            if self.ltf_validator.check_fibonacci_alignment(zone_price, retracement):
-                confluences += 2
+        if retracement and self.ltf_validator.check_fibonacci_alignment(zone_price, retracement):
+            confluences += 2
 
         if any(test.is_diamond_fakeout for test in fakeout_tests):
             confluences += 1
@@ -308,7 +285,7 @@ class FakeoutCandidateBuilder:
         self,
         price: float,
         retracement: FibonacciRetracement,
-    ) -> Optional[str]:
+    ) -> str | None:
         pip_val = float(get_pip_value(retracement.symbol))
         tolerance = self.config.fibonacci_tolerance_pips * pip_val
 
@@ -330,12 +307,10 @@ class FakeoutCandidateBuilder:
     def _validate_marubozu(
         self,
         sequence: CandleSequence,
-        breakout_candle_index: Optional[int],
+        breakout_candle_index: int | None,
         direction: Direction,
     ) -> tuple[bool, Optional["datetime.datetime"]]:
-        if breakout_candle_index is None or breakout_candle_index >= len(
-            sequence.candles
-        ):
+        if breakout_candle_index is None or breakout_candle_index >= len(sequence.candles):
             return False, None
 
         candle = sequence.candles[breakout_candle_index]

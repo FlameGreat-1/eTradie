@@ -25,7 +25,7 @@ expected logic'.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Optional, Protocol
+from typing import Any, Protocol
 
 from engine.shared.logging import get_logger
 
@@ -58,7 +58,7 @@ async def disable_connection(
     trip: KillSwitchTrip,
     *,
     repo: _BrokerConnectionRepo,
-    alerts: Optional[_AlertPublisher] = None,
+    alerts: _AlertPublisher | None = None,
 ) -> bool:
     """Disable a broker connection. Returns True when the DB row was
     flipped (or already false); False on DB failure (the caller

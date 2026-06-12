@@ -20,7 +20,7 @@ would create two sources of truth and silent drift.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Optional, Self
+from typing import Self
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -76,7 +76,7 @@ class ProcessorConfig(BaseSettings):
             "raising it is cost-neutral on average."
         ),
     )
-    reasoning_budget_tokens: Optional[int] = Field(
+    reasoning_budget_tokens: int | None = Field(
         default=12288,
         ge=0,
         le=131072,
@@ -97,25 +97,25 @@ class ProcessorConfig(BaseSettings):
     )
 
     # -- Provider API keys (only the active provider's key is required) ------
-    anthropic_api_key: Optional[SecretStr] = Field(
+    anthropic_api_key: SecretStr | None = Field(
         default=None,
         description="Anthropic API key for Claude models",
     )
-    openai_api_key: Optional[SecretStr] = Field(
+    openai_api_key: SecretStr | None = Field(
         default=None,
         description="OpenAI API key for GPT models",
     )
-    gemini_api_key: Optional[SecretStr] = Field(
+    gemini_api_key: SecretStr | None = Field(
         default=None,
         description="Google Gemini API key",
     )
-    self_hosted_api_key: Optional[SecretStr] = Field(
+    self_hosted_api_key: SecretStr | None = Field(
         default=None,
         description="API key for self-hosted endpoint (optional, some don't require one)",
     )
 
     # -- Self-hosted endpoint ------------------------------------------------
-    api_base_url: Optional[str] = Field(
+    api_base_url: str | None = Field(
         default=None,
         description="Base URL for self-hosted OpenAI-compatible API (e.g. http://localhost:8000/v1)",
     )
@@ -237,7 +237,7 @@ class ProcessorConfig(BaseSettings):
         self_hosted may not require a key (some local endpoints don't).
         """
         provider = self.llm_provider
-        key_map: dict[str, Optional[SecretStr]] = {
+        key_map: dict[str, SecretStr | None] = {
             LLMProvider.ANTHROPIC: self.anthropic_api_key,
             LLMProvider.OPENAI: self.openai_api_key,
             LLMProvider.GEMINI: self.gemini_api_key,
@@ -246,14 +246,10 @@ class ProcessorConfig(BaseSettings):
         if provider in key_map:
             key = key_map[provider]
             if key is None or not key.get_secret_value():
-                raise ValueError(
-                    f"Provider '{provider}' requires PROCESSOR_{provider.upper()}_API_KEY to be set"
-                )
+                raise ValueError(f"Provider '{provider}' requires PROCESSOR_{provider.upper()}_API_KEY to be set")
 
         if provider == LLMProvider.SELF_HOSTED and not self.api_base_url:
-            raise ValueError(
-                "Provider 'self_hosted' requires PROCESSOR_API_BASE_URL to be set"
-            )
+            raise ValueError("Provider 'self_hosted' requires PROCESSOR_API_BASE_URL to be set")
 
         return self
 
@@ -263,8 +259,7 @@ class ProcessorConfig(BaseSettings):
         valid = {p.value for p in LLMProvider}
         if self.llm_provider not in valid:
             raise ValueError(
-                f"llm_provider '{self.llm_provider}' not recognized. "
-                f"Must be one of: {', '.join(sorted(valid))}"
+                f"llm_provider '{self.llm_provider}' not recognized. Must be one of: {', '.join(sorted(valid))}"
             )
         return self
 
@@ -283,7 +278,7 @@ class ProcessorConfig(BaseSettings):
 
         Returns empty string for self_hosted when no key is configured.
         """
-        key_map: dict[str, Optional[SecretStr]] = {
+        key_map: dict[str, SecretStr | None] = {
             LLMProvider.ANTHROPIC: self.anthropic_api_key,
             LLMProvider.OPENAI: self.openai_api_key,
             LLMProvider.GEMINI: self.gemini_api_key,

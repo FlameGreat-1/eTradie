@@ -48,8 +48,9 @@ Usage in FastAPI WebSocket endpoints:
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional
+from typing import Any
 
 import jwt
 from fastapi import Depends, HTTPException, Request, WebSocket
@@ -234,9 +235,9 @@ def _verify_token(token: str) -> AuthenticatedUser:
 
 
 def _extract_token_from_request(
-    credentials: Optional[HTTPAuthorizationCredentials],
+    credentials: HTTPAuthorizationCredentials | None,
     request: Request,
-) -> Optional[str]:
+) -> str | None:
     """Return the raw JWT from the highest-priority source on the request.
 
     1. The Authorization Bearer credential captured by HTTPBearer.
@@ -257,7 +258,7 @@ def _extract_token_from_request(
 
 async def get_current_user(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
 ) -> AuthenticatedUser:
     """FastAPI dependency: require a valid JWT from header or cookie.
 
@@ -282,8 +283,8 @@ async def get_current_user(
 
 async def get_optional_user(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
-) -> Optional[AuthenticatedUser]:
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+) -> AuthenticatedUser | None:
     """FastAPI dependency: optionally authenticate from header or cookie.
 
     Returns ``None`` if no token is provided (anonymous access).
@@ -307,7 +308,7 @@ async def get_admin_user(
 
 async def verify_token_from_websocket(
     websocket: WebSocket,
-    init_message: Optional[Mapping[str, Any]] = None,
+    init_message: Mapping[str, Any] | None = None,
 ) -> AuthenticatedUser:
     """Resolve the authenticated user for a WebSocket connection.
 
@@ -325,9 +326,7 @@ async def verify_token_from_websocket(
     is responsible for translating it into a WS close-frame.
     """
     # 1. Authorization header on the upgrade.
-    auth_header = websocket.headers.get("authorization") or websocket.headers.get(
-        "Authorization"
-    )
+    auth_header = websocket.headers.get("authorization") or websocket.headers.get("Authorization")
     if auth_header:
         token = auth_header.strip()
         if token.lower().startswith("bearer "):
@@ -348,9 +347,7 @@ async def verify_token_from_websocket(
 
     # 3. Init-frame token for legacy non-browser clients.
     if init_message is not None:
-        token_field = (
-            init_message.get("token") if isinstance(init_message, Mapping) else None
-        )
+        token_field = init_message.get("token") if isinstance(init_message, Mapping) else None
         if isinstance(token_field, str) and token_field.strip():
             try:
                 return _verify_token(token_field.strip())

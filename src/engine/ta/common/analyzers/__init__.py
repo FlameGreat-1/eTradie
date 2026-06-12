@@ -16,14 +16,14 @@ All analyzers are pure functions or stateless classes.
 """
 
 from engine.ta.common.analyzers.candles import CandleAnalyzer
-from engine.ta.common.analyzers.swings import SwingAnalyzer
-from engine.ta.common.analyzers.session import SessionAnalyzer
-from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
-from engine.ta.common.analyzers.sweeps import SweepAnalyzer
-from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
-from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
-from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
 from engine.ta.common.analyzers.compression import CompressionAnalyzer
+from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
+from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
+from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
+from engine.ta.common.analyzers.session import SessionAnalyzer
+from engine.ta.common.analyzers.sweeps import SweepAnalyzer
+from engine.ta.common.analyzers.swings import SwingAnalyzer
 
 __all__ = [
     "CandleAnalyzer",

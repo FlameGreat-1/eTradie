@@ -17,14 +17,17 @@ class TestRetrieverImports:
     def test_retriever_importable(self):
         """Retriever can be imported without side effects."""
         from engine.rag.retrieval.retriever import Retriever
+
         assert Retriever is not None
 
     def test_vector_store_base_importable(self):
         from engine.rag.vectorstore.base import BaseVectorStore
+
         assert BaseVectorStore is not None
 
     def test_embedding_base_importable(self):
         from engine.rag.embeddings.base import BaseEmbeddingProvider
+
         assert BaseEmbeddingProvider is not None
 
 

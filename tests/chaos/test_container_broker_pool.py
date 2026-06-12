@@ -5,11 +5,12 @@ de-duplicates concurrent first-touches when invoked through the
 pool API directly. Container.load_user_broker integration is exercised
 the same way but requires DB plumbing; here we hit the pool directly.
 """
+
 from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 
@@ -65,9 +66,9 @@ class _StubBroker(BrokerBase):
         self,
         symbol: str,
         timeframe: Timeframe,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        count: Optional[int] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        count: int | None = None,
     ) -> CandleSequence:
         raise NotImplementedError
 

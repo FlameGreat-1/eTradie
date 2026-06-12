@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
@@ -66,12 +66,8 @@ def _check_redis_available() -> bool:
 DB_AVAILABLE = _check_db_available()
 REDIS_AVAILABLE = _check_redis_available()
 
-skip_no_db = pytest.mark.skipif(
-    not DB_AVAILABLE, reason="PostgreSQL not available"
-)
-skip_no_redis = pytest.mark.skipif(
-    not REDIS_AVAILABLE, reason="Redis not available"
-)
+skip_no_db = pytest.mark.skipif(not DB_AVAILABLE, reason="PostgreSQL not available")
+skip_no_redis = pytest.mark.skipif(not REDIS_AVAILABLE, reason="Redis not available")
 
 
 @pytest_asyncio.fixture
@@ -97,7 +93,6 @@ async def db_manager() -> AsyncGenerator:
 @pytest_asyncio.fixture
 async def db_session(db_manager):
     """Async DB session with automatic rollback after each test."""
-    from sqlalchemy.ext.asyncio import AsyncSession
 
     async with db_manager.session() as session:
         yield session

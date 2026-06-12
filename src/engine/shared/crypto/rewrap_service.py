@@ -30,7 +30,6 @@ pre-existing credential onto the envelope format.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 from sqlalchemy import text
 
@@ -158,7 +157,7 @@ class CredentialRewrapService:
         """
         table_stats = _empty_table_stats()
         col_list = ", ".join((target.id_column, *target.encrypted_columns))
-        cursor: Optional[str] = None
+        cursor: str | None = None
 
         while True:
             rows = await self._fetch_batch(target, col_list, cursor)
@@ -169,9 +168,7 @@ class CredentialRewrapService:
                 cursor = str(row[target.id_column])
                 stats.scanned_rows += 1
                 table_stats["scanned_rows"] += 1
-                await self._process_row(
-                    target, row, dry_run=dry_run, stats=stats, table_stats=table_stats
-                )
+                await self._process_row(target, row, dry_run=dry_run, stats=stats, table_stats=table_stats)
 
             if len(rows) < self._batch_size:
                 break
@@ -182,7 +179,7 @@ class CredentialRewrapService:
         self,
         target: _Target,
         col_list: str,
-        cursor: Optional[str],
+        cursor: str | None,
     ) -> list[dict]:
         """Read one keyset page ordered by id (stable, memory-bounded)."""
         where = "" if cursor is None else f"WHERE {target.id_column} > :cursor"

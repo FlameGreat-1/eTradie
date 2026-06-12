@@ -1,5 +1,3 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.utils.price.math import (
     calculate_body_percentage,
@@ -12,7 +10,6 @@ logger = get_logger(__name__)
 
 
 class CandleAnalyzer:
-
     def __init__(
         self,
         *,
@@ -40,8 +37,7 @@ class CandleAnalyzer:
         if body_pct >= self.marubozu_body_threshold:
             if candle.is_bullish:
                 return CandleType.MARUBOZU_BULLISH
-            else:
-                return CandleType.MARUBOZU_BEARISH
+            return CandleType.MARUBOZU_BEARISH
 
         lower_wick_pct = calculate_wick_percentage(
             candle.open,
@@ -62,10 +58,7 @@ class CandleAnalyzer:
         if candle.is_bullish and lower_wick_pct >= self.hammer_lower_wick_threshold:
             return CandleType.HAMMER
 
-        if (
-            candle.is_bearish
-            and upper_wick_pct >= self.shooting_star_upper_wick_threshold
-        ):
+        if candle.is_bearish and upper_wick_pct >= self.shooting_star_upper_wick_threshold:
             return CandleType.SHOOTING_STAR
 
         return CandleType.STANDARD
@@ -98,7 +91,7 @@ class CandleAnalyzer:
         candle1: Candle,
         candle2: Candle,
         candle3: Candle,
-    ) -> Optional[tuple[float, float]]:
+    ) -> tuple[float, float] | None:
         if candle1.symbol != candle2.symbol or candle2.symbol != candle3.symbol:
             return None
 
@@ -144,11 +137,7 @@ class CandleAnalyzer:
         sequence: CandleSequence,
         lookback: int = 20,
     ) -> float:
-        candles = (
-            sequence.candles[-lookback:]
-            if len(sequence.candles) > lookback
-            else sequence.candles
-        )
+        candles = sequence.candles[-lookback:] if len(sequence.candles) > lookback else sequence.candles
 
         if not candles:
             return 0.0

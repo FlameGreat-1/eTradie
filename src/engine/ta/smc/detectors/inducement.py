@@ -93,9 +93,7 @@ class InducementDetector:
                         "inducement_level": internal_low.price,
                         "clearance_threshold": clearance_threshold,
                         "min_break_pips": self.config.inducement_min_break_pips,
-                        "cleared_timestamp": (
-                            cleared_timestamp.isoformat() if cleared_timestamp else None
-                        ),
+                        "cleared_timestamp": (cleared_timestamp.isoformat() if cleared_timestamp else None),
                     },
                 )
 
@@ -156,9 +154,7 @@ class InducementDetector:
                         "inducement_level": internal_high.price,
                         "clearance_threshold": clearance_threshold,
                         "min_break_pips": self.config.inducement_min_break_pips,
-                        "cleared_timestamp": (
-                            cleared_timestamp.isoformat() if cleared_timestamp else None
-                        ),
+                        "cleared_timestamp": (cleared_timestamp.isoformat() if cleared_timestamp else None),
                     },
                 )
 

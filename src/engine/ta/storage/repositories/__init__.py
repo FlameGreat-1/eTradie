@@ -23,9 +23,9 @@ Repository methods:
 - bulk_update() - Batch modify
 """
 
+from engine.ta.storage.repositories.candidate import CandidateRepository
 from engine.ta.storage.repositories.candle import CandleRepository
 from engine.ta.storage.repositories.snapshot import SnapshotRepository
-from engine.ta.storage.repositories.candidate import CandidateRepository
 
 __all__ = [
     "CandleRepository",

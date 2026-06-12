@@ -13,9 +13,7 @@ from engine.shared.db.migrations._schema_registry import Base
 class CentralBankEventRow(Base):
     __tablename__ = "central_bank_events"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     bank: Mapped[str] = mapped_column(String(10), nullable=False)
     event_type: Mapped[str] = mapped_column(String(30), nullable=False)
     title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
@@ -23,19 +21,13 @@ class CentralBankEventRow(Base):
     speaker: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     tone: Mapped[str] = mapped_column(String(10), nullable=False, default="NEUTRAL")
     tone_score: Mapped[float] = mapped_column(nullable=False, default=0.0)
-    policy_action: Mapped[str] = mapped_column(
-        String(10), nullable=False, default="NONE"
-    )
-    balance_sheet_direction: Mapped[str] = mapped_column(
-        String(20), nullable=False, default=""
-    )
+    policy_action: Mapped[str] = mapped_column(String(10), nullable=False, default="NONE")
+    balance_sheet_direction: Mapped[str] = mapped_column(String(20), nullable=False, default="")
     rate_current: Mapped[float | None] = mapped_column(nullable=True)
     rate_previous: Mapped[float | None] = mapped_column(nullable=True)
     rate_change_bps: Mapped[int | None] = mapped_column(nullable=True)
     source_url: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
-    event_timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    event_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
-from typing import AsyncGenerator
 from uuid import uuid4
 
 import jwt as pyjwt
@@ -60,6 +60,7 @@ def _make_test_jwt(
     }
     return pyjwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
+
 _DB_URL = os.getenv(
     "DATABASE_URL",
     "postgresql+asyncpg://etradie:etradie_dev@localhost:5432/etradie",
@@ -73,6 +74,7 @@ _CHROMA_AUTH_TOKEN = os.getenv("RAG_CHROMA_AUTH_TOKEN", "") or os.getenv("CHROMA
 def _check_db() -> bool:
     try:
         import asyncio
+
         import asyncpg
 
         async def _ping():
@@ -93,6 +95,7 @@ def _check_db() -> bool:
 def _check_redis() -> bool:
     try:
         import redis
+
         r = redis.from_url(_REDIS_URL, socket_timeout=2)
         r.ping()
         r.close()
@@ -223,13 +226,16 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
         env_overrides["ANTHROPIC_API_KEY"] = "sk-test-placeholder"
 
     from unittest.mock import patch
+
     with patch.dict(os.environ, env_overrides):
         # Clear cached settings so they pick up test env vars.
-        from engine.config import get_settings, get_rag_config
+        from engine.config import get_rag_config, get_settings
+
         get_settings.cache_clear()
         get_rag_config.cache_clear()
 
         from engine.main import create_app
+
         app = create_app()
 
         # Ensure tables exist.
@@ -239,6 +245,7 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
             # Create processor tables (analysis_outputs, analysis_audit_logs,
             # llm_connections) if they don't exist.
             from engine.processor.storage.schemas.processor_schema import ProcessorBase
+
             async with container.db.engine.begin() as conn:
                 await conn.run_sync(ProcessorBase.metadata.create_all)
 
@@ -247,6 +254,7 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
             # Uses the same provider/model from the env-var processor
             # config so the LLM client can be built without errors.
             from engine.processor.storage.repositories.llm_connection_repository import LLMConnectionRepository
+
             test_user_id = "user-001"  # matches _user_headers JWT sub claim
             async with container.db.session() as session:
                 repo = LLMConnectionRepository(session)
@@ -264,9 +272,13 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
                     )
 
             transport = ASGITransport(app=app)
-            user_headers = {"Authorization": f"Bearer {_make_test_jwt(user_id='user-001', username='testuser', role='etradie')}"}
-            admin_headers = {"Authorization": f"Bearer {_make_test_jwt(user_id='admin-001', username='admin', role='admin')}"}
-            
+            user_headers = {
+                "Authorization": f"Bearer {_make_test_jwt(user_id='user-001', username='testuser', role='etradie')}"
+            }
+            admin_headers = {
+                "Authorization": f"Bearer {_make_test_jwt(user_id='admin-001', username='admin', role='admin')}"
+            }
+
             async with AsyncClient(transport=transport, base_url="http://testserver", headers=user_headers) as client:
                 # Attach container to client for seed data access.
                 client._container = container  # type: ignore[attr-defined]

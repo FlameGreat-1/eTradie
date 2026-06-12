@@ -1,8 +1,7 @@
-from datetime import datetime, UTC
-from typing import Optional, Union
+from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select, and_, desc, update, tuple_
+from sqlalchemy import and_, desc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.shared.logging import get_logger
@@ -30,9 +29,7 @@ class CandidateRepository:
         self.session = session
         self._logger = get_logger(__name__)
 
-    async def create_smc_candidate(
-        self, candidate: SMCCandidate, *, user_id: str
-    ) -> CandidateSchema:
+    async def create_smc_candidate(self, candidate: SMCCandidate, *, user_id: str) -> CandidateSchema:
         """Create SMC candidate record owned by user_id.
 
         Deduplicates by (user_id, symbol, pattern, direction, entry_price
@@ -48,7 +45,7 @@ class CandidateRepository:
                     CandidateSchema.pattern == candidate.pattern.value,
                     CandidateSchema.direction == candidate.direction.value,
                     CandidateSchema.entry_price == round(candidate.entry_price, 4),
-                    CandidateSchema.is_active == True,
+                    CandidateSchema.is_active,
                 )
             )
         )
@@ -125,9 +122,7 @@ class CandidateRepository:
 
         return schema
 
-    async def create_snd_candidate(
-        self, candidate: SnDCandidate, *, user_id: str
-    ) -> CandidateSchema:
+    async def create_snd_candidate(self, candidate: SnDCandidate, *, user_id: str) -> CandidateSchema:
         """Create SnD candidate record owned by user_id.
 
         Deduplicates by (user_id, symbol, pattern, direction, entry_price
@@ -141,7 +136,7 @@ class CandidateRepository:
                     CandidateSchema.pattern == candidate.pattern.value,
                     CandidateSchema.direction == candidate.direction.value,
                     CandidateSchema.entry_price == round(candidate.entry_price, 4),
-                    CandidateSchema.is_active == True,
+                    CandidateSchema.is_active,
                 )
             )
         )
@@ -474,7 +469,7 @@ class CandidateRepository:
 
     async def _fetch_existing_dedup_keys(
         self,
-        candidates: list[Union[SMCCandidate, SnDCandidate]],
+        candidates: list[SMCCandidate | SnDCandidate],
         *,
         user_id: str,
     ) -> set[tuple]:
@@ -497,7 +492,7 @@ class CandidateRepository:
                 and_(
                     CandidateSchema.user_id == user_id,
                     CandidateSchema.symbol.in_(symbols),
-                    CandidateSchema.is_active == True,
+                    CandidateSchema.is_active,
                 )
             )
         )
@@ -517,11 +512,9 @@ class CandidateRepository:
 
     # ── Single-candidate methods (preserved for individual use) ──────
 
-    async def get_by_id(self, candidate_id: UUID) -> Optional[CandidateSchema]:
+    async def get_by_id(self, candidate_id: UUID) -> CandidateSchema | None:
         """Retrieve candidate by ID."""
-        result = await self.session.execute(
-            select(CandidateSchema).where(CandidateSchema.id == candidate_id)
-        )
+        result = await self.session.execute(select(CandidateSchema).where(CandidateSchema.id == candidate_id))
         return result.scalar_one_or_none()
 
     async def find_active_candidates(
@@ -529,15 +522,15 @@ class CandidateRepository:
         symbol: str,
         *,
         user_id: str,
-        timeframe: Optional[str] = None,
-        pattern: Optional[str] = None,
-        direction: Optional[str] = None,
+        timeframe: str | None = None,
+        pattern: str | None = None,
+        direction: str | None = None,
     ) -> list[CandidateSchema]:
         """Find active candidates for a specific user with optional filters."""
         conditions = [
             CandidateSchema.user_id == user_id,
             CandidateSchema.symbol == symbol,
-            CandidateSchema.is_active == True,
+            CandidateSchema.is_active,
         ]
 
         if timeframe:
@@ -548,9 +541,7 @@ class CandidateRepository:
             conditions.append(CandidateSchema.direction == direction)
 
         result = await self.session.execute(
-            select(CandidateSchema)
-            .where(and_(*conditions))
-            .order_by(desc(CandidateSchema.timestamp))
+            select(CandidateSchema).where(and_(*conditions)).order_by(desc(CandidateSchema.timestamp))
         )
         return list(result.scalars().all())
 
@@ -561,7 +552,7 @@ class CandidateRepository:
         end_time: datetime,
         *,
         user_id: str,
-        is_active: Optional[bool] = None,
+        is_active: bool | None = None,
     ) -> list[CandidateSchema]:
         """Find candidates within time range for a specific user."""
         conditions = [
@@ -575,9 +566,7 @@ class CandidateRepository:
             conditions.append(CandidateSchema.is_active == is_active)
 
         result = await self.session.execute(
-            select(CandidateSchema)
-            .where(and_(*conditions))
-            .order_by(CandidateSchema.timestamp)
+            select(CandidateSchema).where(and_(*conditions)).order_by(CandidateSchema.timestamp)
         )
         return list(result.scalars().all())
 

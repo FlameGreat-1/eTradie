@@ -26,9 +26,7 @@ class FrameworkChunker(BaseChunker):
         for section in doc.sections:
             parent_idx = idx
             section_text = f"## {section.heading}\n\n{section.content}"
-            parts = self._split_by_token_limit(
-                section_text, max_tokens=self._chunk_size
-            )
+            parts = self._split_by_token_limit(section_text, max_tokens=self._chunk_size)
             for part in parts:
                 chunks.append(
                     RawChunk(
@@ -42,9 +40,7 @@ class FrameworkChunker(BaseChunker):
 
             for sub in section.subsections:
                 sub_text = f"### {sub.heading}\n\n{sub.content}"
-                sub_parts = self._split_by_token_limit(
-                    sub_text, max_tokens=self._chunk_size
-                )
+                sub_parts = self._split_by_token_limit(sub_text, max_tokens=self._chunk_size)
                 for part in sub_parts:
                     chunks.append(
                         RawChunk(

@@ -49,7 +49,7 @@ import asyncio
 import os
 import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 
@@ -98,15 +98,13 @@ class HostedRecoveryConfig:
     max_concurrent_reprovisions: int
 
     @classmethod
-    def from_env(cls) -> "HostedRecoveryConfig":
+    def from_env(cls) -> HostedRecoveryConfig:
         """Construct from process env. Bounds-checks every numeric.
 
         Env var names mirror helm/engine/templates/configmap.yaml so
         an operator can tune the loop without code changes.
         """
-        enabled = os.environ.get(
-            "ENGINE_HOSTED_RECOVERY_ENABLED", "true"
-        ).strip().lower() in ("1", "true", "yes", "on")
+        enabled = os.environ.get("ENGINE_HOSTED_RECOVERY_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 
         def _pos_float(name: str, default: str, minimum: float) -> float:
             raw = (os.environ.get(name, default) or default).strip()
@@ -142,18 +140,10 @@ class HostedRecoveryConfig:
 
         return cls(
             enabled=enabled,
-            sweep_interval_secs=_pos_float(
-                "ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS", "60", 5.0
-            ),
-            unhealthy_threshold_secs=_pos_float(
-                "ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS", "600", 30.0
-            ),
-            reprovision_cooldown_secs=_pos_float(
-                "ENGINE_HOSTED_RECOVERY_REPROVISION_COOLDOWN_SECS", "300", 30.0
-            ),
-            max_concurrent_reprovisions=_pos_int(
-                "ENGINE_HOSTED_RECOVERY_MAX_CONCURRENT", "4", 1
-            ),
+            sweep_interval_secs=_pos_float("ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS", "60", 5.0),
+            unhealthy_threshold_secs=_pos_float("ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS", "600", 30.0),
+            reprovision_cooldown_secs=_pos_float("ENGINE_HOSTED_RECOVERY_REPROVISION_COOLDOWN_SECS", "300", 30.0),
+            max_concurrent_reprovisions=_pos_int("ENGINE_HOSTED_RECOVERY_MAX_CONCURRENT", "4", 1),
         )
 
 
@@ -203,7 +193,7 @@ class HostedRecoveryService:
         self._reprovision_gate = asyncio.Semaphore(
             self._config.max_concurrent_reprovisions,
         )
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._stopped = False
 
     @property
@@ -312,9 +302,7 @@ class HostedRecoveryService:
         for row in rows:
             connection_id = str(row.id)
             user_id = row.user_id
-            release = self._provisioner._release_name(
-                connection_id
-            )  # mirror chart's release name
+            release = self._provisioner._release_name(connection_id)  # mirror chart's release name
 
             try:
                 status = await self._provisioner.get_account_status(release)
@@ -348,10 +336,7 @@ class HostedRecoveryService:
             unhealthy_now += 1
 
             # Decide the reason and whether we are allowed to act.
-            if sts_status == "removed":
-                reason = "missing"
-            else:
-                reason = "unhealthy"
+            reason = "missing" if sts_status == "removed" else "unhealthy"
 
             # First-observed-unhealthy bookkeeping.
             first_seen = self._first_unhealthy.setdefault(connection_id, now_mono)
@@ -515,7 +500,7 @@ class HostedRecoveryService:
         # engine's ZmqClient would keep authenticating with the stale
         # token stored in broker_connections.ea_auth_token_encrypted -
         # the Pod would look healthy but every command would fail.
-        existing_token: Optional[str] = None
+        existing_token: str | None = None
         if row.ea_auth_token_encrypted:
             existing_token = decrypt_credential(row.ea_auth_token_encrypted)
 
@@ -538,7 +523,7 @@ class HostedRecoveryService:
         # H-4 guard. None / empty falls through to the resolver pick
         # for connections that were created before this column was
         # populated.
-        existing_symbol: Optional[str] = None
+        existing_symbol: str | None = None
         if getattr(row, "mt5_symbol", None):
             existing_symbol = str(row.mt5_symbol).strip() or None
 

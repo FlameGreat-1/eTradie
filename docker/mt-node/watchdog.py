@@ -23,6 +23,7 @@ without taking down the whole Pod.
 No runtime pip install: pyzmq, psutil, prometheus_client come from
 the Dockerfile's apt layer.
 """
+
 from __future__ import annotations
 
 import json
@@ -33,7 +34,6 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Optional
 
 import psutil
 import zmq
@@ -72,12 +72,11 @@ def _load_vault_secrets_file(path: str) -> None:
     injector and exports the same env vars directly.
     """
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             content = fh.read()
     except FileNotFoundError:
         log.info(
-            "Vault credentials file not present at %s; "
-            "relying on env (docker-compose / dev mode)",
+            "Vault credentials file not present at %s; relying on env (docker-compose / dev mode)",
             path,
         )
         return
@@ -91,16 +90,13 @@ def _load_vault_secrets_file(path: str) -> None:
         if not line or line.startswith("#"):
             continue
         if line.startswith("export "):
-            line = line[len("export "):].lstrip()
+            line = line[len("export ") :].lstrip()
         if "=" not in line:
             continue
         key, _, value = line.partition("=")
         key = key.strip()
         value = value.strip()
-        if len(value) >= 2 and (
-            (value[0] == '"' and value[-1] == '"')
-            or (value[0] == "'" and value[-1] == "'")
-        ):
+        if len(value) >= 2 and ((value[0] == '"' and value[-1] == '"') or (value[0] == "'" and value[-1] == "'")):
             value = value[1:-1]
         if not key:
             continue
@@ -118,9 +114,7 @@ def _load_vault_secrets_file(path: str) -> None:
         log.info("Loaded %d Vault-rendered credential entries from %s", loaded, path)
 
 
-_VAULT_SECRETS_FILE = os.environ.get(
-    "VAULT_SECRETS_FILE", "/vault/secrets/mt-credentials.env"
-)
+_VAULT_SECRETS_FILE = os.environ.get("VAULT_SECRETS_FILE", "/vault/secrets/mt-credentials.env")
 _load_vault_secrets_file(_VAULT_SECRETS_FILE)
 
 # ----- Config from envFrom (ConfigMap) ---------------------------------
@@ -138,12 +132,8 @@ AUTH_TOKEN = os.environ.get("MT_ZMQ_AUTH_TOKEN") or os.environ.get("DEFAULT_ZMQ_
 # throttled in more than half of all CFS periods sustained over the
 # last 60s'. Below the threshold, transient indicator-recalc bursts
 # are tolerated.
-CPU_THROTTLE_SOFT_CAP_FRACTION = float(
-    os.environ.get("WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION", "0.5")
-)
-CPU_THROTTLE_CONSECUTIVE_POLLS = int(
-    os.environ.get("WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS", "6")
-)
+CPU_THROTTLE_SOFT_CAP_FRACTION = float(os.environ.get("WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION", "0.5"))
+CPU_THROTTLE_CONSECUTIVE_POLLS = int(os.environ.get("WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS", "6"))
 
 # ----- Prometheus metrics ---------------------------------------------
 REG = CollectorRegistry()
@@ -151,10 +141,16 @@ REG = CollectorRegistry()
 M_MT5_CONNECTED = Gauge("mt_node_ea_mt5_connected", "EA reports terminal-to-broker connection state", registry=REG)
 M_AUTHENTICATED = Gauge("mt_node_ea_authenticated", "EA authentication state", registry=REG)
 M_EA_UPTIME = Gauge("mt_node_ea_uptime_seconds", "EA reported uptime", registry=REG)
-M_EA_COMMANDS = Counter("mt_node_ea_commands_processed_total", "EA reported commands processed (counter snapshot)", registry=REG)
+M_EA_COMMANDS = Counter(
+    "mt_node_ea_commands_processed_total", "EA reported commands processed (counter snapshot)", registry=REG
+)
 M_POLL_FAILS = Counter("mt_node_watchdog_poll_failures_total", "Cumulative HEALTH poll failures", registry=REG)
-M_INPOD_RESTARTS = Counter("mt_node_watchdog_in_pod_restarts_total", "Cumulative MT5 process signals issued by watchdog", registry=REG)
-M_MEMORY_SOFT_CAP_TRIPS = Counter("mt_node_watchdog_memory_soft_cap_trips_total", "Times memory soft-cap was tripped", registry=REG)
+M_INPOD_RESTARTS = Counter(
+    "mt_node_watchdog_in_pod_restarts_total", "Cumulative MT5 process signals issued by watchdog", registry=REG
+)
+M_MEMORY_SOFT_CAP_TRIPS = Counter(
+    "mt_node_watchdog_memory_soft_cap_trips_total", "Times memory soft-cap was tripped", registry=REG
+)
 M_MT5_RSS = Gauge("mt_node_mt5_process_rss_bytes", "RSS of the terminal process tree", registry=REG)
 M_MT5_CPU = Gauge("mt_node_mt5_process_cpu_percent", "CPU%% of the terminal process tree", registry=REG)
 M_CGROUP_LIMIT = Gauge("mt_node_cgroup_memory_limit_bytes", "Cgroup memory limit", registry=REG)
@@ -258,7 +254,7 @@ class ZmqHealthProbe:
         self._send_timeout_ms = send_timeout_ms
         self._ctx = zmq.Context.instance()
         self._lock = threading.Lock()
-        self._socket: Optional[zmq.Socket] = None
+        self._socket: zmq.Socket | None = None
         self._authenticated: bool = False
 
     def _open(self) -> None:
@@ -290,9 +286,7 @@ class ZmqHealthProbe:
         """Run PING with auth_token. Caller MUST hold self._lock AND
         self._socket must be live."""
         assert self._socket is not None
-        self._socket.send_string(
-            json.dumps({"command": "PING", "auth_token": self._auth_token})
-        )
+        self._socket.send_string(json.dumps({"command": "PING", "auth_token": self._auth_token}))
         # Discard reply; if the EA rejects auth it will return an
         # error JSON which is fine - HEALTH will then also fail and
         # the consecutive_failures path will trigger an in-pod restart.
@@ -340,15 +334,15 @@ class ZmqHealthProbe:
 
 # Constructed at first watchdog_loop() entry; module-level so the
 # HTTP server and signal handler can reach it for graceful shutdown.
-PROBE: Optional[ZmqHealthProbe] = None
+PROBE: ZmqHealthProbe | None = None
 
 
 # ----- Helpers ---------------------------------------------------------
-def read_cgroup_limit() -> Optional[int]:
+def read_cgroup_limit() -> int | None:
     """Return the cgroup-v2 / v1 memory limit in bytes, or None."""
     for p in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
         try:
-            with open(p, "r") as fh:
+            with open(p) as fh:
                 val = fh.read().strip()
             if val == "max":
                 return None
@@ -358,10 +352,10 @@ def read_cgroup_limit() -> Optional[int]:
     return None
 
 
-def read_cgroup_usage() -> Optional[int]:
+def read_cgroup_usage() -> int | None:
     for p in ("/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory/memory.usage_in_bytes"):
         try:
-            with open(p, "r") as fh:
+            with open(p) as fh:
                 return int(fh.read().strip())
         except (FileNotFoundError, ValueError, OSError):
             continue
@@ -406,7 +400,7 @@ def read_cgroup_cpu_stat() -> dict:
 
     # --- v2 first (most production clusters now run v2 by default) ----
     try:
-        with open("/sys/fs/cgroup/cpu.stat", "r") as fh:
+        with open("/sys/fs/cgroup/cpu.stat") as fh:
             for line in fh:
                 parts = line.split()
                 if len(parts) != 2:
@@ -423,7 +417,7 @@ def read_cgroup_cpu_stat() -> dict:
                 elif key == "throttled_usec":
                     out["throttled_usec"] = v
         try:
-            with open("/sys/fs/cgroup/cpu.max", "r") as fh:
+            with open("/sys/fs/cgroup/cpu.max") as fh:
                 # Format: "<quota> <period>" or "max <period>"
                 parts = fh.read().strip().split()
                 if len(parts) == 2:
@@ -439,7 +433,7 @@ def read_cgroup_cpu_stat() -> dict:
 
     # --- v1 fallback ---------------------------------------------------
     try:
-        with open("/sys/fs/cgroup/cpu,cpuacct/cpu.stat", "r") as fh:
+        with open("/sys/fs/cgroup/cpu,cpuacct/cpu.stat") as fh:
             for line in fh:
                 parts = line.split()
                 if len(parts) != 2:
@@ -458,13 +452,13 @@ def read_cgroup_cpu_stat() -> dict:
                     # normalise to microseconds for parity with v2.
                     out["throttled_usec"] = v // 1000
         try:
-            with open("/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us", "r") as fh:
+            with open("/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us") as fh:
                 q = int(fh.read().strip())
                 out["quota_usec"] = max(0, q)  # v1 -1 means unlimited
         except (FileNotFoundError, ValueError, OSError):
             pass
         try:
-            with open("/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us", "r") as fh:
+            with open("/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us") as fh:
                 out["period_usec"] = int(fh.read().strip())
         except (FileNotFoundError, ValueError, OSError):
             pass
@@ -652,12 +646,13 @@ def maybe_enforce_memory_soft_cap() -> bool:
     if fraction >= MEMORY_SOFT_CAP_FRACTION:
         log.error(
             "Memory soft-cap tripped: usage=%d limit=%d fraction=%.2f >= %.2f",
-            usage, limit, fraction, MEMORY_SOFT_CAP_FRACTION,
+            usage,
+            limit,
+            fraction,
+            MEMORY_SOFT_CAP_FRACTION,
         )
         M_MEMORY_SOFT_CAP_TRIPS.inc()
-        terminate_mt_processes(
-            f"memory soft-cap {fraction:.2f} >= {MEMORY_SOFT_CAP_FRACTION:.2f}"
-        )
+        terminate_mt_processes(f"memory soft-cap {fraction:.2f} >= {MEMORY_SOFT_CAP_FRACTION:.2f}")
         return True
     return False
 
@@ -666,7 +661,10 @@ def watchdog_loop() -> None:
     global _last_commands_count
     log.info(
         "watchdog start: endpoint=%s poll=%.1fs max_failures=%d soft_cap=%.2f",
-        ZMQ_ENDPOINT, POLL_INTERVAL, MAX_FAILURES, MEMORY_SOFT_CAP_FRACTION,
+        ZMQ_ENDPOINT,
+        POLL_INTERVAL,
+        MAX_FAILURES,
+        MEMORY_SOFT_CAP_FRACTION,
     )
     while True:
         try:
@@ -720,9 +718,7 @@ def watchdog_loop() -> None:
             log.warning("poll failed: %s (consecutive=%d)", e, STATE.consecutive_failures)
 
             if STATE.consecutive_failures >= MAX_FAILURES:
-                terminate_mt_processes(
-                    f"HEALTH probe failures: {STATE.consecutive_failures} consecutive"
-                )
+                terminate_mt_processes(f"HEALTH probe failures: {STATE.consecutive_failures} consecutive")
                 with STATE.lock:
                     STATE.consecutive_failures = 0
 
@@ -749,11 +745,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/livez":
             with STATE.lock:
-                healthy = (time.time() - STATE.start_ts) < LIVEZ_GRACE_SECONDS or \
-                          (time.time() - STATE.last_success_ts) < LIVEZ_GRACE_SECONDS
-            self._write(200 if healthy else 503,
-                        json.dumps({"status": "ok" if healthy else "wedged"}).encode("utf-8"),
-                        "application/json")
+                healthy = (time.time() - STATE.start_ts) < LIVEZ_GRACE_SECONDS or (
+                    time.time() - STATE.last_success_ts
+                ) < LIVEZ_GRACE_SECONDS
+            self._write(
+                200 if healthy else 503,
+                json.dumps({"status": "ok" if healthy else "wedged"}).encode("utf-8"),
+                "application/json",
+            )
             return
         if self.path == "/healthz":
             with STATE.lock:
@@ -761,12 +760,14 @@ class Handler(BaseHTTPRequestHandler):
                 connected = bool(STATE.last_health.get("mt5_connected"))
                 authed = bool(STATE.last_health.get("authenticated"))
             healthy = fresh and connected and authed
-            body = json.dumps({
-                "status": "ready" if healthy else "not_ready",
-                "fresh": fresh,
-                "mt5_connected": connected,
-                "authenticated": authed,
-            }).encode("utf-8")
+            body = json.dumps(
+                {
+                    "status": "ready" if healthy else "not_ready",
+                    "fresh": fresh,
+                    "mt5_connected": connected,
+                    "authenticated": authed,
+                }
+            ).encode("utf-8")
             self._write(200 if healthy else 503, body, "application/json")
             return
         self._write(404, b"not found", "text/plain")

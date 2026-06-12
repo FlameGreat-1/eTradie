@@ -29,11 +29,7 @@ class RulesNormalizer(BaseNormalizer):
             LoadedSection(
                 heading=sub.heading,
                 level=sub.level,
-                content=self._clean_whitespace(
-                    self._standardize_rule_references(
-                        self._normalize_bullets(sub.content)
-                    )
-                ),
+                content=self._clean_whitespace(self._standardize_rule_references(self._normalize_bullets(sub.content))),
                 subsections=sub.subsections,
             )
             for sub in section.subsections

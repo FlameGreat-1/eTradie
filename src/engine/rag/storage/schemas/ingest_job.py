@@ -13,9 +13,7 @@ from engine.shared.db.migrations._schema_registry import Base
 class IngestJobRow(Base):
     __tablename__ = "rag_ingest_jobs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("rag_documents.id", ondelete="CASCADE"),
@@ -32,12 +30,8 @@ class IngestJobRow(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     chunks_created: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     embeddings_created: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    started_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     meta_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

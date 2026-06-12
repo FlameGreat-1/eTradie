@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Generic, Sequence, TypeVar, Optional
+from collections.abc import Sequence
+from typing import Any, TypeVar
 
 from sqlalchemy import Select, delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -30,7 +31,7 @@ MAX_QUERY_LIMIT = 1000
 DEFAULT_QUERY_LIMIT = 100
 
 
-class BaseRepository(Generic[ModelT]):
+class BaseRepository[ModelT: DeclarativeBase]:
     """
     Production-grade base repository with type safety, metrics, and error handling.
 
@@ -48,7 +49,7 @@ class BaseRepository(Generic[ModelT]):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def _get_trace_id(self) -> Optional[str]:
+    def _get_trace_id(self) -> str | None:
         """Extract trace_id from session context if available."""
         return self._session.info.get("trace_id")
 
@@ -56,7 +57,7 @@ class BaseRepository(Generic[ModelT]):
         self,
         operation: str,
         start: float,
-        row_count: Optional[int] = None,
+        row_count: int | None = None,
     ) -> None:
         """Record query metrics."""
         duration = time.monotonic() - start

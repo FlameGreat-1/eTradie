@@ -15,8 +15,8 @@ Created:  2026-05-28
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # Alembic identifiers.
@@ -34,65 +34,65 @@ depends_on = None
 # what was true at this point in history).
 _SEED_ROWS = [
     # Pro Managed: paying tier on platform LLM key.
-    dict(
-        tier="pro_managed",
-        daily_input_tokens=2_000_000,
-        daily_output_tokens=200_000,
-        monthly_input_tokens=20_000_000,
-        monthly_output_tokens=2_000_000,
-        max_input_tokens_per_call=300_000,
-        soft_cap_percent=80,
-        reservation_ttl_seconds=300,
-        allowed_models=[],
-        enforced=True,
-    ),
+    {
+        "tier": "pro_managed",
+        "daily_input_tokens": 2_000_000,
+        "daily_output_tokens": 200_000,
+        "monthly_input_tokens": 20_000_000,
+        "monthly_output_tokens": 2_000_000,
+        "max_input_tokens_per_call": 300_000,
+        "soft_cap_percent": 80,
+        "reservation_ttl_seconds": 300,
+        "allowed_models": [],
+        "enforced": True,
+    },
     # Admin: shares the pro_managed envelope. Confirmed with product:
     # admins consume the platform key by default; capping them on the
     # same numbers keeps the operational ceiling visible and editable
     # from the same panel.
-    dict(
-        tier="admin",
-        daily_input_tokens=2_000_000,
-        daily_output_tokens=200_000,
-        monthly_input_tokens=20_000_000,
-        monthly_output_tokens=2_000_000,
-        max_input_tokens_per_call=300_000,
-        soft_cap_percent=80,
-        reservation_ttl_seconds=300,
-        allowed_models=[],
-        enforced=True,
-    ),
+    {
+        "tier": "admin",
+        "daily_input_tokens": 2_000_000,
+        "daily_output_tokens": 200_000,
+        "monthly_input_tokens": 20_000_000,
+        "monthly_output_tokens": 2_000_000,
+        "max_input_tokens_per_call": 300_000,
+        "soft_cap_percent": 80,
+        "reservation_ttl_seconds": 300,
+        "allowed_models": [],
+        "enforced": True,
+    },
     # Pro BYOK: user supplies their own provider key. The platform
     # never debits a reservation for them; all caps zero so the
     # metering pre-flight returns tier_not_eligible if a Reserve ever
     # reaches the handler (defense-in-depth; in normal flow the
     # engine's uses_platform_key gate already short-circuits this).
-    dict(
-        tier="pro_byok",
-        daily_input_tokens=0,
-        daily_output_tokens=0,
-        monthly_input_tokens=0,
-        monthly_output_tokens=0,
-        max_input_tokens_per_call=0,
-        soft_cap_percent=0,
-        reservation_ttl_seconds=300,
-        allowed_models=[],
-        enforced=False,
-    ),
+    {
+        "tier": "pro_byok",
+        "daily_input_tokens": 0,
+        "daily_output_tokens": 0,
+        "monthly_input_tokens": 0,
+        "monthly_output_tokens": 0,
+        "max_input_tokens_per_call": 0,
+        "soft_cap_percent": 0,
+        "reservation_ttl_seconds": 300,
+        "allowed_models": [],
+        "enforced": False,
+    },
     # Free: same posture as pro_byok. Free users also BYOK on a
     # restricted feature set.
-    dict(
-        tier="free",
-        daily_input_tokens=0,
-        daily_output_tokens=0,
-        monthly_input_tokens=0,
-        monthly_output_tokens=0,
-        max_input_tokens_per_call=0,
-        soft_cap_percent=0,
-        reservation_ttl_seconds=300,
-        allowed_models=[],
-        enforced=False,
-    ),
+    {
+        "tier": "free",
+        "daily_input_tokens": 0,
+        "daily_output_tokens": 0,
+        "monthly_input_tokens": 0,
+        "monthly_output_tokens": 0,
+        "max_input_tokens_per_call": 0,
+        "soft_cap_percent": 0,
+        "reservation_ttl_seconds": 300,
+        "allowed_models": [],
+        "enforced": False,
+    },
 ]
 
 

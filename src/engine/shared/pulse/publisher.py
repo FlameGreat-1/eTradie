@@ -33,7 +33,7 @@ The ``phase`` field maps to the "in-place update" UI rows:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from engine.processor.streaming import stream_channel_for_user
 from engine.shared.logging import get_logger

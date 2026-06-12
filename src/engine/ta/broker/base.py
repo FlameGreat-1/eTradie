@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -14,7 +14,6 @@ logger = get_logger(__name__)
 
 
 class BrokerCapabilities(FrozenModel):
-
     supports_realtime: bool = Field(default=True)
     supports_historical: bool = Field(default=True)
     supports_tick_data: bool = Field(default=False)
@@ -48,7 +47,7 @@ class PositionInfo(FrozenModel):
     commission: float = Field(default=0.0)
     swap: float = Field(default=0.0)
     ticket: str
-    comment: Optional[str] = Field(default="")
+    comment: str | None = Field(default="")
     open_time: int = Field(default=0)  # Unix timestamp
 
 
@@ -65,7 +64,7 @@ class HistoryDealInfo(FrozenModel):
     commission: float
     swap: float
     time: int
-    comment: Optional[str] = Field(default="")
+    comment: str | None = Field(default="")
 
 
 class PendingOrderInfo(FrozenModel):
@@ -78,7 +77,7 @@ class PendingOrderInfo(FrozenModel):
     take_profit: float = Field(ge=0)
     volume: float = Field(gt=0)
     ticket: str
-    comment: Optional[str] = Field(default="")
+    comment: str | None = Field(default="")
     open_time: int = Field(default=0)  # Unix timestamp
 
 
@@ -127,9 +126,9 @@ class BrokerBase(ABC):
         self,
         symbol: str,
         timeframe: Timeframe,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        count: Optional[int] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        count: int | None = None,
     ) -> CandleSequence:
         pass
 
@@ -161,10 +160,10 @@ class BrokerBase(ABC):
         self,
         symbol: str,
         timeframe: Timeframe,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        count: Optional[int] = None,
-    ) -> Optional[CandleSequence]:
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        count: int | None = None,
+    ) -> CandleSequence | None:
         try:
             return await self.fetch_candles(
                 symbol=symbol,
@@ -201,7 +200,7 @@ class BrokerBase(ABC):
         self,
         symbol: str,
         timeframe: Timeframe,
-    ) -> Optional[Candle]:
+    ) -> Candle | None:
         try:
             return await self.fetch_latest_candle(
                 symbol=symbol,

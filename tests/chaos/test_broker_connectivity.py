@@ -6,6 +6,7 @@ with zero infra dependencies.
 
 Audit ref: CHECKLIST Section 2 - every checkbox.
 """
+
 from __future__ import annotations
 
 import asyncio

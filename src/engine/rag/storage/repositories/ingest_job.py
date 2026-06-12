@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Optional, Sequence
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -18,11 +18,7 @@ class IngestJobRepository(BaseRepository[IngestJobRow]):
         self,
         document_id: UUID,
     ) -> Sequence[IngestJobRow]:
-        stmt = (
-            select(self.model)
-            .where(self.model.document_id == document_id)
-            .order_by(self.model.created_at.desc())
-        )
+        stmt = select(self.model).where(self.model.document_id == document_id).order_by(self.model.created_at.desc())
         return await self.execute_query(stmt)
 
     async def get_pending(self, *, limit: int = 20) -> Sequence[IngestJobRow]:
@@ -37,7 +33,7 @@ class IngestJobRepository(BaseRepository[IngestJobRow]):
     async def get_latest_for_document(
         self,
         document_id: UUID,
-    ) -> Optional[IngestJobRow]:
+    ) -> IngestJobRow | None:
         stmt = (
             select(self.model)
             .where(self.model.document_id == document_id)
@@ -48,11 +44,7 @@ class IngestJobRepository(BaseRepository[IngestJobRow]):
         return rows[0] if rows else None
 
     async def mark_running(self, job_id: UUID) -> None:
-        stmt = (
-            update(self.model)
-            .where(self.model.id == job_id)
-            .values(status="running", started_at=datetime.now(UTC))
-        )
+        stmt = update(self.model).where(self.model.id == job_id).values(status="running", started_at=datetime.now(UTC))
         await self._session.execute(stmt)
         await self._session.flush()
 
@@ -82,11 +74,7 @@ class IngestJobRepository(BaseRepository[IngestJobRow]):
         *,
         error_message: str,
     ) -> None:
-        stmt = (
-            update(self.model)
-            .where(self.model.id == job_id)
-            .values(status="failed", error_message=error_message)
-        )
+        stmt = update(self.model).where(self.model.id == job_id).values(status="failed", error_message=error_message)
         await self._session.execute(stmt)
         await self._session.flush()
 

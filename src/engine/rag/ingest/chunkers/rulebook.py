@@ -28,14 +28,9 @@ class RulebookChunker(BaseChunker):
 
             if section.subsections:
                 section_header = f"## {section.heading}"
-                if section.content.strip():
-                    section_text = f"{section_header}\n\n{section.content}"
-                else:
-                    section_text = section_header
+                section_text = f"{section_header}\n\n{section.content}" if section.content.strip() else section_header
 
-                parts = self._split_by_token_limit(
-                    section_text, max_tokens=self._chunk_size
-                )
+                parts = self._split_by_token_limit(section_text, max_tokens=self._chunk_size)
                 for part in parts:
                     chunks.append(
                         RawChunk(
@@ -49,9 +44,7 @@ class RulebookChunker(BaseChunker):
 
                 for sub in section.subsections:
                     sub_text = f"### {sub.heading}\n\n{sub.content}"
-                    sub_parts = self._split_by_token_limit(
-                        sub_text, max_tokens=self._chunk_size
-                    )
+                    sub_parts = self._split_by_token_limit(sub_text, max_tokens=self._chunk_size)
                     for part in sub_parts:
                         chunks.append(
                             RawChunk(
@@ -66,9 +59,7 @@ class RulebookChunker(BaseChunker):
                         idx += 1
             else:
                 section_text = f"## {section.heading}\n\n{section.content}"
-                parts = self._split_by_token_limit(
-                    section_text, max_tokens=self._chunk_size
-                )
+                parts = self._split_by_token_limit(section_text, max_tokens=self._chunk_size)
                 for part in parts:
                     chunks.append(
                         RawChunk(

@@ -21,8 +21,8 @@ user_id = NULL) so they get separate partial unique indexes that
 cannot interact.
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0022"

@@ -38,25 +38,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, and_, text
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from engine.shared.db import DatabaseManager
-from engine.shared.logging import get_logger
-from engine.shared.metrics.prometheus import (
-    SCHEDULER_JOB_DURATION,
-)
-
-# TA schemas
-from engine.ta.storage.schemas.candle import CandleSchema
-from engine.ta.storage.schemas.snapshot import SnapshotSchema
-from engine.ta.storage.schemas.candidate import CandidateSchema
-
-# Processor schemas
-from engine.processor.storage.schemas.processor_schema import (
-    AnalysisOutputRow,
-    AnalysisAuditLogRow,
-)
+from sqlalchemy import and_, delete
 
 # Macro schemas
 from engine.macro.storage.schemas.calendar import CalendarEventRow
@@ -66,6 +48,19 @@ from engine.macro.storage.schemas.dxy import DXYSnapshotRow
 from engine.macro.storage.schemas.economic import EconomicReleaseRow
 from engine.macro.storage.schemas.intermarket import IntermarketSnapshotRow
 from engine.macro.storage.schemas.sentiment import SentimentReadingRow
+
+# Processor schemas
+from engine.processor.storage.schemas.processor_schema import (
+    AnalysisAuditLogRow,
+    AnalysisOutputRow,
+)
+from engine.shared.db import DatabaseManager
+from engine.shared.logging import get_logger
+from engine.ta.storage.schemas.candidate import CandidateSchema
+
+# TA schemas
+from engine.ta.storage.schemas.candle import CandleSchema
+from engine.ta.storage.schemas.snapshot import SnapshotSchema
 
 logger = get_logger(__name__)
 

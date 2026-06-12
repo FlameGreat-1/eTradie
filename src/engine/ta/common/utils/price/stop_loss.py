@@ -34,15 +34,15 @@ a given input.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from engine.shared.risk import (
     LOWEST_STYLE_MIN_RR as _LOWEST_STYLE_MIN_RR,
+)
+from engine.shared.risk import (
     STYLE_MIN_TP_RR,
     style_min_tp_rr,
 )
 from engine.ta.common.utils.price.math import get_pip_value
-from engine.ta.constants import Direction, Timeframe, TIMEFRAME_MINUTES
+from engine.ta.constants import Direction, Timeframe
 
 # Re-exported for existing TA callers that import these names from this
 # module.  The canonical definitions live in engine.shared.risk.
@@ -153,10 +153,10 @@ def timeframe_min_tp_rr(timeframe: Timeframe) -> float:
 
 
 def resolve_min_tp_rr(
-    timeframe: Optional[Timeframe] = None,
-    style_min_rr: Optional[float] = None,
+    timeframe: Timeframe | None = None,
+    style_min_rr: float | None = None,
     *,
-    style: Optional[str] = None,
+    style: str | None = None,
 ) -> float:
     """Combine the per-style minimum R:R with the timeframe floor.
 
@@ -195,7 +195,7 @@ def structural_buffer(
     *,
     symbol: str,
     timeframe: Timeframe,
-    invalidation_candle_range: Optional[float] = None,
+    invalidation_candle_range: float | None = None,
 ) -> float:
     """Compute the price-distance buffer to place beyond the invalidation level.
 
@@ -223,8 +223,8 @@ def compute_structural_stop_loss(
     timeframe: Timeframe,
     direction: Direction,
     invalidation_level: float,
-    ob_inner_edge: Optional[float] = None,
-    invalidation_candle_range: Optional[float] = None,
+    ob_inner_edge: float | None = None,
+    invalidation_candle_range: float | None = None,
 ) -> float:
     """Compute a stop-loss seated beyond the real structural invalidation.
 

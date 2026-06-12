@@ -26,16 +26,16 @@ Create Date: 2026-04-08
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import inspect
 
 revision: str = "0013"
-down_revision: Union[str, None] = "0012"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0012"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # All 7 macro tables that need user_id.
 _TABLES = [
@@ -205,9 +205,7 @@ def _get_existing_indexes(insp, table_name: str) -> set[str]:
 
 
 def _get_existing_constraints(insp, table_name: str) -> set[str]:
-    return {
-        uc["name"] for uc in insp.get_unique_constraints(table_name) if uc.get("name")
-    }
+    return {uc["name"] for uc in insp.get_unique_constraints(table_name) if uc.get("name")}
 
 
 def upgrade() -> None:
@@ -226,9 +224,7 @@ def upgrade() -> None:
 
         op.add_column(
             table_name,
-            sa.Column(
-                "user_id", sa.String(64), nullable=False, server_default="system"
-            ),
+            sa.Column("user_id", sa.String(64), nullable=False, server_default="system"),
         )
 
         index_name = _USER_ID_INDEXES[table_name]

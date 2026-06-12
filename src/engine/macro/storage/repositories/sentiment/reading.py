@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from engine.shared.db.repositories.base_repository import BaseRepository
 from engine.macro.storage.schemas.sentiment import SentimentReadingRow
+from engine.shared.db.repositories.base_repository import BaseRepository
 
 
 class SentimentRepository(BaseRepository[SentimentReadingRow]):

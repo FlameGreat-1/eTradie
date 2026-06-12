@@ -1,13 +1,11 @@
-from typing import Optional
 from datetime import datetime
 
 from engine.shared.logging import get_logger
-from engine.ta.common.analyzers.session import SessionAnalyzer
 from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
-from engine.ta.constants import Session, Direction
+from engine.ta.common.analyzers.session import SessionAnalyzer
+from engine.ta.constants import Direction, Session
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import DealingRange
-from engine.ta.models.session import SessionRange
 from engine.ta.smc.config import SMCConfig
 
 logger = get_logger(__name__)
@@ -39,9 +37,9 @@ class AMDContext:
         timeframe: str,
         timestamp: datetime,
         phase: str,
-        asian_range: Optional[DealingRange],
-        manipulation_direction: Optional[Direction],
-        distribution_direction: Optional[Direction],
+        asian_range: DealingRange | None,
+        manipulation_direction: Direction | None,
+        distribution_direction: Direction | None,
     ) -> None:
         self.symbol = symbol
         self.timeframe = timeframe
@@ -78,7 +76,7 @@ class AMDDetector:
     def detect_amd_context(
         self,
         sequence: CandleSequence,
-    ) -> Optional[AMDContext]:
+    ) -> AMDContext | None:
         asian_range = self._extract_asian_range(sequence)
 
         if not asian_range:
@@ -140,7 +138,7 @@ class AMDDetector:
     def _extract_asian_range(
         self,
         sequence: CandleSequence,
-    ) -> Optional[DealingRange]:
+    ) -> DealingRange | None:
         """Resolve the Asian range for THIS AMD cycle only.
 
         Uses ``extract_most_recent_session_range`` (per-session) and
@@ -159,15 +157,13 @@ class AMDDetector:
         if not asian_range:
             return None
 
-        dealing_range = self.dealing_range_analyzer.create_from_session(asian_range)
-
-        return dealing_range
+        return self.dealing_range_analyzer.create_from_session(asian_range)
 
     def _detect_manipulation(
         self,
         sequence: CandleSequence,
         asian_range: DealingRange,
-    ) -> tuple[bool, Optional[Direction]]:
+    ) -> tuple[bool, Direction | None]:
         london_candles = self.session_analyzer.get_session_candles(
             sequence,
             Session.LONDON,
@@ -196,8 +192,8 @@ class AMDDetector:
         self,
         sequence: CandleSequence,
         asian_range: DealingRange,
-        manipulation_direction: Optional[Direction],
-    ) -> tuple[bool, Optional[Direction]]:
+        manipulation_direction: Direction | None,
+    ) -> tuple[bool, Direction | None]:
         if not manipulation_direction:
             return False, None
 

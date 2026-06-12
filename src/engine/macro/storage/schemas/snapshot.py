@@ -33,14 +33,10 @@ class MacroSnapshotRow(Base):
 
     __tablename__ = "macro_snapshots"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     namespace: Mapped[str] = mapped_column(String(40), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    collected_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

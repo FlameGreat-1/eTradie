@@ -13,9 +13,7 @@ from engine.shared.db.migrations._schema_registry import Base
 class ReembedQueueRow(Base):
     __tablename__ = "rag_reembed_queue"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("rag_documents.id", ondelete="CASCADE"),
@@ -42,9 +40,7 @@ class ReembedQueueRow(Base):
         nullable=False,
         server_default=func.now(),
     )
-    processed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index("ix_rag_reembed_document_id", "document_id"),

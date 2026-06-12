@@ -18,16 +18,11 @@ changing the call shape:
 from __future__ import annotations
 
 import time
-from typing import Any, AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import openai
 
-from engine.shared.logging import get_logger
-from engine.shared.metrics.prometheus import (
-    LLM_REQUEST_DURATION,
-    LLM_REQUEST_TOTAL,
-    LLM_TOKENS_USED,
-)
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import LLMProvider
 from engine.processor.llm.capabilities import get_model_capabilities
@@ -39,6 +34,12 @@ from engine.processor.llm.errors import (
 )
 from engine.processor.llm.reasoning import resolve_reasoning_budget
 from engine.processor.llm.schema_compiler import compile_for_openai
+from engine.shared.logging import get_logger
+from engine.shared.metrics.prometheus import (
+    LLM_REQUEST_DURATION,
+    LLM_REQUEST_TOTAL,
+    LLM_TOKENS_USED,
+)
 
 logger = get_logger(__name__)
 
@@ -53,13 +54,7 @@ def _translate_provider_error(exc: Exception) -> Exception:
         return LLMRateLimitedError(str(exc))
     if "content_policy" in msg or "safety" in msg or "policy violation" in msg:
         return LLMSafetyFilterError(str(exc))
-    if (
-        "timeout" in name
-        or "timeout" in msg
-        or "connection" in msg
-        or "unavailable" in msg
-        or "internalserver" in name
-    ):
+    if "timeout" in name or "timeout" in msg or "connection" in msg or "unavailable" in msg or "internalserver" in name:
         return LLMTransientError(str(exc))
     return exc
 
@@ -111,9 +106,7 @@ class OpenAIClient(LLMClient):
             }
 
         budget = resolve_reasoning_budget(
-            operator_budget_tokens=getattr(
-                self._config, "reasoning_budget_tokens", None
-            ),
+            operator_budget_tokens=getattr(self._config, "reasoning_budget_tokens", None),
             capabilities=self._capabilities,
         )
         if budget.effort is not None and self._capabilities.is_thinking:
@@ -130,7 +123,7 @@ class OpenAIClient(LLMClient):
         *,
         system_prompt: str,
         user_message: str,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
         use_structured_output: bool = True,
     ) -> LLMResponse:
         model = self._config.model_name
@@ -147,12 +140,8 @@ class OpenAIClient(LLMClient):
             )
         except Exception as exc:
             elapsed_ms = (time.monotonic() - start) * 1000
-            LLM_REQUEST_TOTAL.labels(
-                provider=self.PROVIDER, model=model, status="error"
-            ).inc()
-            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(
-                elapsed_ms / 1000
-            )
+            LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="error").inc()
+            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(elapsed_ms / 1000)
             logger.error(
                 "llm_call_failed",
                 extra={
@@ -203,8 +192,8 @@ class OpenAIClient(LLMClient):
         *,
         system_prompt: str,
         user_message: str,
-        trace_id: Optional[str] = None,
-        usage_out: Optional[dict] = None,
+        trace_id: str | None = None,
+        usage_out: dict | None = None,
         use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
@@ -244,15 +233,7 @@ class OpenAIClient(LLMClient):
         await self._client.close()
 
     def _record_metrics(self, model: str, inp: int, out: int, ms: float) -> None:
-        LLM_REQUEST_TOTAL.labels(
-            provider=self.PROVIDER, model=model, status="success"
-        ).inc()
-        LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(
-            ms / 1000
-        )
-        LLM_TOKENS_USED.labels(
-            provider=self.PROVIDER, model=model, token_type="input"
-        ).inc(inp)
-        LLM_TOKENS_USED.labels(
-            provider=self.PROVIDER, model=model, token_type="output"
-        ).inc(out)
+        LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="success").inc()
+        LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(ms / 1000)
+        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="input").inc(inp)
+        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="output").inc(out)

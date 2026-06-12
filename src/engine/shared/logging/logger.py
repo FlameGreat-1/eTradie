@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any, Optional, Set
+from typing import Any
 from uuid import uuid4
 
 import structlog
@@ -30,7 +30,7 @@ from engine.shared.metrics.prometheus import LOG_ENTRIES_TOTAL
 _CONFIGURED = False
 
 # Security: Sensitive field names to sanitize in logs
-_SENSITIVE_FIELDS: Set[str] = {
+_SENSITIVE_FIELDS: set[str] = {
     "password",
     "secret",
     "token",
@@ -105,10 +105,7 @@ def _sanitize_dict(data: dict[str, Any]) -> dict[str, Any]:
         elif isinstance(value, dict):
             sanitized[key] = _sanitize_dict(value)
         elif isinstance(value, list):
-            sanitized[key] = [
-                _sanitize_dict(item) if isinstance(item, dict) else item
-                for item in value
-            ]
+            sanitized[key] = [_sanitize_dict(item) if isinstance(item, dict) else item for item in value]
         else:
             sanitized[key] = value
     return sanitized
@@ -160,9 +157,7 @@ def configure_logging(
     # Validate configuration
     valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
     if log_level.upper() not in valid_levels:
-        raise ValueError(
-            f"Invalid log level '{log_level}'. Must be one of {valid_levels}"
-        )
+        raise ValueError(f"Invalid log level '{log_level}'. Must be one of {valid_levels}")
 
     if not 0.0 <= sample_rate <= 1.0:
         raise ValueError(f"Sample rate must be between 0.0 and 1.0, got {sample_rate}")
@@ -257,7 +252,7 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     return structlog.get_logger(name)
 
 
-def bind_correlation_id(correlation_id: Optional[str] = None) -> str:
+def bind_correlation_id(correlation_id: str | None = None) -> str:
     """
     Bind a correlation ID to the current context for request tracing.
 
@@ -276,7 +271,7 @@ def bind_correlation_id(correlation_id: Optional[str] = None) -> str:
     return cid
 
 
-def bind_trace_id(trace_id: Optional[str] = None) -> str:
+def bind_trace_id(trace_id: str | None = None) -> str:
     """
     Bind a trace ID to the current context for distributed tracing.
 
@@ -297,8 +292,8 @@ def bind_trace_id(trace_id: Optional[str] = None) -> str:
 
 def bind_context(
     *,
-    correlation_id: Optional[str] = None,
-    trace_id: Optional[str] = None,
+    correlation_id: str | None = None,
+    trace_id: str | None = None,
     **kwargs: Any,
 ) -> dict[str, str]:
     """

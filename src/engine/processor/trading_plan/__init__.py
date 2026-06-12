@@ -18,8 +18,8 @@ journal manually.
 """
 
 from engine.processor.trading_plan.generator import (  # noqa: F401
-    TradingPlanGenerator,
     GenerationRequest,
+    TradingPlanGenerator,
 )
 from engine.processor.trading_plan.prompt import (  # noqa: F401
     SYSTEM_PROMPT,

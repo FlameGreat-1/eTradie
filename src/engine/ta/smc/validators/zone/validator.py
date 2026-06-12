@@ -1,20 +1,14 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
-from engine.ta.common.utils.price.math import get_pip_value
 from engine.ta.constants import (
-    Direction,
     FIBONACCI_VALUES,
-    FibonacciLevel,
+    Direction,
     PriceZone,
 )
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
 from engine.ta.models.liquidity_event import InducementEvent, LiquiditySweep
-from engine.ta.models.structure_event import BreakInMarketStructure, ChangeOfCharacter
-from engine.ta.models.swing import SwingHigh, SwingLow
-from engine.ta.models.zone import OrderBlock, FairValueGap
+from engine.ta.models.zone import FairValueGap, OrderBlock
 from engine.ta.smc.config import SMCConfig
 
 logger = get_logger(__name__)
@@ -89,7 +83,7 @@ class ZoneValidator:
         self,
         ob: OrderBlock,
         fvgs: list[FairValueGap],
-    ) -> Optional[FairValueGap]:
+    ) -> FairValueGap | None:
         """Returns the specific FVG associated with the given Order Block."""
         max_distance = self.config.fvg_max_candle_distance
 
@@ -115,9 +109,8 @@ class ZoneValidator:
             if ob.direction == Direction.BULLISH:
                 if fvg.lower_bound >= ob.lower_bound:
                     return fvg
-            else:
-                if fvg.upper_bound <= ob.upper_bound:
-                    return fvg
+            elif fvg.upper_bound <= ob.upper_bound:
+                return fvg
 
         return None
 
@@ -169,7 +162,7 @@ class ZoneValidator:
     def score_ob_fib_confluence(
         self,
         ob: OrderBlock,
-        retracement: Optional[FibonacciRetracement],
+        retracement: FibonacciRetracement | None,
     ) -> int:
         """Score the Fibonacci confluence for an Order Block.
 
@@ -217,7 +210,7 @@ class ZoneValidator:
     def validate_ob_at_premium_discount(
         self,
         ob: OrderBlock,
-        retracement: Optional[FibonacciRetracement],
+        retracement: FibonacciRetracement | None,
     ) -> bool:
         """Rule 5: Premium/Discount check.
 
@@ -245,8 +238,8 @@ class ZoneValidator:
         ob: OrderBlock,
         direction: Direction,
         inducement_events: list[InducementEvent],
-        bms_breakout_price: Optional[float] = None,
-    ) -> Optional[InducementEvent]:
+        bms_breakout_price: float | None = None,
+    ) -> InducementEvent | None:
         """Return the single IDM that is geometrically relevant to ``ob``.
 
         Per SMC-LIQ-004, the IDM a setup must clear is the internal
@@ -303,9 +296,9 @@ class ZoneValidator:
 
     def build_sweep_context(
         self,
-        sweep: Optional[LiquiditySweep],
-        ob: Optional[OrderBlock] = None,
-    ) -> Optional[dict]:
+        sweep: LiquiditySweep | None,
+        ob: OrderBlock | None = None,
+    ) -> dict | None:
         """Build precise liquidity-sweep context for a candidate.
 
         A bare ``swept_level`` float is insufficient to reason about a
@@ -368,8 +361,8 @@ class ZoneValidator:
     def build_fib_context(
         self,
         price: float,
-        retracement: Optional[FibonacciRetracement],
-    ) -> Optional[dict]:
+        retracement: FibonacciRetracement | None,
+    ) -> dict | None:
         """Build precise Fibonacci context for a candidate entry price.
 
         Returns a structured dict containing:
@@ -508,10 +501,9 @@ class ZoneValidator:
                 if candle.close < ob.lower_bound:
                     return False
 
-            else:
-                # Bearish OB (supply zone): Invalidated if price CLOSES completely above the high.
-                if candle.close > ob.upper_bound:
-                    return False
+            # Bearish OB (supply zone): Invalidated if price CLOSES completely above the high.
+            elif candle.close > ob.upper_bound:
+                return False
 
         return True
 
@@ -544,7 +536,7 @@ class ZoneValidator:
         fvgs: list[FairValueGap],
         liquidity_sweeps: list[LiquiditySweep],
         inducement_events: list[InducementEvent],
-        retracement: Optional[FibonacciRetracement],
+        retracement: FibonacciRetracement | None,
         sequence: CandleSequence,
         other_obs: list[OrderBlock],
     ) -> bool:

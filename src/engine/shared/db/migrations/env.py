@@ -7,9 +7,6 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from engine.config import get_settings
-from engine.shared.db.migrations._schema_registry import Base  # noqa: F401
-
 # Schema imports — Alembic needs these so table metadata registers on
 # Base.metadata. Each package's __init__.py re-exports every schema
 # module via `from ... import *` so importing the package alone is
@@ -17,9 +14,11 @@ from engine.shared.db.migrations._schema_registry import Base  # noqa: F401
 # __init__.py re-exports each module so Base.metadata is populated.
 # Audit ref: FV-M1.
 import engine.macro.storage.schemas  # noqa: F401
-import engine.ta.storage.schemas  # noqa: F401
 import engine.processor.storage.schemas  # noqa: F401
 import engine.rag.storage.schemas  # noqa: F401
+import engine.ta.storage.schemas  # noqa: F401
+from engine.config import get_settings
+from engine.shared.db.migrations._schema_registry import Base  # noqa: F401
 
 config = context.config
 

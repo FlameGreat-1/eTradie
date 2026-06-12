@@ -15,8 +15,6 @@ Both use the same Redis instance and the same key format.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from engine.shared.cache import RedisCache
 from engine.shared.logging import get_logger
 
@@ -58,12 +56,12 @@ class RedisSymbolReader:
     def __init__(
         self,
         cache: RedisCache,
-        default_symbols: Optional[list[str]] = None,
+        default_symbols: list[str] | None = None,
     ) -> None:
         self._cache = cache
         self._defaults = default_symbols or list(_DEFAULT_SYMBOLS)
 
-    async def get_active_symbols(self, user_id: Optional[str] = None) -> list[str]:
+    async def get_active_symbols(self, user_id: str | None = None) -> list[str]:
         """Return the active symbols from Redis, falling back to defaults.
 
         Args:
@@ -91,9 +89,7 @@ class RedisSymbolReader:
             )
 
             if stored is not None and isinstance(stored, list) and len(stored) > 0:
-                symbols = [
-                    s.upper() for s in stored if isinstance(s, str) and s.strip()
-                ]
+                symbols = [s.upper() for s in stored if isinstance(s, str) and s.strip()]
                 if symbols:
                     logger.debug(
                         "symbol_reader_loaded_from_redis",

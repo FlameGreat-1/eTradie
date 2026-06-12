@@ -60,9 +60,7 @@ class Reranker:
 
         # The output floor is at least the mandatory total so the reranker
         # never limits what the LLM needs.
-        mandatory_total = (
-            sum(mandatory.doc_type_min_chunks.values()) if mandatory else 0
-        )
+        mandatory_total = sum(mandatory.doc_type_min_chunks.values()) if mandatory else 0
         effective_top_k = max(configured_top_k, mandatory_total)
 
         scored = [(chunk, self._compute_weighted_score(chunk)) for chunk in chunks]

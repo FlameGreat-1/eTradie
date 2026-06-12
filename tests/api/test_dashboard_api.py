@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.api.conftest import skip_no_infra, CHROMA_AVAILABLE
+from tests.api.conftest import CHROMA_AVAILABLE, skip_no_infra
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio, skip_no_infra]
 
@@ -136,7 +136,8 @@ class TestAnalysisHistory:
     async def test_analysis_history_pagination(self, seeded_client):
         """GET /api/analysis/history?offset=0&limit=2 paginates correctly."""
         resp = await seeded_client.get(
-            "/api/analysis/history", params={"offset": 0, "limit": 2},
+            "/api/analysis/history",
+            params={"offset": 0, "limit": 2},
         )
         assert resp.status_code == 200
         data = resp.json()

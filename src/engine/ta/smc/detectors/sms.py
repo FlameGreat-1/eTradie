@@ -1,5 +1,3 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.constants import Direction
 from engine.ta.models.candle import CandleSequence
@@ -140,7 +138,7 @@ class SMSDetector:
     def get_latest_sms(
         self,
         sms_events: list[ShiftInMarketStructure],
-    ) -> Optional[ShiftInMarketStructure]:
+    ) -> ShiftInMarketStructure | None:
         if not sms_events:
             return None
         return max(sms_events, key=lambda x: x.timestamp)

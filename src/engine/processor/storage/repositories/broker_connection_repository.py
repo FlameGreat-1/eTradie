@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
-from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import select, update
@@ -34,7 +33,11 @@ from engine.processor.storage.schemas.broker_connection_schema import (
 )
 from engine.shared.crypto import (
     decrypt_credential as _decrypt,
+)
+from engine.shared.crypto import (
     encrypt_credential as _encrypt,
+)
+from engine.shared.crypto import (
     key_version_of,
 )
 from engine.shared.logging import get_logger
@@ -104,19 +107,17 @@ def _validate_host(host: str) -> None:
     if len(host) > 253:
         raise ValueError(f"ea_host too long ({len(host)} chars, max 253)")
     if not _HOST_PATTERN.match(host):
-        raise ValueError(
-            f"ea_host must be a valid IP address or hostname, got '{host}'"
-        )
+        raise ValueError(f"ea_host must be a valid IP address or hostname, got '{host}'")
 
 
 def _validate_connection(
     connection_type: str,
     *,
-    ea_host: Optional[str] = None,
-    ea_port: Optional[int] = None,
-    mt5_login: Optional[str] = None,
-    mt5_password: Optional[str] = None,
-    mt5_server: Optional[str] = None,
+    ea_host: str | None = None,
+    ea_port: int | None = None,
+    mt5_login: str | None = None,
+    mt5_password: str | None = None,
+    mt5_server: str | None = None,
 ) -> None:
     """Validate that required fields are present for the connection type.
 
@@ -128,19 +129,14 @@ def _validate_connection(
     is NOT validated here because it is generated AFTER provisioning.
     """
     if connection_type not in VALID_CONNECTION_TYPES:
-        raise ValueError(
-            f"connection_type must be one of {VALID_CONNECTION_TYPES}, "
-            f"got '{connection_type}'"
-        )
+        raise ValueError(f"connection_type must be one of {VALID_CONNECTION_TYPES}, got '{connection_type}'")
 
     if connection_type == CONNECTION_TYPE_EA:
         if not ea_host or not ea_host.strip():
             raise ValueError("ea_host is required for EA connections")
         _validate_host(ea_host.strip())
         if ea_port is None or ea_port < 1024 or ea_port > 65535:
-            raise ValueError(
-                f"ea_port must be 1024..65535 for EA connections, got {ea_port}"
-            )
+            raise ValueError(f"ea_port must be 1024..65535 for EA connections, got {ea_port}")
 
     if connection_type == CONNECTION_TYPE_METAAPI:
         if not mt5_login or not mt5_login.strip():
@@ -183,19 +179,19 @@ class BrokerConnectionRepository:
         connection_type: str,
         name: str,
         # EA fields (auto-populated from env, not user-provided)
-        ea_host: Optional[str] = None,
-        ea_port: Optional[int] = None,
-        ea_auth_token: Optional[str] = None,
+        ea_host: str | None = None,
+        ea_port: int | None = None,
+        ea_auth_token: str | None = None,
         # MetaAPI: account_id and region come from provisioning, not user input
-        metaapi_account_id: Optional[str] = None,
-        metaapi_region: Optional[str] = None,
+        metaapi_account_id: str | None = None,
+        metaapi_region: str | None = None,
         # Hosted: container_id comes from Docker provisioner
-        hosted_container_id: Optional[str] = None,
+        hosted_container_id: str | None = None,
         # Common MT5 info
-        mt5_server: Optional[str] = None,
-        mt5_login: Optional[str] = None,
-        mt5_password: Optional[str] = None,
-        mt5_symbol: Optional[str] = None,
+        mt5_server: str | None = None,
+        mt5_login: str | None = None,
+        mt5_password: str | None = None,
+        mt5_symbol: str | None = None,
         platform: str = "mt5",
         # Activation
         activate: bool = True,
@@ -204,7 +200,7 @@ class BrokerConnectionRepository:
         # can pre-allocate it and pass the same value to the K8s
         # provisioner. The broker_connections.id, the StatefulSet name,
         # and the etradie.connection-id label all line up.
-        id: Optional[str] = None,
+        id: str | None = None,
         # Status overrides
         status: str = STATUS_UNTESTED,
         status_message: str = "",
@@ -239,11 +235,11 @@ class BrokerConnectionRepository:
         # Encrypt sensitive credentials. key_version records which KEK
         # version wrapped the ciphertext written below; it stays None
         # when the row carries no secret at all.
-        encrypted_ea_token: Optional[str] = None
+        encrypted_ea_token: str | None = None
         if ea_auth_token and ea_auth_token.strip():
             encrypted_ea_token = _encrypt(ea_auth_token)
 
-        encrypted_mt5_password: Optional[str] = None
+        encrypted_mt5_password: str | None = None
         if mt5_password and mt5_password.strip():
             encrypted_mt5_password = _encrypt(mt5_password)
 
@@ -252,9 +248,7 @@ class BrokerConnectionRepository:
         # present and None when neither is. Routed through the shared
         # helper so create() and update_connection() derive key_version
         # the same way.
-        row_key_version: Optional[int] = self._effective_key_version(
-            encrypted_mt5_password, encrypted_ea_token
-        )
+        row_key_version: int | None = self._effective_key_version(encrypted_mt5_password, encrypted_ea_token)
 
         # Validate any caller-supplied id up front so an invalid value
         # fails the request cleanly rather than at INSERT time.
@@ -266,9 +260,7 @@ class BrokerConnectionRepository:
                 _UUIDValidate(str(id))
                 row_id = str(id)
             except (ValueError, AttributeError, TypeError) as _id_exc:
-                raise ValueError(
-                    f"broker_connections.id must be a valid UUID; got {id!r}"
-                ) from _id_exc
+                raise ValueError(f"broker_connections.id must be a valid UUID; got {id!r}") from _id_exc
         else:
             row_id = str(uuid4())
 
@@ -319,7 +311,7 @@ class BrokerConnectionRepository:
         self,
         connection_id: str,
         user_id: str,
-    ) -> Optional[BrokerConnectionRow]:
+    ) -> BrokerConnectionRow | None:
         """Return a single connection by ID, scoped to user."""
         stmt = select(BrokerConnectionRow).where(
             BrokerConnectionRow.id == connection_id,
@@ -328,7 +320,7 @@ class BrokerConnectionRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_active(self, user_id: str) -> Optional[BrokerConnectionRow]:
+    async def get_active(self, user_id: str) -> BrokerConnectionRow | None:
         """Return the currently active broker connection for this user, or None."""
         stmt = (
             select(BrokerConnectionRow)
@@ -341,7 +333,7 @@ class BrokerConnectionRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_primary(self, user_id: str) -> Optional[BrokerConnectionRow]:
+    async def get_primary(self, user_id: str) -> BrokerConnectionRow | None:
         """Return the primary broker connection for this user, or None."""
         stmt = (
             select(BrokerConnectionRow)
@@ -371,19 +363,19 @@ class BrokerConnectionRepository:
         connection_id: str,
         user_id: str,
         *,
-        name: Optional[str] = None,
-        ea_host: Optional[str] = None,
-        ea_port: Optional[int] = None,
-        ea_auth_token: Optional[str] = None,
-        metaapi_account_id: Optional[str] = None,
-        metaapi_region: Optional[str] = None,
-        hosted_container_id: Optional[str] = None,
-        mt5_server: Optional[str] = None,
-        mt5_login: Optional[str] = None,
-        mt5_password: Optional[str] = None,
-        mt5_symbol: Optional[str] = None,
-        platform: Optional[str] = None,
-    ) -> Optional[BrokerConnectionRow]:
+        name: str | None = None,
+        ea_host: str | None = None,
+        ea_port: int | None = None,
+        ea_auth_token: str | None = None,
+        metaapi_account_id: str | None = None,
+        metaapi_region: str | None = None,
+        hosted_container_id: str | None = None,
+        mt5_server: str | None = None,
+        mt5_login: str | None = None,
+        mt5_password: str | None = None,
+        mt5_symbol: str | None = None,
+        platform: str | None = None,
+    ) -> BrokerConnectionRow | None:
         """Update fields on an existing connection.
 
         Only non-None values are updated. Credentials are re-encrypted
@@ -431,12 +423,8 @@ class BrokerConnectionRepository:
         if "mt5_password_encrypted" in values or "ea_auth_token_encrypted" in values:
             existing = await self.get_by_id(connection_id, user_id)
             if existing is not None:
-                mt5_ct = values.get(
-                    "mt5_password_encrypted", existing.mt5_password_encrypted
-                )
-                ea_ct = values.get(
-                    "ea_auth_token_encrypted", existing.ea_auth_token_encrypted
-                )
+                mt5_ct = values.get("mt5_password_encrypted", existing.mt5_password_encrypted)
+                ea_ct = values.get("ea_auth_token_encrypted", existing.ea_auth_token_encrypted)
                 values["key_version"] = self._effective_key_version(mt5_ct, ea_ct)
 
         stmt = (
@@ -457,7 +445,7 @@ class BrokerConnectionRepository:
         connection_id: str,
         *,
         chart_symbol: str,
-    ) -> Optional[BrokerConnectionRow]:
+    ) -> BrokerConnectionRow | None:
         """Persist the chart-attach symbol picked by the provisioner.
 
         Called once per (re-)provision after BrokerSyncService has
@@ -469,11 +457,7 @@ class BrokerConnectionRepository:
             "mt5_symbol": chart_symbol.strip(),
             "updated_at": datetime.now(UTC),
         }
-        stmt = (
-            update(BrokerConnectionRow)
-            .where(BrokerConnectionRow.id == connection_id)
-            .values(**values)
-        )
+        stmt = update(BrokerConnectionRow).where(BrokerConnectionRow.id == connection_id).values(**values)
         await self._session.execute(stmt)
         await self._session.flush()
         result = await self._session.execute(
@@ -485,9 +469,7 @@ class BrokerConnectionRepository:
 
     # -- Activate / Deactivate / Set Primary -----------------------------------
 
-    async def activate(
-        self, connection_id: str, user_id: str
-    ) -> Optional[BrokerConnectionRow]:
+    async def activate(self, connection_id: str, user_id: str) -> BrokerConnectionRow | None:
         """Activate a connection (deactivates all others for this user)."""
         await self._deactivate_all(user_id)
 
@@ -504,9 +486,7 @@ class BrokerConnectionRepository:
 
         return await self.get_by_id(connection_id, user_id)
 
-    async def deactivate(
-        self, connection_id: str, user_id: str
-    ) -> Optional[BrokerConnectionRow]:
+    async def deactivate(self, connection_id: str, user_id: str) -> BrokerConnectionRow | None:
         """Deactivate a specific connection, scoped to user."""
         stmt = (
             update(BrokerConnectionRow)
@@ -521,9 +501,7 @@ class BrokerConnectionRepository:
 
         return await self.get_by_id(connection_id, user_id)
 
-    async def set_primary(
-        self, connection_id: str, user_id: str
-    ) -> Optional[BrokerConnectionRow]:
+    async def set_primary(self, connection_id: str, user_id: str) -> BrokerConnectionRow | None:
         """Set a connection as primary (unsets all others for this user).
 
         Also activates the connection if it is not already active.
@@ -558,7 +536,7 @@ class BrokerConnectionRepository:
         status: str,
         status_message: str = "",
         connected: bool = False,
-    ) -> Optional[BrokerConnectionRow]:
+    ) -> BrokerConnectionRow | None:
         """Update the health status of a connection after a test or connect."""
         values: dict = {
             "status": status,
@@ -606,7 +584,7 @@ class BrokerConnectionRepository:
     # -- Internal helpers ------------------------------------------------------
 
     @staticmethod
-    def _effective_key_version(*ciphertexts: Optional[str]) -> Optional[int]:
+    def _effective_key_version(*ciphertexts: str | None) -> int | None:
         """Truthful key_version for a row from its stored ciphertexts.
 
         broker_connections has two encrypted columns but a single

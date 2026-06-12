@@ -16,7 +16,7 @@ Values are reward-to-risk MULTIPLES (R), never pip distances:
 
 from __future__ import annotations
 
-from typing import Final, Optional
+from typing import Final
 
 MIN_RR_SCALPING: Final[float] = 2.0
 MIN_RR_INTRADAY: Final[float] = 3.0
@@ -35,7 +35,7 @@ STYLE_MIN_TP_RR: Final[dict[str, float]] = {
 }
 
 
-def style_min_tp_rr(style: Optional[str]) -> Optional[float]:
+def style_min_tp_rr(style: str | None) -> float | None:
     """Return the rulebook per-style minimum R:R, or None if unknown."""
     if style is None:
         return None

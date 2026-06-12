@@ -1,10 +1,10 @@
 """Tests for TA constants and enums."""
 
 from engine.ta.constants import (
+    SESSION_UTC_RANGES,
     TIMEFRAME_MINUTES,
     Direction,
     Session,
-    SESSION_UTC_RANGES,
     Timeframe,
 )
 

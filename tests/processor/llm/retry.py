@@ -44,6 +44,7 @@ class TestRetrySuccess:
     @pytest.mark.asyncio
     async def test_succeeds_on_first_try(self, fast_config):
         """No retries needed when call succeeds immediately."""
+
         async def ok_call():
             return "ok"
 

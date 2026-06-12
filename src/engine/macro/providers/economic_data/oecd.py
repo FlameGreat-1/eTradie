@@ -18,11 +18,11 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+from engine.macro.models.provider.economic import EconomicRelease
+from engine.macro.providers.economic_data.base import BaseEconomicDataProvider
 from engine.shared.http import HttpClient
 from engine.shared.logging import get_logger
 from engine.shared.models.currency import Currency
-from engine.macro.models.provider.economic import EconomicRelease
-from engine.macro.providers.economic_data.base import BaseEconomicDataProvider
 
 logger = get_logger(__name__)
 
@@ -120,9 +120,7 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
 
     provider_name = "oecd"
 
-    def __init__(
-        self, http_client: HttpClient, *, base_url: str = _OECD_BASE_URL
-    ) -> None:
+    def __init__(self, http_client: HttpClient, *, base_url: str = _OECD_BASE_URL) -> None:
         super().__init__()
         self._http = http_client
         self._base_url = base_url.rstrip("/")
@@ -191,9 +189,7 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
         except (ValueError, TypeError):
             return datetime.now(UTC)
 
-    def _parse_sdmx_response(
-        self, raw: Any, cfg: dict[str, Any]
-    ) -> list[EconomicRelease]:
+    def _parse_sdmx_response(self, raw: Any, cfg: dict[str, Any]) -> list[EconomicRelease]:
         """Parse OECD SDMX-JSON response into EconomicRelease objects."""
         releases: list[EconomicRelease] = []
 
@@ -245,9 +241,7 @@ class OECDEconomicProvider(BaseEconomicDataProvider):
             value = obs_val[0] if isinstance(obs_val, list) and obs_val else None
 
             if country_code in _COUNTRY_CURRENCY_MAP and value is not None:
-                country_obs.setdefault(country_code, []).append(
-                    (time_period, float(value))
-                )
+                country_obs.setdefault(country_code, []).append((time_period, float(value)))
 
         # Build releases: latest = actual, second-latest = previous.
         for country_code, obs_list in country_obs.items():

@@ -7,16 +7,16 @@ Create Date: 2026-03-05
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0001"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -102,9 +102,7 @@ def upgrade() -> None:
         sa.Column("forecast", sa.Float, nullable=True),
         sa.Column("previous", sa.Float, nullable=True),
         sa.Column("surprise", sa.Float, nullable=True),
-        sa.Column(
-            "surprise_direction", sa.String(10), nullable=False, server_default="INLINE"
-        ),
+        sa.Column("surprise_direction", sa.String(10), nullable=False, server_default="INLINE"),
         sa.Column("impact", sa.String(10), nullable=False, server_default="MEDIUM"),
         sa.Column("source", sa.String(50), nullable=False, server_default=""),
         sa.Column("release_time", sa.DateTime(timezone=True), nullable=False),
@@ -115,13 +113,9 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
-    op.create_index(
-        "ix_econ_currency_indicator", "economic_releases", ["currency", "indicator"]
-    )
+    op.create_index("ix_econ_currency_indicator", "economic_releases", ["currency", "indicator"])
     op.create_index("ix_econ_release_time", "economic_releases", ["release_time"])
-    op.create_index(
-        "ix_econ_currency_release", "economic_releases", ["currency", "release_time"]
-    )
+    op.create_index("ix_econ_currency_release", "economic_releases", ["currency", "release_time"])
 
     op.create_table(
         "news_items",
@@ -179,9 +173,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
-    op.create_index(
-        "ix_cal_currency_time", "calendar_events", ["currency", "event_time"]
-    )
+    op.create_index("ix_cal_currency_time", "calendar_events", ["currency", "event_time"])
     op.create_index("ix_cal_event_time", "calendar_events", ["event_time"])
     op.create_index("ix_cal_impact_time", "calendar_events", ["impact", "event_time"])
 
@@ -194,12 +186,8 @@ def upgrade() -> None:
             server_default=sa.text("uuid_generate_v4()"),
         ),
         sa.Column("value", sa.Float, nullable=False),
-        sa.Column(
-            "trend_direction", sa.String(10), nullable=False, server_default="SIDEWAYS"
-        ),
-        sa.Column(
-            "key_levels_json", postgresql.JSON, nullable=False, server_default="{}"
-        ),
+        sa.Column("trend_direction", sa.String(10), nullable=False, server_default="SIDEWAYS"),
+        sa.Column("key_levels_json", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("bias", sa.String(10), nullable=False, server_default="NEUTRAL"),
         sa.Column("analyzed_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column(
@@ -242,9 +230,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
-    op.create_index(
-        "ix_intermarket_snapshot_at", "intermarket_snapshots", ["snapshot_at"]
-    )
+    op.create_index("ix_intermarket_snapshot_at", "intermarket_snapshots", ["snapshot_at"])
 
 
 def downgrade() -> None:

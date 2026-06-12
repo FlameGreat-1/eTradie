@@ -1,5 +1,3 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
 from engine.ta.constants import Direction
@@ -61,9 +59,7 @@ class RSFlipDetector:
             for i in range(swing_high.index + 1, len(sequence.candles)):
                 candle = sequence.candles[i]
 
-                if not self.marubozu_analyzer.is_bullish_marubozu_for_timeframe(
-                    candle, sequence.timeframe
-                ):
+                if not self.marubozu_analyzer.is_bullish_marubozu_for_timeframe(candle, sequence.timeframe):
                     continue
 
                 if candle.close <= swing_high.price:
@@ -101,7 +97,7 @@ class RSFlipDetector:
     @staticmethod
     def get_latest_rs_flip(
         rs_flips: list[RSFlip],
-    ) -> Optional[RSFlip]:
+    ) -> RSFlip | None:
         if not rs_flips:
             return None
 
@@ -122,6 +118,4 @@ class RSFlipDetector:
 
         breakout_candle = sequence.candles[rs_flip.candle_index]
 
-        return self.marubozu_analyzer.is_bullish_marubozu_for_timeframe(
-            breakout_candle, sequence.timeframe
-        )
+        return self.marubozu_analyzer.is_bullish_marubozu_for_timeframe(breakout_candle, sequence.timeframe)

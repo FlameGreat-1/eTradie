@@ -1,29 +1,27 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.candles import CandleAnalyzer
-from engine.ta.common.analyzers.swings import SwingAnalyzer
-from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
 from engine.ta.common.analyzers.compression import CompressionAnalyzer
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
+from engine.ta.common.analyzers.swings import SwingAnalyzer
 from engine.ta.constants import Direction
-from engine.ta.models.candle import CandleSequence
 from engine.ta.models.candidate import SnDCandidate
+from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
 from engine.ta.models.swing import SwingHigh, SwingLow
-from engine.ta.snd.config import SnDConfig
-from engine.ta.snd.detectors.qm import QMDetector
-from engine.ta.snd.detectors.sr_flip import SRFlipDetector
-from engine.ta.snd.detectors.rs_flip import RSFlipDetector
-from engine.ta.snd.detectors.previous_levels import PreviousLevelDetector
-from engine.ta.snd.detectors.mpl import MPLDetector
-from engine.ta.snd.detectors.fakeouts import FakeoutDetector
-from engine.ta.snd.detectors.supply_demand import SupplyDemandDetector
-from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
-from engine.ta.snd.validators.ltf.confirmation import LTFConfirmationValidator
+from engine.ta.snd.builders.candidates.continuation import ContinuationCandidateBuilder
 from engine.ta.snd.builders.candidates.fakeout import FakeoutCandidateBuilder
 from engine.ta.snd.builders.candidates.qm import QMCandidateBuilder
-from engine.ta.snd.builders.candidates.continuation import ContinuationCandidateBuilder
+from engine.ta.snd.config import SnDConfig
+from engine.ta.snd.detectors.fakeouts import FakeoutDetector
+from engine.ta.snd.detectors.mpl import MPLDetector
+from engine.ta.snd.detectors.previous_levels import PreviousLevelDetector
+from engine.ta.snd.detectors.qm import QMDetector
+from engine.ta.snd.detectors.rs_flip import RSFlipDetector
+from engine.ta.snd.detectors.sr_flip import SRFlipDetector
+from engine.ta.snd.detectors.supply_demand import SupplyDemandDetector
+from engine.ta.snd.validators.ltf.confirmation import LTFConfirmationValidator
+from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
 
 logger = get_logger(__name__)
 
@@ -73,15 +71,11 @@ class SnDDetector:
         self.rs_flip_detector = RSFlipDetector(config, marubozu_analyzer)
         self.previous_level_detector = PreviousLevelDetector(config)
         self.mpl_detector = MPLDetector(config)
-        self.fakeout_detector = FakeoutDetector(
-            config, compression_analyzer, marubozu_analyzer
-        )
+        self.fakeout_detector = FakeoutDetector(config, compression_analyzer, marubozu_analyzer)
         self.supply_demand_detector = SupplyDemandDetector(config)
 
         self.marubozu_validator = MarubozuValidator(config, marubozu_analyzer)
-        self.ltf_validator = LTFConfirmationValidator(
-            config, compression_analyzer, fibonacci_analyzer
-        )
+        self.ltf_validator = LTFConfirmationValidator(config, compression_analyzer, fibonacci_analyzer)
 
         self.fakeout_builder = FakeoutCandidateBuilder(
             config,
@@ -133,12 +127,8 @@ class SnDDetector:
         htf_swing_highs = self.swing_analyzer.detect_swing_highs(htf_sequence)
         htf_swing_lows = self.swing_analyzer.detect_swing_lows(htf_sequence)
 
-        htf_qml_levels = self.qm_detector.detect_qml(
-            htf_sequence, htf_swing_highs, htf_swing_lows
-        )
-        htf_qmh_levels = self.qm_detector.detect_qmh(
-            htf_sequence, htf_swing_lows, htf_swing_highs
-        )
+        htf_qml_levels = self.qm_detector.detect_qml(htf_sequence, htf_swing_highs, htf_swing_lows)
+        htf_qmh_levels = self.qm_detector.detect_qmh(htf_sequence, htf_swing_lows, htf_swing_highs)
 
         htf_previous_highs = self.previous_level_detector.detect_previous_highs(
             htf_sequence,
@@ -152,12 +142,8 @@ class SnDDetector:
         ltf_swing_highs = self.swing_analyzer.detect_swing_highs(ltf_sequence)
         ltf_swing_lows = self.swing_analyzer.detect_swing_lows(ltf_sequence)
 
-        ltf_sr_flips = self.sr_flip_detector.detect_sr_flips(
-            ltf_sequence, ltf_swing_lows
-        )
-        ltf_rs_flips = self.rs_flip_detector.detect_rs_flips(
-            ltf_sequence, ltf_swing_highs
-        )
+        ltf_sr_flips = self.sr_flip_detector.detect_sr_flips(ltf_sequence, ltf_swing_lows)
+        ltf_rs_flips = self.rs_flip_detector.detect_rs_flips(ltf_sequence, ltf_swing_highs)
 
         retracement = self._create_fibonacci_retracement(
             htf_swing_highs,
@@ -168,12 +154,10 @@ class SnDDetector:
 
         # Build QML-based candidates (bearish setups)
         for qml in htf_qml_levels:
-            matching_previous_highs = (
-                self.previous_level_detector.find_previous_highs_at_qml(
-                    htf_previous_highs,
-                    qml.level,
-                    htf_sequence.symbol,
-                )
+            matching_previous_highs = self.previous_level_detector.find_previous_highs_at_qml(
+                htf_previous_highs,
+                qml.level,
+                htf_sequence.symbol,
             )
 
             for sr_flip in ltf_sr_flips:
@@ -186,13 +170,11 @@ class SnDDetector:
                 if not fakeout_tests:
                     continue
 
-                breakout_candle_index = (
-                    self.fakeout_detector.check_fakeout_broken_by_marubozu(
-                        ltf_sequence,
-                        sr_flip.new_resistance_level,
-                        Direction.BEARISH,
-                        fakeout_tests[-1].candle_index,
-                    )
+                breakout_candle_index = self.fakeout_detector.check_fakeout_broken_by_marubozu(
+                    ltf_sequence,
+                    sr_flip.new_resistance_level,
+                    Direction.BEARISH,
+                    fakeout_tests[-1].candle_index,
                 )
 
                 mpl_levels = self.mpl_detector.detect_bearish_mpl(
@@ -214,10 +196,7 @@ class SnDDetector:
                     if candidate:
                         candidates.append(candidate)
 
-                if (
-                    self.config.enable_qml_previous_levels_type1
-                    or self.config.enable_qml_previous_levels_type2
-                ):
+                if self.config.enable_qml_previous_levels_type1 or self.config.enable_qml_previous_levels_type2:
                     for prev_high in matching_previous_highs:
                         mpl = mpl_levels[0] if mpl_levels else None
 
@@ -268,12 +247,10 @@ class SnDDetector:
 
         # Build QMH-based candidates (bullish setups)
         for qmh in htf_qmh_levels:
-            matching_previous_lows = (
-                self.previous_level_detector.find_previous_lows_at_qmh(
-                    htf_previous_lows,
-                    qmh.level,
-                    htf_sequence.symbol,
-                )
+            matching_previous_lows = self.previous_level_detector.find_previous_lows_at_qmh(
+                htf_previous_lows,
+                qmh.level,
+                htf_sequence.symbol,
             )
 
             for rs_flip in ltf_rs_flips:
@@ -286,13 +263,11 @@ class SnDDetector:
                 if not fakeout_tests:
                     continue
 
-                breakout_candle_index = (
-                    self.fakeout_detector.check_fakeout_broken_by_marubozu(
-                        ltf_sequence,
-                        rs_flip.new_support_level,
-                        Direction.BULLISH,
-                        fakeout_tests[-1].candle_index,
-                    )
+                breakout_candle_index = self.fakeout_detector.check_fakeout_broken_by_marubozu(
+                    ltf_sequence,
+                    rs_flip.new_support_level,
+                    Direction.BULLISH,
+                    fakeout_tests[-1].candle_index,
                 )
 
                 mpl_levels = self.mpl_detector.detect_bullish_mpl(
@@ -314,10 +289,7 @@ class SnDDetector:
                     if candidate:
                         candidates.append(candidate)
 
-                if (
-                    self.config.enable_qml_previous_levels_type1
-                    or self.config.enable_qml_previous_levels_type2
-                ):
+                if self.config.enable_qml_previous_levels_type1 or self.config.enable_qml_previous_levels_type2:
                     for prev_low in matching_previous_lows:
                         mpl = mpl_levels[0] if mpl_levels else None
 
@@ -403,25 +375,18 @@ class SnDDetector:
 
         for candidate in candidates:
             key = (str(candidate.timeframe), str(candidate.direction))
-            confluences = (
-                candidate.metadata.get("confluences", 0) if candidate.metadata else 0
-            )
+            confluences = candidate.metadata.get("confluences", 0) if candidate.metadata else 0
 
             existing = best.get(key)
             if existing is None:
                 best[key] = candidate
                 continue
 
-            existing_confluences = (
-                existing.metadata.get("confluences", 0) if existing.metadata else 0
-            )
+            existing_confluences = existing.metadata.get("confluences", 0) if existing.metadata else 0
 
             # Higher confluence wins; on tie, more recent wins
-            if confluences > existing_confluences:
-                best[key] = candidate
-            elif (
-                confluences == existing_confluences
-                and candidate.timestamp > existing.timestamp
+            if confluences > existing_confluences or (
+                confluences == existing_confluences and candidate.timestamp > existing.timestamp
             ):
                 best[key] = candidate
 
@@ -431,7 +396,7 @@ class SnDDetector:
         self,
         swing_highs: list[SwingHigh],
         swing_lows: list[SwingLow],
-    ) -> Optional[FibonacciRetracement]:
+    ) -> FibonacciRetracement | None:
         if not swing_highs or not swing_lows:
             return None
 

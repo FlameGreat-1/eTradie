@@ -32,8 +32,8 @@ import json
 import os
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 
@@ -131,22 +131,16 @@ class PerformanceReviewGenerator:
         self._secret = internal_secret
 
     @classmethod
-    def from_container(cls, container: Any) -> Optional["PerformanceReviewGenerator"]:
+    def from_container(cls, container: Any) -> PerformanceReviewGenerator | None:
         """Build a generator using the Container's wired LLM client.
 
         Returns None when the gateway URL, management URL, or shared
         secret is missing (local dev / tests); callers MUST handle
         the None case by responding 503 to the dispatch request.
         """
-        base_url = (
-            os.environ.get("ENGINE_GATEWAY_URL")
-            or os.environ.get("GATEWAY_HTTP_URL")
-            or ""
-        ).strip()
+        base_url = (os.environ.get("ENGINE_GATEWAY_URL") or os.environ.get("GATEWAY_HTTP_URL") or "").strip()
         management_url = (
-            os.environ.get("ENGINE_MANAGEMENT_HTTP_URL")
-            or os.environ.get("MANAGEMENT_HTTP_URL")
-            or ""
+            os.environ.get("ENGINE_MANAGEMENT_HTTP_URL") or os.environ.get("MANAGEMENT_HTTP_URL") or ""
         ).strip()
         secret = (
             os.environ.get("ENGINE_INTERNAL_SHARED_SECRET")
@@ -229,7 +223,7 @@ class PerformanceReviewGenerator:
         if req.period not in ("weekly", "monthly"):
             raise PerformanceReviewGenerationError("invalid period")
 
-        generation_started_at = datetime.now(timezone.utc).isoformat()
+        generation_started_at = datetime.now(UTC).isoformat()
 
         # Step 1: aggregator bundle (from management).
         aggregation = await self._fetch_aggregation(req)
@@ -240,9 +234,7 @@ class PerformanceReviewGenerator:
         # path because the scheduler does not enumerate per-user
         # versions before fanning out).
         profile, profile_version = await self._fetch_profile(req.user_id)
-        effective_version = (
-            profile_version if profile_version > 0 else req.profile_version
-        )
+        effective_version = profile_version if profile_version > 0 else req.profile_version
 
         # Step 3: optional prior review (from gateway).
         prior_review = await self._fetch_prior_review(req)
@@ -267,13 +259,11 @@ class PerformanceReviewGenerator:
         #     BYOK requirement for free / pro_byok users (rule #2 in
         #     PRACTICE.md) while letting admins and managed users run
         #     reviews on the platform key (rule #4).
-        dynamic_client, dynamic_config = (
-            await self._container.load_llm_client_for_background(
-                req.user_id,
-                role=req.role,
-                tier=req.tier,
-                allow_platform_fallback=True,
-            )
+        dynamic_client, dynamic_config = await self._container.load_llm_client_for_background(
+            req.user_id,
+            role=req.role,
+            tier=req.tier,
+            allow_platform_fallback=True,
         )
         if dynamic_client is None or dynamic_config is None:
             raise PerformanceReviewGenerationError(
@@ -316,8 +306,7 @@ class PerformanceReviewGenerator:
                     },
                 )
                 raise PerformanceReviewGenerationError(
-                    f"LLM quota reached for your tier ({exc.dimension}); "
-                    f"resets in {exc.retry_after} seconds"
+                    f"LLM quota reached for your tier ({exc.dimension}); resets in {exc.retry_after} seconds"
                 )
 
             # Bounded retry loop for the LLM call. Shared transient
@@ -326,7 +315,7 @@ class PerformanceReviewGenerator:
             # reservation alive) or refunds and re-raises so the held
             # debit is released within its TTL.
             response = None
-            last_exc: Optional[Exception] = None
+            last_exc: Exception | None = None
             for attempt in range(_LLM_MAX_ATTEMPTS):
                 try:
                     # use_structured_output=False is required here for
@@ -390,9 +379,7 @@ class PerformanceReviewGenerator:
                         # message and we need to diagnose. Symmetric
                         # with trading_plan_llm_call_failed.
                         "error": str(last_exc) if last_exc else "unknown",
-                        "error_type": (
-                            type(last_exc).__name__ if last_exc else "unknown"
-                        ),
+                        "error_type": (type(last_exc).__name__ if last_exc else "unknown"),
                         "failure_code": failure.code,
                     },
                 )
@@ -456,9 +443,7 @@ class PerformanceReviewGenerator:
                 "performance_review_aggregate_transport_error",
                 extra={"user_id": req.user_id, "error": str(exc)},
             )
-            raise PerformanceReviewGenerationError(
-                "could not load trading history; please try again"
-            )
+            raise PerformanceReviewGenerationError("could not load trading history; please try again")
         if resp.status_code != 200:
             logger.warning(
                 "performance_review_aggregate_non_200",
@@ -468,19 +453,13 @@ class PerformanceReviewGenerator:
                     "body_preview": resp.text[:300],
                 },
             )
-            raise PerformanceReviewGenerationError(
-                "could not load trading history; please try again"
-            )
+            raise PerformanceReviewGenerationError("could not load trading history; please try again")
         try:
             data = resp.json()
         except Exception:
-            raise PerformanceReviewGenerationError(
-                "trading history response was not valid JSON"
-            )
+            raise PerformanceReviewGenerationError("trading history response was not valid JSON")
         if not isinstance(data, dict):
-            raise PerformanceReviewGenerationError(
-                "trading history response had an unexpected shape"
-            )
+            raise PerformanceReviewGenerationError("trading history response had an unexpected shape")
         return data
 
     async def _fetch_profile(self, user_id: str) -> tuple[dict[str, Any], int]:
@@ -527,9 +506,7 @@ class PerformanceReviewGenerator:
                 "performance_review_profile_transport_error",
                 extra={"user_id": user_id, "error": str(exc)},
             )
-            raise PerformanceReviewGenerationError(
-                "could not load your trading system; please try again"
-            )
+            raise PerformanceReviewGenerationError("could not load your trading system; please try again")
         if resp.status_code != 200:
             logger.warning(
                 "performance_review_profile_non_200",
@@ -539,19 +516,13 @@ class PerformanceReviewGenerator:
                     "body_preview": resp.text[:300],
                 },
             )
-            raise PerformanceReviewGenerationError(
-                "could not load your trading system; please try again"
-            )
+            raise PerformanceReviewGenerationError("could not load your trading system; please try again")
         try:
             data = resp.json()
         except Exception:
-            raise PerformanceReviewGenerationError(
-                "trading-system response was not valid JSON"
-            )
+            raise PerformanceReviewGenerationError("trading-system response was not valid JSON")
         if not isinstance(data, dict):
-            raise PerformanceReviewGenerationError(
-                "trading-system response had an unexpected shape"
-            )
+            raise PerformanceReviewGenerationError("trading-system response had an unexpected shape")
 
         # The gateway returns status='none' with profile=null when the
         # user has never built (or has reset) their trading system.
@@ -559,9 +530,7 @@ class PerformanceReviewGenerator:
         status = str(data.get("status") or "").lower()
         profile = data.get("profile")
         if status != "active" or not isinstance(profile, dict) or not profile:
-            raise PerformanceReviewGenerationError(
-                "build your trading system before requesting a review"
-            )
+            raise PerformanceReviewGenerationError("build your trading system before requesting a review")
 
         # The version is authoritative: the cron dispatch path passes 0
         # because it does not enumerate per-user versions. Reading the
@@ -693,9 +662,7 @@ class PerformanceReviewGenerator:
         # with the deterministic band; the validator then checks the
         # written value. This is the single source of truth that
         # prevents fake precision.
-        agg_conf = (
-            aggregation.get("confidence") if isinstance(aggregation, dict) else None
-        )
+        agg_conf = aggregation.get("confidence") if isinstance(aggregation, dict) else None
         if isinstance(agg_conf, dict):
             confidence = {
                 "band": str(agg_conf.get("band", "insufficient")),
@@ -719,9 +686,7 @@ class PerformanceReviewGenerator:
                 "worst_behavior": str(metrics.get("worst_behavior", "")),
             },
             "behavioral_analysis": {
-                "patterns": [
-                    str(p) for p in _list_from("behavioral_analysis", "patterns")
-                ],
+                "patterns": [str(p) for p in _list_from("behavioral_analysis", "patterns")],
             },
             "system_adherence": {
                 "items": [
@@ -813,7 +778,7 @@ class PerformanceReviewGenerator:
             _INTERNAL_AUTH_HEADER: self._secret,
             _INTERNAL_USER_ID_HEADER: req.user_id,
         }
-        last_status: Optional[int] = None
+        last_status: int | None = None
         last_body_preview: str = ""
         for attempt in range(_CALLBACK_MAX_ATTEMPTS):
             try:

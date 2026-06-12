@@ -20,18 +20,22 @@ class TestRAGOrchestratorImports:
     def test_orchestrator_importable(self):
         """RAGOrchestrator can be imported without side effects."""
         from engine.rag.orchestrator import RAGOrchestrator
+
         assert RAGOrchestrator is not None
 
     def test_retriever_importable(self):
         from engine.rag.retrieval.retriever import Retriever
+
         assert Retriever is not None
 
     def test_reranker_importable(self):
         from engine.rag.retrieval.reranker import Reranker
+
         assert Reranker is not None
 
     def test_scenario_matcher_importable(self):
         from engine.rag.scenarios.matcher import ScenarioMatcher
+
         assert ScenarioMatcher is not None
 
 

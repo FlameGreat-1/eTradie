@@ -1,15 +1,12 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
-from engine.ta.constants import Direction, Timeframe
-from engine.ta.models.snapshot import TechnicalSnapshot, MultiTimeframeSnapshot
+from engine.ta.constants import Direction
+from engine.ta.models.snapshot import MultiTimeframeSnapshot, TechnicalSnapshot
 from engine.ta.models.zone import Zone
 
 logger = get_logger(__name__)
 
 
 class AlignmentService:
-
     def __init__(
         self,
         *,
@@ -26,9 +23,7 @@ class AlignmentService:
         ltf_snapshot: TechnicalSnapshot,
     ) -> MultiTimeframeSnapshot:
         if htf_snapshot.symbol != ltf_snapshot.symbol:
-            raise ValueError(
-                f"Symbol mismatch: HTF={htf_snapshot.symbol}, LTF={ltf_snapshot.symbol}"
-            )
+            raise ValueError(f"Symbol mismatch: HTF={htf_snapshot.symbol}, LTF={ltf_snapshot.symbol}")
 
         trends_aligned = self._check_trend_alignment(
             htf_snapshot.trend_direction,
@@ -82,7 +77,7 @@ class AlignmentService:
         if not self.require_trend_alignment:
             return True
 
-        if htf_trend == Direction.NEUTRAL or ltf_trend == Direction.NEUTRAL:
+        if Direction.NEUTRAL in (htf_trend, ltf_trend):
             return False
 
         return htf_trend == ltf_trend
@@ -125,10 +120,7 @@ class AlignmentService:
         if ltf_zone.direction != htf_zone.direction:
             return False
 
-        return (
-            ltf_zone.lower_bound >= htf_zone.lower_bound
-            and ltf_zone.upper_bound <= htf_zone.upper_bound
-        )
+        return ltf_zone.lower_bound >= htf_zone.lower_bound and ltf_zone.upper_bound <= htf_zone.upper_bound
 
     def validate_htf_context(
         self,

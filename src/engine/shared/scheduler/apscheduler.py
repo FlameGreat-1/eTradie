@@ -31,7 +31,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable, Coroutine
-from typing import Any, Optional
+from typing import Any
 
 from apscheduler.events import (
     EVENT_JOB_ERROR,
@@ -43,7 +43,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from engine.shared.exceptions import SchedulerError, SchedulerValidationError
+from engine.shared.exceptions import SchedulerValidationError
 from engine.shared.logging import (
     bind_trace_id,
     clear_contextvars,
@@ -51,10 +51,10 @@ from engine.shared.logging import (
     log_panic_recovery,
 )
 from engine.shared.metrics.prometheus import (
+    SCHEDULER_ACTIVE_JOBS,
     SCHEDULER_JOB_DURATION,
     SCHEDULER_JOB_TOTAL,
     SCHEDULER_PENDING_JOBS,
-    SCHEDULER_ACTIVE_JOBS,
 )
 
 logger = get_logger(__name__)
@@ -177,11 +177,7 @@ class SchedulerManager:
             "scheduler_job_missed",
             extra={
                 "job_id": job_id,
-                "scheduled_run_time": (
-                    event.scheduled_run_time.isoformat()
-                    if event.scheduled_run_time
-                    else None
-                ),
+                "scheduled_run_time": (event.scheduled_run_time.isoformat() if event.scheduled_run_time else None),
             },
         )
 
@@ -204,15 +200,13 @@ class SchedulerManager:
             # Validate by attempting to create trigger
             CronTrigger.from_crontab(cron_expression)
         except Exception as e:
-            raise SchedulerValidationError(
-                f"Invalid cron expression '{cron_expression}': {e}"
-            ) from e
+            raise SchedulerValidationError(f"Invalid cron expression '{cron_expression}': {e}") from e
 
     def _create_job_wrapper(
         self,
         func: Callable[..., Coroutine[Any, Any, Any]],
         job_id: str,
-        timeout_seconds: Optional[int],
+        timeout_seconds: int | None,
     ) -> Callable[..., Coroutine[Any, Any, None]]:
         """
         Create job wrapper with panic recovery, timeout, and tracing.
@@ -259,15 +253,13 @@ class SchedulerManager:
                 )
 
                 # Execute with timeout
-                timeout = timeout_seconds or self._job_timeouts.get(
-                    job_id, DEFAULT_JOB_TIMEOUT
-                )
+                timeout = timeout_seconds or self._job_timeouts.get(job_id, DEFAULT_JOB_TIMEOUT)
 
                 try:
                     async with asyncio.timeout(timeout):
                         await func(**kwargs)
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.error(
                         "scheduler_job_timeout",
                         extra={
@@ -307,7 +299,7 @@ class SchedulerManager:
         job_id: str,
         seconds: int,
         kwargs: dict[str, Any] | None = None,
-        timeout_seconds: Optional[int] = None,
+        timeout_seconds: int | None = None,
     ) -> None:
         """
         Add interval-based job.
@@ -357,7 +349,7 @@ class SchedulerManager:
         job_id: str,
         cron_expression: str,
         kwargs: dict[str, Any] | None = None,
-        timeout_seconds: Optional[int] = None,
+        timeout_seconds: int | None = None,
     ) -> None:
         """
         Add cron-based job.

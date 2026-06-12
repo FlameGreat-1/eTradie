@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import abc
 
-from engine.shared.models.events import ProviderCategory
 from engine.macro.models.provider.calendar import CalendarEvent
 from engine.macro.providers.base import BaseProvider
+from engine.shared.models.events import ProviderCategory
 
 
 class BaseCalendarProvider(BaseProvider, abc.ABC):

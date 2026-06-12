@@ -26,10 +26,9 @@ sentinel. See engine.processor.performance_review.generator.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, HTTPException
 
 from engine.processor.performance_review import GenerationRequest
@@ -45,7 +44,7 @@ _ACTIVE_USERS_TIMEOUT_S = 15.0
 
 def _compute_weekly_window(now: datetime) -> tuple[datetime, datetime]:
     """Trailing 7 days ending at the start of today (UTC)."""
-    now = now.astimezone(timezone.utc)
+    now = now.astimezone(UTC)
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     start = today - timedelta(days=7)
     end = today - timedelta(microseconds=1)
@@ -54,13 +53,11 @@ def _compute_weekly_window(now: datetime) -> tuple[datetime, datetime]:
 
 def _compute_monthly_window(now: datetime) -> tuple[datetime, datetime]:
     """Last full calendar month (UTC)."""
-    now = now.astimezone(timezone.utc)
+    now = now.astimezone(UTC)
     first_of_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     # Last day of previous month at 23:59:59.999999.
     last_day_prev = first_of_this_month - timedelta(microseconds=1)
-    first_of_prev_month = last_day_prev.replace(
-        day=1, hour=0, minute=0, second=0, microsecond=0
-    )
+    first_of_prev_month = last_day_prev.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     return first_of_prev_month, last_day_prev
 
 
@@ -149,13 +146,9 @@ async def _run_period_cron(app: FastAPI, period: str) -> None:
     in-process dispatch reuses the engine's container, so no separate
     self-URL is required.
     """
-    gateway_url = (
-        os.environ.get("ENGINE_GATEWAY_URL") or os.environ.get("GATEWAY_HTTP_URL") or ""
-    ).strip()
+    gateway_url = (os.environ.get("ENGINE_GATEWAY_URL") or os.environ.get("GATEWAY_HTTP_URL") or "").strip()
     secret = (
-        os.environ.get("ENGINE_INTERNAL_SHARED_SECRET")
-        or os.environ.get("GATEWAY_ENGINE_INTERNAL_SHARED_SECRET")
-        or ""
+        os.environ.get("ENGINE_INTERNAL_SHARED_SECRET") or os.environ.get("GATEWAY_ENGINE_INTERNAL_SHARED_SECRET") or ""
     ).strip()
     if not gateway_url or not secret:
         logger.warning(
@@ -177,7 +170,7 @@ async def _run_period_cron(app: FastAPI, period: str) -> None:
         )
         return
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if period == "weekly":
         period_start, period_end = _compute_weekly_window(now)
     elif period == "monthly":

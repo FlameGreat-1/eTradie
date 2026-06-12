@@ -22,17 +22,12 @@ for thinking-capable SKUs (Opus 4.x with extended thinking enabled).
 from __future__ import annotations
 
 import time
-from typing import Any, AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import anthropic
 import orjson
 
-from engine.shared.logging import get_logger
-from engine.shared.metrics.prometheus import (
-    LLM_REQUEST_DURATION,
-    LLM_REQUEST_TOTAL,
-    LLM_TOKENS_USED,
-)
 from engine.processor.config import ProcessorConfig
 from engine.processor.constants import LLMProvider
 from engine.processor.llm.capabilities import get_model_capabilities
@@ -44,6 +39,12 @@ from engine.processor.llm.errors import (
 )
 from engine.processor.llm.reasoning import resolve_reasoning_budget
 from engine.processor.llm.schema_compiler import compile_for_anthropic
+from engine.shared.logging import get_logger
+from engine.shared.metrics.prometheus import (
+    LLM_REQUEST_DURATION,
+    LLM_REQUEST_TOTAL,
+    LLM_TOKENS_USED,
+)
 
 logger = get_logger(__name__)
 
@@ -123,9 +124,7 @@ class AnthropicClient(LLMClient):
             kwargs["tool_choice"] = {"type": "tool", "name": _TOOL_NAME}
 
         budget = resolve_reasoning_budget(
-            operator_budget_tokens=getattr(
-                self._config, "reasoning_budget_tokens", None
-            ),
+            operator_budget_tokens=getattr(self._config, "reasoning_budget_tokens", None),
             capabilities=self._capabilities,
         )
         if (
@@ -165,7 +164,7 @@ class AnthropicClient(LLMClient):
         *,
         system_prompt: str,
         user_message: str,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
         use_structured_output: bool = True,
     ) -> LLMResponse:
         model = self._config.model_name
@@ -181,12 +180,8 @@ class AnthropicClient(LLMClient):
             )
         except Exception as exc:
             elapsed_ms = (time.monotonic() - start) * 1000
-            LLM_REQUEST_TOTAL.labels(
-                provider=self.PROVIDER, model=model, status="error"
-            ).inc()
-            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(
-                elapsed_ms / 1000
-            )
+            LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="error").inc()
+            LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(elapsed_ms / 1000)
             logger.error(
                 "llm_call_failed",
                 extra={
@@ -231,8 +226,8 @@ class AnthropicClient(LLMClient):
         *,
         system_prompt: str,
         user_message: str,
-        trace_id: Optional[str] = None,
-        usage_out: Optional[dict] = None,
+        trace_id: str | None = None,
+        usage_out: dict | None = None,
         use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
@@ -296,18 +291,10 @@ class AnthropicClient(LLMClient):
         await self._client.close()
 
     def _record_metrics(self, model: str, inp: int, out: int, ms: float) -> None:
-        LLM_REQUEST_TOTAL.labels(
-            provider=self.PROVIDER, model=model, status="success"
-        ).inc()
-        LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(
-            ms / 1000
-        )
-        LLM_TOKENS_USED.labels(
-            provider=self.PROVIDER, model=model, token_type="input"
-        ).inc(inp)
-        LLM_TOKENS_USED.labels(
-            provider=self.PROVIDER, model=model, token_type="output"
-        ).inc(out)
+        LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="success").inc()
+        LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(ms / 1000)
+        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="input").inc(inp)
+        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="output").inc(out)
 
     @staticmethod
     def _log_completion(

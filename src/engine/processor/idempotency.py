@@ -41,10 +41,9 @@ import hashlib
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Optional
 
-from engine.shared.logging import get_logger
 from engine.processor.models.io import ProcessorOutput
+from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -76,7 +75,7 @@ _AWAIT_POLL_INTERVAL_SECONDS = 0.25
 
 def compute_digest(*, user_id: str, symbol: str, prompt_hash: str) -> str:
     """Return the stable dedupe digest for an analysis call."""
-    raw = f"{user_id}:{symbol}:{prompt_hash}".encode("utf-8")
+    raw = f"{user_id}:{symbol}:{prompt_hash}".encode()
     return hashlib.sha256(raw).hexdigest()
 
 
@@ -110,17 +109,13 @@ class ProcessorIdempotency:
         # only get/set/try_acquire_lock/release_lock are used.
         self._cache = cache
 
-    async def check_cached(
-        self, digest: str, *, trace_id: Optional[str] = None
-    ) -> Optional[ProcessorOutput]:
+    async def check_cached(self, digest: str, *, trace_id: str | None = None) -> ProcessorOutput | None:
         """Return a cached ProcessorOutput for this digest, or None.
 
         Fails open: any cache error returns None (treat as a miss).
         """
         try:
-            raw = await self._cache.get(
-                _NAMESPACE, _result_key(digest), trace_id=trace_id
-            )
+            raw = await self._cache.get(_NAMESPACE, _result_key(digest), trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001 - fail open on any cache error
             logger.warning(
                 "processor_idempotency_get_failed",
@@ -138,9 +133,7 @@ class ProcessorIdempotency:
             )
             return None
 
-    async def acquire(
-        self, digest: str, *, trace_id: Optional[str] = None
-    ) -> Optional[LockHandle]:
+    async def acquire(self, digest: str, *, trace_id: str | None = None) -> LockHandle | None:
         """Try to become the single in-flight owner for this digest.
 
         Returns a LockHandle when this caller owns the lock (it must run
@@ -157,9 +150,7 @@ class ProcessorIdempotency:
         """
         token = uuid.uuid4().hex
         try:
-            acquired = await self._cache.try_acquire_lock(
-                _NAMESPACE, _lock_key(digest), token, _LOCK_TTL_SECONDS
-            )
+            acquired = await self._cache.try_acquire_lock(_NAMESPACE, _lock_key(digest), token, _LOCK_TTL_SECONDS)
         except Exception as exc:  # noqa: BLE001 - fail open: run the analysis
             logger.warning(
                 "processor_idempotency_lock_failed_failing_open",
@@ -170,9 +161,7 @@ class ProcessorIdempotency:
             return LockHandle(digest=digest, token=token)
         return None
 
-    async def await_result(
-        self, digest: str, *, trace_id: Optional[str] = None
-    ) -> Optional[ProcessorOutput]:
+    async def await_result(self, digest: str, *, trace_id: str | None = None) -> ProcessorOutput | None:
         """Poll the result key for a bounded window for the owner's output.
 
         Used by a duplicate caller that found the lock held. Returns the
@@ -193,7 +182,7 @@ class ProcessorIdempotency:
         digest: str,
         output: ProcessorOutput,
         *,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> None:
         """Cache a SUCCESSFUL ProcessorOutput for this digest.
 
@@ -215,18 +204,14 @@ class ProcessorIdempotency:
                 extra={"digest": digest, "error": str(exc), "trace_id": trace_id},
             )
 
-    async def release(
-        self, handle: LockHandle, *, trace_id: Optional[str] = None
-    ) -> None:
+    async def release(self, handle: LockHandle, *, trace_id: str | None = None) -> None:
         """Release the single-flight lock (compare-and-delete by token).
 
         Best-effort: a failed release just means the lock lingers until
         its TTL, which is harmless because the result is already cached.
         """
         try:
-            await self._cache.release_lock(
-                _NAMESPACE, _lock_key(handle.digest), handle.token
-            )
+            await self._cache.release_lock(_NAMESPACE, _lock_key(handle.digest), handle.token)
         except Exception as exc:  # noqa: BLE001 - best effort
             logger.warning(
                 "processor_idempotency_release_failed",

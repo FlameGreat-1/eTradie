@@ -28,9 +28,9 @@ from __future__ import annotations
 import asyncio
 import json
 import time as _time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum, unique
-from typing import Awaitable, Callable
 
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
@@ -144,11 +144,7 @@ class BrokerHeartbeatService:
         """
         key = (provider, account_id)
         existing = self._connections.get(key)
-        if (
-            existing is not None
-            and existing.task is not None
-            and not existing.task.done()
-        ):
+        if existing is not None and existing.task is not None and not existing.task.done():
             existing.task.cancel()
         state = _ConnState(
             provider=provider,
@@ -176,11 +172,7 @@ class BrokerHeartbeatService:
     async def stop(self) -> None:
         """Cancel every loop. Called on engine shutdown."""
         self._stopped.set()
-        tasks = [
-            s.task
-            for s in self._connections.values()
-            if s.task is not None and not s.task.done()
-        ]
+        tasks = [s.task for s in self._connections.values() if s.task is not None and not s.task.done()]
         for t in tasks:
             t.cancel()
         if tasks:
@@ -210,7 +202,7 @@ class BrokerHeartbeatService:
                         state.probe(),
                         timeout=self._timeout,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     result = HeartbeatResult(
                         ok=False,
                         error_type="TimeoutError",
@@ -281,11 +273,7 @@ class BrokerHeartbeatService:
             state.consecutive_failures += 1
             if state.consecutive_failures >= self._failure_threshold:
                 previous = state.state
-                state.state = (
-                    HeartbeatState.DISCONNECTED
-                    if not result.broker_connected
-                    else HeartbeatState.DEGRADED
-                )
+                state.state = HeartbeatState.DISCONNECTED if not result.broker_connected else HeartbeatState.DEGRADED
                 BROKER_CONNECTION_STATE.labels(
                     provider=state.provider,
                     account_id=state.account_id,

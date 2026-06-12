@@ -1,5 +1,3 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.compression import CompressionAnalyzer
 from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
@@ -196,19 +194,16 @@ class FakeoutDetector:
         fakeout_level: float,
         direction: Direction,
         last_fakeout_index: int,
-    ) -> Optional[int]:
+    ) -> int | None:
         for i in range(last_fakeout_index + 1, len(sequence.candles)):
             candle = sequence.candles[i]
 
             if direction == Direction.BULLISH:
-                if self.marubozu_analyzer.is_bullish_marubozu(candle):
-                    if candle.close > fakeout_level:
-                        return i
+                if self.marubozu_analyzer.is_bullish_marubozu(candle) and candle.close > fakeout_level:
+                    return i
 
-            else:
-                if self.marubozu_analyzer.is_bearish_marubozu(candle):
-                    if candle.close < fakeout_level:
-                        return i
+            elif self.marubozu_analyzer.is_bearish_marubozu(candle) and candle.close < fakeout_level:
+                return i
 
         return None
 
@@ -226,19 +221,10 @@ class FakeoutDetector:
         next_candle = sequence.candles[candle_index + 1]
 
         if direction == Direction.BEARISH:
-            if (
-                prev_candle.high < candle.high
-                and next_candle.high < candle.high
-                and candle.close < prev_candle.close
-            ):
+            if prev_candle.high < candle.high and next_candle.high < candle.high and candle.close < prev_candle.close:
                 return True
 
-        else:
-            if (
-                prev_candle.low > candle.low
-                and next_candle.low > candle.low
-                and candle.close > prev_candle.close
-            ):
-                return True
+        elif prev_candle.low > candle.low and next_candle.low > candle.low and candle.close > prev_candle.close:
+            return True
 
         return False

@@ -63,8 +63,7 @@ def _load_secret() -> bytes:
     if not secret:
         if is_prod_like:
             raise RuntimeError(
-                "ENGINE_INTERNAL_SHARED_SECRET is required in "
-                f"{app_env}. Generate with: openssl rand -hex 32"
+                f"ENGINE_INTERNAL_SHARED_SECRET is required in {app_env}. Generate with: openssl rand -hex 32"
             )
         # Development: log a warning but don't crash. The dependency
         # will reject every request with 401 until the secret is set,

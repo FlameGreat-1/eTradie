@@ -43,18 +43,12 @@ class MacroNormalizer(BaseNormalizer):
         return replace(doc, content=content, sections=sections)
 
     def _normalize_section(self, section: LoadedSection) -> LoadedSection:
-        content = self._clean_whitespace(
-            self._standardize_currency_refs(self._normalize_bullets(section.content))
-        )
+        content = self._clean_whitespace(self._standardize_currency_refs(self._normalize_bullets(section.content)))
         subsections = tuple(
             LoadedSection(
                 heading=sub.heading,
                 level=sub.level,
-                content=self._clean_whitespace(
-                    self._standardize_currency_refs(
-                        self._normalize_bullets(sub.content)
-                    )
-                ),
+                content=self._clean_whitespace(self._standardize_currency_refs(self._normalize_bullets(sub.content))),
                 subsections=sub.subsections,
             )
             for sub in section.subsections

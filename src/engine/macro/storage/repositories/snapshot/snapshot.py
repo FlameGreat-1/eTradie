@@ -5,8 +5,8 @@ from typing import Any
 
 from sqlalchemy import select
 
-from engine.shared.db.repositories.base_repository import BaseRepository
 from engine.macro.storage.schemas.snapshot import MacroSnapshotRow
+from engine.shared.db.repositories.base_repository import BaseRepository
 
 
 class MacroSnapshotRepository(BaseRepository[MacroSnapshotRow]):
@@ -24,9 +24,7 @@ class MacroSnapshotRepository(BaseRepository[MacroSnapshotRow]):
 
     async def get_payload(self, namespace: str) -> dict[str, Any] | None:
         """Return the last persisted dataset JSON for a namespace, or None."""
-        stmt = (
-            select(self.model.payload).where(self.model.namespace == namespace).limit(1)
-        )
+        stmt = select(self.model.payload).where(self.model.namespace == namespace).limit(1)
         result = await self._session.execute(stmt)
         row = result.scalar_one_or_none()
         return row if isinstance(row, dict) else None

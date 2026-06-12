@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Sequence
 from uuid import UUID
 
 from sqlalchemy import select
@@ -50,10 +50,7 @@ class RetrievalLogRepository(BaseRepository[RetrievalLogRow]):
         limit: int = 100,
     ) -> Sequence[RetrievalLogRow]:
         stmt = (
-            select(self.model)
-            .where(self.model.user_id == user_id)
-            .order_by(self.model.created_at.desc())
-            .limit(limit)
+            select(self.model).where(self.model.user_id == user_id).order_by(self.model.created_at.desc()).limit(limit)
         )
         return await self.execute_query(stmt)
 
@@ -66,9 +63,7 @@ class RetrievalLogRepository(BaseRepository[RetrievalLogRow]):
         limit: int = 50,
     ) -> Sequence[RetrievalLogRow]:
         stmt = (
-            select(self.model)
-            .where(self.model.user_id == user_id)
-            .where(self.model.coverage_result == coverage_result)
+            select(self.model).where(self.model.user_id == user_id).where(self.model.coverage_result == coverage_result)
         )
         if since:
             stmt = stmt.where(self.model.created_at >= since)
@@ -103,9 +98,5 @@ class RetrievalLogRepository(BaseRepository[RetrievalLogRow]):
         self,
         trace_id: str,
     ) -> Sequence[RetrievalLogRow]:
-        stmt = (
-            select(self.model)
-            .where(self.model.trace_id == trace_id)
-            .order_by(self.model.created_at.desc())
-        )
+        stmt = select(self.model).where(self.model.trace_id == trace_id).order_by(self.model.created_at.desc())
         return await self.execute_query(stmt)

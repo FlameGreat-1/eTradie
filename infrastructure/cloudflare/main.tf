@@ -172,9 +172,9 @@ resource "cloudflare_zone_settings_override" "bot" {
   zone_id = var.zone_id
 
   settings {
-    # "bic" = Browser Integrity Check; combined with the dashboard's
+    # "browser_check" = Browser Integrity Check; combined with the dashboard's
     # Super Bot Fight Mode this is the Pro/Business-tier bot defence.
-    bic = "on"
+    browser_check = "on"
   }
 
   lifecycle {

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Optional, Sequence
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -19,16 +19,14 @@ class DocumentVersionRepository(BaseRepository[DocumentVersionRow]):
         document_id: UUID,
     ) -> Sequence[DocumentVersionRow]:
         stmt = (
-            select(self.model)
-            .where(self.model.document_id == document_id)
-            .order_by(self.model.version_number.desc())
+            select(self.model).where(self.model.document_id == document_id).order_by(self.model.version_number.desc())
         )
         return await self.execute_query(stmt)
 
     async def get_latest(
         self,
         document_id: UUID,
-    ) -> Optional[DocumentVersionRow]:
+    ) -> DocumentVersionRow | None:
         stmt = (
             select(self.model)
             .where(self.model.document_id == document_id)
@@ -41,7 +39,7 @@ class DocumentVersionRepository(BaseRepository[DocumentVersionRow]):
     async def get_active(
         self,
         document_id: UUID,
-    ) -> Optional[DocumentVersionRow]:
+    ) -> DocumentVersionRow | None:
         stmt = (
             select(self.model)
             .where(
@@ -83,7 +81,7 @@ class DocumentVersionRepository(BaseRepository[DocumentVersionRow]):
         self,
         document_id: UUID,
         checksum: str,
-    ) -> Optional[DocumentVersionRow]:
+    ) -> DocumentVersionRow | None:
         stmt = (
             select(self.model)
             .where(

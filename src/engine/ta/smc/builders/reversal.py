@@ -1,5 +1,3 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
@@ -7,24 +5,24 @@ from engine.ta.common.utils.price.stop_loss import (
     compute_structural_stop_loss,
     resolve_min_tp_rr,
 )
-from engine.ta.constants import Direction, CandidatePattern
-from engine.ta.models.swing import SwingHigh, SwingLow
+from engine.ta.constants import CandidatePattern, Direction
 from engine.ta.models.candidate import SMCCandidate
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
-from engine.ta.models.liquidity_event import LiquiditySweep, InducementEvent
+from engine.ta.models.liquidity_event import InducementEvent, LiquiditySweep
 from engine.ta.models.structure_event import (
     BreakInMarketStructure,
     ChangeOfCharacter,
     ShiftInMarketStructure,
 )
-from engine.ta.models.zone import OrderBlock, FairValueGap
+from engine.ta.models.swing import SwingHigh, SwingLow
+from engine.ta.models.zone import FairValueGap, OrderBlock
 from engine.ta.smc.builders.fib_leg import (
     select_leg_for_sms_bms_rto,
 )
 from engine.ta.smc.config import SMCConfig
-from engine.ta.smc.validators.zone.validator import ZoneValidator
 from engine.ta.smc.validators.ltf.confirmation import LTFConfirmationValidator
+from engine.ta.smc.validators.zone.validator import ZoneValidator
 
 logger = get_logger(__name__)
 
@@ -89,12 +87,12 @@ class ReversalBuilder:
         ltf_sequence: CandleSequence,
         htf_sms: ShiftInMarketStructure,
         ltf_bms: BreakInMarketStructure,
-        ltf_choch: Optional[ChangeOfCharacter],
+        ltf_choch: ChangeOfCharacter | None,
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        swing_highs: Optional[list[SwingHigh]] = None,
-    ) -> Optional[SMCCandidate]:
+        swing_highs: list[SwingHigh] | None = None,
+    ) -> SMCCandidate | None:
         """Build an SMS_BMS_RTO_BULLISH candidate.
 
         The Fibonacci leg for this candidate is built inline from
@@ -204,9 +202,7 @@ class ReversalBuilder:
             inducement_cleared=relevant_idm is not None,
             inducement_level=relevant_idm.inducement_level if relevant_idm else None,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=(
-                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
-            ),
+            ltf_confirmation_timestamp=(ltf_sequence.candles[-1].timestamp if ltf_confirmed else None),
             displacement_pips=ltf_bms.displacement_pips,
             fib_level=self._fib_level_str(entry_price, candidate_retracement),
             metadata=self._build_metadata(
@@ -235,12 +231,12 @@ class ReversalBuilder:
         ltf_sequence: CandleSequence,
         htf_sms: ShiftInMarketStructure,
         ltf_bms: BreakInMarketStructure,
-        ltf_choch: Optional[ChangeOfCharacter],
+        ltf_choch: ChangeOfCharacter | None,
         ltf_ob: OrderBlock,
         ltf_fvgs: list[FairValueGap],
         inducement_events: list[InducementEvent],
-        swing_lows: Optional[list[SwingLow]] = None,
-    ) -> Optional[SMCCandidate]:
+        swing_lows: list[SwingLow] | None = None,
+    ) -> SMCCandidate | None:
         """Build an SMS_BMS_RTO_BEARISH candidate.
 
         The Fibonacci leg for this candidate is built inline from
@@ -350,9 +346,7 @@ class ReversalBuilder:
             inducement_cleared=relevant_idm is not None,
             inducement_level=relevant_idm.inducement_level if relevant_idm else None,
             ltf_confirmation=ltf_confirmed,
-            ltf_confirmation_timestamp=(
-                ltf_sequence.candles[-1].timestamp if ltf_confirmed else None
-            ),
+            ltf_confirmation_timestamp=(ltf_sequence.candles[-1].timestamp if ltf_confirmed else None),
             displacement_pips=ltf_bms.displacement_pips,
             fib_level=self._fib_level_str(entry_price, candidate_retracement),
             metadata=self._build_metadata(
@@ -379,8 +373,8 @@ class ReversalBuilder:
         self,
         ltf_sequence: CandleSequence,
         sweep: LiquiditySweep,
-        swing_highs: Optional[list[SwingHigh]] = None,
-    ) -> Optional[SMCCandidate]:
+        swing_highs: list[SwingHigh] | None = None,
+    ) -> SMCCandidate | None:
         """Build a TURTLE_SOUP_LONG candidate.
 
         Per-candidate fib leg is drawn from the swept SSL level up to
@@ -409,9 +403,7 @@ class ReversalBuilder:
             direction=Direction.BULLISH,
             invalidation_level=sweep.sweep_low,
         )
-        turtle_min_sl = sweep.sweep_low - (
-            self.config.turtle_soup_min_sl_pips * pip_val
-        )
+        turtle_min_sl = sweep.sweep_low - (self.config.turtle_soup_min_sl_pips * pip_val)
         stop_loss = min(structural_sl, turtle_min_sl)
         take_profit = self._find_nearest_bsl_target(
             entry_price,
@@ -465,8 +457,8 @@ class ReversalBuilder:
         self,
         ltf_sequence: CandleSequence,
         sweep: LiquiditySweep,
-        swing_lows: Optional[list[SwingLow]] = None,
-    ) -> Optional[SMCCandidate]:
+        swing_lows: list[SwingLow] | None = None,
+    ) -> SMCCandidate | None:
         """Build a TURTLE_SOUP_SHORT candidate.
 
         Per-candidate fib leg is drawn from the nearest opposing
@@ -494,9 +486,7 @@ class ReversalBuilder:
             direction=Direction.BEARISH,
             invalidation_level=sweep.sweep_high,
         )
-        turtle_min_sl = sweep.sweep_high + (
-            self.config.turtle_soup_min_sl_pips * pip_val
-        )
+        turtle_min_sl = sweep.sweep_high + (self.config.turtle_soup_min_sl_pips * pip_val)
         stop_loss = max(structural_sl, turtle_min_sl)
         take_profit = self._find_nearest_ssl_target(
             entry_price,
@@ -550,10 +540,10 @@ class ReversalBuilder:
         self,
         sms: ShiftInMarketStructure,
         bms: BreakInMarketStructure,
-        choch: Optional[ChangeOfCharacter],
+        choch: ChangeOfCharacter | None,
         ob: OrderBlock,
         fvgs: list[FairValueGap],
-        retracement: Optional[FibonacciRetracement],
+        retracement: FibonacciRetracement | None,
         inducement_events: list[InducementEvent],
     ) -> int:
         """Count all confluences for a reversal candidate.
@@ -610,7 +600,7 @@ class ReversalBuilder:
         self,
         ob: OrderBlock,
         direction: Direction,
-        protective_level: Optional[float],
+        protective_level: float | None,
     ) -> float:
         """Compute SL beyond the pattern's REAL structural invalidation.
 
@@ -626,9 +616,7 @@ class ReversalBuilder:
             if protective_level is not None
             else (ob.lower_bound if direction == Direction.BULLISH else ob.upper_bound)
         )
-        ob_inner_edge = (
-            ob.lower_bound if direction == Direction.BULLISH else ob.upper_bound
-        )
+        ob_inner_edge = ob.lower_bound if direction == Direction.BULLISH else ob.upper_bound
         return compute_structural_stop_loss(
             symbol=ob.symbol,
             timeframe=ob.timeframe,
@@ -642,9 +630,9 @@ class ReversalBuilder:
         entry_price: float,
         swing_highs: list[SwingHigh],
         pip_val: float,
-        stop_loss: Optional[float] = None,
-        min_tp_rr: Optional[float] = None,
-    ) -> Optional[float]:
+        stop_loss: float | None = None,
+        min_tp_rr: float | None = None,
+    ) -> float | None:
         """Find the nearest BSL (swing high) above entry as the TP target.
 
         Only swings whose distance from ``entry_price`` is at least
@@ -660,9 +648,7 @@ class ReversalBuilder:
             min_reward = sl_distance * rr
 
         candidates = [
-            sh.price
-            for sh in swing_highs
-            if sh.price > entry_price and (sh.price - entry_price) >= min_reward
+            sh.price for sh in swing_highs if sh.price > entry_price and (sh.price - entry_price) >= min_reward
         ]
         if candidates:
             return min(candidates)
@@ -673,9 +659,9 @@ class ReversalBuilder:
         entry_price: float,
         swing_lows: list[SwingLow],
         pip_val: float,
-        stop_loss: Optional[float] = None,
-        min_tp_rr: Optional[float] = None,
-    ) -> Optional[float]:
+        stop_loss: float | None = None,
+        min_tp_rr: float | None = None,
+    ) -> float | None:
         """Find the nearest SSL (swing low) below entry as the TP target.
 
         Only swings whose distance from ``entry_price`` is at least
@@ -691,9 +677,7 @@ class ReversalBuilder:
             min_reward = sl_distance * rr
 
         candidates = [
-            sl.price
-            for sl in swing_lows
-            if sl.price < entry_price and (entry_price - sl.price) >= min_reward
+            sl.price for sl in swing_lows if sl.price < entry_price and (entry_price - sl.price) >= min_reward
         ]
         if candidates:
             return max(candidates)
@@ -702,8 +686,8 @@ class ReversalBuilder:
     def _fib_level_str(
         self,
         price: float,
-        retracement: Optional[FibonacciRetracement],
-    ) -> Optional[str]:
+        retracement: FibonacciRetracement | None,
+    ) -> str | None:
         """Return the exact retracement percentage the entry price falls on,
         formatted to 3 decimals.  Returns None when no retracement is
         available or the price falls outside the swing leg.  ``retracement``
@@ -718,9 +702,9 @@ class ReversalBuilder:
         self,
         base: dict,
         price: float,
-        retracement: Optional[FibonacciRetracement],
-        sweep: Optional[LiquiditySweep] = None,
-        ob: Optional[OrderBlock] = None,
+        retracement: FibonacciRetracement | None,
+        sweep: LiquiditySweep | None = None,
+        ob: OrderBlock | None = None,
     ) -> dict:
         """Attach fib_context and sweep_context to the metadata dict.
 

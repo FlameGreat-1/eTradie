@@ -5,8 +5,8 @@ Revises: 0007
 Create Date: 2026-03-25
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects.postgresql import UUID
 
 revision = "0008"
@@ -15,9 +15,6 @@ branch_labels = None
 depends_on = None
 
 
-from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import inspect
 
 revision = "0008"
@@ -49,9 +46,7 @@ def upgrade() -> None:
                 nullable=False,
                 server_default="16384",
             ),
-            sa.Column(
-                "is_active", sa.Boolean(), nullable=False, server_default="false"
-            ),
+            sa.Column("is_active", sa.Boolean(), nullable=False, server_default="false"),
             sa.Column("label", sa.String(100), nullable=False, server_default=""),
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
             sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -66,36 +61,24 @@ def upgrade() -> None:
 
         # Add each missing column individually
         if "id" not in existing_columns:
-            op.add_column(
-                table_name, sa.Column("id", UUID(as_uuid=True), primary_key=True)
-            )
+            op.add_column(table_name, sa.Column("id", UUID(as_uuid=True), primary_key=True))
 
         if "provider" not in existing_columns:
-            op.add_column(
-                table_name, sa.Column("provider", sa.String(30), nullable=False)
-            )
+            op.add_column(table_name, sa.Column("provider", sa.String(30), nullable=False))
 
         if "model_name" not in existing_columns:
-            op.add_column(
-                table_name, sa.Column("model_name", sa.String(100), nullable=False)
-            )
+            op.add_column(table_name, sa.Column("model_name", sa.String(100), nullable=False))
 
         if "api_key_encrypted" not in existing_columns:
-            op.add_column(
-                table_name, sa.Column("api_key_encrypted", sa.Text(), nullable=False)
-            )
+            op.add_column(table_name, sa.Column("api_key_encrypted", sa.Text(), nullable=False))
 
         if "base_url" not in existing_columns:
-            op.add_column(
-                table_name, sa.Column("base_url", sa.String(500), nullable=True)
-            )
+            op.add_column(table_name, sa.Column("base_url", sa.String(500), nullable=True))
 
         if "temperature" not in existing_columns:
             op.add_column(
                 table_name,
-                sa.Column(
-                    "temperature", sa.Float(), nullable=False, server_default="0.0"
-                ),
+                sa.Column("temperature", sa.Float(), nullable=False, server_default="0.0"),
             )
 
         if "max_output_tokens" not in existing_columns:
@@ -112,9 +95,7 @@ def upgrade() -> None:
         if "is_active" not in existing_columns:
             op.add_column(
                 table_name,
-                sa.Column(
-                    "is_active", sa.Boolean(), nullable=False, server_default="false"
-                ),
+                sa.Column("is_active", sa.Boolean(), nullable=False, server_default="false"),
             )
 
         if "label" not in existing_columns:

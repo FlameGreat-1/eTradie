@@ -12,17 +12,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time as _time
-from datetime import datetime, timezone
-from typing import Any, Optional
 import urllib.parse
+from datetime import UTC, datetime
+from typing import Any
 
 from engine.shared.exceptions import (
-    ProviderAuthenticationError,
-    ProviderDisconnectedError,
     ProviderError,
     ProviderResponseError,
-    ProviderStalePriceError,
-    ProviderUnavailableError,
 )
 from engine.shared.http.client import HttpClient
 from engine.shared.logging import get_logger
@@ -35,10 +31,10 @@ from engine.ta.broker.base import (
     AccountInfo,
     BrokerBase,
     BrokerCapabilities,
+    HistoryDealInfo,
     OrderResult,
     PendingOrderInfo,
     PositionInfo,
-    HistoryDealInfo,
     TickPrice,
 )
 from engine.ta.broker.connectivity import (
@@ -76,17 +72,15 @@ class MetaApiClient(BrokerBase):
     """Cloud-based MT5 data provider via MetaApi.cloud REST API."""
 
     _BASE_URL_TEMPLATE = "https://mt-client-api-v1.{region}.agiliumtrade.ai"
-    _MARKET_DATA_URL_TEMPLATE = (
-        "https://mt-market-data-client-api-v1.{region}.agiliumtrade.ai"
-    )
+    _MARKET_DATA_URL_TEMPLATE = "https://mt-market-data-client-api-v1.{region}.agiliumtrade.ai"
 
     def __init__(
         self,
         config: MT5Config,
         http_client: HttpClient,
         *,
-        freshness_guard: Optional[TickFreshnessGuard] = None,
-        reconnect_policy: Optional[ReconnectPolicy] = None,
+        freshness_guard: TickFreshnessGuard | None = None,
+        reconnect_policy: ReconnectPolicy | None = None,
     ) -> None:
         super().__init__(broker_id="mt5")
         self.config = config
@@ -101,18 +95,12 @@ class MetaApiClient(BrokerBase):
         self._base_url = (
             config.metaapi_base_url
             if config.metaapi_base_url
-            else self._BASE_URL_TEMPLATE.format(
-                region=config.metaapi_region or "new-york"
-            )
+            else self._BASE_URL_TEMPLATE.format(region=config.metaapi_region or "new-york")
         )
         self._market_data_base_url = (
-            config.metaapi_base_url.replace(
-                "mt-client-api-v1", "mt-market-data-client-api-v1"
-            )
+            config.metaapi_base_url.replace("mt-client-api-v1", "mt-market-data-client-api-v1")
             if config.metaapi_base_url
-            else self._MARKET_DATA_URL_TEMPLATE.format(
-                region=config.metaapi_region or "new-york"
-            )
+            else self._MARKET_DATA_URL_TEMPLATE.format(region=config.metaapi_region or "new-york")
         )
         self._auth_headers = {
             "auth-token": config.metaapi_token,
@@ -180,9 +168,8 @@ class MetaApiClient(BrokerBase):
             if priority == BrokerRequestPriority.BACKGROUND
             else self._candles_foreground_sem
         )
-        async with tier_sem:
-            async with self._candles_global_sem:
-                yield
+        async with tier_sem, self._candles_global_sem:
+            yield
 
     def _url(self, path: str, category: str = "candles") -> str:
         base = self._market_data_base_url if category == "candles" else self._base_url
@@ -221,9 +208,9 @@ class MetaApiClient(BrokerBase):
         self,
         symbol: str,
         timeframe: Timeframe,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        count: Optional[int] = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        count: int | None = None,
     ) -> CandleSequence:
         if start_time and end_time:
             self.validator.validate_time_range(start_time, end_time)
@@ -498,9 +485,7 @@ class MetaApiClient(BrokerBase):
                 uptime_seconds=0.0,
                 raw={"state": state, "connectionStatus": connection_status},
                 error_type="" if ok else "DisconnectedFromBroker",
-                error_message=(
-                    "" if ok else f"state={state} connectionStatus={connection_status}"
-                ),
+                error_message=("" if ok else f"state={state} connectionStatus={connection_status}"),
             )
         except Exception as exc:  # noqa: BLE001
             return HeartbeatResult(
@@ -556,11 +541,7 @@ class MetaApiClient(BrokerBase):
 
         positions = []
         for p in raw:
-            direction = (
-                "BUY"
-                if p.get("type", "POSITION_TYPE_BUY") == "POSITION_TYPE_BUY"
-                else "SELL"
-            )
+            direction = "BUY" if p.get("type", "POSITION_TYPE_BUY") == "POSITION_TYPE_BUY" else "SELL"
             positions.append(
                 PositionInfo(
                     symbol=p.get("symbol", ""),
@@ -585,7 +566,7 @@ class MetaApiClient(BrokerBase):
     async def get_history(self, days: int = 30) -> list[HistoryDealInfo]:
         from datetime import timedelta
 
-        end_time = datetime.now(timezone.utc)
+        end_time = datetime.now(UTC)
         start_time = end_time - timedelta(days=days)
         start_str = start_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
         end_str = end_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
@@ -687,11 +668,7 @@ class MetaApiClient(BrokerBase):
                 details={"ticket": ticket},
             )
 
-        direction = (
-            "BUY"
-            if raw.get("type", "POSITION_TYPE_BUY") == "POSITION_TYPE_BUY"
-            else "SELL"
-        )
+        direction = "BUY" if raw.get("type", "POSITION_TYPE_BUY") == "POSITION_TYPE_BUY" else "SELL"
         return PositionInfo(
             symbol=raw.get("symbol", ""),
             direction=direction,
@@ -884,9 +861,7 @@ class MetaApiClient(BrokerBase):
         payload["clientId"] = f"part_{ticket}_{volume}"
 
         try:
-            raw = await self._api_post(
-                "/trade", payload, category="position_close_partial"
-            )
+            raw = await self._api_post("/trade", payload, category="position_close_partial")
         except Exception as e:
             logger.error(
                 "metaapi_close_partial_failed",

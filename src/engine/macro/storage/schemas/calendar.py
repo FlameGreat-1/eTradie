@@ -13,15 +13,11 @@ from engine.shared.db.migrations._schema_registry import Base
 class CalendarEventRow(Base):
     __tablename__ = "calendar_events"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_name: Mapped[str] = mapped_column(String(300), nullable=False)
     currency: Mapped[str] = mapped_column(String(5), nullable=False)
     impact: Mapped[str] = mapped_column(String(10), nullable=False)
-    event_time: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     actual: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     forecast: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     previous: Mapped[str] = mapped_column(String(50), nullable=False, default="")

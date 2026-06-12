@@ -18,16 +18,16 @@ Create Date: 2026-05-26
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import inspect
 
 revision: str = "0026"
-down_revision: Union[str, None] = "0025"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0025"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 _TABLES = [
     ("rag_retrieval_logs", "ix_rag_retlog_user_id"),
@@ -57,9 +57,7 @@ def upgrade() -> None:
         )
 
         # Step 2: Backfill existing rows with empty string (matches model default).
-        op.execute(
-            sa.text(f"UPDATE {table_name} SET user_id = '' WHERE user_id IS NULL")
-        )
+        op.execute(sa.text(f"UPDATE {table_name} SET user_id = '' WHERE user_id IS NULL"))
 
         # Step 3: Flip to NOT NULL.
         op.alter_column(table_name, "user_id", nullable=False)

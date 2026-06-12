@@ -1,7 +1,6 @@
 """Integration tests for RedisCache against real Redis."""
 
 import asyncio
-import time
 
 import pytest
 

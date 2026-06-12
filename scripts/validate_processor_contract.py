@@ -109,11 +109,9 @@ def validate() -> bool:
     python_path = repo_root / "src" / "engine" / "processor" / "models" / "io.py"
 
     if not proto_path.exists():
-        print(f"ERROR: Proto file not found: {proto_path}")
         return False
 
     if not python_path.exists():
-        print(f"ERROR: Python models file not found: {python_path}")
         return False
 
     proto_messages = parse_proto_messages(proto_path)
@@ -126,7 +124,6 @@ def validate() -> bool:
 
     for proto_msg_name, python_class_name in validations:
         if proto_msg_name not in proto_messages:
-            print(f"ERROR: Message {proto_msg_name} not found in engine.proto")
             all_ok = False
             continue
 
@@ -134,52 +131,30 @@ def validate() -> bool:
         python_fields = get_pydantic_fields(python_class_name, python_path)
 
         if not python_fields:
-            print(f"ERROR: Class {python_class_name} not found in Python models")
             all_ok = False
             continue
 
         # Check every proto field has a Python equivalent.
-        expected_python_fields = {
-            map_proto_field_to_python(f) for f in proto_fields
-        }
+        expected_python_fields = {map_proto_field_to_python(f) for f in proto_fields}
 
         missing_in_python = expected_python_fields - python_fields
         extra_in_python = python_fields - expected_python_fields
 
         if missing_in_python:
-            print(
-                f"DRIFT: {proto_msg_name} -> {python_class_name}\n"
-                f"  Fields in proto but missing in Python: "
-                f"{sorted(missing_in_python)}"
-            )
             all_ok = False
 
         if extra_in_python:
-            print(
-                f"DRIFT: {proto_msg_name} -> {python_class_name}\n"
-                f"  Fields in Python but missing in proto: "
-                f"{sorted(extra_in_python)}"
-            )
             all_ok = False
 
         if not missing_in_python and not extra_in_python:
-            print(
-                f"OK: {proto_msg_name} -> {python_class_name} "
-                f"({len(proto_fields)} fields match)"
-            )
+            pass
 
     return all_ok
 
 
 if __name__ == "__main__":
-    print("Validating processor contract (engine.proto <-> Python models)...")
-    print()
     ok = validate()
-    print()
     if ok:
-        print("All processor contract checks passed.")
         sys.exit(0)
     else:
-        print("FAILED: Processor contract drift detected!")
-        print("Update engine.proto and both implementations to match.")
         sys.exit(1)

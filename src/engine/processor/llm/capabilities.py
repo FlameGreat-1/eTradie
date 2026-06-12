@@ -16,7 +16,6 @@ works via the existing free-text path.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from engine.processor.constants import MODEL_CATALOG, LLMProvider
 
@@ -54,7 +53,7 @@ class ModelCapabilities:
     group: str
     supports_structured_output: bool
     is_thinking: bool
-    default_reasoning_budget_tokens: Optional[int]
+    default_reasoning_budget_tokens: int | None
 
 
 # Provider-level baseline: when the (provider, model) is not present
@@ -72,7 +71,7 @@ _PROVIDER_SUPPORTS_STRUCTURED_OUTPUT: dict[str, bool] = {
     LLMProvider.SELF_HOSTED: False,
 }
 
-_GROUP_DEFAULT_REASONING_BUDGET: dict[str, Optional[int]] = {
+_GROUP_DEFAULT_REASONING_BUDGET: dict[str, int | None] = {
     # Heavy-reasoning groups: capability-driven fallback used when the
     # operator has NOT set ProcessorConfig.reasoning_budget_tokens.
     # 12288 matches the operator default in config.py so both layers
@@ -126,22 +125,16 @@ def get_model_capabilities(provider: str, model_id: str) -> ModelCapabilities:
                 provider=provider,
                 model_id=model_id,
                 group=group,
-                supports_structured_output=_PROVIDER_SUPPORTS_STRUCTURED_OUTPUT.get(
-                    provider, False
-                ),
+                supports_structured_output=_PROVIDER_SUPPORTS_STRUCTURED_OUTPUT.get(provider, False),
                 is_thinking=group in _THINKING_GROUPS,
-                default_reasoning_budget_tokens=_GROUP_DEFAULT_REASONING_BUDGET.get(
-                    group
-                ),
+                default_reasoning_budget_tokens=_GROUP_DEFAULT_REASONING_BUDGET.get(group),
             )
 
     return ModelCapabilities(
         provider=provider,
         model_id=model_id,
         group="unknown",
-        supports_structured_output=_PROVIDER_SUPPORTS_STRUCTURED_OUTPUT.get(
-            provider, False
-        ),
+        supports_structured_output=_PROVIDER_SUPPORTS_STRUCTURED_OUTPUT.get(provider, False),
         is_thinking=False,
         default_reasoning_budget_tokens=None,
     )

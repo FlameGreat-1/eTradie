@@ -1,17 +1,18 @@
 from __future__ import annotations
+
 from pathlib import Path
 
 from engine.config import RAGConfig
 from engine.rag.constants import CollectionName
+from engine.rag.ingest.pipeline import IngestPipeline
 from engine.rag.knowledge.bootstrap.seed import seed_knowledge_assets
 from engine.rag.knowledge.bootstrap.validator import validate_knowledge_readiness
+from engine.rag.services.reembed import ReembedService
+from engine.rag.services.versioning import VersioningService
 from engine.rag.storage.uow import RAGUnitOfWorkFactory
 from engine.rag.vectorstore.base import BaseVectorStore
 from engine.rag.vectorstore.collections import bootstrap_collections
 from engine.shared.exceptions import RAGBootstrapError
-from engine.rag.ingest.pipeline import IngestPipeline
-from engine.rag.services.reembed import ReembedService
-from engine.rag.services.versioning import VersioningService
 from engine.shared.logging import get_logger
 from engine.shared.metrics import RAG_ACTIVE_CHUNKS, RAG_ACTIVE_DOCUMENTS
 
@@ -81,9 +82,7 @@ class BootstrapService:
                         latest_version = await uow.version_repo.get_latest(doc.id)
 
                     if latest_version:
-                        await self._versioning.activate_version(
-                            doc.id, latest_version.id
-                        )
+                        await self._versioning.activate_version(doc.id, latest_version.id)
 
                 # After all are chunked and activated, trigger the actual embedding process
                 await self._drain_reembed_queue()
@@ -120,9 +119,7 @@ class BootstrapService:
         exists has negligible cost.
         """
         try:
-            chroma_count = await self._vector_store.count(
-                self._config.collection_documents
-            )
+            chroma_count = await self._vector_store.count(self._config.collection_documents)
         except Exception as exc:
             logger.warning(
                 "reconcile_chroma_count_failed",
@@ -173,9 +170,7 @@ class BootstrapService:
                     continue
                 # Check if this document already has a pending reembed entry.
                 existing = await uow.reembed_queue_repo.get_by_document(doc.id)
-                has_pending = any(
-                    r.status in ("pending", "running", "retrying") for r in existing
-                )
+                has_pending = any(r.status in ("pending", "running", "retrying") for r in existing)
                 if has_pending:
                     continue
 
@@ -236,7 +231,5 @@ class BootstrapService:
                 for doc in docs:
                     chunks = await uow.chunk_repo.get_by_document(doc.id)
                     chunk_total += len(chunks)
-                RAG_ACTIVE_CHUNKS.labels(collection=CollectionName.DOCUMENTS).set(
-                    chunk_total
-                )
+                RAG_ACTIVE_CHUNKS.labels(collection=CollectionName.DOCUMENTS).set(chunk_total)
             return ready

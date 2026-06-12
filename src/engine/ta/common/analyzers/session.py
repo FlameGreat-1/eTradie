@@ -1,13 +1,11 @@
 from datetime import datetime
-from typing import Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.constants import Session, Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
 from engine.ta.models.session import (
-    SessionState,
     SessionRange,
-    SessionWindow,
+    SessionState,
     get_session_window,
 )
 
@@ -15,7 +13,6 @@ logger = get_logger(__name__)
 
 
 class SessionAnalyzer:
-
     def __init__(self) -> None:
         self.asia_window = get_session_window(Session.ASIA)
         self.london_window = get_session_window(Session.LONDON)
@@ -44,10 +41,7 @@ class SessionAnalyzer:
             is_overlap = False
             overlapping = []
         else:
-            if (
-                Session.LONDON in active_sessions
-                and Session.NEW_YORK in active_sessions
-            ):
+            if Session.LONDON in active_sessions and Session.NEW_YORK in active_sessions:
                 primary_session = Session.OVERLAP_LONDON_NY
             else:
                 primary_session = active_sessions[0]
@@ -68,7 +62,7 @@ class SessionAnalyzer:
         self,
         sequence: CandleSequence,
         session: Session,
-    ) -> Optional[SessionRange]:
+    ) -> SessionRange | None:
         """Aggregate every candle in the sequence whose hour matches ``session``.
 
         NOTE: this method returns a *synthetic* range that merges every
@@ -83,11 +77,7 @@ class SessionAnalyzer:
         """
         session_window = get_session_window(session)
 
-        session_candles = [
-            c
-            for c in sequence.candles
-            if session_window.contains_timestamp(c.timestamp)
-        ]
+        session_candles = [c for c in sequence.candles if session_window.contains_timestamp(c.timestamp)]
 
         if not session_candles:
             return None
@@ -113,7 +103,7 @@ class SessionAnalyzer:
         self,
         sequence: CandleSequence,
         session: Session,
-    ) -> Optional[SessionRange]:
+    ) -> SessionRange | None:
         """Return the range of the most recent contiguous ``session`` block.
 
         Walks ``sequence.candles`` in reverse.  Finds the first candle
@@ -143,7 +133,7 @@ class SessionAnalyzer:
         if not candles:
             return None
 
-        end_index: Optional[int] = None
+        end_index: int | None = None
         for i in range(len(candles) - 1, -1, -1):
             if session_window.contains_timestamp(candles[i].timestamp):
                 end_index = i
@@ -153,9 +143,7 @@ class SessionAnalyzer:
             return None
 
         start_index = end_index
-        while start_index - 1 >= 0 and session_window.contains_timestamp(
-            candles[start_index - 1].timestamp
-        ):
+        while start_index - 1 >= 0 and session_window.contains_timestamp(candles[start_index - 1].timestamp):
             start_index -= 1
 
         block = candles[start_index : end_index + 1]
@@ -184,23 +172,17 @@ class SessionAnalyzer:
     ) -> list[Candle]:
         session_window = get_session_window(session)
 
-        return [
-            c
-            for c in sequence.candles
-            if session_window.contains_timestamp(c.timestamp)
-        ]
+        return [c for c in sequence.candles if session_window.contains_timestamp(c.timestamp)]
 
     def is_london_ny_overlap(self, timestamp: datetime) -> bool:
         hour_utc = timestamp.hour
 
-        return self.london_window.contains_hour(
-            hour_utc
-        ) and self.ny_window.contains_hour(hour_utc)
+        return self.london_window.contains_hour(hour_utc) and self.ny_window.contains_hour(hour_utc)
 
     def get_session_boundaries(
         self,
         sequence: CandleSequence,
-    ) -> dict[Session, Optional[SessionRange]]:
+    ) -> dict[Session, SessionRange | None]:
         return {
             Session.ASIA: self.extract_session_range(sequence, Session.ASIA),
             Session.LONDON: self.extract_session_range(sequence, Session.LONDON),

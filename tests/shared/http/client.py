@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 from aioresponses import aioresponses
 
@@ -46,11 +44,7 @@ async def test_post_success(http_client, mock_aioresponse):
     url = "https://api.example.com/data"
     mock_aioresponse.post(url, payload={"id": 1})
 
-    result = await http_client.post(
-        url,
-        json_body={"name": "test"},
-        provider_name="test"
-    )
+    result = await http_client.post(url, json_body={"name": "test"}, provider_name="test")
 
     assert result == {"id": 1}
 
@@ -71,7 +65,7 @@ async def test_timeout_retry_and_exhaustion(http_client, mock_aioresponse):
     url = "https://api.example.com/timeout"
 
     # Two failures = max_retries (1) + initial attempt (1) exhausted
-    mock_aioresponse.get(url, exception=asyncio.TimeoutError(), repeat=True)
+    mock_aioresponse.get(url, exception=TimeoutError(), repeat=True)
 
     with pytest.raises(ProviderTimeoutError):
         await http_client.get(url)
@@ -141,6 +135,4 @@ async def test_circuit_breaker_trip(http_client, mock_aioresponse):
     # Next call for the same provider must fail fast without hitting
     # the network.
     with pytest.raises(ProviderUnavailableError, match="Circuit breaker OPEN"):
-        await http_client.get(
-            "https://api.example.com/different_url", provider_name="test"
-        )
+        await http_client.get("https://api.example.com/different_url", provider_name="test")

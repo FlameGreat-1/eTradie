@@ -1,7 +1,5 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
-from engine.ta.common.utils.price.math import calculate_pips, calculate_body_percentage
+from engine.ta.common.utils.price.math import calculate_body_percentage, calculate_pips
 from engine.ta.constants import Direction
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.structure_event import BreakInMarketStructure, ChangeOfCharacter
@@ -40,7 +38,7 @@ class OrderBlockDetector:
         self,
         sequence: CandleSequence,
         bms_event: BreakInMarketStructure,
-    ) -> Optional[OrderBlock]:
+    ) -> OrderBlock | None:
         if bms_event.direction != Direction.BULLISH:
             return None
 
@@ -104,7 +102,7 @@ class OrderBlockDetector:
         self,
         sequence: CandleSequence,
         bms_event: BreakInMarketStructure,
-    ) -> Optional[OrderBlock]:
+    ) -> OrderBlock | None:
         if bms_event.direction != Direction.BEARISH:
             return None
 
@@ -168,7 +166,7 @@ class OrderBlockDetector:
         self,
         sequence: CandleSequence,
         choch_event: ChangeOfCharacter,
-    ) -> Optional[OrderBlock]:
+    ) -> OrderBlock | None:
         if choch_event.candle_index < 1:
             return None
 
@@ -177,7 +175,7 @@ class OrderBlockDetector:
                 candle = sequence.candles[i]
 
                 if candle.is_bearish:
-                    ob = OrderBlock(
+                    return OrderBlock(
                         symbol=sequence.symbol,
                         timeframe=sequence.timeframe,
                         upper_bound=candle.high,
@@ -189,14 +187,13 @@ class OrderBlockDetector:
                         is_breaker=False,
                         mitigated=False,
                     )
-                    return ob
 
         else:
             for i in range(choch_event.candle_index - 1, -1, -1):
                 candle = sequence.candles[i]
 
                 if candle.is_bullish:
-                    ob = OrderBlock(
+                    return OrderBlock(
                         symbol=sequence.symbol,
                         timeframe=sequence.timeframe,
                         upper_bound=candle.high,
@@ -208,6 +205,5 @@ class OrderBlockDetector:
                         is_breaker=False,
                         mitigated=False,
                     )
-                    return ob
 
         return None

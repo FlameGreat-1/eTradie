@@ -26,7 +26,7 @@ mismatch' + 'Kill-switch if EA diverges from expected logic'.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from engine.shared.exceptions import EAIdentityMismatchError
 from engine.shared.logging import get_logger
@@ -72,7 +72,7 @@ class EAIdentitySnapshot:
     started_at: int
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "EAIdentitySnapshot":
+    def from_dict(cls, raw: dict[str, Any]) -> EAIdentitySnapshot:
         return cls(
             magic_number=int(raw.get("magic_number", 0) or 0),
             account_login=str(raw.get("account_login", "")).strip(),
@@ -113,26 +113,19 @@ class EAIdentityVerifier:
         """
         mismatches: dict[str, tuple[Any, Any]] = {}
 
-        if (
-            expected.magic_number != 0
-            and observed.magic_number != expected.magic_number
-        ):
+        if expected.magic_number not in (0, observed.magic_number):
             mismatches["magic"] = (expected.magic_number, observed.magic_number)
 
         if expected.account_login and observed.account_login != expected.account_login:
             mismatches["login"] = (expected.account_login, observed.account_login)
 
-        if (
-            expected.account_server
-            and observed.account_server != expected.account_server
-        ):
+        if expected.account_server and observed.account_server != expected.account_server:
             mismatches["server"] = (expected.account_server, observed.account_server)
 
         if (
             expected.minimum_ea_version
             and observed.ea_version
-            and _version_tuple(observed.ea_version)
-            < _version_tuple(expected.minimum_ea_version)
+            and _version_tuple(observed.ea_version) < _version_tuple(expected.minimum_ea_version)
         ):
             mismatches["ea_version"] = (
                 expected.minimum_ea_version,
@@ -156,10 +149,7 @@ class EAIdentityVerifier:
                 extra={
                     "provider": self.provider,
                     "account_id": self.account_id,
-                    "mismatches": {
-                        k: {"expected": v[0], "observed": v[1]}
-                        for k, v in mismatches.items()
-                    },
+                    "mismatches": {k: {"expected": v[0], "observed": v[1]} for k, v in mismatches.items()},
                 },
             )
             raise EAIdentityMismatchError(
@@ -167,10 +157,7 @@ class EAIdentityVerifier:
                 details={
                     "provider": self.provider,
                     "account_id": self.account_id,
-                    "mismatches": {
-                        k: {"expected": v[0], "observed": v[1]}
-                        for k, v in mismatches.items()
-                    },
+                    "mismatches": {k: {"expected": v[0], "observed": v[1]} for k, v in mismatches.items()},
                 },
             )
 

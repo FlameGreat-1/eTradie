@@ -8,7 +8,6 @@ with no I/O.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Optional
 
 from engine.processor.llm.client import LLMResponse
 from engine.processor.models.analysis import AnalysisOutput
@@ -20,10 +19,10 @@ def build_analysis_record(
     *,
     user_id: str,
     status: str = "success",
-    error_message: Optional[str] = None,
+    error_message: str | None = None,
     duration_ms: float = 0.0,
-    trace_id: Optional[str] = None,
-    raw_output: Optional[dict] = None,
+    trace_id: str | None = None,
+    raw_output: dict | None = None,
 ) -> AnalysisRecord:
     """Build an AnalysisRecord from a validated AnalysisOutput."""
     tp_prices = [None, None, None]
@@ -72,7 +71,7 @@ def build_audit_log_record(
     prompt_hash: str,
     validation_passed: bool,
     validation_errors: list[str],
-    trace_id: Optional[str] = None,
+    trace_id: str | None = None,
 ) -> AuditLogRecord:
     """Build an AuditLogRecord from processor state."""
     citations = []
@@ -125,7 +124,7 @@ def build_error_analysis_record(
     error_message: str,
     status: str,
     duration_ms: float = 0.0,
-    trace_id: Optional[str] = None,
+    trace_id: str | None = None,
 ) -> AnalysisRecord:
     """Build an AnalysisRecord for a failed processor invocation."""
     now = datetime.now(UTC)

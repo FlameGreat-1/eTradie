@@ -25,90 +25,110 @@ Tests (in dependency order):
 
 from __future__ import annotations
 
-import sys
-import asyncio
-import os
 import argparse
+import asyncio
+import sys
 import traceback
-from datetime import datetime, timedelta, UTC
 from collections import Counter
-from typing import Optional
+from datetime import UTC, datetime, timedelta
+
+from engine.ta.broker.base import BrokerBase
+from engine.ta.broker.mt5.config import MT5Config
+from engine.ta.broker.mt5.factory import create_mt5_broker
+from engine.ta.common.analyzers.candles import CandleAnalyzer
+from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
+from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
+from engine.ta.common.analyzers.sweeps import SweepAnalyzer
+from engine.ta.common.analyzers.swings import SwingAnalyzer
+from engine.ta.constants import TIMEFRAME_MINUTES, Direction, Timeframe
+from engine.ta.models.candle import CandleSequence
 
 # ── Engine imports ────────────────────────────────────────────────────────
 from engine.ta.smc.config import SMCConfig
-from engine.ta.common.analyzers.candles import CandleAnalyzer
-from engine.ta.common.analyzers.swings import SwingAnalyzer
-from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
-from engine.ta.common.analyzers.sweeps import SweepAnalyzer
-from engine.ta.common.analyzers.liquidity import LiquidityAnalyzer
-from engine.ta.constants import Direction, Timeframe, TIMEFRAME_MINUTES
-from engine.ta.models.candle import CandleSequence
+from engine.ta.smc.detector import SMCDetector
 from engine.ta.smc.detectors.bms import BMSDetector
 from engine.ta.smc.detectors.choch import CHOCHDetector
-from engine.ta.smc.detectors.sms import SMSDetector
 from engine.ta.smc.detectors.inducement import InducementDetector
+from engine.ta.smc.detectors.sms import SMSDetector
+from engine.ta.smc.validators.zone.validator import ZoneValidator
 from engine.ta.smc.zones.fvg import FVGDetector
 from engine.ta.smc.zones.order_block import OrderBlockDetector
-from engine.ta.smc.validators.zone.validator import ZoneValidator
-from engine.ta.smc.detector import SMCDetector
-from engine.ta.broker.mt5.config import MT5Config
-from engine.ta.broker.mt5.factory import create_mt5_broker
-from engine.ta.broker.base import BrokerBase
 
 # ── Constants ─────────────────────────────────────────────────────────────
 LOOKBACKS = {
-    Timeframe.W1: 30, Timeframe.D1: 60, Timeframe.H4: 150,
-    Timeframe.H1: 300, Timeframe.M30: 500, Timeframe.M15: 750,
-    Timeframe.M5: 1000, Timeframe.M1: 1500,
+    Timeframe.W1: 30,
+    Timeframe.D1: 60,
+    Timeframe.H4: 150,
+    Timeframe.H1: 300,
+    Timeframe.M30: 500,
+    Timeframe.M15: 750,
+    Timeframe.M5: 1000,
+    Timeframe.M1: 1500,
 }
 
 ALL_TIMEFRAMES = [
-    Timeframe.W1, Timeframe.D1, Timeframe.H4, Timeframe.H1,
-    Timeframe.M30, Timeframe.M15, Timeframe.M5, Timeframe.M1,
+    Timeframe.W1,
+    Timeframe.D1,
+    Timeframe.H4,
+    Timeframe.H1,
+    Timeframe.M30,
+    Timeframe.M15,
+    Timeframe.M5,
+    Timeframe.M1,
 ]
 
 SEPARATOR = "═" * 72
-SUBSEP    = "─" * 60
+SUBSEP = "─" * 60
 
 
 # ── Formatting helpers ────────────────────────────────────────────────────
 def header(title: str) -> None:
-    print(f"\n{SEPARATOR}")
-    print(f"  {title}")
-    print(SEPARATOR)
+    pass
 
 
 def subheader(title: str) -> None:
-    print(f"\n  {SUBSEP}")
-    print(f"  {title}")
-    print(f"  {SUBSEP}")
+    pass
 
 
-def ok(msg: str)   -> None: print(f"    ✅  {msg}")
-def warn(msg: str)  -> None: print(f"    ⚠️   {msg}")
-def fail(msg: str)  -> None: print(f"    ❌  {msg}")
-def info(msg: str)  -> None: print(f"    ℹ️   {msg}")
-def bullet(msg: str) -> None: print(f"       • {msg}")
+def ok(msg: str) -> None:
+    pass
+
+
+def warn(msg: str) -> None:
+    pass
+
+
+def fail(msg: str) -> None:
+    pass
+
+
+def info(msg: str) -> None:
+    pass
+
+
+def bullet(msg: str) -> None:
+    pass
 
 
 # ══════════════════════════════════════════════════════════════════════════
 #  BROKER / DATA LOADING
 # ══════════════════════════════════════════════════════════════════════════
 
+
 async def create_broker() -> BrokerBase:
     """Create broker from env-var config (same as production)."""
     mt5_config = MT5Config()
     if mt5_config.provider == "native":
         return create_mt5_broker(mt5_config)
-    else:
-        # MetaAPI needs an HTTP client
-        try:
-            from engine.shared.http.client import HttpClient
-            http_client = HttpClient()
-            return create_mt5_broker(mt5_config, http_client)
-        except Exception:
-            # Fallback: try without http_client
-            return create_mt5_broker(mt5_config)
+    # MetaAPI needs an HTTP client
+    try:
+        from engine.shared.http.client import HttpClient
+
+        http_client = HttpClient()
+        return create_mt5_broker(mt5_config, http_client)
+    except Exception:
+        # Fallback: try without http_client
+        return create_mt5_broker(mt5_config)
 
 
 async def fetch_candles(
@@ -138,9 +158,11 @@ async def fetch_candles(
             )
             if seq and seq.count > 0:
                 sequences[tf] = seq
-                ok(f"{tf.value:>4}: {seq.count} candles  "
-                   f"({seq.start_time.strftime('%Y-%m-%d')} → "
-                   f"{seq.end_time.strftime('%Y-%m-%d %H:%M')})")
+                ok(
+                    f"{tf.value:>4}: {seq.count} candles  "
+                    f"({seq.start_time.strftime('%Y-%m-%d')} → "
+                    f"{seq.end_time.strftime('%Y-%m-%d %H:%M')})"
+                )
             else:
                 fail(f"{tf.value:>4}: No data returned")
         except Exception as e:
@@ -153,6 +175,7 @@ async def fetch_candles(
 #  TEST 1: SWING DETECTION
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def test_swings(
     swing_analyzer: SwingAnalyzer,
     sequences: dict[Timeframe, CandleSequence],
@@ -164,7 +187,7 @@ def test_swings(
         subheader(f"{tf.value} ({seq.count} candles)")
         try:
             highs = swing_analyzer.detect_swing_highs(seq)
-            lows  = swing_analyzer.detect_swing_lows(seq)
+            lows = swing_analyzer.detect_swing_lows(seq)
 
             results[tf] = {"highs": highs, "lows": lows}
 
@@ -193,6 +216,7 @@ def test_swings(
 #  TEST 2: BMS DETECTION
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def test_bms(
     bms_detector: BMSDetector,
     sequences: dict[Timeframe, CandleSequence],
@@ -205,19 +229,15 @@ def test_bms(
         subheader(f"{tf.value}")
         try:
             highs = swing_data.get(tf, {}).get("highs", [])
-            lows  = swing_data.get(tf, {}).get("lows", [])
+            lows = swing_data.get(tf, {}).get("lows", [])
 
             bullish = bms_detector.detect_bullish_bms(seq, highs)
             bearish = bms_detector.detect_bearish_bms(seq, lows)
 
             results[tf] = {"bullish": bullish, "bearish": bearish}
 
-            status_b = "✅" if bullish else "❌"
-            status_s = "✅" if bearish else "❌"
-            print(f"    {status_b}  Bullish BMS: {len(bullish)}")
             for b in bullish[-3:]:
                 bullet(f"Break: {b.breakout_price:.2f}  Dir: {b.direction.value}  @  {b.timestamp}")
-            print(f"    {status_s}  Bearish BMS: {len(bearish)}")
             for b in bearish[-3:]:
                 bullet(f"Break: {b.breakout_price:.2f}  Dir: {b.direction.value}  @  {b.timestamp}")
 
@@ -232,6 +252,7 @@ def test_bms(
 #  TEST 3: CHoCH DETECTION
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def test_choch(
     choch_detector: CHOCHDetector,
     sequences: dict[Timeframe, CandleSequence],
@@ -244,19 +265,15 @@ def test_choch(
         subheader(f"{tf.value}")
         try:
             highs = swing_data.get(tf, {}).get("highs", [])
-            lows  = swing_data.get(tf, {}).get("lows", [])
+            lows = swing_data.get(tf, {}).get("lows", [])
 
             bullish = choch_detector.detect_bullish_choch(seq, highs)
             bearish = choch_detector.detect_bearish_choch(seq, lows)
 
             results[tf] = {"bullish": bullish, "bearish": bearish}
 
-            status_b = "✅" if bullish else "⚠️ "
-            status_s = "✅" if bearish else "⚠️ "
-            print(f"    {status_b}  Bullish CHoCH: {len(bullish)}")
             for c in bullish[-3:]:
                 bullet(f"Break: {c.breakout_price:.2f}  Minor: {c.is_minor}  @  {c.timestamp}")
-            print(f"    {status_s}  Bearish CHoCH: {len(bearish)}")
             for c in bearish[-3:]:
                 bullet(f"Break: {c.breakout_price:.2f}  Minor: {c.is_minor}  @  {c.timestamp}")
 
@@ -271,6 +288,7 @@ def test_choch(
 #  TEST 4: SMS DETECTION
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def test_sms(
     sms_detector: SMSDetector,
     sequences: dict[Timeframe, CandleSequence],
@@ -283,17 +301,12 @@ def test_sms(
         subheader(f"{tf.value}")
         try:
             highs = swing_data.get(tf, {}).get("highs", [])
-            lows  = swing_data.get(tf, {}).get("lows", [])
+            lows = swing_data.get(tf, {}).get("lows", [])
 
             bullish = sms_detector.detect_bullish_sms(seq, lows)
             bearish = sms_detector.detect_bearish_sms(seq, highs)
 
             results[tf] = {"bullish": bullish, "bearish": bearish}
-
-            status_b = "✅" if bullish else "⚠️ "
-            status_s = "✅" if bearish else "⚠️ "
-            print(f"    {status_b}  Bullish SMS: {len(bullish)}")
-            print(f"    {status_s}  Bearish SMS: {len(bearish)}")
 
         except Exception as e:
             fail(f"EXCEPTION: {e}")
@@ -305,6 +318,7 @@ def test_sms(
 # ══════════════════════════════════════════════════════════════════════════
 #  TEST 5: FVG DETECTION  ← PRIMARY SUSPECT
 # ══════════════════════════════════════════════════════════════════════════
+
 
 def test_fvg(
     fvg_detector: FVGDetector,
@@ -335,25 +349,33 @@ def test_fvg(
                     )
             else:
                 fail(f"Total FVGs: 0  ← NO FVGs DETECTED ON {tf.value}!")
-                info("This means the CandleAnalyzer.detect_imbalance() found "
-                     "zero 3-candle gaps where candle2 wick doesn't overlap "
-                     "candle1/candle3 wicks.")
+                info(
+                    "This means the CandleAnalyzer.detect_imbalance() found "
+                    "zero 3-candle gaps where candle2 wick doesn't overlap "
+                    "candle1/candle3 wicks."
+                )
                 info(f"fvg_min_gap_pips config: {fvg_detector.config.fvg_min_gap_pips}")
 
                 # Debug: check how many raw imbalances exist before pip filter
                 raw_count = 0
                 for i in range(len(seq.candles) - 2):
                     imb = fvg_detector.candle_analyzer.detect_imbalance(
-                        seq.candles[i], seq.candles[i+1], seq.candles[i+2],
+                        seq.candles[i],
+                        seq.candles[i + 1],
+                        seq.candles[i + 2],
                     )
                     if imb:
                         raw_count += 1
                 if raw_count > 0:
-                    warn(f"Raw imbalances (before pip filter): {raw_count} "
-                         f"← FVGs exist but are too small (< {fvg_detector.config.fvg_min_gap_pips} pips)")
+                    warn(
+                        f"Raw imbalances (before pip filter): {raw_count} "
+                        f"← FVGs exist but are too small (< {fvg_detector.config.fvg_min_gap_pips} pips)"
+                    )
                 else:
-                    fail(f"Raw imbalances (before pip filter): 0 "
-                         f"← detect_imbalance() returns None for ALL 3-candle sequences")
+                    fail(
+                        "Raw imbalances (before pip filter): 0 "
+                        "← detect_imbalance() returns None for ALL 3-candle sequences"
+                    )
 
         except Exception as e:
             fail(f"EXCEPTION: {e}")
@@ -365,6 +387,7 @@ def test_fvg(
 # ══════════════════════════════════════════════════════════════════════════
 #  TEST 6: ORDER BLOCK DETECTION
 # ══════════════════════════════════════════════════════════════════════════
+
 
 def test_order_blocks(
     ob_detector: OrderBlockDetector,
@@ -418,6 +441,7 @@ def test_order_blocks(
 #  TEST 7: ZONE FRESHNESS / MITIGATION  ← PRIMARY SUSPECT
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def test_zone_freshness(
     zone_validator: ZoneValidator,
     sequences: dict[Timeframe, CandleSequence],
@@ -452,12 +476,10 @@ def test_zone_freshness(
             if fresh_count > 0:
                 ok(f"Fresh (unmitigated): {fresh_count}")
             else:
-                fail(f"Fresh (unmitigated): 0  ← ALL OBs mitigated!")
+                fail("Fresh (unmitigated): 0  ← ALL OBs mitigated!")
 
             if mitigated_count > 0:
-                status = "❌" if fresh_count == 0 else "⚠️ "
-                print(f"    {status}  Mitigated: {mitigated_count}"
-                      f"  (rule: candle close beyond OB extreme — SMC-OB-004)")
+                pass
 
             info(f"Ratio: {fresh_count}/{len(obs)} fresh")
 
@@ -481,6 +503,7 @@ def test_zone_freshness(
 # ══════════════════════════════════════════════════════════════════════════
 #  TEST 8: FVG ↔ OB PAIRING  ← PRIMARY SUSPECT
 # ══════════════════════════════════════════════════════════════════════════
+
 
 def test_fvg_ob_pairing(
     zone_validator: ZoneValidator,
@@ -535,6 +558,7 @@ def test_fvg_ob_pairing(
 #  TEST 9: FULL ZONE VALIDATION
 # ══════════════════════════════════════════════════════════════════════════
 
+
 def test_full_zone_validation(
     zone_validator: ZoneValidator,
     sequences: dict[Timeframe, CandleSequence],
@@ -572,7 +596,7 @@ def test_full_zone_validation(
 
         fvgs = fvg_data.get(tf, [])
         highs = swing_data.get(tf, {}).get("highs", [])
-        lows  = swing_data.get(tf, {}).get("lows", [])
+        lows = swing_data.get(tf, {}).get("lows", [])
 
         # Detect sweeps + inducements for this timeframe
         sweeps = sweep_analyzer.detect_sweeps_in_sequence(seq, highs, lows)
@@ -591,9 +615,11 @@ def test_full_zone_validation(
         else:
             cleared_ratio = "0/0"
 
-        subheader(f"{tf.value}  —  {len(obs)} OBs | {len(fvgs)} FVGs | "
-                  f"{len(sweeps)} Sweeps | {idm_total} Inducements "
-                  f"(cleared: {cleared_ratio})")
+        subheader(
+            f"{tf.value}  —  {len(obs)} OBs | {len(fvgs)} FVGs | "
+            f"{len(sweeps)} Sweeps | {idm_total} Inducements "
+            f"(cleared: {cleared_ratio})"
+        )
 
         if idm_cleared:
             info("Sample cleared inducements:")
@@ -605,15 +631,23 @@ def test_full_zone_validation(
                     f"cleared_at: {idm.cleared_timestamp}"
                 )
         elif idm_uncleared:
-            info(f"No inducements cleared yet ({len(idm_uncleared)} waiting). "
-                 "This is expected post-Fix 1 for strict-penetration swings.")
+            info(
+                f"No inducements cleared yet ({len(idm_uncleared)} waiting). "
+                "This is expected post-Fix 1 for strict-penetration swings."
+            )
 
         passed = 0
         failed_reasons = Counter()
 
         for ob in obs:
             result = zone_validator.validate_all_ob_rules(
-                ob, fvgs, sweeps, inducements, retracement, seq, [],
+                ob,
+                fvgs,
+                sweeps,
+                inducements,
+                retracement,
+                seq,
+                [],
             )
             if result:
                 passed += 1
@@ -621,8 +655,8 @@ def test_full_zone_validation(
                 # Check individual gates
                 has_fvg = zone_validator.validate_ob_has_fvg(ob, fvgs)
                 has_liq = zone_validator.validate_ob_has_liquidity(ob, sweeps, inducements)
-                at_pd   = zone_validator.validate_ob_at_premium_discount(ob, retracement)
-                fresh   = zone_validator.validate_zone_freshness(ob, seq)
+                at_pd = zone_validator.validate_ob_at_premium_discount(ob, retracement)
+                fresh = zone_validator.validate_zone_freshness(ob, seq)
 
                 if not has_fvg:
                     failed_reasons["has_fvg=False"] += 1
@@ -647,6 +681,7 @@ def test_full_zone_validation(
 # ══════════════════════════════════════════════════════════════════════════
 #  TEST 10: FULL SMC PIPELINE
 # ══════════════════════════════════════════════════════════════════════════
+
 
 def test_full_pipeline(
     sequences: dict[Timeframe, CandleSequence],
@@ -677,7 +712,8 @@ def test_full_pipeline(
         subheader(f"{htf_tf.value} → {ltf_tf.value}")
         try:
             candidates = smc.detect_patterns(
-                sequences[htf_tf], sequences[ltf_tf],
+                sequences[htf_tf],
+                sequences[ltf_tf],
             )
 
             total_candidates.extend(candidates)
@@ -689,8 +725,7 @@ def test_full_pipeline(
                 for pattern, count in pattern_counts.most_common():
                     bullet(f"{pattern}: {count}")
 
-                non_turtle = [c for c in candidates
-                              if "TURTLE" not in c.pattern.value]
+                non_turtle = [c for c in candidates if "TURTLE" not in c.pattern.value]
                 if non_turtle:
                     ok(f"NON-TURTLE candidates: {len(non_turtle)}")
                     for c in non_turtle[-5:]:
@@ -714,7 +749,7 @@ def test_full_pipeline(
                 else:
                     warn("NON-TURTLE candidates: 0")
             else:
-                warn(f"Candidates: 0")
+                warn("Candidates: 0")
 
         except Exception as e:
             fail(f"EXCEPTION: {e}")
@@ -733,7 +768,7 @@ def test_full_pipeline(
     if non_turtle:
         ok(f"NON-TURTLE SOUP CANDIDATES: {len(non_turtle)}")
     else:
-        fail(f"NON-TURTLE SOUP CANDIDATES: 0  ← THE BUG IS CONFIRMED!")
+        fail("NON-TURTLE SOUP CANDIDATES: 0  ← THE BUG IS CONFIRMED!")
         info("All structural candidates (Continuation, Reversal, CHoCH) are being dropped.")
         info("Root cause is in Tests 5/7/8 above (FVG detection or zone validation).")
 
@@ -744,11 +779,13 @@ def test_full_pipeline(
 #  MAIN
 # ══════════════════════════════════════════════════════════════════════════
 
+
 async def main():
     parser = argparse.ArgumentParser(description="eTradie TA Diagnostic Harness")
     parser.add_argument("symbol", help="Trading symbol (e.g. BTCUSDm)")
     parser.add_argument(
-        "--tf", default=None,
+        "--tf",
+        default=None,
         help="Comma-separated timeframes to test (e.g. D1,H4,H1). Default: all.",
     )
     args = parser.parse_args()
@@ -761,23 +798,15 @@ async def main():
             try:
                 timeframes.append(Timeframe(name))
             except ValueError:
-                print(f"Unknown timeframe: {name}")
                 sys.exit(1)
     else:
         timeframes = ALL_TIMEFRAMES
-
-    print(f"\n{'█' * 72}")
-    print(f"  eTradie TA Engine — Diagnostic Harness")
-    print(f"  Symbol:     {symbol}")
-    print(f"  Timeframes: {', '.join(tf.value for tf in timeframes)}")
-    print(f"  Timestamp:  {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}")
-    print(f"{'█' * 72}")
 
     # ── Create broker & fetch data ────────────────────────────────────
     header("PHASE 0: DATA LOADING")
     try:
         broker = await create_broker()
-        ok(f"Broker created successfully")
+        ok("Broker created successfully")
     except Exception as e:
         fail(f"Broker creation failed: {e}")
         traceback.print_exc()
@@ -792,7 +821,7 @@ async def main():
 
     # ── Create detectors (same config as production) ──────────────────
     config = SMCConfig()
-    info(f"SMCConfig loaded:")
+    info("SMCConfig loaded:")
     bullet(f"fvg_min_gap_pips:      {config.fvg_min_gap_pips}")
     bullet(f"fvg_max_candle_distance: {config.fvg_max_candle_distance}")
     bullet(f"require_fvg_with_ob:   {config.require_fvg_with_ob}")
@@ -802,8 +831,8 @@ async def main():
     bullet(f"sweep_max_candle_distance: {config.sweep_max_candle_distance}")
 
     # Create all common analyzers
-    from engine.ta.common.analyzers.session import SessionAnalyzer
     from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
+    from engine.ta.common.analyzers.session import SessionAnalyzer
 
     candle_analyzer = CandleAnalyzer()
     swing_analyzer = SwingAnalyzer()
@@ -824,55 +853,62 @@ async def main():
         fibonacci_analyzer=fibonacci_analyzer,
         dealing_range_analyzer=dealing_range_analyzer,
     )
-    bms_detector       = smc.bms_detector
-    choch_detector     = smc.choch_detector
-    sms_detector       = smc.sms_detector
-    fvg_detector       = smc.fvg_detector
-    ob_detector        = smc.ob_detector
-    zone_validator     = smc.zone_validator
+    bms_detector = smc.bms_detector
+    choch_detector = smc.choch_detector
+    sms_detector = smc.sms_detector
+    fvg_detector = smc.fvg_detector
+    ob_detector = smc.ob_detector
+    zone_validator = smc.zone_validator
     inducement_detector = smc.inducement_detector
 
     # ── Run all tests ─────────────────────────────────────────────────
     swing_data = test_swings(swing_analyzer, sequences)
-    bms_data   = test_bms(bms_detector, sequences, swing_data)
-    choch_data = test_choch(choch_detector, sequences, swing_data)
-    sms_data   = test_sms(sms_detector, sequences, swing_data)
-    fvg_data   = test_fvg(fvg_detector, sequences)
-    ob_data    = test_order_blocks(ob_detector, sequences, bms_data)
+    bms_data = test_bms(bms_detector, sequences, swing_data)
+    test_choch(choch_detector, sequences, swing_data)
+    test_sms(sms_detector, sequences, swing_data)
+    fvg_data = test_fvg(fvg_detector, sequences)
+    ob_data = test_order_blocks(ob_detector, sequences, bms_data)
     fresh_data = test_zone_freshness(zone_validator, sequences, ob_data)
     test_fvg_ob_pairing(zone_validator, ob_data, fvg_data)
     test_full_zone_validation(
-        zone_validator, sequences, ob_data, fvg_data, swing_data,
-        sweep_analyzer, inducement_detector, fibonacci_analyzer, swing_analyzer,
+        zone_validator,
+        sequences,
+        ob_data,
+        fvg_data,
+        swing_data,
+        sweep_analyzer,
+        inducement_detector,
+        fibonacci_analyzer,
+        swing_analyzer,
     )
     candidates = test_full_pipeline(sequences, smc)
 
     # Dump candidates to JSON for user inspection
     import json
-    
+
     # Simple serializer for dates/enums
     def default_serializer(obj):
-        if hasattr(obj, 'value'): # Enums
+        if hasattr(obj, "value"):  # Enums
             return obj.value
-        elif hasattr(obj, 'isoformat'): # Datetimes
+        if hasattr(obj, "isoformat"):  # Datetimes
             return obj.isoformat()
-        elif hasattr(obj, '__dict__'):
+        if hasattr(obj, "__dict__"):
             return obj.__dict__
-        elif hasattr(obj, 'model_dump'): # BaseModel
-            return obj.model_dump(mode='json')
+        if hasattr(obj, "model_dump"):  # BaseModel
+            return obj.model_dump(mode="json")
         return str(obj)
 
-    json_path = '/tmp/diagnostic_results.json'
+    json_path = "/tmp/diagnostic_results.json"
     try:
         # Pydantic models usually support model_dump(mode='json')
         dump_data = []
         for c in candidates:
-            if hasattr(c, 'model_dump'):
-                dump_data.append(c.model_dump(mode='json'))
+            if hasattr(c, "model_dump"):
+                dump_data.append(c.model_dump(mode="json"))
             else:
                 dump_data.append(c.__dict__)
-                
-        with open(json_path, 'w', encoding='utf-8') as f:
+
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump(dump_data, f, indent=2, default=default_serializer)
         ok(f"Saved {len(candidates)} candidates to JSON: {json_path}")
     except Exception as e:
@@ -882,10 +918,8 @@ async def main():
     header("FINAL DIAGNOSTIC VERDICT")
 
     total_fvgs = sum(len(f) for f in fvg_data.values())
-    total_obs  = sum(len(o) for o in ob_data.values())
-    total_fresh = sum(
-        d.get("fresh_count", 0) for d in fresh_data.values()
-    )
+    total_obs = sum(len(o) for o in ob_data.values())
+    total_fresh = sum(d.get("fresh_count", 0) for d in fresh_data.values())
 
     info(f"Total FVGs detected:     {total_fvgs}")
     info(f"Total OBs detected:      {total_obs}")
@@ -893,18 +927,24 @@ async def main():
 
     if total_fvgs == 0:
         fail("VERDICT: FVG DETECTOR IS BROKEN!")
-        fail("The CandleAnalyzer.detect_imbalance() is not finding any "
-             "3-candle gaps. This is the ROOT CAUSE of has_fvg=False.")
+        fail(
+            "The CandleAnalyzer.detect_imbalance() is not finding any "
+            "3-candle gaps. This is the ROOT CAUSE of has_fvg=False."
+        )
     elif total_fresh == 0:
         fail("VERDICT: ZONE FRESHNESS IS TOO AGGRESSIVE!")
-        fail("Every single OB is flagged as mitigated under the "
-             "close-beyond-extreme rule (SMC-OB-004). Review the "
-             "candles-after-OB stream or the OB detector output.")
+        fail(
+            "Every single OB is flagged as mitigated under the "
+            "close-beyond-extreme rule (SMC-OB-004). Review the "
+            "candles-after-OB stream or the OB detector output."
+        )
     elif total_fvgs > 0 and total_fresh > 0:
         ok("Individual components look healthy!")
-        info("If non-turtle candidates are still 0, the issue is in "
-             "FVG↔OB pairing (distance/direction/overlap) or "
-             "the candidate builders themselves.")
+        info(
+            "If non-turtle candidates are still 0, the issue is in "
+            "FVG↔OB pairing (distance/direction/overlap) or "
+            "the candidate builders themselves."
+        )
 
     # ── FIX VERIFICATION ────────────────────────────────────────────
     # Summarise whether the recent Fixes are actually reflected in the
@@ -925,10 +965,7 @@ async def main():
         # Fix 1: inducement clearance should not be uniformly True
         cleared_count = sum(1 for c in candidates if c.inducement_cleared)
         cleared_pct = 100.0 * cleared_count / total_candidates
-        info(
-            f"inducement_cleared=True on {cleared_count}/{total_candidates} "
-            f"({cleared_pct:.1f}%)"
-        )
+        info(f"inducement_cleared=True on {cleared_count}/{total_candidates} ({cleared_pct:.1f}%)")
         if cleared_pct >= 99.0:
             warn(
                 "Almost every candidate still shows inducement_cleared=True. "
@@ -945,20 +982,12 @@ async def main():
         # ever fabricated.
         fib_level_count = sum(1 for c in candidates if c.fib_level is not None)
         fib_context_count = sum(
-            1 for c in candidates
-            if isinstance(c.metadata, dict)
-            and c.metadata.get("fib_context") is not None
+            1 for c in candidates if isinstance(c.metadata, dict) and c.metadata.get("fib_context") is not None
         )
         fib_level_pct = 100.0 * fib_level_count / total_candidates
         fib_context_pct = 100.0 * fib_context_count / total_candidates
-        info(
-            f"fib_level populated on {fib_level_count}/{total_candidates} "
-            f"({fib_level_pct:.1f}%)"
-        )
-        info(
-            f"metadata.fib_context populated on {fib_context_count}/"
-            f"{total_candidates} ({fib_context_pct:.1f}%)"
-        )
+        info(f"fib_level populated on {fib_level_count}/{total_candidates} ({fib_level_pct:.1f}%)")
+        info(f"metadata.fib_context populated on {fib_context_count}/{total_candidates} ({fib_context_pct:.1f}%)")
         if fib_level_count == 0:
             warn(
                 "fib_level is null on every candidate. That is expected "
@@ -981,9 +1010,7 @@ async def main():
             if not ctx or not ctx.get("is_in_ote"):
                 continue
             zone = ctx.get("zone")
-            if c.is_bullish and zone == "PREMIUM":
-                direction_mismatches += 1
-            elif c.is_bearish and zone == "DISCOUNT":
+            if c.is_bullish and zone == "PREMIUM" or c.is_bearish and zone == "DISCOUNT":
                 direction_mismatches += 1
         if direction_mismatches > 0:
             warn(
@@ -998,9 +1025,7 @@ async def main():
         # LiquiditySweep was non-null. We expect this on most SH_BMS_RTO
         # candidates and on turtle-soup candidates.
         sweep_context_count = sum(
-            1 for c in candidates
-            if isinstance(c.metadata, dict)
-            and c.metadata.get("sweep_context") is not None
+            1 for c in candidates if isinstance(c.metadata, dict) and c.metadata.get("sweep_context") is not None
         )
         liquidity_types = Counter()
         for c in candidates:
@@ -1026,10 +1051,6 @@ async def main():
                 "No sweep_context present — either no sweep was selected "
                 "for any candidate, or the selected pattern had liquidity_swept=False."
             )
-
-    print(f"\n{'█' * 72}")
-    print(f"  Diagnostic complete.")
-    print(f"{'█' * 72}\n")
 
 
 if __name__ == "__main__":

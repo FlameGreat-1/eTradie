@@ -1,5 +1,3 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.constants import Direction, Timeframe
 from engine.ta.models.candle import CandleSequence
@@ -61,21 +59,20 @@ class QMDetector:
                 continue
 
             # Find the lowest L (Neckline) that occurred exactly between H and HH
-            neckline_l: Optional[SwingLow] = None
+            neckline_l: SwingLow | None = None
             lowest_price = float("inf")
 
             for l in sorted_lows:
-                if h.timestamp < l.timestamp < hh.timestamp:
-                    if l.price < lowest_price:
-                        lowest_price = l.price
-                        neckline_l = l
+                if h.timestamp < l.timestamp < hh.timestamp and l.price < lowest_price:
+                    lowest_price = l.price
+                    neckline_l = l
 
             # If no L exists between H and HH, it's not a valid QM structure
             if not neckline_l:
                 continue
 
             # Look for a candle that closes below the Neckline (L)
-            first_break_idx: Optional[int] = None
+            first_break_idx: int | None = None
 
             for j in range(hh.index + 1, len(sequence.candles)):
                 candle = sequence.candles[j]
@@ -86,7 +83,7 @@ class QMDetector:
             if first_break_idx is None:
                 continue
 
-            breakout_candle = sequence.candles[first_break_idx]
+            sequence.candles[first_break_idx]
 
             # Count consecutive candle closes below the Neckline level
             confirmed_count = 0
@@ -177,21 +174,20 @@ class QMDetector:
                 continue
 
             # Find the highest H (Neckline) that occurred exactly between L and LL
-            neckline_h: Optional[SwingHigh] = None
+            neckline_h: SwingHigh | None = None
             highest_price = -float("inf")
 
             for h in sorted_highs:
-                if l.timestamp < h.timestamp < ll.timestamp:
-                    if h.price > highest_price:
-                        highest_price = h.price
-                        neckline_h = h
+                if l.timestamp < h.timestamp < ll.timestamp and h.price > highest_price:
+                    highest_price = h.price
+                    neckline_h = h
 
             # If no H exists between L and LL, it's not a valid QM structure
             if not neckline_h:
                 continue
 
             # Look for a candle that closes above the Neckline (H)
-            first_break_idx: Optional[int] = None
+            first_break_idx: int | None = None
 
             for j in range(ll.index + 1, len(sequence.candles)):
                 candle = sequence.candles[j]
@@ -202,7 +198,7 @@ class QMDetector:
             if first_break_idx is None:
                 continue
 
-            breakout_candle = sequence.candles[first_break_idx]
+            sequence.candles[first_break_idx]
 
             # Count consecutive candle closes above the Neckline level
             confirmed_count = 0
@@ -267,7 +263,7 @@ class QMDetector:
     @staticmethod
     def get_latest_qml(
         qml_levels: list[QuasiModoLevel],
-    ) -> Optional[QuasiModoLevel]:
+    ) -> QuasiModoLevel | None:
         if not qml_levels:
             return None
 
@@ -281,7 +277,7 @@ class QMDetector:
     @staticmethod
     def get_latest_qmh(
         qmh_levels: list[QuasiModoLevel],
-    ) -> Optional[QuasiModoLevel]:
+    ) -> QuasiModoLevel | None:
         if not qmh_levels:
             return None
 

@@ -1,8 +1,8 @@
 from datetime import UTC, datetime
-from typing import Optional
-from sqlalchemy import select, and_
-from sqlalchemy.ext.asyncio import AsyncSession
+
+from sqlalchemy import and_, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.shared.logging import get_logger
 from engine.ta.storage.schemas.broker_symbol import BrokerSymbolSchema
@@ -23,10 +23,10 @@ class BrokerSymbolRepository:
         provider: str,
         account_id: str,
         name: str,
-        description: Optional[str],
-        path: Optional[str],
-        digits: Optional[int] = None,
-        point: Optional[float] = None,
+        description: str | None,
+        path: str | None,
+        digits: int | None = None,
+        point: float | None = None,
     ) -> BrokerSymbolSchema:
         """Upsert a broker symbol record."""
         stmt = insert(BrokerSymbolSchema).values(
@@ -65,9 +65,7 @@ class BrokerSymbolRepository:
         )
         return result.scalar_one()
 
-    async def get_all_by_account(
-        self, provider: str, account_id: str
-    ) -> list[BrokerSymbolSchema]:
+    async def get_all_by_account(self, provider: str, account_id: str) -> list[BrokerSymbolSchema]:
         """Retrieve all symbols for a specific broker account."""
         result = await self.session.execute(
             select(BrokerSymbolSchema).where(
@@ -79,9 +77,7 @@ class BrokerSymbolRepository:
         )
         return list(result.scalars().all())
 
-    async def get_by_name(
-        self, provider: str, account_id: str, name: str
-    ) -> Optional[BrokerSymbolSchema]:
+    async def get_by_name(self, provider: str, account_id: str, name: str) -> BrokerSymbolSchema | None:
         """Retrieve a specific symbol by name."""
         result = await self.session.execute(
             select(BrokerSymbolSchema).where(

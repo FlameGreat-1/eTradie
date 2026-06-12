@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -33,9 +31,7 @@ class TradingViewConfig(BaseSettings):
     @classmethod
     def validate_webhook_secret(cls, v: str, info) -> str:
         if info.data.get("enabled") and info.data.get("validate_signature") and not v:
-            raise ValueError(
-                "Webhook secret cannot be empty when signature validation is enabled"
-            )
+            raise ValueError("Webhook secret cannot be empty when signature validation is enabled")
         return v
 
     @field_validator("webhook_path")

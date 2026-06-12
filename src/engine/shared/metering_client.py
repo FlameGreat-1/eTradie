@@ -58,8 +58,7 @@ from __future__ import annotations
 import os
 import threading
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import httpx
 
@@ -95,7 +94,7 @@ class MeteringConfig:
 
 
 # Module-private cache. None means "not yet resolved".
-_config: Optional[MeteringConfig] = None
+_config: MeteringConfig | None = None
 _config_lock = threading.Lock()
 
 
@@ -129,10 +128,7 @@ def _build_config() -> MeteringConfig:
                 f"in {app_env}. Set it to the gateway HTTP base URL."
             )
         if not secret:
-            raise RuntimeError(
-                "ENGINE_INTERNAL_SHARED_SECRET is required when "
-                f"METERING_ENABLED=true in {app_env}."
-            )
+            raise RuntimeError(f"ENGINE_INTERNAL_SHARED_SECRET is required when METERING_ENABLED=true in {app_env}.")
 
     if enabled and not gateway_url:
         logger.warning(
@@ -260,9 +256,7 @@ async def reserve(
         used = int(body.get("used", 0))
         requested = int(body.get("requested", 0))
         resets_at = body.get("resets_at", "")
-        retry_after = _retry_after_seconds(
-            resets_at, resp.headers.get("Retry-After", "")
-        )
+        retry_after = _retry_after_seconds(resets_at, resp.headers.get("Retry-After", ""))
         raise QuotaExceededError(
             f"LLM quota exceeded: {dimension} (limit={limit} used={used} requested={requested})",
             dimension=dimension,
@@ -316,11 +310,7 @@ async def reserve(
     header_id = resp.headers.get("X-Reservation-Id", "").strip()
     body = _safe_json(resp)
     reservation_id = header_id or body.get("reservation_id", "")
-    if (
-        header_id
-        and body.get("reservation_id", "")
-        and header_id != body.get("reservation_id", "")
-    ):
+    if header_id and body.get("reservation_id", "") and header_id != body.get("reservation_id", ""):
         # Header and body disagree -- something is rewriting the
         # response (proxy, middleware). The header wins (closer to the
         # gateway), but log so this is visible immediately.
@@ -472,7 +462,7 @@ def _retry_after_seconds(resets_at: str, header_value: str) -> int:
     if resets_at:
         try:
             dt = datetime.fromisoformat(resets_at.replace("Z", "+00:00"))
-            delta = (dt - datetime.now(timezone.utc)).total_seconds()
+            delta = (dt - datetime.now(UTC)).total_seconds()
             return max(1, int(delta))
         except Exception:
             pass

@@ -23,12 +23,12 @@ Routes:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from engine.dependencies import Container
 from engine.helpers import _resolve_user_broker
-from engine.shared.auth import AuthenticatedUser, get_current_user
 from engine.shared.internal_auth import verify_internal_auth
 from engine.shared.logging import get_logger
 
@@ -61,12 +61,10 @@ async def broker_account_info(
             "currency": info.currency,
         }
         # Update the failover cache silently
-        try:
+        with contextlib.suppress(Exception):
             await container.cache.set("internal", cache_key, result, ttl_seconds=86400)
-        except Exception:
-            pass
         return result
-    except (asyncio.TimeoutError, Exception) as exc:
+    except (TimeoutError, Exception) as exc:
         # Failover to the last known state in Redis instead of throwing a 503
         try:
             cached = await container.cache.get("internal", cache_key)
@@ -125,12 +123,10 @@ async def broker_positions(
         # dynamic.  A long TTL (the previous 24 h) caused stale empty
         # snapshots to persist through ZMQ contention windows, making
         # manually-placed MT5 trades invisible to the dashboard.
-        try:
+        with contextlib.suppress(Exception):
             await container.cache.set("internal", cache_key, result, ttl_seconds=15)
-        except Exception:
-            pass
         return result
-    except (asyncio.TimeoutError, Exception) as exc:
+    except (TimeoutError, Exception) as exc:
         # Failover to the last known state in Redis instead of throwing a 503
         try:
             cached = await container.cache.get("internal", cache_key)
@@ -160,9 +156,7 @@ async def broker_history(
     cache_key = f"cache_failover:history:{user_id}:{days}"
 
     try:
-        history = await asyncio.wait_for(
-            broker_client.get_history(days=days), timeout=5.0
-        )
+        history = await asyncio.wait_for(broker_client.get_history(days=days), timeout=5.0)
         result = [
             {
                 "ticket": h.ticket,
@@ -179,12 +173,10 @@ async def broker_history(
             }
             for h in history
         ]
-        try:
+        with contextlib.suppress(Exception):
             await container.cache.set("internal", cache_key, result, ttl_seconds=86400)
-        except Exception:
-            pass
         return result
-    except (asyncio.TimeoutError, Exception) as exc:
+    except (TimeoutError, Exception):
         try:
             cached = await container.cache.get("internal", cache_key)
             if cached is not None:
@@ -223,12 +215,10 @@ async def broker_pending_orders(
         ]
 
         # Short TTL — pending orders change frequently.
-        try:
+        with contextlib.suppress(Exception):
             await container.cache.set("internal", cache_key, result, ttl_seconds=15)
-        except Exception:
-            pass
         return result
-    except (asyncio.TimeoutError, Exception) as exc:
+    except (TimeoutError, Exception) as exc:
         logger.warning(
             "zmq_execution_lock_timeout_falling_back_to_pending_orders_cache",
             extra={"error": str(exc), "user_id": user_id},
@@ -262,18 +252,12 @@ async def broker_symbol_info(
 
     try:
         # Enforce a strict 2-second timeout to prevent Go client timeout race.
-        info = await asyncio.wait_for(
-            broker_client.get_symbol_info(symbol), timeout=2.0
-        )
+        info = await asyncio.wait_for(broker_client.get_symbol_info(symbol), timeout=2.0)
         # Update the failover cache silently
-        try:
-            await container.cache.set(
-                "internal", cache_key, info, ttl_seconds=86400 * 7
-            )
-        except Exception:
-            pass
+        with contextlib.suppress(Exception):
+            await container.cache.set("internal", cache_key, info, ttl_seconds=86400 * 7)
         return info
-    except (asyncio.TimeoutError, Exception) as exc:
+    except (TimeoutError, Exception) as exc:
         # Failover to the last known state in Redis instead of throwing a 502
         try:
             cached = await container.cache.get("internal", cache_key)
@@ -286,9 +270,7 @@ async def broker_symbol_info(
             "broker_symbol_info_failed_no_cache",
             extra={"symbol": symbol, "error": str(exc), "user_id": user_id},
         )
-        raise HTTPException(
-            status_code=502, detail=f"Symbol info unavailable and no cache: {exc}"
-        )
+        raise HTTPException(status_code=502, detail=f"Symbol info unavailable and no cache: {exc}")
 
 
 @router.get("/internal/broker/tick_price")
@@ -498,9 +480,7 @@ async def broker_close_partial(
     volume = float(body.get("volume", 0))
 
     if not ticket or volume <= 0:
-        raise HTTPException(
-            status_code=400, detail="ticket and positive volume required"
-        )
+        raise HTTPException(status_code=400, detail="ticket and positive volume required")
 
     try:
         result = await broker_client.close_partial(

@@ -19,9 +19,8 @@ Reference: https://metaapi.cloud/docs/provisioning/api/account/createAccount/
 from __future__ import annotations
 
 import asyncio
-import os
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 from engine.shared.exceptions import (
     ConfigurationError,
@@ -36,9 +35,7 @@ from engine.shared.logging import get_logger
 logger = get_logger(__name__)
 
 # MetaAPI Provisioning API base URL is global.
-_PROVISIONING_BASE_URL_TEMPLATE = (
-    "https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai"
-)
+_PROVISIONING_BASE_URL_TEMPLATE = "https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai"
 
 # Maximum number of polling attempts when MetaAPI returns 202 (async).
 _MAX_POLL_ATTEMPTS = 30
@@ -63,8 +60,7 @@ _ERROR_MESSAGES: dict[str, str] = {
         "in a few minutes. If the issue persists, contact support."
     ),
     "E_RESOURCE_SLOTS": (
-        "Your trading account requires additional cloud resources. "
-        "Please contact support for assistance."
+        "Your trading account requires additional cloud resources. Please contact support for assistance."
     ),
     "E_NO_SYMBOLS": (
         "No trading symbols found on your account. Please ensure "
@@ -76,12 +72,10 @@ _ERROR_MESSAGES: dict[str, str] = {
         "a different account."
     ),
     "E_PASSWORD_CHANGE_REQUIRED": (
-        "Your broker requires you to change your MT5 password. "
-        "Please change it in MetaTrader and try again."
+        "Your broker requires you to change your MT5 password. Please change it in MetaTrader and try again."
     ),
     "E_TRADING_ACCOUNT_DISABLED": (
-        "Your broker reports this trading account is disabled. "
-        "Please contact your broker or use a different account."
+        "Your broker reports this trading account is disabled. Please contact your broker or use a different account."
     ),
 }
 
@@ -251,7 +245,7 @@ class MetaApiProvisioner:
         Returns:
             True if the deploy request was accepted.
         """
-        url = f"{self._base_url}" f"/users/current/accounts/{account_id}/deploy"
+        url = f"{self._base_url}/users/current/accounts/{account_id}/deploy"
         try:
             await self._http.post(
                 url,
@@ -285,7 +279,7 @@ class MetaApiProvisioner:
         Returns:
             True if the undeploy request was accepted.
         """
-        url = f"{self._base_url}" f"/users/current/accounts/{account_id}/undeploy"
+        url = f"{self._base_url}/users/current/accounts/{account_id}/undeploy"
         try:
             await self._http.post(
                 url,
@@ -320,7 +314,7 @@ class MetaApiProvisioner:
         Returns:
             True if deletion was successful.
         """
-        url = f"{self._base_url}" f"/users/current/accounts/{account_id}"
+        url = f"{self._base_url}/users/current/accounts/{account_id}"
         try:
             await self._http.delete(
                 url,

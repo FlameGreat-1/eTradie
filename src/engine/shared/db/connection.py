@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Optional
 from urllib.parse import urlparse
 
 from sqlalchemy import event, text
@@ -10,6 +10,8 @@ from sqlalchemy.exc import (
     DBAPIError,
     IntegrityError,
     OperationalError,
+)
+from sqlalchemy.exc import (
     TimeoutError as SQLAlchemyTimeoutError,
 )
 from sqlalchemy.ext.asyncio import (
@@ -130,8 +132,8 @@ class DatabaseManager:
     async def session(
         self,
         *,
-        trace_id: Optional[str] = None,
-        idempotency_key: Optional[str] = None,
+        trace_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> AsyncIterator[AsyncSession]:
         """
         Transactional write session with automatic commit/rollback.
@@ -173,9 +175,7 @@ class DatabaseManager:
 
             except IntegrityError as e:
                 await session.rollback()
-                DB_OPERATION_ERRORS.labels(
-                    operation="write", error_type="integrity"
-                ).inc()
+                DB_OPERATION_ERRORS.labels(operation="write", error_type="integrity").inc()
                 logger.warning(
                     "db_integrity_error",
                     extra={
@@ -187,9 +187,7 @@ class DatabaseManager:
 
             except (OperationalError, DBAPIError) as e:
                 await session.rollback()
-                DB_OPERATION_ERRORS.labels(
-                    operation="write", error_type="operational"
-                ).inc()
+                DB_OPERATION_ERRORS.labels(operation="write", error_type="operational").inc()
                 logger.error(
                     "db_operational_error",
                     extra={
@@ -201,9 +199,7 @@ class DatabaseManager:
 
             except SQLAlchemyTimeoutError as e:
                 await session.rollback()
-                DB_OPERATION_ERRORS.labels(
-                    operation="write", error_type="timeout"
-                ).inc()
+                DB_OPERATION_ERRORS.labels(operation="write", error_type="timeout").inc()
                 logger.error(
                     "db_timeout_error",
                     extra={
@@ -211,15 +207,11 @@ class DatabaseManager:
                         "timeout_seconds": self._query_timeout,
                     },
                 )
-                raise DatabaseTimeoutError(
-                    f"Query exceeded timeout of {self._query_timeout}s"
-                ) from e
+                raise DatabaseTimeoutError(f"Query exceeded timeout of {self._query_timeout}s") from e
 
-            except Exception as e:
+            except Exception:
                 await session.rollback()
-                DB_OPERATION_ERRORS.labels(
-                    operation="write", error_type="unknown"
-                ).inc()
+                DB_OPERATION_ERRORS.labels(operation="write", error_type="unknown").inc()
                 logger.exception(
                     "db_unexpected_error",
                     extra={"trace_id": trace_id},
@@ -230,7 +222,7 @@ class DatabaseManager:
     async def read_session(
         self,
         *,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> AsyncIterator[AsyncSession]:
         """
         Read-only session (no automatic commit).
@@ -253,7 +245,7 @@ class DatabaseManager:
                 duration = asyncio.get_event_loop().time() - start_time
                 DB_OPERATION_DURATION.labels(operation="read").observe(duration)
 
-            except Exception as e:
+            except Exception:
                 DB_OPERATION_ERRORS.labels(operation="read", error_type="unknown").inc()
                 logger.exception(
                     "db_read_error",
@@ -280,7 +272,7 @@ class DatabaseManager:
                 logger.debug("db_health_check_passed")
                 return True
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "db_health_check_timeout",
                     extra={"attempt": attempt + 1},
@@ -296,11 +288,7 @@ class DatabaseManager:
                 )
 
             if attempt < max_retries - 1:
-                delay = (
-                    base_delay
-                    * (2**attempt)
-                    * (1 + asyncio.get_event_loop().time() % 0.1)
-                )
+                delay = base_delay * (2**attempt) * (1 + asyncio.get_event_loop().time() % 0.1)
                 await asyncio.sleep(delay)
 
         logger.error("db_health_check_exhausted")
@@ -312,9 +300,7 @@ class DatabaseManager:
             pool = self._engine.pool
             if pool is not None:
                 DB_CONNECTION_POOL_SIZE.labels(state="checked_in").set(pool.checkedin())
-                DB_CONNECTION_POOL_SIZE.labels(state="checked_out").set(
-                    pool.checkedout()
-                )
+                DB_CONNECTION_POOL_SIZE.labels(state="checked_out").set(pool.checkedout())
                 DB_CONNECTION_POOL_SIZE.labels(state="overflow").set(pool.overflow())
         except Exception:
             logger.exception("pool_metrics_update_failed")

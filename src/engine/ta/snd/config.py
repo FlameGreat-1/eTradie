@@ -51,16 +51,12 @@ class SnDConfig(BaseSettings):
     @classmethod
     def validate_min_previous_touches(cls, v: int) -> int:
         if v < 2:
-            raise ValueError(
-                "SnD requires minimum 2 previous touches (Universal Rule 2)"
-            )
+            raise ValueError("SnD requires minimum 2 previous touches (Universal Rule 2)")
         return v
 
     @field_validator("marubozu_body_percentage_threshold")
     @classmethod
     def validate_marubozu_threshold(cls, v: float) -> float:
         if v < 80.0:
-            raise ValueError(
-                "Marubozu body percentage must be at least 80% (Universal Rule 1)"
-            )
+            raise ValueError("Marubozu body percentage must be at least 80% (Universal Rule 1)")
         return v

@@ -22,7 +22,6 @@ import pytest
 
 from engine.shared.crypto import (
     active_key_version,
-    encrypt_credential,
     key_version_of,
     needs_rewrap,
 )
@@ -191,12 +190,8 @@ class TestDryRunAccounting:
         assert db.write_count == 0  # dry run writes nothing
 
     async def test_dry_run_matches_live_run(self, single_kek):
-        dry = await CredentialRewrapService(_FakeDB(_new_store_with_legacy_rows())).run(
-            dry_run=True
-        )
-        live = await CredentialRewrapService(_FakeDB(_new_store_with_legacy_rows())).run(
-            dry_run=False
-        )
+        dry = await CredentialRewrapService(_FakeDB(_new_store_with_legacy_rows())).run(dry_run=True)
+        live = await CredentialRewrapService(_FakeDB(_new_store_with_legacy_rows())).run(dry_run=False)
         assert dry.scanned_rows == live.scanned_rows
         assert dry.rewrapped_rows == live.rewrapped_rows
         assert dry.rewrapped_columns == live.rewrapped_columns
@@ -231,9 +226,7 @@ class TestLiveRun:
         assert db2.write_count == 0
 
     async def test_per_table_totals_equal_aggregate(self, single_kek):
-        stats = await CredentialRewrapService(_FakeDB(_new_store_with_legacy_rows())).run(
-            dry_run=False
-        )
+        stats = await CredentialRewrapService(_FakeDB(_new_store_with_legacy_rows())).run(dry_run=False)
         agg_rows = sum(t["rewrapped_rows"] for t in stats.per_table.values())
         agg_cols = sum(t["rewrapped_columns"] for t in stats.per_table.values())
         assert agg_rows == stats.rewrapped_rows
@@ -244,9 +237,7 @@ class TestPagination:
     async def test_scans_every_row_across_batches(self, single_kek):
         store = _new_store_with_legacy_rows()
         # batch_size 1 forces multiple keyset pages per table.
-        stats = await CredentialRewrapService(_FakeDB(store), batch_size=1).run(
-            dry_run=True
-        )
+        stats = await CredentialRewrapService(_FakeDB(store), batch_size=1).run(dry_run=True)
         assert stats.scanned_rows == 3
         assert stats.rewrapped_rows == 3
         assert stats.rewrapped_columns == 4

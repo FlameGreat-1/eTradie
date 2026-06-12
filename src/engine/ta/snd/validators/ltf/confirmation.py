@@ -1,11 +1,9 @@
-from typing import Optional
-
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.compression import CompressionAnalyzer
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import calculate_pips
 from engine.ta.constants import Direction
-from engine.ta.models.candle import CandleSequence, Candle
+from engine.ta.models.candle import Candle, CandleSequence
 from engine.ta.models.fibonacci import FibonacciRetracement
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detectors.fakeouts import FakeoutTest
@@ -65,9 +63,7 @@ class LTFConfirmationValidator:
         if last_fakeout.candle_index < self.config.compression_min_candles:
             return False
 
-        start_index = max(
-            0, last_fakeout.candle_index - self.config.compression_min_candles
-        )
+        start_index = max(0, last_fakeout.candle_index - self.config.compression_min_candles)
         end_index = last_fakeout.candle_index + 1
 
         compression_candles = sequence.candles[start_index:end_index]
@@ -91,7 +87,7 @@ class LTFConfirmationValidator:
 
     def validate_fakeout_broken_by_marubozu(
         self,
-        breakout_candle_index: Optional[int],
+        breakout_candle_index: int | None,
     ) -> bool:
         """
         Confirmation 2: Fakeout Broken by Marubozu.
@@ -111,7 +107,7 @@ class LTFConfirmationValidator:
         sequence: CandleSequence,
         fakeout_tests: list[FakeoutTest],
         direction: Direction,
-    ) -> Optional[Candle]:
+    ) -> Candle | None:
         """
         Confirmation 3: Decision Point.
 
@@ -133,18 +129,11 @@ class LTFConfirmationValidator:
         decision_candle = sequence.candles[last_fakeout.candle_index]
 
         if direction == Direction.BULLISH:
-            if (
-                decision_candle.low <= last_fakeout.level
-                and decision_candle.close > last_fakeout.level
-            ):
+            if decision_candle.low <= last_fakeout.level and decision_candle.close > last_fakeout.level:
                 return decision_candle
 
-        else:
-            if (
-                decision_candle.high >= last_fakeout.level
-                and decision_candle.close < last_fakeout.level
-            ):
-                return decision_candle
+        elif decision_candle.high >= last_fakeout.level and decision_candle.close < last_fakeout.level:
+            return decision_candle
 
         self._logger.debug(
             "ltf_validation_failed_no_decision_point",
@@ -159,7 +148,7 @@ class LTFConfirmationValidator:
     def check_fibonacci_alignment(
         self,
         zone_price: float,
-        retracement: Optional[FibonacciRetracement],
+        retracement: FibonacciRetracement | None,
     ) -> bool:
         """
         Check if Fibonacci Retracement level precisely aligns with the zone.
@@ -175,9 +164,7 @@ class LTFConfirmationValidator:
         if not retracement:
             return False
 
-        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(
-            zone_price, retracement
-        )
+        nearest_level = self.fibonacci_analyzer.get_nearest_fib_level(zone_price, retracement)
 
         if not nearest_level:
             return False
@@ -211,10 +198,10 @@ class LTFConfirmationValidator:
         self,
         sequence: CandleSequence,
         fakeout_tests: list[FakeoutTest],
-        breakout_candle_index: Optional[int],
+        breakout_candle_index: int | None,
         direction: Direction,
         zone_price: float,
-        retracement: Optional[FibonacciRetracement],
+        retracement: FibonacciRetracement | None,
     ) -> bool:
         """Validate all 4 LTF confirmations."""
         if not self.validate_compression_at_zone(sequence, fakeout_tests):
@@ -223,14 +210,9 @@ class LTFConfirmationValidator:
         if not self.validate_fakeout_broken_by_marubozu(breakout_candle_index):
             return False
 
-        decision_point = self.validate_decision_point(
-            sequence, fakeout_tests, direction
-        )
+        decision_point = self.validate_decision_point(sequence, fakeout_tests, direction)
         if not decision_point:
             return False
 
         is_aligned = self.check_fibonacci_alignment(zone_price, retracement)
-        if self.config.require_fibonacci_confluence and not is_aligned:
-            return False
-
-        return True
+        return not (self.config.require_fibonacci_confluence and not is_aligned)

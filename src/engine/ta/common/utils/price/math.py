@@ -1,4 +1,4 @@
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Final
 
 from engine.shared.exceptions import ConfigurationError
@@ -207,21 +207,16 @@ def _get_pair_type(symbol: str) -> str:
 def get_pip_value(symbol: str) -> Decimal:
     pair_type = _get_pair_type(symbol)
 
-    if pair_type == "JPY":
+    if pair_type in {"JPY", "METAL"}:
         return Decimal("0.01")
-    elif pair_type == "METAL":
+    if pair_type == "OIL":
         return Decimal("0.01")
-    elif pair_type == "OIL":
-        return Decimal("0.01")
-    elif pair_type == "INDEX":
+    if pair_type in {"INDEX", "CRYPTO"}:
         return Decimal("1.0")
-    elif pair_type == "CRYPTO":
-        return Decimal("1.0")
-    elif pair_type.startswith("DERIV_"):
+    if pair_type.startswith("DERIV_"):
         # Professional discrete traders treat 1 full index point (1.0) as 1 "pip" for ALL synthetics
         return Decimal("1.0")
-    else:
-        return Decimal("0.0001")
+    return Decimal("0.0001")
 
 
 def get_pip_decimals(symbol: str) -> int:
@@ -372,9 +367,6 @@ def calculate_wick_percentage(
     candle_top = max(open_price, close_price)
     candle_bottom = min(open_price, close_price)
 
-    if upper:
-        wick_size = high_price - candle_top
-    else:
-        wick_size = candle_bottom - low_price
+    wick_size = high_price - candle_top if upper else candle_bottom - low_price
 
     return (wick_size / total_range) * 100.0

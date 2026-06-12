@@ -6,8 +6,8 @@ Services:
 - AlignmentService: Validates HTF/LTF directional consistency and zone nesting
 """
 
-from engine.ta.common.services.snapshot.builder import SnapshotBuilder
 from engine.ta.common.services.alignment.service import AlignmentService
+from engine.ta.common.services.snapshot.builder import SnapshotBuilder
 
 __all__ = [
     "SnapshotBuilder",

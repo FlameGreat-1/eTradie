@@ -3,6 +3,7 @@
 In-process unit tests using MagicMock + AsyncMock; no real K8s cluster
 required. Cover the four CHECKLIST Section 8 disaster scenarios.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,6 +26,7 @@ pytestmark = pytest.mark.asyncio
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_row(connection_id: str, user_id: str = "user-1") -> MagicMock:
     row = MagicMock()
@@ -53,6 +55,7 @@ def _make_db_with_rows(rows: list) -> MagicMock:
     class _SessionCtx:
         async def __aenter__(self):
             return session
+
         async def __aexit__(self, *exc):
             return False
 
@@ -104,6 +107,7 @@ def _make_config(
 # Config validation
 # ---------------------------------------------------------------------------
 
+
 def test_config_from_env_defaults(monkeypatch: pytest.MonkeyPatch):
     for k in (
         "ENGINE_HOSTED_RECOVERY_ENABLED",
@@ -141,6 +145,7 @@ def test_config_from_env_rejects_below_minimum(monkeypatch: pytest.MonkeyPatch):
 # Scenario 1: full system restart (eager startup sweep)
 # ---------------------------------------------------------------------------
 
+
 async def test_startup_disabled_short_circuits():
     svc = HostedRecoveryService(
         provisioner=_make_provisioner(),
@@ -163,6 +168,7 @@ async def test_startup_reprovisions_missing_statefulset():
     # decrypt_credential is called inside _reprovision. Patch it so we
     # do not need a real Fernet key.
     import engine.ta.broker.mt5.hosted.recovery as recovery_mod
+
     recovery_mod.decrypt_credential = lambda enc: "plaintext-password"  # type: ignore[assignment]
 
     result = await svc.run_once_at_startup()
@@ -204,6 +210,7 @@ async def test_startup_mixed_only_missing_reprovisioned():
         }
     )
     import engine.ta.broker.mt5.hosted.recovery as recovery_mod
+
     recovery_mod.decrypt_credential = lambda enc: "plaintext"  # type: ignore[assignment]
 
     svc = HostedRecoveryService(
@@ -234,6 +241,7 @@ async def test_startup_db_failure_does_not_crash():
 # Scenario 2: partial recovery (periodic sweep)
 # ---------------------------------------------------------------------------
 
+
 async def test_periodic_below_threshold_no_action():
     row = _make_row("eeeeeeeeeeee-1")
     release = f"etradie-mt-{row.id[:12]}"
@@ -254,6 +262,7 @@ async def test_periodic_cooldown_blocks_second_attempt():
     row = _make_row("ffffffffffff-1")
     provisioner = _make_provisioner()  # default 'removed'
     import engine.ta.broker.mt5.hosted.recovery as recovery_mod
+
     recovery_mod.decrypt_credential = lambda enc: "plaintext"  # type: ignore[assignment]
 
     svc = HostedRecoveryService(
@@ -274,10 +283,9 @@ async def test_periodic_cooldown_blocks_second_attempt():
 async def test_periodic_unhealthy_acts_when_bypass_threshold():
     row = _make_row("111111111111-1")
     release = f"etradie-mt-{row.id[:12]}"
-    provisioner = _make_provisioner(
-        status_by_release={release: {"status": "pending", "running": False}}
-    )
+    provisioner = _make_provisioner(status_by_release={release: {"status": "pending", "running": False}})
     import engine.ta.broker.mt5.hosted.recovery as recovery_mod
+
     recovery_mod.decrypt_credential = lambda enc: "plaintext"  # type: ignore[assignment]
 
     svc = HostedRecoveryService(
@@ -293,14 +301,17 @@ async def test_periodic_unhealthy_acts_when_bypass_threshold():
 # Scenario 3: broker outage (provision_account raises)
 # ---------------------------------------------------------------------------
 
+
 async def test_reprovision_failure_logged_and_counted():
     row = _make_row("222222222222-1")
     provisioner = _make_provisioner(
         provision_side_effect=ProviderTimeoutError(
-            "readiness gate timed out", details={"release": "etradie-mt-222222222222"},
+            "readiness gate timed out",
+            details={"release": "etradie-mt-222222222222"},
         ),
     )
     import engine.ta.broker.mt5.hosted.recovery as recovery_mod
+
     recovery_mod.decrypt_credential = lambda enc: "plaintext"  # type: ignore[assignment]
 
     svc = HostedRecoveryService(
@@ -335,6 +346,7 @@ async def test_reprovision_missing_credentials_raises_configuration_error():
 # Scenario 4: K8s API hang during status probe
 # ---------------------------------------------------------------------------
 
+
 async def test_status_check_failure_skips_row():
     row = _make_row("444444444444-1")
     provisioner = _make_provisioner()
@@ -353,6 +365,7 @@ async def test_status_check_failure_skips_row():
 # Lifecycle
 # ---------------------------------------------------------------------------
 
+
 async def test_stop_is_idempotent():
     svc = HostedRecoveryService(
         provisioner=_make_provisioner(),
@@ -370,9 +383,7 @@ async def test_start_background_loop_idempotent():
         config=_make_config(),
     )
     coordinator = MagicMock()
-    coordinator.create_task = MagicMock(
-        return_value=asyncio.get_event_loop().create_task(asyncio.sleep(0))
-    )
+    coordinator.create_task = MagicMock(return_value=asyncio.get_event_loop().create_task(asyncio.sleep(0)))
     svc.start_background_loop(coordinator=coordinator)
     svc.start_background_loop(coordinator=coordinator)  # second call is a no-op
     assert coordinator.create_task.call_count == 1

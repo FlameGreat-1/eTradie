@@ -12,12 +12,12 @@ Each detector implements deterministic pattern recognition for specific SMC conc
 All detectors use shared analyzers and produce domain models.
 """
 
+from engine.ta.smc.detectors.amd import AMDDetector
 from engine.ta.smc.detectors.bms import BMSDetector
 from engine.ta.smc.detectors.choch import CHOCHDetector
-from engine.ta.smc.detectors.sms import SMSDetector
 from engine.ta.smc.detectors.inducement import InducementDetector
+from engine.ta.smc.detectors.sms import SMSDetector
 from engine.ta.smc.detectors.turtle_soup import TurtleSoupDetector
-from engine.ta.smc.detectors.amd import AMDDetector
 
 __all__ = [
     "BMSDetector",

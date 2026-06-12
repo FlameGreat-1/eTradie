@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -17,21 +17,17 @@ class ScenarioRepository(BaseRepository[ScenarioRow]):
         self,
         document_id: UUID,
     ) -> Sequence[ScenarioRow]:
-        stmt = (
-            select(self.model)
-            .where(self.model.document_id == document_id)
-            .order_by(self.model.created_at.asc())
-        )
+        stmt = select(self.model).where(self.model.document_id == document_id).order_by(self.model.created_at.asc())
         return await self.execute_query(stmt)
 
     async def match(
         self,
         *,
-        framework: Optional[str] = None,
-        setup_family: Optional[str] = None,
-        direction: Optional[str] = None,
-        timeframe: Optional[str] = None,
-        outcome: Optional[str] = None,
+        framework: str | None = None,
+        setup_family: str | None = None,
+        direction: str | None = None,
+        timeframe: str | None = None,
+        outcome: str | None = None,
         limit: int = 10,
     ) -> Sequence[ScenarioRow]:
         stmt = select(self.model).where(self.model.is_active.is_(True))
@@ -57,11 +53,7 @@ class ScenarioRepository(BaseRepository[ScenarioRow]):
         return await self.execute_query(stmt)
 
     async def deactivate(self, scenario_id: UUID) -> None:
-        stmt = (
-            update(self.model)
-            .where(self.model.id == scenario_id)
-            .values(is_active=False)
-        )
+        stmt = update(self.model).where(self.model.id == scenario_id).values(is_active=False)
         await self._session.execute(stmt)
         await self._session.flush()
 

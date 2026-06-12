@@ -25,10 +25,10 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from engine.shared.http import HttpClient
-from engine.shared.logging import get_logger
 from engine.macro.models.provider.market_data import IntermarketSnapshot
 from engine.macro.providers.market_data.base import BaseMarketDataProvider
+from engine.shared.http import HttpClient
+from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 

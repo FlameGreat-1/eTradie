@@ -1,6 +1,6 @@
-from typing import Literal, Optional
+from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -55,7 +55,7 @@ class MT5Config(BaseSettings):
     )
 
     # -- Legacy MT5 terminal settings (native mode only) -----------------------
-    terminal_path: Optional[str] = Field(default=None)
+    terminal_path: str | None = Field(default=None)
     account: int = Field(default=0, ge=0)
     password: str = Field(default="")
     server: str = Field(default="")
@@ -67,9 +67,7 @@ class MT5Config(BaseSettings):
     connection_timeout_seconds: int = Field(default=30, ge=5, le=120)
     max_candles_per_request: int = Field(default=5000, ge=100, le=50000)
     enable_tick_data: bool = Field(default=False)
-    magic_number: int = Field(
-        default=0, description="MT5 magic number for trade tracking."
-    )
+    magic_number: int = Field(default=0, description="MT5 magic number for trade tracking.")
 
     @model_validator(mode="after")
     def _validate_provider_credentials(self) -> "MT5Config":
@@ -79,9 +77,6 @@ class MT5Config(BaseSettings):
         The metaapi_account_id is dynamically provisioned per-user
         via the MetaAPI Provisioning API and stored in the database.
         """
-        if self.provider == "metaapi":
-            if not self.metaapi_token:
-                raise ValueError(
-                    "MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi"
-                )
+        if self.provider == "metaapi" and not self.metaapi_token:
+            raise ValueError("MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi")
         return self

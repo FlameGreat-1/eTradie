@@ -15,10 +15,42 @@ from __future__ import annotations
 import asyncio
 import re
 import time
-from typing import Any, Optional
+from datetime import UTC
+from typing import Any
 
 import orjson
 
+from engine.processor.audit.logger import (
+    build_analysis_record,
+    build_audit_log_record,
+    build_error_analysis_record,
+)
+from engine.processor.config import ProcessorConfig
+from engine.processor.constants import PROCESSOR_NAME, ProcessorStatus
+from engine.processor.idempotency import ProcessorIdempotency, compute_digest
+from engine.processor.llm.client import LLMClient, LLMResponse
+from engine.processor.llm.error_classifier import (
+    CODE_QUOTA_EXCEEDED,
+    CODE_RATE_LIMITED,
+    classify_llm_failure,
+)
+from engine.processor.llm.errors import (
+    LLMDuplicateSuppressedError,
+    LLMTruncatedError,
+)
+from engine.processor.llm.retry import retry_llm_call
+from engine.processor.mapping.output_mapper import map_to_processor_output
+from engine.processor.models.analysis import AnalysisOutput as AO
+from engine.processor.models.io import ProcessorInput, ProcessorOutput, ProcessorPort
+from engine.processor.parsing.response_parser import parse_llm_response
+from engine.processor.prompts.system_prompt import (
+    build_system_prompt,
+    build_user_message,
+    compute_prompt_hash,
+)
+from engine.processor.storage.uow import ProcessorUOWFactory
+from engine.processor.streaming import stream_channel_for_user
+from engine.shared import metering_client as metering
 from engine.shared.alert_publisher import AlertPublisher
 from engine.shared.exceptions import (
     MeteringUnavailableError,
@@ -32,37 +64,6 @@ from engine.shared.metrics.prometheus import (
     PROCESSOR_RUN_DURATION,
     PROCESSOR_RUN_TOTAL,
 )
-from engine.shared import metering_client as metering
-from engine.processor.audit.logger import (
-    build_analysis_record,
-    build_audit_log_record,
-    build_error_analysis_record,
-)
-from engine.processor.config import ProcessorConfig
-from engine.processor.constants import PROCESSOR_NAME, ProcessorStatus
-from engine.processor.llm.client import LLMClient, LLMResponse
-from engine.processor.llm.error_classifier import (
-    CODE_QUOTA_EXCEEDED,
-    CODE_RATE_LIMITED,
-    classify_llm_failure,
-)
-from engine.processor.llm.errors import (
-    LLMDuplicateSuppressedError,
-    LLMTruncatedError,
-)
-from engine.processor.llm.retry import retry_llm_call
-from engine.processor.idempotency import ProcessorIdempotency, compute_digest
-from engine.processor.mapping.output_mapper import map_to_processor_output
-from engine.processor.parsing.response_parser import parse_llm_response
-from engine.processor.prompts.system_prompt import (
-    build_system_prompt,
-    build_user_message,
-    compute_prompt_hash,
-)
-from engine.processor.storage.uow import ProcessorUOWFactory
-from engine.processor.streaming import stream_channel_for_user
-from engine.processor.models.analysis import AnalysisOutput as AO
-from engine.processor.models.io import ProcessorInput, ProcessorOutput, ProcessorPort
 
 logger = get_logger(__name__)
 
@@ -75,7 +76,7 @@ async def _publish_byok_provider_quota_safe(
     model: str,
     detail: str,
     code: str,
-    trace_id: Optional[str],
+    trace_id: str | None,
 ) -> None:
     """Wrap the BYOK provider-quota publish in a tight timeout.
 
@@ -113,7 +114,7 @@ async def _publish_byok_provider_quota_safe(
                 "trace_id": trace_id,
             },
         )
-    except (asyncio.TimeoutError, asyncio.CancelledError):
+    except (TimeoutError, asyncio.CancelledError):
         # These two are the only failure modes this wrapper actually
         # owns (the 2 s wait_for boundary + shutdown cancellation).
         # The underlying AlertPublisher already catches and logs every
@@ -150,9 +151,9 @@ class AnalysisProcessor(ProcessorPort):
         *,
         config: ProcessorConfig,
         llm_client: LLMClient,
-        uow_factory: Optional[ProcessorUOWFactory] = None,
-        cache: Optional[Any] = None,
-        alert_publisher: Optional[AlertPublisher] = None,
+        uow_factory: ProcessorUOWFactory | None = None,
+        cache: Any | None = None,
+        alert_publisher: AlertPublisher | None = None,
     ) -> None:
         self._config = config
         self._llm = llm_client
@@ -176,7 +177,7 @@ class AnalysisProcessor(ProcessorPort):
         context: ProcessorInput,
         *,
         user_id: str,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> ProcessorOutput:
         """Process the assembled context and return a trade decision.
 
@@ -214,9 +215,7 @@ class AnalysisProcessor(ProcessorPort):
 
         try:
             async with asyncio.timeout(self._config.total_timeout_seconds):
-                return await self._execute_guarded(
-                    context, user_id=user_id, trace_id=trace_id, start=start
-                )
+                return await self._execute_guarded(context, user_id=user_id, trace_id=trace_id, start=start)
 
         except QuotaExceededError:
             # Propagate immediately: the metering layer already recorded
@@ -234,7 +233,7 @@ class AnalysisProcessor(ProcessorPort):
             # Audit ref: ADMIN-QUOTA-AUDIT-V3-A8.
             raise
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             elapsed_ms = (time.monotonic() - start) * 1000
             PROCESSOR_RUN_TOTAL.labels(
                 processor=PROCESSOR_NAME,
@@ -321,7 +320,7 @@ class AnalysisProcessor(ProcessorPort):
         context: ProcessorInput,
         *,
         user_id: str,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
         start: float,
     ) -> ProcessorOutput:
         """Idempotency wrapper around the core execution pipeline.
@@ -339,9 +338,7 @@ class AnalysisProcessor(ProcessorPort):
         """
         # No cache or no user identity -> no dedupe possible; run directly.
         if self._cache is None or not user_id:
-            return await self._execute(
-                context, user_id=user_id, trace_id=trace_id, start=start
-            )
+            return await self._execute(context, user_id=user_id, trace_id=trace_id, start=start)
 
         symbol = context.symbol
 
@@ -350,9 +347,7 @@ class AnalysisProcessor(ProcessorPort):
         # compute_prompt_hash are deterministic and side-effect-free
         # (no LLM, no IO), so recomputing here is cheap and yields the
         # exact prompt_hash the real call keys on.
-        prompt_hash = compute_prompt_hash(
-            build_system_prompt(), build_user_message(context)
-        )
+        prompt_hash = compute_prompt_hash(build_system_prompt(), build_user_message(context))
         digest = compute_digest(user_id=user_id, symbol=symbol, prompt_hash=prompt_hash)
         guard = ProcessorIdempotency(self._cache)
 
@@ -401,9 +396,7 @@ class AnalysisProcessor(ProcessorPort):
         #    failure, so the returned value is always safe to cache and
         #    error states are never cached.
         try:
-            result = await self._execute(
-                context, user_id=user_id, trace_id=trace_id, start=start
-            )
+            result = await self._execute(context, user_id=user_id, trace_id=trace_id, start=start)
             await guard.store_result(digest, result, trace_id=trace_id)
             return result
         finally:
@@ -414,7 +407,7 @@ class AnalysisProcessor(ProcessorPort):
         context: ProcessorInput,
         *,
         user_id: str,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
         start: float,
     ) -> ProcessorOutput:
         """Core execution pipeline."""
@@ -437,18 +430,14 @@ class AnalysisProcessor(ProcessorPort):
 
         # Dump exact LLM payload to /output/prompts for debugging
         try:
+            from datetime import datetime as dt
             from pathlib import Path
-            from datetime import datetime as dt, timezone
 
-            ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            ts = dt.now(UTC).strftime("%Y%m%dT%H%M%SZ")
             prompts_dir = Path("/output/prompts") / f"{symbol}_{ts}"
             prompts_dir.mkdir(parents=True, exist_ok=True)
-            (prompts_dir / "system_prompt.txt").write_text(
-                system_prompt, encoding="utf-8"
-            )
-            (prompts_dir / "user_message.txt").write_text(
-                user_message, encoding="utf-8"
-            )
+            (prompts_dir / "system_prompt.txt").write_text(system_prompt, encoding="utf-8")
+            (prompts_dir / "user_message.txt").write_text(user_message, encoding="utf-8")
             # Diagnostic: identify WHICH invocation produced this dump so
             # duplicate dumps for a single trigger can be correlated.
             _meta = context.metadata if isinstance(context.metadata, dict) else {}
@@ -548,9 +537,7 @@ class AnalysisProcessor(ProcessorPort):
         # (see engine.processor.streaming). This is what the dashboard's
         # SSE consumer subscribes to. On cache failure the publish is a
         # no-op so the processor never blocks on streaming being broken.
-        stream_channel = (
-            stream_channel_for_user(user_id) if self._cache and user_id else None
-        )
+        stream_channel = stream_channel_for_user(user_id) if self._cache and user_id else None
 
         async def _llm_call() -> LLMResponse:
             # Token counts come from `usage_metadata` only. The old
@@ -590,9 +577,7 @@ class AnalysisProcessor(ProcessorPort):
                 if match:
                     current_extracted = match.group(1)
                     # Unescape json newlines and quotes progressively.
-                    current_extracted = current_extracted.replace("\\n", "\n").replace(
-                        '\\"', '"'
-                    )
+                    current_extracted = current_extracted.replace("\\n", "\n").replace('\\"', '"')
 
                     if len(current_extracted) > len(last_published_reasoning):
                         new_text = current_extracted[len(last_published_reasoning) :]
@@ -700,11 +685,7 @@ class AnalysisProcessor(ProcessorPort):
             # surface through the existing ProcessorError -> generic
             # SPA error UX.
             # --------------------------------------------------------------
-            if (
-                not self._config.uses_platform_key
-                and self._alert_publisher is not None
-                and user_id
-            ):
+            if not self._config.uses_platform_key and self._alert_publisher is not None and user_id:
                 classified = classify_llm_failure(llm_exc)
                 if classified.code in (CODE_QUOTA_EXCEEDED, CODE_RATE_LIMITED):
                     # Background fire-and-forget so a slow Redis cannot
@@ -748,15 +729,13 @@ class AnalysisProcessor(ProcessorPort):
         if finish_reason not in ("STOP", "stop"):
             # Dump the truncated response for debugging
             try:
+                from datetime import datetime as dt
                 from pathlib import Path
-                from datetime import datetime as dt, timezone
 
-                ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                ts = dt.now(UTC).strftime("%Y%m%dT%H%M%SZ")
                 dump_dir = Path("/output/prompts") / f"truncated_{symbol}_{ts}"
                 dump_dir.mkdir(parents=True, exist_ok=True)
-                (dump_dir / "truncated_response.txt").write_text(
-                    llm_response.text, encoding="utf-8"
-                )
+                (dump_dir / "truncated_response.txt").write_text(llm_response.text, encoding="utf-8")
                 (dump_dir / "metadata.txt").write_text(
                     f"finish_reason: {finish_reason}\n"
                     f"output_tokens: {llm_response.output_tokens}\n"
@@ -836,18 +815,14 @@ class AnalysisProcessor(ProcessorPort):
         except Exception as parse_exc:
             # Dump the truncated response to see exactly what Gemini returned
             try:
+                from datetime import datetime as dt
                 from pathlib import Path
-                from datetime import datetime as dt, timezone
 
-                ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                ts = dt.now(UTC).strftime("%Y%m%dT%H%M%SZ")
                 dump_dir = Path("/output/prompts") / f"failed_{symbol}_{ts}"
                 dump_dir.mkdir(parents=True, exist_ok=True)
-                (dump_dir / "truncated_response.txt").write_text(
-                    llm_response.text, encoding="utf-8"
-                )
-                logger.error(
-                    "dumped_truncated_response", extra={"directory": str(dump_dir)}
-                )
+                (dump_dir / "truncated_response.txt").write_text(llm_response.text, encoding="utf-8")
+                logger.error("dumped_truncated_response", extra={"directory": str(dump_dir)})
             except Exception:
                 pass
             raise parse_exc
@@ -883,10 +858,7 @@ class AnalysisProcessor(ProcessorPort):
         elapsed_ms = (time.monotonic() - start) * 1000
 
         # Step 9: Determine status, emit metrics, persist audit trail.
-        if analysis_output.direction == "NO SETUP":
-            status = ProcessorStatus.NO_SETUP
-        else:
-            status = ProcessorStatus.SUCCESS
+        status = ProcessorStatus.NO_SETUP if analysis_output.direction == "NO SETUP" else ProcessorStatus.SUCCESS
 
         PROCESSOR_RUN_TOTAL.labels(
             processor=PROCESSOR_NAME,
@@ -934,7 +906,7 @@ class AnalysisProcessor(ProcessorPort):
     def _validate_context(
         context: ProcessorInput,
         *,
-        trace_id: Optional[str] = None,
+        trace_id: str | None = None,
     ) -> None:
         """Validate that the context has sufficient data for analysis."""
         if not context.ta_analysis:
@@ -948,9 +920,7 @@ class AnalysisProcessor(ProcessorPort):
             )
 
         ta = context.ta_analysis
-        has_candidates = bool(ta.get("smc_candidates")) or bool(
-            ta.get("snd_candidates")
-        )
+        has_candidates = bool(ta.get("smc_candidates")) or bool(ta.get("snd_candidates"))
         if not has_candidates:
             PROCESSOR_INSUFFICIENT_DATA_TOTAL.labels(
                 processor=PROCESSOR_NAME,
@@ -981,7 +951,7 @@ class AnalysisProcessor(ProcessorPort):
         validation_warnings: list[str],
         raw_dict: dict,
         elapsed_ms: float,
-        trace_id: Optional[str],
+        trace_id: str | None,
     ) -> None:
         """Persist analysis record and audit log on success."""
 
@@ -993,11 +963,7 @@ class AnalysisProcessor(ProcessorPort):
                 record = build_analysis_record(
                     analysis_output,
                     user_id=user_id,
-                    status=(
-                        "success"
-                        if analysis_output.direction != "NO SETUP"
-                        else "no_setup"
-                    ),
+                    status=("success" if analysis_output.direction != "NO SETUP" else "no_setup"),
                     duration_ms=elapsed_ms,
                     trace_id=trace_id,
                     raw_output=raw_dict,
@@ -1087,7 +1053,7 @@ class AnalysisProcessor(ProcessorPort):
         error_message: str,
         status: str,
         duration_ms: float,
-        trace_id: Optional[str],
+        trace_id: str | None,
     ) -> None:
         """Persist an error analysis record."""
         if not self._uow_factory:

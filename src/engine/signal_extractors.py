@@ -84,9 +84,7 @@ def derive_macro_signals(macro: dict) -> dict:
                     signals["has_qe_qt"] = True
                     signals["qe_qt_action"] = policy
                     signals["qe_qt_bank"] = bank
-                    signals["balance_sheet_direction"] = (
-                        "EXPANDING" if policy == "QE" else "CONTRACTING"
-                    )
+                    signals["balance_sheet_direction"] = "EXPANDING" if policy == "QE" else "CONTRACTING"
         for action in cb.get("policy_actions") or []:
             if not isinstance(action, dict):
                 continue
@@ -95,9 +93,7 @@ def derive_macro_signals(macro: dict) -> dict:
                 signals["has_qe_qt"] = True
                 signals["qe_qt_action"] = action_type
                 signals["qe_qt_bank"] = (action.get("bank") or "").upper()
-                signals["balance_sheet_direction"] = (
-                    "EXPANDING" if action_type == "QE" else "CONTRACTING"
-                )
+                signals["balance_sheet_direction"] = "EXPANDING" if action_type == "QE" else "CONTRACTING"
         rate_change_seen: set[str] = set()
         for decision in cb.get("rate_decisions") or []:
             if not isinstance(decision, dict):
@@ -125,9 +121,7 @@ def derive_macro_signals(macro: dict) -> dict:
                 signals["has_qe_qt"] = True
                 signals["qe_qt_action"] = policy
                 signals["qe_qt_bank"] = bank
-                signals["balance_sheet_direction"] = (
-                    "EXPANDING" if policy == "QE" else "CONTRACTING"
-                )
+                signals["balance_sheet_direction"] = "EXPANDING" if policy == "QE" else "CONTRACTING"
 
     # COT signals.
     cot = macro.get("cot")
@@ -161,11 +155,7 @@ def derive_macro_signals(macro: dict) -> dict:
                 signals["has_high_impact_event"] = True
             if "RATE" in name_upper and "DECISION" in name_upper:
                 signals["has_rate_decision"] = True
-            if (
-                "NFP" in name_upper
-                or "NON-FARM" in name_upper
-                or "NONFARM" in name_upper
-            ):
+            if "NFP" in name_upper or "NON-FARM" in name_upper or "NONFARM" in name_upper:
                 signals["has_nfp"] = True
             if "CPI" in name_upper or "CONSUMER PRICE INDEX" in name_upper:
                 signals["has_cpi"] = True

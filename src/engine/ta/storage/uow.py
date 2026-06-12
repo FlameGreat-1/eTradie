@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from engine.shared.db import DatabaseManager
 from engine.shared.logging import get_logger
-from engine.ta.storage.repositories.candle import CandleRepository
-from engine.ta.storage.repositories.candidate import CandidateRepository
-from engine.ta.storage.repositories.snapshot import SnapshotRepository
 from engine.ta.storage.repositories.broker_symbol import BrokerSymbolRepository
+from engine.ta.storage.repositories.candidate import CandidateRepository
+from engine.ta.storage.repositories.candle import CandleRepository
+from engine.ta.storage.repositories.snapshot import SnapshotRepository
 
 logger = get_logger(__name__)
 
@@ -32,10 +32,10 @@ class TAUnitOfWork:
         self._db = db
         self._ctx = None
         self._session = None
-        self.candle_repo: Optional[CandleRepository] = None
-        self.snapshot_repo: Optional[SnapshotRepository] = None
-        self.candidate_repo: Optional[CandidateRepository] = None
-        self.broker_symbol_repo: Optional[BrokerSymbolRepository] = None
+        self.candle_repo: CandleRepository | None = None
+        self.snapshot_repo: SnapshotRepository | None = None
+        self.candidate_repo: CandidateRepository | None = None
+        self.broker_symbol_repo: BrokerSymbolRepository | None = None
 
     async def __aenter__(self) -> TAUnitOfWork:
         self._ctx = self._db.session()
@@ -70,10 +70,10 @@ class TAReadUnitOfWork:
         self._db = db
         self._ctx = None
         self._session = None
-        self.candle_repo: Optional[CandleRepository] = None
-        self.snapshot_repo: Optional[SnapshotRepository] = None
-        self.candidate_repo: Optional[CandidateRepository] = None
-        self.broker_symbol_repo: Optional[BrokerSymbolRepository] = None
+        self.candle_repo: CandleRepository | None = None
+        self.snapshot_repo: SnapshotRepository | None = None
+        self.candidate_repo: CandidateRepository | None = None
+        self.broker_symbol_repo: BrokerSymbolRepository | None = None
 
     async def __aenter__(self) -> TAReadUnitOfWork:
         self._ctx = self._db.read_session()

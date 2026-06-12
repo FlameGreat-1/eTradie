@@ -7,16 +7,16 @@ Create Date: 2026-03-11
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0003"
-down_revision: Union[str, None] = "0002"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0002"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -35,9 +35,7 @@ def upgrade() -> None:
         sa.Column("status", sa.String(20), nullable=False, server_default="draft"),
         sa.Column("checksum", sa.String(128), nullable=False),
         sa.Column("active_version_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column(
-            "framework_tags", postgresql.JSON, nullable=False, server_default="[]"
-        ),
+        sa.Column("framework_tags", postgresql.JSON, nullable=False, server_default="[]"),
         sa.Column("metadata", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column(
             "created_at",
@@ -54,12 +52,8 @@ def upgrade() -> None:
     )
     op.create_index("ix_rag_docs_doc_type", "rag_documents", ["doc_type"])
     op.create_index("ix_rag_docs_status", "rag_documents", ["status"])
-    op.create_index(
-        "ix_rag_docs_doc_type_status", "rag_documents", ["doc_type", "status"]
-    )
-    op.create_index(
-        "ix_rag_docs_source_path", "rag_documents", ["source_path"], unique=True
-    )
+    op.create_index("ix_rag_docs_doc_type_status", "rag_documents", ["doc_type", "status"])
+    op.create_index("ix_rag_docs_source_path", "rag_documents", ["source_path"], unique=True)
 
     op.create_table(
         "rag_document_versions",
@@ -90,9 +84,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
-    op.create_index(
-        "ix_rag_docver_document_id", "rag_document_versions", ["document_id"]
-    )
+    op.create_index("ix_rag_docver_document_id", "rag_document_versions", ["document_id"])
     op.create_index(
         "ix_rag_docver_doc_version",
         "rag_document_versions",
@@ -126,9 +118,7 @@ def upgrade() -> None:
         sa.Column("content", sa.Text, nullable=False),
         sa.Column("content_hash", sa.String(128), nullable=False),
         sa.Column("token_count", sa.Integer, nullable=False),
-        sa.Column(
-            "embedding_status", sa.String(20), nullable=False, server_default="pending"
-        ),
+        sa.Column("embedding_status", sa.String(20), nullable=False, server_default="pending"),
         sa.Column("section", sa.String(256), nullable=True),
         sa.Column("subsection", sa.String(256), nullable=True),
         sa.Column("parent_chunk_id", postgresql.UUID(as_uuid=True), nullable=True),
@@ -144,9 +134,7 @@ def upgrade() -> None:
     op.create_index("ix_rag_chunks_document_id", "rag_chunks", ["document_id"])
     op.create_index("ix_rag_chunks_version_id", "rag_chunks", ["document_version_id"])
     op.create_index("ix_rag_chunks_doc_type", "rag_chunks", ["doc_type"])
-    op.create_index(
-        "ix_rag_chunks_embedding_status", "rag_chunks", ["embedding_status"]
-    )
+    op.create_index("ix_rag_chunks_embedding_status", "rag_chunks", ["embedding_status"])
     op.create_index("ix_rag_chunks_content_hash", "rag_chunks", ["content_hash"])
     op.create_index(
         "ix_rag_chunks_doc_version_index",
@@ -177,13 +165,9 @@ def upgrade() -> None:
         sa.Column("title", sa.String(512), nullable=False),
         sa.Column("explanation_text", sa.Text, nullable=False),
         sa.Column("image_refs", postgresql.JSON, nullable=False, server_default="[]"),
-        sa.Column(
-            "confluence_tags", postgresql.JSON, nullable=False, server_default="[]"
-        ),
+        sa.Column("confluence_tags", postgresql.JSON, nullable=False, server_default="[]"),
         sa.Column("style_tags", postgresql.JSON, nullable=False, server_default="[]"),
-        sa.Column(
-            "linked_chunk_ids", postgresql.JSON, nullable=False, server_default="[]"
-        ),
+        sa.Column("linked_chunk_ids", postgresql.JSON, nullable=False, server_default="[]"),
         sa.Column("metadata", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
         sa.Column("notes", sa.Text, nullable=True),
@@ -256,9 +240,7 @@ def upgrade() -> None:
         ),
         sa.Column("query_text", sa.Text, nullable=False),
         sa.Column("strategy", sa.String(32), nullable=False),
-        sa.Column(
-            "filters_applied", postgresql.JSON, nullable=False, server_default="{}"
-        ),
+        sa.Column("filters_applied", postgresql.JSON, nullable=False, server_default="{}"),
         sa.Column("total_candidates", sa.Integer, nullable=False, server_default="0"),
         sa.Column("chunks_returned", sa.Integer, nullable=False, server_default="0"),
         sa.Column("score_threshold", sa.Float, nullable=False, server_default="0.25"),
@@ -330,13 +312,9 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
-    op.create_index(
-        "ix_rag_acit_retrieval_id", "rag_analysis_citations", ["retrieval_log_id"]
-    )
+    op.create_index("ix_rag_acit_retrieval_id", "rag_analysis_citations", ["retrieval_log_id"])
     op.create_index("ix_rag_acit_chunk_id", "rag_analysis_citations", ["chunk_id"])
-    op.create_index(
-        "ix_rag_acit_document_id", "rag_analysis_citations", ["document_id"]
-    )
+    op.create_index("ix_rag_acit_document_id", "rag_analysis_citations", ["document_id"])
     op.create_index("ix_rag_acit_doc_type", "rag_analysis_citations", ["doc_type"])
     op.create_index("ix_rag_acit_created_at", "rag_analysis_citations", ["created_at"])
 

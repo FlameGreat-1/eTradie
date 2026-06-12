@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from uuid import UUID
 
 from engine.rag.models.citation import Citation
@@ -20,10 +21,8 @@ def build_citations(
         scenario_id: UUID | None = None
         raw_scenario = chunk.metadata.get("scenario_id")
         if raw_scenario:
-            try:
+            with contextlib.suppress(ValueError):
                 scenario_id = UUID(raw_scenario)
-            except ValueError:
-                pass
 
         excerpt = chunk.content[:2048] if chunk.content else ""
 

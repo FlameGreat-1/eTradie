@@ -68,18 +68,14 @@ class GapFiller:
 
         logger.info(
             "filling_retrieval_gaps",
-            gaps={dt: deficit for dt, deficit in gaps.items()},
+            gaps=dict(gaps.items()),
             existing_chunks=len(existing_chunks),
         )
 
         supplemental: list[RetrievedChunk] = []
 
         for doc_type, deficit in gaps.items():
-            collection = (
-                scenario_collection
-                if doc_type == DocumentType.CHART_SCENARIO_LIBRARY
-                else doc_collection
-            )
+            collection = scenario_collection if doc_type == DocumentType.CHART_SCENARIO_LIBRARY else doc_collection
 
             # Retrieve extra chunks for this specific doc_type.
             # Request more than the deficit to have candidates after

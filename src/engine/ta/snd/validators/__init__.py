@@ -13,8 +13,8 @@ Validators enforce:
 No candidate is generated unless all validation rules pass.
 """
 
-from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
 from engine.ta.snd.validators.ltf.confirmation import LTFConfirmationValidator
+from engine.ta.snd.validators.marubozu.validator import MarubozuValidator
 
 __all__ = [
     "MarubozuValidator",

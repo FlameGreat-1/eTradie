@@ -1,8 +1,7 @@
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_, desc
+from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.shared.logging import get_logger
@@ -56,8 +55,8 @@ class SnapshotRepository:
         demand_zones: list | dict,
         fibonacci_retracements: list | dict,
         dealing_ranges: list | dict,
-        metadata: Optional[dict] = None,
-        notes: Optional[str] = None,
+        metadata: dict | None = None,
+        notes: str | None = None,
     ) -> SnapshotSchema:
         """Create a new technical snapshot.
 
@@ -68,9 +67,7 @@ class SnapshotRepository:
         dict wrapper remain valid JSONB. SQLAlchemy's ``JSON`` column
         accepts both at the wire level.
         """
-        latest_version = await self._get_latest_version(
-            symbol, timeframe, user_id=user_id
-        )
+        latest_version = await self._get_latest_version(symbol, timeframe, user_id=user_id)
 
         schema = SnapshotSchema(
             user_id=user_id,
@@ -117,11 +114,9 @@ class SnapshotRepository:
 
         return schema
 
-    async def get_by_id(self, snapshot_id: UUID) -> Optional[SnapshotSchema]:
+    async def get_by_id(self, snapshot_id: UUID) -> SnapshotSchema | None:
         """Retrieve snapshot by ID."""
-        result = await self.session.execute(
-            select(SnapshotSchema).where(SnapshotSchema.id == snapshot_id)
-        )
+        result = await self.session.execute(select(SnapshotSchema).where(SnapshotSchema.id == snapshot_id))
         return result.scalar_one_or_none()
 
     async def find_by_symbol_timeframe_timestamp(
@@ -131,7 +126,7 @@ class SnapshotRepository:
         timestamp: datetime,
         *,
         user_id: str,
-    ) -> Optional[SnapshotSchema]:
+    ) -> SnapshotSchema | None:
         """Find snapshot by user_id, symbol, timeframe, and timestamp."""
         result = await self.session.execute(
             select(SnapshotSchema)
@@ -154,7 +149,7 @@ class SnapshotRepository:
         timeframe: str,
         *,
         user_id: str,
-    ) -> Optional[SnapshotSchema]:
+    ) -> SnapshotSchema | None:
         """Get most recent snapshot for user/symbol/timeframe."""
         result = await self.session.execute(
             select(SnapshotSchema)
@@ -176,7 +171,7 @@ class SnapshotRepository:
         timeframe: str,
         start_time: datetime,
         end_time: datetime,
-        limit: Optional[int] = None,
+        limit: int | None = None,
         *,
         user_id: str,
     ) -> list[SnapshotSchema]:

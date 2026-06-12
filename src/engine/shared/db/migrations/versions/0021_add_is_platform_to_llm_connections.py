@@ -6,8 +6,8 @@ Create Date: 2026-05-16 08:00:00.000000
 
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "0021"
@@ -24,9 +24,7 @@ def upgrade() -> None:
     )
 
     # 2. Make user_id nullable (so platform connection can have user_id = null)
-    op.alter_column(
-        "llm_connections", "user_id", existing_type=sa.String(length=64), nullable=True
-    )
+    op.alter_column("llm_connections", "user_id", existing_type=sa.String(length=64), nullable=True)
 
     # 3. Create index for is_platform
     op.create_index(
@@ -45,9 +43,7 @@ def downgrade() -> None:
     # Warning: if there are rows with user_id = null, this will fail.
     # To be safe, we would delete the platform row first.
     op.execute("DELETE FROM llm_connections WHERE is_platform = true")
-    op.alter_column(
-        "llm_connections", "user_id", existing_type=sa.String(length=64), nullable=False
-    )
+    op.alter_column("llm_connections", "user_id", existing_type=sa.String(length=64), nullable=False)
 
     # 3. Drop is_platform column
     op.drop_column("llm_connections", "is_platform")

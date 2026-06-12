@@ -17,9 +17,9 @@ uses body-threshold analysis to distinguish retests (RTO = entry opportunity)
 from true mitigation (body closes through zone).
 """
 
-from engine.ta.smc.zones.order_block import OrderBlockDetector
-from engine.ta.smc.zones.fvg import FVGDetector
 from engine.ta.smc.zones.breaker import BreakerDetector
+from engine.ta.smc.zones.fvg import FVGDetector
+from engine.ta.smc.zones.order_block import OrderBlockDetector
 
 __all__ = [
     "OrderBlockDetector",

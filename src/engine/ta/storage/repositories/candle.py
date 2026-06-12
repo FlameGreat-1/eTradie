@@ -1,8 +1,7 @@
 from datetime import datetime, timedelta
-from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_, desc, func, delete
+from sqlalchemy import and_, delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.shared.logging import get_logger
@@ -37,11 +36,7 @@ def _candle_to_schema(candle: Candle, user_id: str) -> CandleSchema:
         candle: The candle domain model.
         user_id: The owning user's ID. Required for multi-tenant isolation.
     """
-    tf_str = (
-        candle.timeframe.value
-        if hasattr(candle.timeframe, "value")
-        else str(candle.timeframe)
-    )
+    tf_str = candle.timeframe.value if hasattr(candle.timeframe, "value") else str(candle.timeframe)
     return CandleSchema(
         user_id=user_id,
         symbol=candle.symbol,
@@ -92,9 +87,7 @@ class CandleRepository:
 
         return schema
 
-    async def bulk_create(
-        self, candles: list[Candle], *, user_id: str
-    ) -> list[CandleSchema]:
+    async def bulk_create(self, candles: list[Candle], *, user_id: str) -> list[CandleSchema]:
         """Batch insert multiple candles owned by user_id, idempotently.
 
         Uses Postgres `INSERT ... ON CONFLICT DO NOTHING` against the
@@ -114,7 +107,6 @@ class CandleRepository:
             return []
 
         from sqlalchemy.dialects.postgresql import insert as pg_insert
-        from sqlalchemy import select as sa_select
 
         from engine.shared.metrics.prometheus import (
             BROKER_CANDLES_DEDUP_SKIPPED_TOTAL,
@@ -124,11 +116,7 @@ class CandleRepository:
             {
                 "user_id": user_id,
                 "symbol": c.symbol,
-                "timeframe": (
-                    c.timeframe.value
-                    if hasattr(c.timeframe, "value")
-                    else str(c.timeframe)
-                ),
+                "timeframe": (c.timeframe.value if hasattr(c.timeframe, "value") else str(c.timeframe)),
                 "timestamp": c.timestamp,
                 "open": c.open,
                 "high": c.high,
@@ -138,11 +126,7 @@ class CandleRepository:
                 "open_time": c.timestamp,
                 "close_time": _derive_close_time(
                     c.timestamp,
-                    (
-                        c.timeframe.value
-                        if hasattr(c.timeframe, "value")
-                        else str(c.timeframe)
-                    ),
+                    (c.timeframe.value if hasattr(c.timeframe, "value") else str(c.timeframe)),
                 ),
             }
             for c in candles
@@ -184,11 +168,9 @@ class CandleRepository:
     async def get_by_id(
         self,
         candle_id: UUID,
-    ) -> Optional[CandleSchema]:
+    ) -> CandleSchema | None:
         """Retrieve candle by ID."""
-        result = await self.session.execute(
-            select(CandleSchema).where(CandleSchema.id == candle_id)
-        )
+        result = await self.session.execute(select(CandleSchema).where(CandleSchema.id == candle_id))
         return result.scalar_one_or_none()
 
     async def find_by_symbol_timeframe_timestamp(
@@ -198,7 +180,7 @@ class CandleRepository:
         timestamp: datetime,
         *,
         user_id: str,
-    ) -> Optional[CandleSchema]:
+    ) -> CandleSchema | None:
         """Find candle by user_id, symbol, timeframe, and timestamp."""
         result = await self.session.execute(
             select(CandleSchema).where(
@@ -218,7 +200,7 @@ class CandleRepository:
         timeframe: str,
         start_time: datetime,
         end_time: datetime,
-        limit: Optional[int] = None,
+        limit: int | None = None,
         *,
         user_id: str,
     ) -> list[CandleSchema]:
@@ -249,7 +231,7 @@ class CandleRepository:
         timeframe: str,
         *,
         user_id: str,
-    ) -> Optional[CandleSchema]:
+    ) -> CandleSchema | None:
         """Get most recent candle for user/symbol/timeframe."""
         result = await self.session.execute(
             select(CandleSchema)

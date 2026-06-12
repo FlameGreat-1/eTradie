@@ -10,7 +10,8 @@ import json
 import threading
 import time
 from collections import OrderedDict
-from datetime import datetime as dt, timezone
+from datetime import UTC
+from datetime import datetime as dt
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,7 @@ from engine.shared.logging import get_logger
 
 if TYPE_CHECKING:
     from fastapi import Request
+
     from engine.dependencies import Container
     from engine.processor.service import AnalysisProcessor
 
@@ -43,7 +45,7 @@ logger = get_logger(__name__)
 _FALLBACK_MAX_KEYS = 16384
 _fallbackLock = threading.Lock()
 # key -> (window_start_epoch_seconds, count)
-_fallbackCounters: "OrderedDict[str, tuple[float, int]]" = OrderedDict()
+_fallbackCounters: OrderedDict[str, tuple[float, int]] = OrderedDict()
 
 
 def _fallback_allow(key: str, max_requests: int, window_seconds: int) -> bool:
@@ -73,7 +75,7 @@ def _fallback_allow(key: str, max_requests: int, window_seconds: int) -> bool:
 
 
 async def _rate_limit(
-    request: "Request",
+    request: Request,
     key_prefix: str,
     max_requests: int = 10,
     window_seconds: int = 60,
@@ -93,10 +95,7 @@ async def _rate_limit(
         the original behaviour for callers that want an IP axis.
     """
     container: Container = request.app.state.container
-    if user_id:
-        rate_subject = f"user:{user_id}"
-    else:
-        rate_subject = request.client.host if request.client else "unknown"
+    rate_subject = f"user:{user_id}" if user_id else request.client.host if request.client else "unknown"
     rate_key = f"ratelimit:{key_prefix}:{rate_subject}"
 
     try:
@@ -133,9 +132,7 @@ async def _rate_limit(
             )
 
 
-async def _resolve_user_processor(
-    container: "Container", user: "AuthenticatedUser"
-) -> "AnalysisProcessor":
+async def _resolve_user_processor(container: Container, user: AuthenticatedUser) -> AnalysisProcessor:
     """Resolve the authenticated user's LLM processor.
 
     Called by every endpoint that runs the LLM processor to ensure
@@ -151,7 +148,7 @@ async def _resolve_user_processor(
         raise HTTPException(status_code=503, detail=str(exc))
 
 
-async def _resolve_user_broker(container: "Container", user_id: str):
+async def _resolve_user_broker(container: Container, user_id: str):
     """Resolve the authenticated user's broker connection.
 
     Called by every endpoint that needs broker access to ensure
@@ -197,7 +194,7 @@ def _save_debug_output(
 
     Returns a dict of {label: filepath} for every file written.
     """
-    ts = dt.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    ts = dt.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     out_dir = Path("/output") / subdirectory / f"{symbol}_{ts}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -215,11 +212,7 @@ def _save_debug_output(
         _write("ta_smc_candidates", ta_data.get("smc_candidates"))
         _write("ta_snd_candidates", ta_data.get("snd_candidates"))
 
-        ta_meta = {
-            k: v
-            for k, v in ta_data.items()
-            if k not in ("snapshots", "smc_candidates", "snd_candidates")
-        }
+        ta_meta = {k: v for k, v in ta_data.items() if k not in ("snapshots", "smc_candidates", "snd_candidates")}
         _write("ta_metadata", ta_meta)
 
     _write("macro_analysis", macro_data)

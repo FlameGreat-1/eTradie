@@ -41,9 +41,9 @@ Why a context manager not an argument
 from __future__ import annotations
 
 import contextlib
+from collections.abc import Iterator
 from contextvars import ContextVar
 from enum import StrEnum, unique
-from typing import Iterator
 
 
 @unique

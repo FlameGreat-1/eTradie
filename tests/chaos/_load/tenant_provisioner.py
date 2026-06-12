@@ -12,6 +12,7 @@ clean if the requested N exceeds the file length - we do NOT make
 up credentials because the engine's provision_account readiness gate
 runs a real ZMQ PING and would fail against a synthetic account.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -21,9 +22,10 @@ import ssl
 import urllib.error
 import urllib.request
 import uuid
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any
 
 _PROVISION_TIMEOUT_SECS = 300.0  # matches HostedProvisioner._READINESS_TIMEOUT_SECS
 _PROVISION_CONCURRENCY = 20
@@ -53,18 +55,14 @@ def _load_creds_file() -> list[dict[str, str]]:
             "ETRADIE_CHAOS_TEST_CREDS_FILE not set. Provide a path to a JSON "
             "array of {login, password, server} objects (one per tenant)."
         )
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         data = json.load(fh)
     if not isinstance(data, list):
-        raise RuntimeError(
-            f"{path}: expected a JSON array of credential objects, got {type(data).__name__}"
-        )
+        raise RuntimeError(f"{path}: expected a JSON array of credential objects, got {type(data).__name__}")
     for i, entry in enumerate(data):
         for k in ("login", "password", "server"):
             if k not in entry or not str(entry[k]).strip():
-                raise RuntimeError(
-                    f"{path}[{i}]: missing required field {k!r}"
-                )
+                raise RuntimeError(f"{path}[{i}]: missing required field {k!r}")
     return data
 
 
@@ -158,7 +156,7 @@ class TenantProvisioner:
                         f"/api/broker/connections/{connection_id}",
                         timeout=30.0,
                     )
-                except RuntimeError as exc:
+                except RuntimeError:
                     continue
                 if current.get("status") == "connected":
                     return Tenant(
@@ -186,10 +184,7 @@ class TenantProvisioner:
                 f"are available in ETRADIE_CHAOS_TEST_CREDS_FILE"
             )
         start = asyncio.get_event_loop().time()
-        coros = [
-            self._provision_one(creds, user_id_prefix=user_id_prefix)
-            for creds in creds_pool[:n]
-        ]
+        coros = [self._provision_one(creds, user_id_prefix=user_id_prefix) for creds in creds_pool[:n]]
         results = await asyncio.gather(*coros, return_exceptions=False)
         outcome = ProvisioningOutcome(
             elapsed_secs=asyncio.get_event_loop().time() - start,
@@ -205,18 +200,14 @@ class TenantProvisioner:
         """Delete every provisioned connection in parallel. Errors are
         logged via print but never raised; the test cleanup MUST be
         best-effort to avoid masking the real test failure."""
+
         async def _delete(t: Tenant) -> None:
             async with self._semaphore:
-                try:
+                with suppress(RuntimeError):
                     await self._request(
                         "DELETE",
                         f"/api/broker/connections/{t.connection_id}",
                         timeout=60.0,
-                    )
-                except RuntimeError as exc:
-                    print(
-                        f"teardown: DELETE {t.connection_id} failed: {exc}",
-                        flush=True,
                     )
 
         await asyncio.gather(*(_delete(t) for t in tenants), return_exceptions=True)

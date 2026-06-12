@@ -31,10 +31,10 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from engine.shared.http import HttpClient
-from engine.shared.logging import get_logger
 from engine.macro.models.provider.market_data import IntermarketSnapshot
 from engine.macro.providers.market_data.base import BaseMarketDataProvider
+from engine.shared.http import HttpClient
+from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -88,9 +88,7 @@ class FREDIntermarketProvider(BaseMarketDataProvider):
                 extra={"action": "skipping - no FRED API key configured"},
             )
             self._record_success(time.monotonic() - start)
-            return IntermarketSnapshot(
-                snapshot_at=datetime.now(UTC), source=self.provider_name
-            )
+            return IntermarketSnapshot(snapshot_at=datetime.now(UTC), source=self.provider_name)
 
         try:
             values: dict[str, float | None] = {}
@@ -160,7 +158,7 @@ class FREDIntermarketProvider(BaseMarketDataProvider):
 
     @staticmethod
     def _parse_float(val: Any) -> float | None:
-        if val is None or val == "" or val == ".":
+        if val is None or val in {"", "."}:
             return None
         try:
             return float(str(val).replace(",", ""))

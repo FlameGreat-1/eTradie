@@ -1,16 +1,14 @@
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from engine.shared.exceptions import ProviderValidationError
 from engine.shared.logging import get_logger
-from engine.ta.constants import Timeframe, TIMEFRAME_MINUTES
+from engine.ta.constants import TIMEFRAME_MINUTES, Timeframe
 from engine.ta.models.candle import Candle, CandleSequence
 
 logger = get_logger(__name__)
 
 
 class BrokerDataValidator:
-
     def __init__(
         self,
         *,
@@ -122,9 +120,7 @@ class BrokerDataValidator:
         else:
             # Standard validation for other timeframes
             expected_delta = timedelta(minutes=timeframe_minutes)
-            max_allowed_gap = timedelta(
-                minutes=int(timeframe_minutes * self.max_gap_multiplier)
-            )
+            max_allowed_gap = timedelta(minutes=int(timeframe_minutes * self.max_gap_multiplier))
 
         for i in range(1, len(sequence.candles)):
             prev_candle = sequence.candles[i - 1]
@@ -164,20 +160,19 @@ class BrokerDataValidator:
                             "expected_range_days": "28-31",
                         },
                     )
-            else:
-                # Standard timeframe validation
-                if actual_delta < expected_delta:
-                    raise ProviderValidationError(
-                        "Candles too close together",
-                        details={
-                            "symbol": sequence.symbol,
-                            "timeframe": sequence.timeframe,
-                            "prev_timestamp": prev_candle.timestamp.isoformat(),
-                            "curr_timestamp": curr_candle.timestamp.isoformat(),
-                            "actual_delta_minutes": actual_delta.total_seconds() / 60,
-                            "expected_delta_minutes": timeframe_minutes,
-                        },
-                    )
+            # Standard timeframe validation
+            elif actual_delta < expected_delta:
+                raise ProviderValidationError(
+                    "Candles too close together",
+                    details={
+                        "symbol": sequence.symbol,
+                        "timeframe": sequence.timeframe,
+                        "prev_timestamp": prev_candle.timestamp.isoformat(),
+                        "curr_timestamp": curr_candle.timestamp.isoformat(),
+                        "actual_delta_minutes": actual_delta.total_seconds() / 60,
+                        "expected_delta_minutes": timeframe_minutes,
+                    },
+                )
 
             # Gap detection (applies to all timeframes)
             if actual_delta > max_allowed_gap:
@@ -237,8 +232,8 @@ class BrokerDataValidator:
 
     def validate_time_range(
         self,
-        start_time: Optional[datetime],
-        end_time: Optional[datetime],
+        start_time: datetime | None,
+        end_time: datetime | None,
     ) -> None:
         if start_time is not None and end_time is not None:
             if end_time <= start_time:
@@ -250,9 +245,7 @@ class BrokerDataValidator:
                     },
                 )
 
-            from datetime import timezone as _tz
-
-            _now = datetime.now(_tz.utc) if end_time.tzinfo else datetime.now()
+            _now = datetime.now(UTC) if end_time.tzinfo else datetime.now()
             if end_time > _now:
                 raise ProviderValidationError(
                     "End time cannot be in the future",

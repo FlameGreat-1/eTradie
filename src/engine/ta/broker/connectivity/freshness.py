@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import time as _time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from engine.shared.exceptions import ProviderStalePriceError
 from engine.shared.metrics.prometheus import BROKER_TICK_STALE_TOTAL
@@ -84,7 +84,7 @@ class TickFreshnessGuard:
                     "max_age_seconds": self.max_age_seconds,
                     "tick_iso": datetime.fromtimestamp(
                         float(tick_unix_ts),
-                        tz=timezone.utc,
+                        tz=UTC,
                     ).isoformat(),
                     "reason": "stale_by_age",
                 },

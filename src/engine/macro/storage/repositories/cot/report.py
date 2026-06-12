@@ -4,8 +4,8 @@ from datetime import date
 
 from sqlalchemy import func, select
 
-from engine.shared.db.repositories.base_repository import BaseRepository
 from engine.macro.storage.schemas.cot import COTReportRow
+from engine.shared.db.repositories.base_repository import BaseRepository
 
 
 class COTRepository(BaseRepository[COTReportRow]):

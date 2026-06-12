@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 
 from engine.rag.constants import (
     ConflictResult,

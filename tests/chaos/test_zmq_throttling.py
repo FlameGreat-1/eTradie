@@ -4,6 +4,7 @@ These tests exercise the OutboundRateLimiter + in-flight gate +
 request-deadline propagation at the ZmqClient._request boundary by
 stubbing _send_recv_async. No ZMQ socket, no broker, no DB.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -135,9 +136,7 @@ async def test_inflight_gate_rejects_when_deadline_elapses():
 
     async def fast_caller():
         # Tiny deadline: bounce off the gate before the slow caller releases.
-        return await client._request(
-            {"command": "PING"}, request_deadline_secs=0.05
-        )
+        return await client._request({"command": "PING"}, request_deadline_secs=0.05)
 
     slow = asyncio.create_task(client._request({"command": "PING"}))
     # Give the slow caller time to acquire the gate.

@@ -3,36 +3,33 @@ import hmac
 import ipaddress
 import json
 import time
-from typing import Optional, Any
 
 from pydantic import Field, field_validator
 
 from engine.shared.exceptions import (
     ProviderAuthenticationError,
-    ProviderValidationError,
     ProviderError,
+    ProviderValidationError,
 )
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
     PROVIDER_REQUEST_DURATION,
     PROVIDER_REQUEST_ERRORS,
 )
-
 from engine.shared.models.base import FrozenModel
 from engine.ta.broker.tradingview.config import TradingViewConfig
-from engine.ta.constants import Timeframe, Direction
+from engine.ta.constants import Direction, Timeframe
 
 logger = get_logger(__name__)
 
 
 class TradingViewAlert(FrozenModel):
-
     symbol: str = Field(min_length=6, max_length=10)
-    timeframe: Optional[Timeframe] = None
-    direction: Optional[Direction] = None
-    price: Optional[float] = Field(default=None, gt=0)
+    timeframe: Timeframe | None = None
+    direction: Direction | None = None
+    price: float | None = Field(default=None, gt=0)
     message: str = Field(default="")
-    timestamp: Optional[str] = None
+    timestamp: str | None = None
     raw_payload: dict = Field(default_factory=dict)
 
     @field_validator("symbol")
@@ -42,7 +39,6 @@ class TradingViewAlert(FrozenModel):
 
 
 class TradingViewWebhookHandler:
-
     def __init__(self, config: TradingViewConfig) -> None:
         self.config = config
         self._logger = get_logger(__name__)
@@ -144,9 +140,7 @@ class TradingViewWebhookHandler:
             if timeframe_str:
                 timeframe = self._parse_timeframe(timeframe_str)
 
-            direction_str = payload.get("strategy.order.action") or payload.get(
-                "direction"
-            )
+            direction_str = payload.get("strategy.order.action") or payload.get("direction")
             direction = None
             if direction_str:
                 direction = self._parse_direction(direction_str)
@@ -192,7 +186,7 @@ class TradingViewWebhookHandler:
                 details={"payload": payload, "error": str(e)},
             ) from e
 
-    def _parse_timeframe(self, timeframe_str: str) -> Optional[Timeframe]:
+    def _parse_timeframe(self, timeframe_str: str) -> Timeframe | None:
         timeframe_map = {
             "1": Timeframe.M1,
             "1m": Timeframe.M1,
@@ -224,12 +218,12 @@ class TradingViewWebhookHandler:
 
         return timeframe_map.get(timeframe_str.upper())
 
-    def _parse_direction(self, direction_str: str) -> Optional[Direction]:
+    def _parse_direction(self, direction_str: str) -> Direction | None:
         direction_str_upper = direction_str.upper()
 
         if direction_str_upper in ("BUY", "LONG", "BULLISH"):
             return Direction.BULLISH
-        elif direction_str_upper in ("SELL", "SHORT", "BEARISH"):
+        if direction_str_upper in ("SELL", "SHORT", "BEARISH"):
             return Direction.BEARISH
 
         return None
@@ -237,7 +231,7 @@ class TradingViewWebhookHandler:
     async def handle_webhook(
         self,
         payload: bytes,
-        signature: Optional[str],
+        signature: str | None,
         client_ip: str,
     ) -> TradingViewAlert:
         start_time = time.time()

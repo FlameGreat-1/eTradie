@@ -74,12 +74,8 @@ class EmbeddingPipeline:
                 vectors = await self._provider.embed_batch(batch_texts)
 
                 elapsed = time.monotonic() - start
-                RAG_EMBEDDING_DURATION.labels(model=self._provider.model_name).observe(
-                    elapsed
-                )
-                RAG_EMBEDDING_BATCH_SIZE.labels(
-                    model=self._provider.model_name
-                ).observe(len(batch_texts))
+                RAG_EMBEDDING_DURATION.labels(model=self._provider.model_name).observe(elapsed)
+                RAG_EMBEDDING_BATCH_SIZE.labels(model=self._provider.model_name).observe(len(batch_texts))
 
                 validate_embeddings(
                     vectors,
@@ -90,7 +86,7 @@ class EmbeddingPipeline:
                 chunk_ids = [c.id for c in batch_chunks]
                 await uow.chunk_repo.set_embedding_status(chunk_ids, "embedded")
 
-                for chunk_row, vector in zip(batch_chunks, vectors):
+                for chunk_row, vector in zip(batch_chunks, vectors, strict=False):
                     results.append((chunk_row.id, vector))
 
                 RAG_EMBEDDING_TOTAL.labels(
@@ -119,9 +115,7 @@ class EmbeddingPipeline:
 
         elapsed = time.monotonic() - start
         RAG_EMBEDDING_DURATION.labels(model=self._provider.model_name).observe(elapsed)
-        RAG_EMBEDDING_BATCH_SIZE.labels(model=self._provider.model_name).observe(
-            len(texts)
-        )
+        RAG_EMBEDDING_BATCH_SIZE.labels(model=self._provider.model_name).observe(len(texts))
 
         validate_embeddings(
             vectors,
@@ -133,7 +127,7 @@ class EmbeddingPipeline:
         await uow.chunk_repo.set_embedding_status(chunk_ids, "embedded")
 
         results: list[tuple[UUID, list[float]]] = []
-        for row, vector in zip(chunk_rows, vectors):
+        for row, vector in zip(chunk_rows, vectors, strict=False):
             results.append((row.id, vector))
 
         RAG_EMBEDDING_TOTAL.labels(

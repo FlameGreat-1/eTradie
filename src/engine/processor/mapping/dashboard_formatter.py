@@ -9,7 +9,7 @@ The React dashboard renders these text fields directly.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 
 def format_for_dashboard(raw_output: dict, row: Any) -> dict[str, str]:
@@ -90,17 +90,13 @@ def _build_technical_summary(raw: dict) -> str:
 
     htf = raw.get("htf_bias", {})
     if htf:
-        parts.append(
-            f"HTF Bias: {htf.get('structure', 'N/A').replace('_', ' ').title()}"
-        )
+        parts.append(f"HTF Bias: {htf.get('structure', 'N/A').replace('_', ' ').title()}")
         if htf.get("notes"):
             parts.append(f"  {htf['notes']}")
 
     mtf = raw.get("mtf_bias", {})
     if mtf:
-        parts.append(
-            f"MTF Bias: {mtf.get('structure', 'N/A').replace('_', ' ').title()}"
-        )
+        parts.append(f"MTF Bias: {mtf.get('structure', 'N/A').replace('_', ' ').title()}")
         if mtf.get("notes"):
             parts.append(f"  {mtf['notes']}")
 

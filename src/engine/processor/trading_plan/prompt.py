@@ -65,7 +65,7 @@ CRITICAL CONSTRAINTS
    compounding fantasies, marketing language, claims about how much
    money the trader will earn. None of these phrases (or their
    variants) may appear anywhere in the output:
-   {', '.join(repr(p) for p in _BANNED_PHRASES)}.
+   {", ".join(repr(p) for p in _BANNED_PHRASES)}.
 3. Use the trader's account balance ONLY to size the Account
    Parameters table sensibly (max daily risk, max weekly drawdown).
    Do NOT speculate on returns.

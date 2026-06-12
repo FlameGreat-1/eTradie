@@ -27,9 +27,7 @@ class RawChunk:
 
 
 class BaseChunker(ABC):
-    def __init__(
-        self, *, chunk_size: int, chunk_overlap: int, min_size: int, max_size: int
-    ) -> None:
+    def __init__(self, *, chunk_size: int, chunk_overlap: int, min_size: int, max_size: int) -> None:
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
         self._min_size = min_size
@@ -73,23 +71,22 @@ class BaseChunker(ABC):
                         parent_chunk_index=buffer.parent_chunk_index,
                         metadata=buffer.metadata,
                     )
-            else:
-                if buffer is not None:
-                    combined_content = buffer.content + "\n\n" + chunk.content
-                    merged.append(
-                        RawChunk(
-                            content=combined_content,
-                            chunk_index=buffer.chunk_index,
-                            section=buffer.section,
-                            subsection=buffer.subsection,
-                            hierarchy_level=buffer.hierarchy_level,
-                            parent_chunk_index=buffer.parent_chunk_index,
-                            metadata=buffer.metadata,
-                        )
+            elif buffer is not None:
+                combined_content = buffer.content + "\n\n" + chunk.content
+                merged.append(
+                    RawChunk(
+                        content=combined_content,
+                        chunk_index=buffer.chunk_index,
+                        section=buffer.section,
+                        subsection=buffer.subsection,
+                        hierarchy_level=buffer.hierarchy_level,
+                        parent_chunk_index=buffer.parent_chunk_index,
+                        metadata=buffer.metadata,
                     )
-                    buffer = None
-                else:
-                    merged.append(chunk)
+                )
+                buffer = None
+            else:
+                merged.append(chunk)
 
         if buffer is not None:
             if merged:

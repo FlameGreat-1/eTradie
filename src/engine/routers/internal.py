@@ -30,11 +30,6 @@ from engine.processor.llm.errors import (
     LLMTruncatedError,
 )
 from engine.processor.models.io import ProcessorInput
-from engine.shared.exceptions import (
-    MeteringUnavailableError,
-    ProcessorInsufficientDataError,
-    QuotaExceededError,
-)
 from engine.schemas import (
     InternalDebugRunCycleRequest,
     InternalLTFConfirmRequest,
@@ -43,7 +38,12 @@ from engine.schemas import (
     InternalRAGRequest,
     InternalTARequest,
 )
-from engine.shared.auth import AuthenticatedUser, get_current_user
+from engine.shared.auth import AuthenticatedUser
+from engine.shared.exceptions import (
+    MeteringUnavailableError,
+    ProcessorInsufficientDataError,
+    QuotaExceededError,
+)
 from engine.shared.internal_auth import verify_internal_auth
 from engine.shared.logging import get_logger
 from engine.shared.pulse import NoOpPulse, PulsePublisher
@@ -73,9 +73,7 @@ async def internal_ta_confirm_ltf(
     if not user_id:
         from fastapi import HTTPException
 
-        raise HTTPException(
-            status_code=400, detail="X-User-Id header required for internal LTF confirm"
-        )
+        raise HTTPException(status_code=400, detail="X-User-Id header required for internal LTF confirm")
     user_broker = await _resolve_user_broker(container, user_id)
 
     # Lazy-build the LTF confirmation service
@@ -289,9 +287,7 @@ async def internal_macro_collect(
         label = _collector_labels.get(name, name)
         await pulse.emit("CLAUDING", label, source="macro")
         result = await collector.collect()
-        await pulse.emit(
-            "CLAUDING", f"{label} \u2014 done", source="macro", completed=True
-        )
+        await pulse.emit("CLAUDING", f"{label} \u2014 done", source="macro", completed=True)
         return result
 
     tasks = {name: _collect_one(name, c) for name, c in collector_map.items()}
@@ -302,7 +298,7 @@ async def internal_macro_collect(
 
     datasets = {}
     errors = {}
-    for name, result in zip(tasks.keys(), raw_results):
+    for name, result in zip(tasks.keys(), raw_results, strict=False):
         if isinstance(result, Exception):
             logger.error(
                 "internal_macro_collector_failed",
@@ -314,13 +310,12 @@ async def internal_macro_collect(
             )
             datasets[name] = None
             errors[name] = str(result)
+        elif isinstance(result, dict):
+            datasets[name] = result
+        elif hasattr(result, "model_dump"):
+            datasets[name] = result.model_dump(mode="json")
         else:
-            if isinstance(result, dict):
-                datasets[name] = result
-            elif hasattr(result, "model_dump"):
-                datasets[name] = result.model_dump(mode="json")
-            else:
-                datasets[name] = {"raw": str(result)}
+            datasets[name] = {"raw": str(result)}
 
     return {
         "central_bank": datasets.get("central_bank"),
@@ -348,16 +343,12 @@ async def internal_rag_retrieve(
     if not hasattr(container, "rag_orchestrator"):
         raise HTTPException(status_code=503, detail="RAG not initialized")
 
-    user_id = (
-        request.headers.get("X-User-Id") or getattr(body, "user_id", "") or ""
-    ).strip()
+    user_id = (request.headers.get("X-User-Id") or getattr(body, "user_id", "") or "").strip()
 
     cache = getattr(container, "cache", None)
     if cache is not None and user_id:
         try:
-            pulse = PulsePublisher(
-                cache=cache, user_id=user_id, symbol=body.symbol or ""
-            )
+            pulse = PulsePublisher(cache=cache, user_id=user_id, symbol=body.symbol or "")
         except Exception:  # noqa: BLE001 - pulse must never break retrieval
             pulse = NoOpPulse()
     else:
@@ -456,12 +447,8 @@ async def internal_processor_process(
     # downstream _load_active_llm_connection guard enforces this again
     # as defense-in-depth.
     tier = (request.headers.get("X-User-Tier") or body.tier or "free").strip().lower()
-    role = (
-        (request.headers.get("X-User-Role") or body.role or "etradie").strip().lower()
-    )
-    username = (
-        request.headers.get("X-User-Username") or body.username or user_id
-    ).strip()
+    role = (request.headers.get("X-User-Role") or body.role or "etradie").strip().lower()
+    username = (request.headers.get("X-User-Username") or body.username or user_id).strip()
     if role not in ("admin", "etradie"):
         # Reject unknown roles defensively rather than coercing them to
         # the safer 'etradie' — a typo in a future deploy should fail
@@ -487,16 +474,12 @@ async def internal_processor_process(
         _proc_symbol = getattr(processor_input, "symbol", "") or ""
         if cache is not None and user_id:
             try:
-                _proc_pulse = PulsePublisher(
-                    cache=cache, user_id=user_id, symbol=_proc_symbol
-                )
+                _proc_pulse = PulsePublisher(cache=cache, user_id=user_id, symbol=_proc_symbol)
             except Exception:  # noqa: BLE001 - pulse must never break the LLM call
                 _proc_pulse = NoOpPulse()
         else:
             _proc_pulse = NoOpPulse()
-        await _proc_pulse.emit(
-            "REASONING", "AI processor analyzing setup", source="processor"
-        )
+        await _proc_pulse.emit("REASONING", "AI processor analyzing setup", source="processor")
 
         result = await processor.process(
             processor_input,
