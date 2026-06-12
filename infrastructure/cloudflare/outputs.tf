@@ -31,4 +31,4 @@ output "bot_management_enabled" {
 output "hsts_enabled" {
   description = "Whether the HSTS response-header transform rule is deployed at the edge."
   value       = var.enable_hsts
- }
+}

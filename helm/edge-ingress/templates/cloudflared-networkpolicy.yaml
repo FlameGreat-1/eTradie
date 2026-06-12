@@ -10,14 +10,11 @@ metadata:
   name: cloudflared-network-policy
   namespace: {{ include "edge-ingress.namespace" . }}
   labels:
-    {{- include "edge-ingress.labels" . | nindent 4 }}
-    app.kubernetes.io/name: cloudflared
+    {{- include "cloudflared.labels" . | nindent 4 }}
     app.kubernetes.io/component: edge-tunnel
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: cloudflared
       app.kubernetes.io/instance: {{ .Release.Name }}
   policyTypes:
     - Ingress

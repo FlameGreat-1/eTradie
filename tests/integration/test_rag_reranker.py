@@ -1,5 +1,6 @@
-from uuid import uuid4
 import pytest
+from uuid import uuid4
+
 from engine.config import RAGConfig
 from engine.rag.constants import DocumentType
 from engine.rag.models.retrieval import RetrievedChunk
@@ -8,11 +9,19 @@ from engine.rag.retrieval.reranker import Reranker
 pytestmark = pytest.mark.integration
 
 def _chunk(doc_type=DocumentType.CHART_SCENARIO_LIBRARY, score=0.8, section=None, subsection=None):
-    return RetrievedChunk(chunk_id=uuid4(), document_id=uuid4(), doc_type=doc_type, content="Test", score=score, rank=0, section=section, subsection=subsection, metadata={})
+    return RetrievedChunk(
+        chunk_id=uuid4(), document_id=uuid4(), doc_type=doc_type,
+        content="Test", score=score, rank=0, section=section,
+        subsection=subsection, metadata={}
+    )
 
 @pytest.fixture
 def reranker():
-    cfg = RAGConfig(enabled=False, embedding_provider="openai", embedding_model="text-embedding-3-large", openai_api_key="sk-test", chroma_host="localhost", chroma_port=8000, retrieval_top_k=10, rerank_enabled=True, rerank_top_k=5, ingest_on_startup=False)
+    cfg = RAGConfig(
+        enabled=False, embedding_provider="openai", embedding_model="text-embedding-3-large",
+        openai_api_key="sk-test", chroma_host="localhost", chroma_port=8000,
+        retrieval_top_k=10, rerank_enabled=True, rerank_top_k=5, ingest_on_startup=False
+    )
     return Reranker(config=cfg)
 
 class TestDocTypeBoost:

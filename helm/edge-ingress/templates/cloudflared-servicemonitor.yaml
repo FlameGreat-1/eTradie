@@ -8,8 +8,7 @@ metadata:
   name: cloudflared
   namespace: {{ include "edge-ingress.namespace" . }}
   labels:
-    {{- include "edge-ingress.labels" . | nindent 4 }}
-    app.kubernetes.io/name: cloudflared
+    {{- include "cloudflared.labels" . | nindent 4 }}
     app.kubernetes.io/component: monitoring
     {{- with .Values.serviceMonitor.labels }}
     {{- toYaml . | nindent 4 }}
@@ -17,7 +16,6 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: cloudflared
       app.kubernetes.io/component: metrics
   namespaceSelector:
     matchNames:

@@ -33,7 +33,19 @@ helm.sh/chart: {{ include "edge-ingress.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: etradie
-app.kubernetes.io/component: edge
+{{- end -}}
+
+{{- define "cloudflared.selectorLabels" -}}
+app.kubernetes.io/name: cloudflared
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
+{{- define "cloudflared.labels" -}}
+helm.sh/chart: {{ include "edge-ingress.chart" . }}
+{{ include "cloudflared.selectorLabels" . }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/part-of: etradie
 {{- end -}}
 
 {{- define "edge-ingress.selectorLabels" -}}

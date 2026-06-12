@@ -7,7 +7,7 @@ validate -> map -> ProcessorOutput.
 from __future__ import annotations
 
 import json
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator
 
 import pytest
 
@@ -38,7 +38,11 @@ def _valid_json(direction="LONG", grade="A", proceed="YES") -> str:
         "setup_grade": grade, "direction": direction,
         "entry_zone": {"low": 1.1000, "high": 1.1010},
         "stop_loss": {"price": 1.0950, "reason": "Below OB", "evidence": []},
-        "take_profits": [{"level": 1.11, "size_pct": 40, "basis": "R1"}, {"level": 1.115, "size_pct": 30, "basis": "R2"}, {"level": 1.12, "size_pct": 30, "basis": "R3"}],
+        "take_profits": [
+            {"level": 1.11, "size_pct": 40, "basis": "R1"},
+            {"level": 1.115, "size_pct": 30, "basis": "R2"},
+            {"level": 1.12, "size_pct": 30, "basis": "R3"}
+        ],
         "rr_ratio": 3.0, "confidence": "HIGH", "proceed_to_module_b": proceed,
         "execution_mode": "LIMIT", "ltf_confirmed": False,
         "explainable_reasoning": "Strong bullish structure.",
@@ -84,7 +88,7 @@ class MockLLM(LLMClient):
         system_prompt,
         user_message,
         trace_id=None,
-        usage_out: Optional[dict] = None,
+        usage_out: dict | None = None,
         use_structured_output=True,
     ) -> AsyncGenerator[str, None]:
         # AnalysisProcessor._execute consumes the analysis path through
@@ -108,12 +112,22 @@ class MockLLM(LLMClient):
 
 @pytest.fixture
 def cfg():
-    return ProcessorConfig(llm_provider=LLMProvider.ANTHROPIC, anthropic_api_key="k", max_retries=0, persist_audit_logs=False, require_citations=False, total_timeout_seconds=30, llm_timeout_seconds=15)
+    return ProcessorConfig(
+        llm_provider=LLMProvider.ANTHROPIC, anthropic_api_key="k", max_retries=0,
+        persist_audit_logs=False, require_citations=False,
+        total_timeout_seconds=30, llm_timeout_seconds=15
+    )
 
 
 @pytest.fixture
 def ctx():
-    return ProcessorInput(symbol="EURUSD", ta_analysis={"status": "success", "smc_candidates": [{"pattern": "X", "direction": "BULLISH"}], "snd_candidates": []}, macro_analysis={}, retrieved_knowledge={"chunks": [{"id": "c1"}]}, metadata={"trace_id": "t"})
+    return ProcessorInput(
+        symbol="EURUSD",
+        ta_analysis={"status": "success", "smc_candidates": [{"pattern": "X", "direction": "BULLISH"}], "snd_candidates": []},
+        macro_analysis={},
+        retrieved_knowledge={"chunks": [{"id": "c1"}]},
+        metadata={"trace_id": "t"}
+    )
 
 
 class TestSuccess:
@@ -144,7 +158,10 @@ class TestInsufficientData:
         llm = MockLLM(text="x")
         p = AnalysisProcessor(config=cfg, llm_client=llm)
         with pytest.raises(ProcessorInsufficientDataError):
-            await p.process(ProcessorInput(symbol="X", ta_analysis={}, retrieved_knowledge={"c": 1}), user_id="test_user_id_123")
+            await p.process(
+                ProcessorInput(symbol="X", ta_analysis={}, retrieved_knowledge={"c": 1}),
+                user_id="test_user_id_123"
+            )
         assert llm.call_count == 0
 
     @pytest.mark.asyncio
@@ -152,14 +169,20 @@ class TestInsufficientData:
         llm = MockLLM(text="x")
         p = AnalysisProcessor(config=cfg, llm_client=llm)
         with pytest.raises(ProcessorInsufficientDataError):
-            await p.process(ProcessorInput(symbol="X", ta_analysis={"smc_candidates": [], "snd_candidates": []}, retrieved_knowledge={"c": 1}), user_id="test_user_id_123")
+            await p.process(
+                ProcessorInput(symbol="X", ta_analysis={"smc_candidates": [], "snd_candidates": []}, retrieved_knowledge={"c": 1}),
+                user_id="test_user_id_123"
+            )
 
     @pytest.mark.asyncio
     async def test_empty_rag(self, cfg):
         llm = MockLLM(text="x")
         p = AnalysisProcessor(config=cfg, llm_client=llm)
         with pytest.raises(ProcessorInsufficientDataError):
-            await p.process(ProcessorInput(symbol="X", ta_analysis={"smc_candidates": [{"p": 1}]}, retrieved_knowledge={}), user_id="test_user_id_123")
+            await p.process(
+                ProcessorInput(symbol="X", ta_analysis={"smc_candidates": [{"p": 1}]}, retrieved_knowledge={}),
+                user_id="test_user_id_123"
+            )
 
 
 class TestErrors:

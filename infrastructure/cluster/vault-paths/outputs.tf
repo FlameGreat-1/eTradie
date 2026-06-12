@@ -24,11 +24,11 @@ output "vault_paths" {
 output "mt_node_tenant_secrets" {
   description = "Per-tenant mt-node credential infrastructure (Vault Agent Injector). The engine writes plaintext credentials to <path_prefix>/<connection_id> at provision time; the per-tenant Pod fetches them via the tenant role."
   value = {
-    path_prefix          = "${var.vault_mount}/tenants/mt-node"
-    provisioner_role     = vault_kubernetes_auth_backend_role.mt_node_provisioner.role_name
-    tenant_role          = vault_kubernetes_auth_backend_role.mt_node_tenant.role_name
-    provisioner_policy   = vault_policy.mt_node_provisioner.name
-    tenant_policy        = vault_policy.mt_node_tenant.name
-    k8s_auth_backend     = vault_auth_backend.kubernetes.path
+    path_prefix        = "${var.vault_mount}/tenants/mt-node"
+    provisioner_role   = vault_kubernetes_auth_backend_role.mt_node_provisioner.role_name
+    tenant_role        = vault_kubernetes_auth_backend_role.mt_node_tenant.role_name
+    provisioner_policy = vault_policy.mt_node_provisioner.name
+    tenant_policy      = vault_policy.mt_node_tenant.name
+    k8s_auth_backend   = vault_auth_backend.kubernetes.path
   }
 }

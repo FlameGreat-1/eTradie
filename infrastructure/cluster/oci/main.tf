@@ -119,10 +119,10 @@ resource "oci_containerengine_node_pool" "platform" {
     freeform_tags = merge(
       local.default_tags,
       {
-        "k8s.io_cluster-autoscaler_enabled"                              = "true"
-        "k8s.io_cluster-autoscaler_${local.cluster_name}"                = "owned"
-        "k8s.io_cluster-autoscaler_node-template_min-size"               = tostring(var.node_pool_min_size)
-        "k8s.io_cluster-autoscaler_node-template_max-size"               = tostring(var.node_pool_max_size)
+        "k8s.io_cluster-autoscaler_enabled"                = "true"
+        "k8s.io_cluster-autoscaler_${local.cluster_name}"  = "owned"
+        "k8s.io_cluster-autoscaler_node-template_min-size" = tostring(var.node_pool_min_size)
+        "k8s.io_cluster-autoscaler_node-template_max-size" = tostring(var.node_pool_max_size)
       },
     )
 

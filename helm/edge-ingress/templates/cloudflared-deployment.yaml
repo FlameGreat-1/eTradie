@@ -6,8 +6,7 @@ metadata:
   name: cloudflared
   namespace: {{ include "edge-ingress.namespace" . }}
   labels:
-    {{- include "edge-ingress.labels" . | nindent 4 }}
-    app.kubernetes.io/name: cloudflared
+    {{- include "cloudflared.labels" . | nindent 4 }}
     app.kubernetes.io/component: edge-tunnel
 spec:
   replicas: {{ .Values.cloudflareTunnel.replicaCount | default 2 }}
@@ -19,13 +18,11 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app.kubernetes.io/name: cloudflared
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        {{- include "edge-ingress.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/name: cloudflared
+        {{- include "cloudflared.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: edge-tunnel
       annotations:
         prometheus.io/scrape: "true"
@@ -49,7 +46,6 @@ spec:
               podAffinityTerm:
                 labelSelector:
                   matchLabels:
-                    app.kubernetes.io/name: cloudflared
                 topologyKey: kubernetes.io/hostname
       topologySpreadConstraints:
         - maxSkew: 1
@@ -57,7 +53,6 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app.kubernetes.io/name: cloudflared
       containers:
         - name: cloudflared
           image: "{{ .Values.cloudflareTunnel.image.repository }}:{{ .Values.cloudflareTunnel.image.tag }}"
