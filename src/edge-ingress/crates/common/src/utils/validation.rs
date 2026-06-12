@@ -1,30 +1,9 @@
-use crate::constants::{MAX_HEADER_SIZE, MAX_REQUEST_SIZE};
 use crate::error::{EdgeError, Result};
 use crate::types::Region;
 use std::net::SocketAddr;
 use std::time::Duration;
 
 pub type ValidationResult<T> = Result<T>;
-
-pub fn validate_header_size(size: usize) -> Result<()> {
-    if size > MAX_HEADER_SIZE {
-        return Err(EdgeError::HeaderTooLarge {
-            size,
-            max: MAX_HEADER_SIZE,
-        });
-    }
-    Ok(())
-}
-
-pub fn validate_request_size(size: usize) -> Result<()> {
-    if size > MAX_REQUEST_SIZE {
-        return Err(EdgeError::RequestTooLarge {
-            size,
-            max: MAX_REQUEST_SIZE,
-        });
-    }
-    Ok(())
-}
 
 pub fn validate_socket_addr(addr: &str) -> Result<SocketAddr> {
     addr.parse::<SocketAddr>()
@@ -143,28 +122,6 @@ pub fn validate_health_check_threshold(threshold: u32, min: u32, max: u32) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_validate_header_size_valid() {
-        assert!(validate_header_size(1024).is_ok());
-        assert!(validate_header_size(MAX_HEADER_SIZE).is_ok());
-    }
-
-    #[test]
-    fn test_validate_header_size_invalid() {
-        assert!(validate_header_size(MAX_HEADER_SIZE + 1).is_err());
-    }
-
-    #[test]
-    fn test_validate_request_size_valid() {
-        assert!(validate_request_size(1024).is_ok());
-        assert!(validate_request_size(MAX_REQUEST_SIZE).is_ok());
-    }
-
-    #[test]
-    fn test_validate_request_size_invalid() {
-        assert!(validate_request_size(MAX_REQUEST_SIZE + 1).is_err());
-    }
 
     #[test]
     fn test_validate_socket_addr_valid() {
