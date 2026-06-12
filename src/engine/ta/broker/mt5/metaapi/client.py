@@ -603,7 +603,7 @@ class MetaApiClient(BrokerBase):
                 try:
                     ts = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
                     deal_time = int(ts.timestamp())
-                except:
+                except:  # nosec B110
                     pass
 
             history.append(

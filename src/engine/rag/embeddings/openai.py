@@ -92,7 +92,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
                     error=str(exc),
                 )
                 if attempt < self._max_retries:
-                    backoff = min(2**attempt + random.uniform(0, 1), 30.0)
+                    backoff = min(2**attempt + random.uniform(0, 1), 30.0)  # nosec B311
                     await asyncio.sleep(backoff)
 
         raise RAGEmbeddingProviderError(

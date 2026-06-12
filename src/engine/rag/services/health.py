@@ -52,7 +52,7 @@ class HealthService:
         try:
             test_vec = await self._embedding_provider.embed_single("health check")
             embed_ok = len(test_vec) == self._embedding_provider.dimensions
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
         overall = vs_health.connected and db_ok and embed_ok

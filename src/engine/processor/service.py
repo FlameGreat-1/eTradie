@@ -745,7 +745,7 @@ class AnalysisProcessor(ProcessorPort):
                     f"max_output_tokens: {self._config.max_output_tokens}\n",
                     encoding="utf-8",
                 )
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
             logger.error(
@@ -823,7 +823,7 @@ class AnalysisProcessor(ProcessorPort):
                 dump_dir.mkdir(parents=True, exist_ok=True)
                 (dump_dir / "truncated_response.txt").write_text(llm_response.text, encoding="utf-8")
                 logger.error("dumped_truncated_response", extra={"directory": str(dump_dir)})
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             raise parse_exc
 

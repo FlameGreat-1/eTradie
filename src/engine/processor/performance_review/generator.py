@@ -173,7 +173,7 @@ class PerformanceReviewGenerator:
         """Close the dedicated HTTP client. Safe to re-call."""
         try:
             await self._http.aclose()
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     # -- Public entry point ----------------------------------------------

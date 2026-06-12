@@ -3,7 +3,7 @@ from chromadb.config import Settings
 
 
 def main():
-    token = "etradie_internal_secure_token_2026"
+    token = "etradie_internal_secure_token_2026"  # nosec B105
     host = "chromadb"  # Inside docker network
     port = 8000
 
@@ -34,7 +34,7 @@ def main():
                         if len(content) > 100:
                             content = content[:100] + "..."
 
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 

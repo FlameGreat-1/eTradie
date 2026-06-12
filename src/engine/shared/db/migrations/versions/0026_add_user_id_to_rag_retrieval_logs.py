@@ -57,7 +57,7 @@ def upgrade() -> None:
         )
 
         # Step 2: Backfill existing rows with empty string (matches model default).
-        op.execute(sa.text(f"UPDATE {table_name} SET user_id = '' WHERE user_id IS NULL"))
+        op.execute(sa.text(f"UPDATE {table_name} SET user_id = '' WHERE user_id IS NULL"))  # nosec B608
 
         # Step 3: Flip to NOT NULL.
         op.alter_column(table_name, "user_id", nullable=False)

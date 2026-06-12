@@ -67,7 +67,7 @@ class ReconnectPolicy:
         if attempt < 1:
             return 0.0
         schedule = min(self.cap_secs, self.base_secs * (2 ** (attempt - 1)))
-        return random.uniform(0.0, schedule)
+        return random.uniform(0.0, schedule)  # nosec B311
 
     def exhausted(self, attempt: int) -> bool:
         return attempt > self.max_attempts

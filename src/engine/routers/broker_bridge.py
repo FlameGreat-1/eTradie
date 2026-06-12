@@ -70,7 +70,7 @@ async def broker_account_info(
             cached = await container.cache.get("internal", cache_key)
             if cached is not None:
                 return cached
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
         logger.error(
@@ -132,7 +132,7 @@ async def broker_positions(
             cached = await container.cache.get("internal", cache_key)
             if cached is not None:
                 return cached
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
         logger.error(
@@ -181,7 +181,7 @@ async def broker_history(
             cached = await container.cache.get("internal", cache_key)
             if cached is not None:
                 return cached
-        except Exception:
+        except Exception:  # nosec B110
             pass
         return []
 
@@ -228,7 +228,7 @@ async def broker_pending_orders(
             cached_orders = await container.cache.get("internal", cache_key)
             if cached_orders is not None:
                 return cached_orders
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
         return []
@@ -263,7 +263,7 @@ async def broker_symbol_info(
             cached = await container.cache.get("internal", cache_key)
             if cached:
                 return cached
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
         logger.error(

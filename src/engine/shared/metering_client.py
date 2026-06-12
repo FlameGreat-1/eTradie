@@ -464,11 +464,11 @@ def _retry_after_seconds(resets_at: str, header_value: str) -> int:
             dt = datetime.fromisoformat(resets_at.replace("Z", "+00:00"))
             delta = (dt - datetime.now(UTC)).total_seconds()
             return max(1, int(delta))
-        except Exception:
+        except Exception:  # nosec B110
             pass
     if header_value:
         try:
             return max(1, int(header_value))
-        except Exception:
+        except Exception:  # nosec B110
             pass
     return 60

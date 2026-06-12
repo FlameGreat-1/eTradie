@@ -77,7 +77,7 @@ def upgrade() -> None:
         # Step 2: Backfill existing rows with 'system' placeholder.
         # This preserves all pre-auth data. The operator should reassign
         # these to the actual admin user ID after first startup.
-        op.execute(sa.text(f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL"))
+        op.execute(sa.text(f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL"))  # nosec B608
 
         # Step 3: Alter column to NOT NULL now that all rows have a value.
         op.alter_column(

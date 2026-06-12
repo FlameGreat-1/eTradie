@@ -344,7 +344,7 @@ class HostedProvisioner:
     async def _close(api) -> None:
         try:
             await api.api_client.close()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 nosec B110
             pass
 
     # -- Naming + label helpers ---------------------------------------------
@@ -1134,8 +1134,8 @@ class HostedProvisioner:
                 # K8s wires the per-replica PVC automatically.
                 client.V1VolumeMount(name=_PVC_TEMPLATE_NAME, mount_path="/home/mt/.wine"),
                 client.V1VolumeMount(name="mt-cache", mount_path="/home/mt/.cache"),
-                client.V1VolumeMount(name="tmp", mount_path="/tmp"),
-                client.V1VolumeMount(name="var-tmp", mount_path="/var/tmp"),
+                client.V1VolumeMount(name="tmp", mount_path="/tmp"),  # nosec B108
+                client.V1VolumeMount(name="var-tmp", mount_path="/var/tmp"),  # nosec B108
             ],
         )
 
@@ -1216,7 +1216,7 @@ class HostedProvisioner:
             security_context=container_security_ctx,
             volume_mounts=[
                 # Watchdog only needs /tmp (for any transient writes).
-                client.V1VolumeMount(name="tmp", mount_path="/tmp"),
+                client.V1VolumeMount(name="tmp", mount_path="/tmp"),  # nosec B108
             ],
         )
 
@@ -1745,7 +1745,7 @@ class HostedProvisioner:
         finally:
             try:
                 sock.close(linger=0)
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001 nosec B110
                 pass
 
     # -- Internal: deletion helpers -----------------------------------------

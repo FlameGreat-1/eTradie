@@ -116,7 +116,7 @@ def _compute_delay(attempt: int, config: ProcessorConfig) -> float:
     """Compute delay with exponential backoff + full jitter."""
     exp_delay = config.retry_backoff_base_seconds * (2**attempt)
     capped = min(exp_delay, config.retry_backoff_max_seconds)
-    return random.uniform(0, capped)  # noqa: S311
+    return random.uniform(0, capped)  # noqa: S311 nosec B311
 
 
 async def retry_llm_call[T](

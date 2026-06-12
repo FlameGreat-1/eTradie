@@ -34,7 +34,7 @@ from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
-_DEFAULT_SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+_DEFAULT_SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"  # nosec B105
 _DEFAULT_K8S_AUTH_PATH = "kubernetes"
 _DEFAULT_KV_MOUNT = "etradie"
 _DEFAULT_RENEW_SAFETY_SECS = 60.0

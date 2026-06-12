@@ -289,5 +289,5 @@ class GeminiClient(LLMClient):
     def _record_metrics(self, model: str, inp: int, out: int, ms: float) -> None:
         LLM_REQUEST_TOTAL.labels(provider=self.PROVIDER, model=model, status="success").inc()
         LLM_REQUEST_DURATION.labels(provider=self.PROVIDER, model=model).observe(ms / 1000)
-        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="input").inc(inp)
-        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="output").inc(out)
+        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="input").inc(inp)  # nosec B106
+        LLM_TOKENS_USED.labels(provider=self.PROVIDER, model=model, token_type="output").inc(out)  # nosec B106

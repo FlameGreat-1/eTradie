@@ -88,7 +88,7 @@ _ZMQ_TIMEFRAME_MAP: dict[Timeframe, str] = {
 class ZmqClient(BrokerBase):
     """Native ZeroMQ bridge to a Windows MT5 terminal."""
 
-    def __init__(
+    def __init__(  # nosec B107
         self,
         config: MT5Config,
         auth_token: str = "",

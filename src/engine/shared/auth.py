@@ -68,7 +68,7 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 # Canonical cookie name. Mirrors the Go gateway's
 # src/auth/cookies.go::AccessTokenCookieName. Kept in sync via
 # coordinated change; both services share the same auth contract.
-ACCESS_TOKEN_COOKIE_NAME = "access_token"
+ACCESS_TOKEN_COOKIE_NAME = "access_token"  # nosec B105
 
 # RFC 6265bis __Secure- prefix the Go gateway prepends when
 # CookieSecure=true (always in production). The reader helpers below

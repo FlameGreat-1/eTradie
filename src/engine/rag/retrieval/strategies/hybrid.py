@@ -138,7 +138,7 @@ class HybridStrategy:
                 if chunk.chunk_id not in seen_ids:
                     merged.append(chunk)
                     seen_ids.add(chunk.chunk_id)
-        except Exception:
+        except Exception:  # nosec B110
             # Scenario collection may be empty (0 documents) which causes
             # ChromaDB to error on query. Scenarios are supplementary, so
             # gracefully skip rather than crash the entire analysis pipeline.

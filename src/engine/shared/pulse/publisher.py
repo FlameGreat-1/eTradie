@@ -120,7 +120,7 @@ class PulsePublisher:
                     "completed": completed,
                 },
             )
-        except Exception:
+        except Exception:  # nosec B110
             # Absolute safety net. RedisCache.publish already swallows
             # errors internally, but if anything unexpected slips through
             # (e.g. the cache object itself is in a bad state) we must

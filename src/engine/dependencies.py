@@ -733,7 +733,7 @@ class Container:
             zmq_port: int,
             auth_token: str,
         ) -> BrokerBase:
-            sync_config = MT5Config.model_construct(
+            sync_config = MT5Config.model_construct(  # nosec B106
                 enabled=True,
                 provider="native",
                 metaapi_token="",
@@ -773,7 +773,7 @@ class Container:
             finally:
                 try:
                     await client.shutdown()
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001 nosec B110
                     pass
 
         async def _catalog_sync_runner(
@@ -802,7 +802,7 @@ class Container:
             finally:
                 try:
                     await client.shutdown()
-                except Exception:  # noqa: BLE001
+                except Exception:  # noqa: BLE001 nosec B110
                     pass
 
             if not names:
@@ -914,12 +914,12 @@ class Container:
                 return None
 
             # Decrypt EA auth token if applicable.
-            ea_auth_token = ""
+            ea_auth_token = ""  # nosec B105
             if row.connection_type == "ea" and row.ea_auth_token_encrypted:
                 ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
 
             # Platform-level MetaAPI token from env (never from DB).
-            platform_token = ""
+            platform_token = ""  # nosec B105
             if row.connection_type == "metaapi":
                 import os
 
@@ -1377,7 +1377,7 @@ class Container:
         if cached is not None:
             try:
                 await cached.client.close()  # type: ignore[attr-defined]
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             self._user_background_llm.pop(user_id, None)
             _logger.info(
@@ -1493,7 +1493,7 @@ class Container:
         if entry is not None:
             try:
                 await entry.client.close()  # type: ignore[attr-defined]
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             _logger.info(
                 "background_llm_client_invalidated",
@@ -1517,7 +1517,7 @@ class Container:
             if entry is not None:
                 try:
                     await entry.client.close()  # type: ignore[attr-defined]
-                except Exception:
+                except Exception:  # nosec B110
                     pass
         if users:
             _logger.info(
@@ -1593,7 +1593,7 @@ class Container:
         for _user_id, entry in list(self._user_background_llm.items()):
             try:
                 await entry.client.close()  # type: ignore[attr-defined]
-            except Exception:
+            except Exception:  # nosec B110
                 pass
         self._user_background_llm.clear()
 

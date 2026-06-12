@@ -186,7 +186,7 @@ class BackgroundTaskCoordinator:
                         self._in_flight.pop(key, None)
                     else:
                         self._in_flight[key] = n
-            except Exception:
+            except Exception:  # nosec B110
                 # Bookkeeping must never propagate.
                 pass
 

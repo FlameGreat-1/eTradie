@@ -285,7 +285,7 @@ def create_mt5_broker_from_connection(
             )
 
         # Build MT5Config for ZeroMQ native provider.
-        config = MT5Config.model_construct(
+        config = MT5Config.model_construct(  # nosec B106
             enabled=True,
             provider="native",
             metaapi_token="",
@@ -343,7 +343,7 @@ def create_mt5_broker_from_connection(
         # Build MT5Config for MetaAPI cloud provider.
         # Uses the platform-level token (from env), NOT a per-user token.
         mt5_settings = MT5Config()
-        config = MT5Config.model_construct(
+        config = MT5Config.model_construct(  # nosec B106
             enabled=True,
             provider="metaapi",
             metaapi_token=platform_token,
@@ -458,7 +458,7 @@ def create_mt5_broker_from_connection(
 
         # Build MT5Config for ZeroMQ native provider pointed at the
         # in-cluster Service DNS.
-        config = MT5Config.model_construct(
+        config = MT5Config.model_construct(  # nosec B106
             enabled=True,
             provider="native",
             metaapi_token="",

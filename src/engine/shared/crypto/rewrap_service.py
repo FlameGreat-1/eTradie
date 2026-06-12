@@ -291,7 +291,7 @@ class CredentialRewrapService:
         set_clauses = [f"{col} = :{col}" for col in updates]
         set_clauses.append(f"{target.key_version_column} = :__key_version")
         sql = (
-            f"UPDATE {target.table} SET {', '.join(set_clauses)} "  # noqa: S608 - identifiers are module constants
+            f"UPDATE {target.table} SET {', '.join(set_clauses)} "  # noqa: S608 - identifiers are module constants nosec B608
             f"WHERE {target.id_column} = :__row_id"
         )
         params: dict = dict(updates)

@@ -25,9 +25,9 @@ def upgrade() -> None:
     op.alter_column(_TABLE, "max_output_tokens", server_default=sa.text("'32768'"))
 
     # Update existing connections that have 16384 to 32768
-    op.execute(sa.text(f"UPDATE {_TABLE} SET max_output_tokens = 32768 WHERE max_output_tokens = 16384"))
+    op.execute(sa.text(f"UPDATE {_TABLE} SET max_output_tokens = 32768 WHERE max_output_tokens = 16384"))  # nosec B608
 
 
 def downgrade() -> None:
     op.alter_column(_TABLE, "max_output_tokens", server_default=sa.text("'16384'"))
-    op.execute(sa.text(f"UPDATE {_TABLE} SET max_output_tokens = 16384 WHERE max_output_tokens = 32768"))
+    op.execute(sa.text(f"UPDATE {_TABLE} SET max_output_tokens = 16384 WHERE max_output_tokens = 32768"))  # nosec B608

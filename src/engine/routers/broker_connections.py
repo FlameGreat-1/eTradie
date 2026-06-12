@@ -494,7 +494,7 @@ async def update_broker_connection(
     if row.connection_type == "hosted" and row.hosted_container_id and body.mt5_password is not None:
         try:
             provisioner = container.hosted_provisioner
-            ea_auth_token = ""
+            ea_auth_token = ""  # nosec B105
             if row.ea_auth_token_encrypted:
                 ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
             password_plain = decrypt_credential(row.mt5_password_encrypted) if row.mt5_password_encrypted else ""
@@ -642,8 +642,8 @@ async def test_broker_connection(
         raise HTTPException(status_code=404, detail="Connection not found")
 
     # Decrypt credentials and create a temporary broker client.
-    ea_auth_token = ""
-    platform_token = ""
+    ea_auth_token = ""  # nosec B105
+    platform_token = ""  # nosec B105
     if row.connection_type == "ea" and row.ea_auth_token_encrypted:
         ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
     if row.connection_type == "metaapi":

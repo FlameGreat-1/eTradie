@@ -143,7 +143,7 @@ def _verify_csrf(request: Request, header_name: str, signed: bool, secret: bytes
     # mutating engine request in production. Mirrors _read_csrf_cookie
     # above and src/auth/cookies.go::readCookieValue.
     user_id = ""
-    token = ""
+    token = ""  # nosec B105
     for _name in ("__Secure-access_token", "access_token"):
         _val = request.cookies.get(_name, "").strip()
         if _val:
@@ -164,7 +164,7 @@ def _verify_csrf(request: Request, header_name: str, signed: bool, secret: bytes
             # HMAC even if they forge the unverified JWT sub claim.
             payload = jwt.decode(token, options={"verify_signature": False})
             user_id = payload.get("sub", "")
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     if not user_id:

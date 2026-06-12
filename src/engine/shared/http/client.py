@@ -217,7 +217,7 @@ class HttpClient:
                 raise ValueError("Missing URL hostname")
 
             # Security: Prevent SSRF to internal networks
-            if parsed.hostname in ("localhost", "127.0.0.1", "0.0.0.0"):
+            if parsed.hostname in ("localhost", "127.0.0.1", "0.0.0.0"):  # nosec B104
                 logger.warning(
                     "localhost_url_detected",
                     extra={"url": url},
@@ -266,7 +266,7 @@ class HttpClient:
             Delay in seconds
         """
         delay = min(self._backoff_base * (2**attempt), self._backoff_max)
-        jitter = random.uniform(0, delay * 0.5)  # noqa: S311
+        jitter = random.uniform(0, delay * 0.5)  # noqa: S311 nosec B311
         return delay + jitter
 
     async def request(

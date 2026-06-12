@@ -72,7 +72,7 @@ def upgrade() -> None:
         )
 
         # Step 2: Backfill existing rows with 'system' placeholder.
-        op.execute(sa.text(f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL"))
+        op.execute(sa.text(f"UPDATE {table_name} SET user_id = 'system' WHERE user_id IS NULL"))  # nosec B608
 
         # Step 3: Alter column to NOT NULL.
         op.alter_column(
