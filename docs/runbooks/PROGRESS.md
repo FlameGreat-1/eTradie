@@ -29,7 +29,7 @@
 |---|---|---|
 | 0 | Prerequisites | ✅ DONE |
 | 1 | VPS host hardening | ✅ DONE |
-| 2 | Install K3s | 🟡 in progress (2.1 + 2.2 done; 2.3 pending) |
+| 2 | Install K3s | ✅ DONE |
 | 2.5 | Build + push mt-node Wine image | ⏸ pending |
 | 3 | Vault + Vault Agent Injector | ⏸ pending |
 | 4 | External Secrets Operator + ClusterSecretStore | ⏸ pending |
@@ -201,4 +201,44 @@ can see WHY the command is what it is, not just that we ran it.
 | 2.2 Verify cluster healthy | ✅ | At T+11s: `kubectl get nodes` -> `vmi3362776 Ready control-plane,master 11s v1.30.4+k3s1`. `get pods -A` showed `No resources found` (kubelet still bringing up kube-system). At T+~2 min: all 3 kube-system pods Running 1/1 — `coredns-576bfc4dc7-4wzkw`, `local-path-provisioner-6795b5f9d8-49pqs`, `metrics-server-557ff575fb-xbcrz`. No `helm-install-traefik` Jobs ever appeared because `--disable=traefik` + `--disable=servicelb` skipped them at install time. `get nodes -o wide` confirms INTERNAL-IP `13.140.164.173`, OS-IMAGE `Ubuntu 24.04.4 LTS`, KERNEL-VERSION `6.8.0-124-generic` (the kernel from Phase 1 reboot), CONTAINER-RUNTIME `containerd://1.7.20-k3s1`. `systemctl is-active k3s` -> `active`; `is-enabled k3s` -> `enabled`. |
 | 2.2 — K3s ports listening | ✅ | `ss -tlnp` shows `*:6443` (kube-apiserver), `*:10250` (kubelet) bound to all interfaces — ufw STILL blocks them externally (Phase 1.6 verified `:6443` closed/filtered from the workstation's port probe). `127.0.0.1:10256` (kube-proxy healthz) bound loopback-only — K3s default, no operator action. All three are owned by `k3s-server` (pid 2618). |
 | 2.2 — StorageClass present and default | ✅ | `kubectl get storageclass` -> `local-path (default) rancher.io/local-path Delete WaitForFirstConsumer false 8s`. The `(default)` marker is the load-bearing piece: every chart in this repo sets `storageClassName: ""` (= cluster default) in its PVCs, so K3s' `local-path` will be picked up automatically in Phase 12 without any chart override. `WaitForFirstConsumer` means PVCs stay `Pending` until a pod actually mounts them — expected K3s behaviour, not a fault. |
-| 2.3 Export kubeconfig to workstation via SSH local-forward | ⏸ pending | Per the Phase 2 access decision above (Option A): ufw keeps `:6443` closed inbound; `kubectl` from the workstation reaches the API via an SSH local-forward through the existing etradie session, with the workstation kubeconfig's `server:` rewritten to `https://127.0.0.1:6443`. |
+| 2.3 Export kubeconfig to workstation via SSH local-forward (Option A) | ✅ | Kubeconfig on the VPS at `/etc/rancher/k3s/k3s.yaml`, mode `-rw-r--r--` (644 from `K3S_KUBECONFIG_MODE=644`), `server: https://127.0.0.1:6443` (loopback URL kept as-is so the workstation tunnel terminates onto the same address). Copied to workstation via `scp etradie@13.140.164.173:/etc/rancher/k3s/k3s.yaml ~/.kube/etradie-contabo.yaml` (~2957 bytes, no passphrase prompt because the WSL ssh-agent had the key cached); workstation file permissions tightened to `-rw------- softverse softverse 2957` (mode 0600 — owner-only; the file embeds a client cert + private key with cluster-admin rights, same posture as the SSH private key). Tunnel opened with `ssh -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173` in a dedicated workstation terminal (pid 452297). End-to-end verified: `kubectl get nodes` through the tunnel returned `vmi3362776 Ready control-plane,master 15m v1.30.4+k3s1`; `Server Version: v1.30.4+k3s1` matches the installed K3s. Tunnel bound LOOPBACK-ONLY on the workstation (`127.0.0.1:6443` v4 + `[::1]:6443` v6, owned by the ssh process — NOT `0.0.0.0:6443`, so the workstation cannot be pivoted via LAN). PUBLIC-side verification: `timeout 5 bash -c '</dev/tcp/13.140.164.173/6443'` -> `PUBLIC 6443 filtered -- good` (ufw still blocks the K3s API on the public IP; the encrypted SSH tunnel is the only path in). `KUBECONFIG=~/.kube/etradie-contabo.yaml` appended to `~/.bashrc` so every new workstation terminal auto-targets the cluster (and `kubectl` hangs gracefully if the tunnel terminal is closed — the canary that says "reopen the tunnel"). |
+
+### Phase 2 operator gotchas (record so the next operator doesn't trip on them)
+
+**1. `ssh-add` is required once per WSL boot.** The `~/.bashrc` agent
+persistence snippet (added at Phase 1 measure 2) correctly reuses the
+existing `ssh-agent` across new terminals WITHIN one WSL session.
+However, when WSL is fully shut down (`wsl --shutdown` on Windows,
+workstation reboot, or the last WSL window closing), every process
+inside WSL dies including `ssh-agent`. On the next WSL boot, the
+snippet detects the dead agent and spawns a fresh one — but the new
+agent has no key loaded yet, so the first `ssh` or `scp` command that
+run WILL prompt for the passphrase. The fix is one-time per WSL boot:
+```bash
+ssh-add ~/.ssh/id_ed25519     # type passphrase once
+ssh-add -l                    # confirm key loaded
+```
+After that, all SSH (including the `ssh -L` tunnel) is passphrase-free
+for the rest of the WSL session. This is normal behaviour, not a bug;
+agents store decrypted keys in memory only.
+
+**2. The tunnel terminal is load-bearing.** `ssh -N -L 6443:127.0.0.1:6443
+etradie@13.140.164.173` is a FOREGROUND process. Closing the terminal
+(Ctrl+C, `exit`, or closing the window) tears the tunnel down
+immediately. `kubectl` calls after that point will hang for ~30s and
+fail with `dial tcp 127.0.0.1:6443: connect: connection refused`. That
+hang is the canary that says "reopen the tunnel". For longer-running
+work an operator may install `autossh` (`sudo apt install autossh`)
+and use `autossh -M 0 -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173 &`
+for a self-healing tunnel that reconnects automatically over network
+blips. Not done in this deploy; the dedicated-terminal pattern was
+sufficient for Phase 2.3.
+
+**3. No public 6443 binding.** The ufw rule from Phase 1.6 (default
+deny incoming, only 22/tcp LIMIT) is what keeps the K3s API off the
+public internet — NOT any K3s configuration. The kube-apiserver listens
+on `*:6443` inside the VPS (all interfaces), and only ufw stops public
+reachability. If an operator ever runs `sudo ufw disable` for any
+reason, the K3s API becomes publicly reachable in seconds. Never
+disable ufw; for temporary debug access use a source-IP-restricted
+rule (Phase 1 security measure 5).
