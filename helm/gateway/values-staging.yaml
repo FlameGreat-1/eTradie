@@ -28,8 +28,10 @@ config:
     # in-cluster OTel Collector (helm/observability-logs tracing.enabled).
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
     # Cross-origin Vercel SPA -> staging API, same topology as
-    # production. Canonical SPA host is staging-app.exoper.com.
-    allowedOrigins: "https://staging-app.exoper.com"
+    # production. Canonical SPA host is staging.exoper.com (the
+    # registrable-domain staging apex on Vercel; matches billing's
+    # publicBaseUrl below).
+    allowedOrigins: "https://staging.exoper.com"
     billingServiceUrl: "http://billing-service.etradie-system.svc.cluster.local:8082"
     billingClientTimeoutMs: "15000"
   auth:

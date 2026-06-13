@@ -39,7 +39,7 @@ One canonical host + 308 redirects is the industry standard because it eliminate
 Operator actions (the redirects must be set in Vercel for this to be correct)
 
 Prod: Vercel primary = app.exoper.com; add exoper.com + www.exoper.com as 308-redirect to app.exoper.com. DNS to Vercel; api.exoper.com stays on the tunnel; Google redirect_uri = https://app.exoper.com/auth/callback/google.
-Staging: same with staging-app.exoper.com canonical, staging.exoper.com redirecting to it.
+Staging: staging.exoper.com is canonical on Vercel. If staging-app.exoper.com is ever created, 308-redirect it to staging.exoper.com (matches billing publicBaseUrl and gateway allowedOrigins in helm/gateway/values-staging.yaml).
 
 
 
