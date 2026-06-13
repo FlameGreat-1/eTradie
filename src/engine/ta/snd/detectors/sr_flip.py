@@ -113,9 +113,9 @@ class SRFlipDetector:
         sr_flip: SRFlip,
         sequence: CandleSequence,
     ) -> bool:
-        if sr_flip.candle_index >= len(sequence.candles):
+        if sr_flip.breakout_candle_index >= len(sequence.candles):
             return False
 
-        breakout_candle = sequence.candles[sr_flip.candle_index]
+        breakout_candle = sequence.candles[sr_flip.breakout_candle_index]
 
         return self.marubozu_analyzer.is_bearish_marubozu_for_timeframe(breakout_candle, sequence.timeframe)

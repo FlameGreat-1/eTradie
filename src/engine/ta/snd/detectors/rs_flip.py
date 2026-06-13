@@ -113,9 +113,9 @@ class RSFlipDetector:
         rs_flip: RSFlip,
         sequence: CandleSequence,
     ) -> bool:
-        if rs_flip.candle_index >= len(sequence.candles):
+        if rs_flip.breakout_candle_index >= len(sequence.candles):
             return False
 
-        breakout_candle = sequence.candles[rs_flip.candle_index]
+        breakout_candle = sequence.candles[rs_flip.breakout_candle_index]
 
         return self.marubozu_analyzer.is_bullish_marubozu_for_timeframe(breakout_candle, sequence.timeframe)
