@@ -108,7 +108,7 @@ def _make_config(
 # ---------------------------------------------------------------------------
 
 
-def test_config_from_env_defaults(monkeypatch: pytest.MonkeyPatch):
+async def test_config_from_env_defaults(monkeypatch: pytest.MonkeyPatch):
     for k in (
         "ENGINE_HOSTED_RECOVERY_ENABLED",
         "ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS",
@@ -123,19 +123,19 @@ def test_config_from_env_defaults(monkeypatch: pytest.MonkeyPatch):
     assert cfg.reprovision_cooldown_secs == 300.0
 
 
-def test_config_from_env_disabled(monkeypatch: pytest.MonkeyPatch):
+async def test_config_from_env_disabled(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ENGINE_HOSTED_RECOVERY_ENABLED", "false")
     cfg = HostedRecoveryConfig.from_env()
     assert cfg.enabled is False
 
 
-def test_config_from_env_rejects_non_numeric(monkeypatch: pytest.MonkeyPatch):
+async def test_config_from_env_rejects_non_numeric(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS", "abc")
     with pytest.raises(ConfigurationError):
         HostedRecoveryConfig.from_env()
 
 
-def test_config_from_env_rejects_below_minimum(monkeypatch: pytest.MonkeyPatch):
+async def test_config_from_env_rejects_below_minimum(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS", "1")
     with pytest.raises(ConfigurationError):
         HostedRecoveryConfig.from_env()

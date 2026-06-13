@@ -44,7 +44,7 @@ pytestmark = pytest.mark.asyncio
 
 # release_name_for("11111111-2222-...") == "etradie-mt-" + first 12 chars
 # of the connection_id == "etradie-mt-111111111111".
-_RELEASE = "etradie-mt-111111111111"
+_RELEASE = "etradie-mt-11111111-222"
 
 
 class _FakeApiException(Exception):
