@@ -67,6 +67,7 @@ func newTestExecutor(t *testing.T, mb *mock.Broker) *Executor {
 func newLongTrade() *types.Trade {
 	return &types.Trade{
 		TradeID:          "TMG-test-tp-long",
+		UserID:           "u-test",
 		Symbol:           "EURUSD",
 		Direction:        constants.DirectionBuy,
 		EntryPrice:       1.10000,
@@ -93,6 +94,7 @@ func newLongTrade() *types.Trade {
 func newShortTrade() *types.Trade {
 	return &types.Trade{
 		TradeID:          "TMG-test-tp-short",
+		UserID:           "u-test",
 		Symbol:           "GBPUSD",
 		Direction:        constants.DirectionSell,
 		EntryPrice:       1.27000,

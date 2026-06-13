@@ -7,8 +7,23 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/broker"
 )
+
+// testCtx returns a context populated with the canonical test identity
+// the way production traffic arrives at broker.Client / broker.Stream:
+// the JWT middleware has already injected a *auth.Claims, so
+// auth.UserIDFromContext(ctx) returns a non-empty string and the
+// X-User-Id header gets stamped by stampInternalAuth. The actual
+// identity values match the test JWT contract used elsewhere
+// (sub=u-test, role=etradie, tier=free, status=active).
+func testCtx() context.Context {
+	return auth.InjectIdentity(
+		context.Background(),
+		"u-test", "test-user", auth.RoleEtradie, "free", "active",
+	)
+}
 
 // ---------------------------------------------------------------------------
 // Stream: GetTickPrice
@@ -25,7 +40,7 @@ func TestStream_GetTickPrice(t *testing.T) {
 	}
 	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
 
-	tick, err := stream.GetTickPrice(context.Background(), "EURUSD")
+	tick, err := stream.GetTickPrice(testCtx(), "EURUSD")
 
 	require.NoError(t, err)
 	require.NotNil(t, tick)
@@ -45,7 +60,7 @@ func TestStream_GetTickPrice_BrokerDown(t *testing.T) {
 	srv.TickPriceStatusCode = 502
 	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
 
-	_, err := stream.GetTickPrice(context.Background(), "EURUSD")
+	_, err := stream.GetTickPrice(testCtx(), "EURUSD")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "502")
@@ -72,7 +87,7 @@ func TestStream_GetPosition(t *testing.T) {
 	}
 	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
 
-	pos, err := stream.GetPosition(context.Background(), "12345678")
+	pos, err := stream.GetPosition(testCtx(), "12345678")
 
 	require.NoError(t, err)
 	require.NotNil(t, pos)
@@ -108,7 +123,7 @@ func TestStream_GetPosition_SELL(t *testing.T) {
 	}
 	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
 
-	pos, err := stream.GetPosition(context.Background(), "87654321")
+	pos, err := stream.GetPosition(testCtx(), "87654321")
 
 	require.NoError(t, err)
 	assert.Equal(t, "SELL", pos.Direction) // type=1 -> SELL
@@ -123,7 +138,7 @@ func TestStream_GetPosition_NotFound(t *testing.T) {
 	srv.PositionStatusCode = 502
 	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
 
-	_, err := stream.GetPosition(context.Background(), "99999999")
+	_, err := stream.GetPosition(testCtx(), "99999999")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "502")
@@ -144,7 +159,7 @@ func TestStream_GetSymbolInfo(t *testing.T) {
 	}
 	stream := broker.NewStream(srv.URL(), 5000, "test-secret")
 
-	info, err := stream.GetSymbolInfo(context.Background(), "EURUSD")
+	info, err := stream.GetSymbolInfo(testCtx(), "EURUSD")
 
 	require.NoError(t, err)
 	require.NotNil(t, info)
@@ -171,7 +186,7 @@ func TestClient_ModifyPosition_Success(t *testing.T) {
 	}
 	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
-	err := client.ModifyPosition(context.Background(), "12345678", 1.09800, 1.11000)
+	err := client.ModifyPosition(testCtx(), "12345678", 1.09800, 1.11000)
 
 	require.NoError(t, err)
 
@@ -194,7 +209,7 @@ func TestClient_ModifyPosition_BrokerRejects(t *testing.T) {
 	}
 	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
-	err := client.ModifyPosition(context.Background(), "12345678", 1.12000, 1.11000)
+	err := client.ModifyPosition(testCtx(), "12345678", 1.12000, 1.11000)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Invalid stop loss level")
@@ -208,7 +223,7 @@ func TestClient_ModifyPosition_HttpError(t *testing.T) {
 	srv.ModifyPositionStatusCode = 502
 	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
-	err := client.ModifyPosition(context.Background(), "12345678", 1.09800, 1.11000)
+	err := client.ModifyPosition(testCtx(), "12345678", 1.09800, 1.11000)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "502")
@@ -229,7 +244,7 @@ func TestClient_ClosePartial_Success(t *testing.T) {
 	}
 	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
-	err := client.ClosePartial(context.Background(), "12345678", 0.04)
+	err := client.ClosePartial(testCtx(), "12345678", 0.04)
 
 	require.NoError(t, err)
 
@@ -252,7 +267,7 @@ func TestClient_ClosePartial_BrokerRejects(t *testing.T) {
 	}
 	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
-	err := client.ClosePartial(context.Background(), "12345678", 999.0)
+	err := client.ClosePartial(testCtx(), "12345678", 999.0)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Volume exceeds position size")
@@ -266,7 +281,7 @@ func TestClient_ClosePartial_HttpError(t *testing.T) {
 	srv.ClosePartialStatusCode = 502
 	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
-	err := client.ClosePartial(context.Background(), "12345678", 0.04)
+	err := client.ClosePartial(testCtx(), "12345678", 0.04)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "502")
@@ -287,7 +302,7 @@ func TestClient_ClosePosition_Success(t *testing.T) {
 	}
 	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
-	err := client.ClosePosition(context.Background(), "12345678")
+	err := client.ClosePosition(testCtx(), "12345678")
 
 	require.NoError(t, err)
 
@@ -309,7 +324,7 @@ func TestClient_ClosePosition_BrokerRejects(t *testing.T) {
 	}
 	client := broker.NewClient(srv.URL(), 5000, "test-secret")
 
-	err := client.ClosePosition(context.Background(), "12345678")
+	err := client.ClosePosition(testCtx(), "12345678")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Position already closed")
@@ -338,12 +353,12 @@ func TestMT5Broker_Composite(t *testing.T) {
 	}
 
 	// Stream method.
-	tick, err := mb.GetTickPrice(context.Background(), "EURUSD")
+	tick, err := mb.GetTickPrice(testCtx(), "EURUSD")
 	require.NoError(t, err)
 	assert.InDelta(t, 1.10245, tick.Bid, 0.00001)
 
 	// Client method.
-	err = mb.ModifyPosition(context.Background(), "12345678", 1.09800, 1.11000)
+	err = mb.ModifyPosition(testCtx(), "12345678", 1.09800, 1.11000)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(1), srv.TickPriceCalls.Load())
