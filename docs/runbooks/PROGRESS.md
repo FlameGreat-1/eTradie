@@ -90,7 +90,7 @@ README.md.
 
 ### Post-Phase-1 access model and security measures (this deploy)
 
-**Single way in:** `ssh etradie@13.140.164.173` from the workstation.
+**Single way in:**  use  your personal `ssh ` from the workstation.
 Key-only. No password prompt. Both `ssh root@HOST` and any
 password-based attempt are refused by sshd; the Contabo VNC console
 (in the customer panel, password-based) remains the only emergency
