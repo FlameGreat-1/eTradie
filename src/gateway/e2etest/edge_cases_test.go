@@ -30,12 +30,21 @@ func TestFullPipeline_NewsProximityGuardRejects(t *testing.T) {
 	outputs := h.RunCycle([]string{"EURUSD"}, "trace-e2e-news-guard-001")
 
 	// ---------------------------------------------------------------
-	// Assert: All 4 engine endpoints were called (pipeline ran fully).
+	// Assert: TA, Macro and RAG ran; the Processor LLM was skipped.
+	//
+	// MR-REJECT-001 (high-impact event proximity) is a DETERMINISTIC
+	// pre-LLM guard: when it rejects, Orchestrator.processSymbol
+	// short-circuits at Phase 4b BEFORE the processor LLM call, so
+	// the ~168k input-token spend is avoided. This is the same
+	// behaviour the production code emits and is verified separately
+	// against the post-LLM counter-trend path in guards_errors_test.
 	// ---------------------------------------------------------------
 	assert.Equal(t, int64(1), h.Engine.TACalls.Load())
 	assert.Equal(t, int64(1), h.Engine.MacroCalls.Load())
-	assert.Equal(t, int64(1), h.Engine.RAGCalls.Load())
-	assert.Equal(t, int64(1), h.Engine.ProcessorCalls.Load())
+	assert.Equal(t, int64(1), h.Engine.RAGCalls.Load(),
+		"RAG runs in Phase 3 before the pre-LLM guard short-circuits")
+	assert.Equal(t, int64(0), h.Engine.ProcessorCalls.Load(),
+		"Processor LLM must NOT be called when pre-LLM news guard rejects")
 
 	// ---------------------------------------------------------------
 	// Assert: Output reflects guard rejection.
