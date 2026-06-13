@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from engine.config import RAGConfig
-from engine.rag.constants import CollectionName
+from engine.rag.constants import CollectionName, SourceFormat
 from engine.rag.ingest.pipeline import IngestPipeline
 from engine.rag.knowledge.bootstrap.seed import seed_knowledge_assets
 from engine.rag.knowledge.bootstrap.validator import validate_knowledge_readiness
