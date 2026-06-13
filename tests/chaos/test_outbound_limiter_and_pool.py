@@ -50,9 +50,12 @@ async def test_limiter_blocks_until_refill_and_raises_on_deadline():
     decision = await lim.acquire(deadline_secs=2.0)
     assert decision.allowed is True
 
-    # With deadline_secs=0 (one-shot), exhaustion is reported immediately.
-    # Drain again first.
-    assert await lim.try_acquire() is True
+    # With deadline_secs=0 (one-shot), exhaustion is reported immediately
+    # once the bucket is empty. Drain deterministically rather than
+    # assuming a single token has (or has not) refilled by wall clock:
+    # loop until try_acquire reports the bucket is empty.
+    while await lim.try_acquire():
+        pass
     decision = await lim.acquire(deadline_secs=0)
     assert decision.allowed is False
     assert decision.reason == "exhausted"
