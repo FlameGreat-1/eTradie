@@ -1,598 +1,449 @@
-test_all_sessions_have_ranges PASSED [ 99%]
-tests/ta/test_constants.py::TestSession::test_overlap_within_london_and_ny PASSED [ 99%]
-tests/ta/test_orchestrator.py::test_fetch_sequence_success_primary_broker PASSED [ 99%]
-tests/ta/test_orchestrator.py::test_fetch_sequence_fails_over_to_fallback PASSED [ 99%]
-tests/ta/test_orchestrator.py::test_fetch_sequence_both_brokers_fail PASSED [100%]
-
-==================================== ERRORS ====================================
-__________ ERROR at setup of TestHealthEndpoints.test_health_endpoint __________
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/pytest_asyncio/plugin.py:329: in _asyncgen_fixture_wrapper
-    result = event_loop.run_until_complete(setup_task)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
-    return future.result()
-           ^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/pytest_asyncio/plugin.py:324: in setup
-    res = await gen_obj.__anext__()  # type: ignore[union-attr]
-          ^^^^^^^^^^^^^^^^^^^^^^^^^
-tests/api/conftest.py:242: in app_client
-    async with app.router.lifespan_context(app):
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-src/engine/main.py:208: in lifespan
-    await container.build_processor()
-src/engine/dependencies.py:1061: in build_processor
-    startup_cfg = get_processor_config()
-                  ^^^^^^^^^^^^^^^^^^^^^^
-src/engine/processor/config.py:296: in get_processor_config
-    return ProcessorConfig()
-           ^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/pydantic_settings/main.py:176: in __init__
-    super().__init__(
-E   pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-E     Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-E       For further information visit https://errors.pydantic.dev/2.9/v/value_error
----------------------------- Captured stdout setup -----------------------------
-{"extra": {"trace_id": null}, "event": "db_read_error", "level": "ERROR", "logger": "engine.shared.db.connection", "timestamp": "2026-06-13T09:07:39.690116Z", "exception": "Traceback (most recent call last):\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 521, in _prepare_and_execute\n    prepared_stmt, attributes = await adapt_connection._prepare(\n                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 768, in _prepare\n    prepared_stmt = await self._connection.prepare(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py\", line 635, in prepare\n    return await self._prepare(\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py\", line 653, in _prepare\n    stmt = await self._get_statement(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py\", line 432, in _get_statement\n    statement = await self._protocol.prepare(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"asyncpg/protocol/protocol.pyx\", line 165, in prepare\nasyncpg.exceptions.UndefinedTableError: relation \"broker_connections\" does not exist\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1964, in _exec_single_context\n    self.dialect.do_execute(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py\", line 942, in do_execute\n    cursor.execute(statement, parameters)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 580, in execute\n    self._adapt_connection.await_(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 132, in await_only\n    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 196, in greenlet_spawn\n    value = await result\n            ^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 558, in _prepare_and_execute\n    self._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 508, in _handle_exception\n    self._adapt_connection._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 792, in _handle_exception\n    raise translated_error from error\nsqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class 'asyncpg.exceptions.UndefinedTableError'>: relation \"broker_connections\" does not exist\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/runner/work/eTradie/eTradie/src/engine/shared/db/connection.py\", line 244, in read_session\n    yield session\n  File \"/home/runner/work/eTradie/eTradie/src/engine/dependencies.py\", line 593, in refresh_active_user_connections\n    result = await session.execute(stmt)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py\", line 463, in execute\n    result = await greenlet_spawn(\n             ^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 201, in greenlet_spawn\n    result = context.throw(*sys.exc_info())\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py\", line 2365, in execute\n    return self._execute_internal(\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py\", line 2251, in _execute_internal\n    result: Result[Any] = compile_state_cls.orm_execute_statement(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/context.py\", line 305, in orm_execute_statement\n    result = conn.execute(\n             ^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1416, in execute\n    return meth(\n           ^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/sql/elements.py\", line 516, in _execute_on_connection\n    return connection._execute_clauseelement(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1638, in _execute_clauseelement\n    ret = self._execute_context(\n          ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1843, in _execute_context\n    return self._exec_single_context(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1983, in _exec_single_context\n    self._handle_dbapi_exception(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 2352, in _handle_dbapi_exception\n    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1964, in _exec_single_context\n    self.dialect.do_execute(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py\", line 942, in do_execute\n    cursor.execute(statement, parameters)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 580, in execute\n    self._adapt_connection.await_(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 132, in await_only\n    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 196, in greenlet_spawn\n    value = await result\n            ^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 558, in _prepare_and_execute\n    self._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 508, in _handle_exception\n    self._adapt_connection._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 792, in _handle_exception\n    raise translated_error from error\nsqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation \"broker_connections\" does not exist\n[SQL: SELECT broker_connections.connection_type, count(distinct(broker_connections.user_id)) AS count_1 \nFROM broker_connections \nWHERE broker_connections.is_active IS true GROUP BY broker_connections.connection_type]\n(Background on this error at: https://sqlalche.me/e/20/f405)"}
-{"extra": {"error": "VAULT_ADDR is not set", "error_type": "ConfigurationError"}, "event": "hosted_recovery_startup_failed", "level": "ERROR", "logger": "engine.main", "timestamp": "2026-06-13T09:07:39.748309Z"}
-____________ ERROR at setup of TestHealthEndpoints.test_health_rag _____________
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/pytest_asyncio/plugin.py:329: in _asyncgen_fixture_wrapper
-    result = event_loop.run_until_complete(setup_task)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
-    return future.result()
-           ^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/pytest_asyncio/plugin.py:324: in setup
-    res = await gen_obj.__anext__()  # type: ignore[union-attr]
-          ^^^^^^^^^^^^^^^^^^^^^^^^^
-tests/api/conftest.py:242: in app_client
-    async with app.router.lifespan_context(app):
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-
-
-
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-src/engine/main.py:208: in lifespan
-    await container.build_processor()
-src/engine/dependencies.py:1061: in build_processor
-    startup_cfg = get_processor_config()
-                  ^^^^^^^^^^^^^^^^^^^^^^
-src/engine/processor/config.py:296: in get_processor_config
-    return ProcessorConfig()
-           ^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/pydantic_settings/main.py:176: in __init__
-    super().__init__(
-E   pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-E     Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-E       For further information visit https://errors.pydantic.dev/2.9/v/value_error
----------------------------- Captured stdout setup -----------------------------
-{"extra": {"trace_id": null}, "event": "db_read_error", "level": "ERROR", "logger": "engine.shared.db.connection", "timestamp": "2026-06-13T09:07:40.837953Z", "exception": "Traceback (most recent call last):\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 521, in _prepare_and_execute\n    prepared_stmt, attributes = await adapt_connection._prepare(\n                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 768, in _prepare\n    prepared_stmt = await self._connection.prepare(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py\", line 635, in prepare\n    return await self._prepare(\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py\", line 653, in _prepare\n    stmt = await self._get_statement(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py\", line 432, in _get_statement\n    statement = await self._protocol.prepare(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"asyncpg/protocol/protocol.pyx\", line 165, in prepare\nasyncpg.exceptions.UndefinedTableError: relation \"broker_connections\" does not exist\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1964, in _exec_single_context\n    self.dialect.do_execute(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py\", line 942, in do_execute\n    cursor.execute(statement, parameters)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 580, in execute\n    self._adapt_connection.await_(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 132, in await_only\n    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 196, in greenlet_spawn\n    value = await result\n            ^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 558, in _prepare_and_execute\n    self._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 508, in _handle_exception\n    self._adapt_connection._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 792, in _handle_exception\n    raise translated_error from error\nsqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class 'asyncpg.exceptions.UndefinedTableError'>: relation \"broker_connections\" does not exist\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/runner/work/eTradie/eTradie/src/engine/shared/db/connection.py\", line 244, in read_session\n    yield session\n  File \"/home/runner/work/eTradie/eTradie/src/engine/dependencies.py\", line 593, in refresh_active_user_connections\n    result = await session.execute(stmt)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py\", line 463, in execute\n    result = await greenlet_spawn(\n             ^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 201, in greenlet_spawn\n    result = context.throw(*sys.exc_info())\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py\", line 2365, in execute\n    return self._execute_internal(\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py\", line 2251, in _execute_internal\n    result: Result[Any] = compile_state_cls.orm_execute_statement(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/context.py\", line 305, in orm_execute_statement\n    result = conn.execute(\n             ^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1416, in execute\n    return meth(\n           ^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/sql/elements.py\", line 516, in _execute_on_connection\n    return connection._execute_clauseelement(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1638, in _execute_clauseelement\n    ret = self._execute_context(\n          ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1843, in _execute_context\n    return self._exec_single_context(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1983, in _exec_single_context\n    self._handle_dbapi_exception(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 2352, in _handle_dbapi_exception\n    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1964, in _exec_single_context\n    self.dialect.do_execute(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py\", line 942, in do_execute\n    cursor.execute(statement, parameters)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 580, in execute\n    self._adapt_connection.await_(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 132, in await_only\n    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 196, in greenlet_spawn\n    value = await result\n            ^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 558, in _prepare_and_execute\n    self._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 508, in _handle_exception\n    self._adapt_connection._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 792, in _handle_exception\n    raise translated_error from error\nsqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation \"broker_connections\" does not exist\n[SQL: SELECT broker_connections.connection_type, count(distinct(broker_connections.user_id)) AS count_1 \nFROM broker_connections \nWHERE broker_connections.is_active IS true GROUP BY broker_connections.connection_type]\n(Background on this error at: https://sqlalche.me/e/20/f405)"}
-{"extra": {"error": "VAULT_ADDR is not set", "error_type": "ConfigurationError"}, "event": "hosted_recovery_startup_failed", "level": "ERROR", "logger": "engine.main", "timestamp": "2026-06-13T09:07:40.885886Z"}
------------------------------- Captured log setup ------------------------------
-ERROR    engine.shared.db.connection:connection.py:251 {'extra': {'trace_id': None}, 'event': 'db_read_error', 'level': 'ERROR', 'logger': 'engine.shared.db.connection', 'timestamp': '2026-06-13T09:07:40.837953Z', 'exception': 'Traceback (most recent call last):\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 521, in _prepare_and_execute\n    prepared_stmt, attributes = await adapt_connection._prepare(\n                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 768, in _prepare\n    prepared_stmt = await self._connection.prepare(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 635, in prepare\n    return await self._prepare(\n           ^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 653, in _prepare\n    stmt = await self._get_statement(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 432, in _get_statement\n    statement = await self._protocol.prepare(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "asyncpg/protocol/protocol.pyx", line 165, in prepare\nasyncpg.exceptions.UndefinedTableError: relation "broker_connections" does not exist\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1964, in _exec_single_context\n    self.dialect.do_execute(\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 942, in do_execute\n    cursor.execute(statement, parameters)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute\n    self._adapt_connection.await_(\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only\n    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn\n    value = await result\n            ^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute\n    self._handle_exception(error)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception\n    self._adapt_connection._handle_exception(error)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception\n    raise translated_error from error\nsqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class \'asyncpg.exceptions.UndefinedTableError\'>: relation "broker_connections" does not exist\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File "/home/runner/work/eTradie/eTradie/src/engine/shared/db/connection.py", line 244, in read_session\n    yield session\n  File "/home/runner/work/eTradie/eTradie/src/engine/dependencies.py", line 593, in refresh_active_user_connections\n    result = await session.execute(stmt)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute\n    result = await greenlet_spawn(\n             ^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn\n    result = context.throw(*sys.exc_info())\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2365, in execute\n    return self._execute_internal(\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2251, in _execute_internal\n    result: Result[Any] = compile_state_cls.orm_execute_statement(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/context.py", line 305, in orm_execute_statement\n    result = conn.execute(\n             ^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1416, in execute\n    return meth(\n           ^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/sql/elements.py", line 516, in _execute_on_connection\n    return connection._execute_clauseelement(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1638, in _execute_clauseelement\n    ret = self._execute_context(\n          ^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1843, in _execute_context\n    return self._exec_single_context(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1983, in _exec_single_context\n    self._handle_dbapi_exception(\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2352, in _handle_dbapi_exception\n    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1964, in _exec_single_context\n    self.dialect.do_execute(\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 942, in do_execute\n    cursor.execute(statement, parameters)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute\n    self._adapt_connection.await_(\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only\n    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn\n    value = await result\n            ^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute\n    self._handle_exception(error)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception\n    self._adapt_connection._handle_exception(error)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception\n    raise translated_error from error\nsqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class \'asyncpg.exceptions.UndefinedTableError\'>: relation "broker_connections" does not exist\n[SQL: SELECT broker_connections.connection_type, count(distinct(broker_connections.user_id)) AS count_1 \nFROM broker_connections \nWHERE broker_connections.is_active IS true GROUP BY broker_connections.connection_type]\n(Background on this error at: https://sqlalche.me/e/20/f405)'}
-Traceback (most recent call last):
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 521, in _prepare_and_execute
-    prepared_stmt, attributes = await adapt_connection._prepare(
-                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 768, in _prepare
-    prepared_stmt = await self._connection.prepare(
-                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 635, in prepare
-    return await self._prepare(
-           ^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 653, in _prepare
-    stmt = await self._get_statement(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 432, in _get_statement
-    statement = await self._protocol.prepare(
-                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
-asyncpg.exceptions.UndefinedTableError: relation "broker_connections" does not exist
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1964, in _exec_single_context
-    self.dialect.do_execute(
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 942, in do_execute
-    cursor.execute(statement, parameters)
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
-    self._adapt_connection.await_(
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
-    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
-    value = await result
-            ^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
-    self._handle_exception(error)
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception
-    self._adapt_connection._handle_exception(error)
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
-    raise translated_error from error
-sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class 'asyncpg.exceptions.UndefinedTableError'>: relation "broker_connections" does not exist
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/home/runner/work/eTradie/eTradie/src/engine/shared/db/connection.py", line 244, in read_session
-    yield session
-  File "/home/runner/work/eTradie/eTradie/src/engine/dependencies.py", line 593, in refresh_active_user_connections
-    result = await session.execute(stmt)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute
-    result = await greenlet_spawn(
-             ^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
-    result = context.throw(*sys.exc_info())
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
-    return self._execute_internal(
+","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353083936,"message":"redis_subscriber_started"}
+    edge_cases_test.go:56: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:56
+        	Error:      	Not equal: 
+        	            	expected: "REJECT"
+        	            	actual  : "PASS"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1,2 +1,2 @@
+        	            	-(constants.GuardVerdict) (len=6) "REJECT"
+        	            	+(constants.GuardVerdict) (len=4) "PASS"
+        	            	 
+        	Test:       	TestFullPipeline_NewsProximityGuardRejects
+        	Messages:   	news proximity guard should REJECT
+    edge_cases_test.go:58: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:58
+        	Error:      	"No high-impact events within lockout window" does not contain "Non-Farm Payrolls"
+        	Test:       	TestFullPipeline_NewsProximityGuardRejects
+    edge_cases_test.go:59: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:59
+        	Error:      	"No high-impact events within lockout window" does not contain "minutes"
+        	Test:       	TestFullPipeline_NewsProximityGuardRejects
+    edge_cases_test.go:60: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:60
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestFullPipeline_NewsProximityGuardRejects
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083941,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353083941,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:03 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41402->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083942,"message":"redis_subscriber_stopped"}
+--- FAIL: TestFullPipeline_NewsProximityGuardRejects (0.01s)
+=== RUN   TestFullPipeline_NilExecutionPort
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353083942,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353083943,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083948,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353083948,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083948,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_NilExecutionPort (0.01s)
+=== RUN   TestFullPipeline_TASymbolErrorStatus
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353083949,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353083950,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083952,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353083952,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:03 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41418->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083952,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_TASymbolErrorStatus (0.00s)
+=== RUN   TestFullPipeline_SnDCandidatesOnly
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353083953,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353083954,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083958,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353083958,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083958,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_SnDCandidatesOnly (0.01s)
+=== RUN   TestConfirmationPulse_NestedLTFFormat
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353083959,"message":"redis_transport_started"}
+    edge_cases_test.go:255: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:255
+        	Error:      	Should be true
+        	Test:       	TestConfirmationPulse_NestedLTFFormat
+        	Messages:   	nested {confirmed: true} format should be parsed correctly
+    edge_cases_test.go:257: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:257
+        	Error:      	Should be true
+        	Test:       	TestConfirmationPulse_NestedLTFFormat
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353083960,"message":"redis_subscriber_started"}
+    edge_cases_test.go:258: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:258
+        	Error:      	Not equal: 
+        	            	expected: "SMC LTF confirmation met"
+        	            	actual  : "SMC LTF confirmation not yet met"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-SMC LTF confirmation met
+        	            	+SMC LTF confirmation not yet met
+        	Test:       	TestConfirmationPulse_NestedLTFFormat
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083960,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353083960,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083960,"message":"redis_subscriber_stopped"}
+--- FAIL: TestConfirmationPulse_NestedLTFFormat (0.00s)
+=== RUN   TestFullPipeline_CounterTrendRejectedByGuard
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353083960,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353083961,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083966,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353083966,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353083967,"message":"redis_subscriber_stopped"}
+redis: 2026/06/13 12:18:03 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41462->[::1]:6379: use of closed network connection
+--- PASS: TestFullPipeline_CounterTrendRejectedByGuard (0.01s)
+=== RUN   TestFullPipeline_TACollectionFailure
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353083967,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353083968,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353084477,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353084477,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:04 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41488->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781353084477,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_TACollectionFailure (0.51s)
+=== RUN   TestFullPipeline_MacroCollectionFailure
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353084477,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353084479,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353084987,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353084987,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353084987,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_MacroCollectionFailure (0.51s)
+=== RUN   TestFullPipeline_RAGFailure
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353084988,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353084989,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353084993,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353084993,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:04 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41532->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781353084993,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_RAGFailure (0.01s)
+=== RUN   TestFullPipeline_ProcessorHTTPFailure
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353084993,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353084995,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353084999,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353084999,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353084999,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_ProcessorHTTPFailure (0.01s)
+=== RUN   TestFullPipeline_TradeApproved
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353084999,"message":"redis_transport_started"}
+redis: 2026/06/13 12:18:05 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41546->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353085000,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353085005,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353085005,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353085005,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_TradeApproved (0.01s)
+=== RUN   TestFullPipeline_NoCandidates
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353085005,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353085007,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353085009,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353085009,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:05 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41586->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781353085009,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_NoCandidates (0.00s)
+=== RUN   TestFullPipeline_ProcessorRejectsNoSetup
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353085009,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353085011,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353085015,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353085015,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:05 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41598->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781353085015,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_ProcessorRejectsNoSetup (0.01s)
 
 
- context.throw(*sys.exc_info())
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
-    return self._execute_internal(
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2251, in _execute_internal
-    result: Result[Any] = compile_state_cls.orm_execute_statement(
-                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/context.py", line 305, in orm_execute_statement
-    result = conn.execute(
-             ^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1416, in execute
-    return meth(
-           ^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/sql/elements.py", line 516, in _execute_on_connection
-    return connection._execute_clauseelement(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1638, in _execute_clauseelement
-    ret = self._execute_context(
-          ^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1843, in _execute_context
-    return self._exec_single_context(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1983, in _exec_single_context
-    self._handle_dbapi_exception(
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2352, in _handle_dbapi_exception
-    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1964, in _exec_single_context
-    self.dialect.do_execute(
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 942, in do_execute
-    cursor.execute(statement, parameters)
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
-    self._adapt_connection.await_(
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
-    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
-    value = await result
-            ^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
-    self._handle_exception(error)
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception
-    self._adapt_connection._handle_exception(error)
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
-    raise translated_error from error
-sqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "broker_connections" does not exist
-[SQL: SELECT broker_connections.connection_type, count(distinct(broker_connections.user_id)) AS count_1 
-FROM broker_connections 
-WHERE broker_connections.is_active IS true GROUP BY broker_connections.connection_type]
-(Background on this error at: https://sqlalche.me/e/20/f405)
-ERROR    engine.main:main.py:203 {'extra': {'error': 'VAULT_ADDR is not set', 'error_type': 'ConfigurationError'}, 'event': 'hosted_recovery_startup_failed', 'level': 'ERROR', 'logger': 'engine.main', 'timestamp': '2026-06-13T09:07:40.885886Z'}
-__________ ERROR at setup of TestAnalysisLatest.test_analysis_latest ___________
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/pytest_asyncio/plugin.py:329: in _asyncgen_fixture_wrapper
-    result = event_loop.run_until_complete(setup_task)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
-    return future.result()
-           ^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/pytest_asyncio/plugin.py:324: in setup
-    res = await gen_obj.__anext__()  # type: ignore[union-attr]
-          ^^^^^^^^^^^^^^^^^^^^^^^^^
-tests/api/conftest.py:242: in app_client
-    async with app.router.lifespan_context(app):
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/fastapi/routing.py:216: in merged_lifespan
-    async with original_context(app) as maybe_original_state:
-               ^^^^^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/contextlib.py:210: in __aenter__
-    return await anext(self.gen)
-           ^^^^^^^^^^^^^^^^^^^^^
-src/engine/main.py:208: in lifespan
-    await container.build_processor()
-src/engine/dependencies.py:1061: in build_processor
-    startup_cfg = get_processor_config()
-                  ^^^^^^^^^^^^^^^^^^^^^^
-src/engine/processor/config.py:296: in get_processor_config
+=== RUN   TestRetry_TAFailsThenSucceeds
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353085015,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353085016,"message":"redis_subscriber_started"}
+    retry_concurrency_test.go:87: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/retry_concurrency_test.go:87
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestRetry_TAFailsThenSucceeds
+        	Messages:   	response should have been flipped to success after threshold
+    retry_concurrency_test.go:109: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/retry_concurrency_test.go:109
+        	Error:      	Should be true
+        	Test:       	TestRetry_TAFailsThenSucceeds
+        	Messages:   	retry should succeed: second cycle attempt should produce successful output
+{"level":"info","service":"alert","component":"redis_transport","time":1781353085524,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353085524,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:05 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41612->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781353085525,"message":"redis_subscriber_stopped"}
+--- FAIL: TestRetry_TAFailsThenSucceeds (0.51s)
+=== RUN   TestRetry_AllAttemptsExhausted
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353085525,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353085526,"message":"redis_subscriber_started"}
+    retry_concurrency_test.go:135: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/retry_concurrency_test.go:135
+        	Error:      	"2" is not greater than or equal to "4"
+        	Test:       	TestRetry_AllAttemptsExhausted
+        	Messages:   	TA should be called multiple times across retries
+{"level":"info","service":"alert","component":"redis_transport","time":1781353086034,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353086034,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353086034,"message":"redis_subscriber_stopped"}
+--- FAIL: TestRetry_AllAttemptsExhausted (0.51s)
+=== RUN   TestRetry_SuccessfulCycleDoesNotRetry
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353086035,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353086036,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353086040,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353086040,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:06 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41648->[::1]:6379: use of closed network connection
+--- PASS: TestRetry_SuccessfulCycleDoesNotRetry (0.01s)
+{"level":"info","service":"alert","component":"redis_transport","time":1781353086041,"message":"redis_subscriber_stopped"}
+=== RUN   TestConcurrency_BoundedParallelism
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353086041,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353086042,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353086051,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353086051,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:06 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41672->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781353086051,"message":"redis_subscriber_stopped"}
+--- PASS: TestConcurrency_BoundedParallelism (0.01s)
+=== RUN   TestConcurrency_ContextCancellation
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353086052,"message":"redis_transport_started"}
+{"level":"error","service":"alert","component":"redis_transport","error":"context canceled","event_id":"20260613121806-f65af419","time":1781353086052,"message":"redis_transport_publish_failed"}
+{"level":"error","service":"alert","component":"redis_transport","error":"context canceled","event_id":"20260613121806-7471f810","time":1781353086052,"message":"redis_transport_publish_failed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353086052,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353086053,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353086053,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353086053,"message":"redis_subscriber_stopped"}
+--- PASS: TestConcurrency_ContextCancellation (0.00s)
+FAIL
+FAIL	github.com/flamegreat-1/etradie/src/gateway/e2etest	2.177s
+=== RUN   TestGRPC_RunCycle_HappyPath
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087248,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087252,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087262,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087262,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087262,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_RunCycle_HappyPath (0.01s)
+=== RUN   TestGRPC_RunCycle_NoCandidates
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087262,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087264,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087273,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087273,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:07 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41744->[::1]:6379: use of closed network connection
+--- PASS: TestGRPC_RunCycle_NoCandidates (0.01s)
+=== RUN   TestGRPC_RunCycle_EmptySymbols_UsesDefaults
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087274,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087274,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087275,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087283,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087283,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087283,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_RunCycle_EmptySymbols_UsesDefaults (0.01s)
+=== RUN   TestGRPC_ConfirmSetup_Confirmed
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087284,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087285,"message":"redis_subscriber_started"}
+    cycle_confirm_test.go:164: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:164
+        	Error:      	Should be true
+        	Test:       	TestGRPC_ConfirmSetup_Confirmed
+        	Messages:   	LTF should be confirmed
+    cycle_confirm_test.go:165: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:165
+        	Error:      	Should be true
+        	Test:       	TestGRPC_ConfirmSetup_Confirmed
+    cycle_confirm_test.go:166: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:166
+        	Error:      	Not equal: 
+        	            	expected: "SMC LTF confirmation met"
+        	            	actual  : "News lockout: Economic-calendar data unavailable; failing closed to avoid trading blind into news"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-SMC LTF confirmation met
+        	            	+News lockout: Economic-calendar data unavailable; failing closed to avoid trading blind into news
+        	Test:       	TestGRPC_ConfirmSetup_Confirmed
+    cycle_confirm_test.go:170: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:170
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestGRPC_ConfirmSetup_Confirmed
+    cycle_confirm_test.go:171: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:171
+        	Error:      	Not equal: 
+        	            	expected: 0
+        	            	actual  : 1
+        	Test:       	TestGRPC_ConfirmSetup_Confirmed
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087287,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087287,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087287,"message":"redis_subscriber_stopped"}
+--- FAIL: TestGRPC_ConfirmSetup_Confirmed (0.00s)
+=== RUN   TestGRPC_ConfirmSetup_ValidationError
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087288,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087290,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087293,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087293,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087293,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_ConfirmSetup_ValidationError (0.01s)
+=== RUN   TestGRPC_NotifyExecutionCompleted_NoMgmtClient
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087293,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087295,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087298,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087298,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087298,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_NotifyExecutionCompleted_NoMgmtClient (0.01s)
+=== RUN   TestGRPC_NotifyExecutionCompleted_AllFieldsPropagated
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087299,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087302,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087303,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087303,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087304,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_NotifyExecutionCompleted_AllFieldsPropagated (0.00s)
+=== RUN   TestGRPC_SetCycleInterval_Valid
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087304,"message":"
 
-   return ProcessorConfig()
-           ^^^^^^^^^^^^^^^^^
-/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/pydantic_settings/main.py:176: in __init__
-    super().__init__(
-E   pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-E     Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-E       For further information visit https://errors.pydantic.dev/2.9/v/value_error
----------------------------- Captured stdout setup -----------------------------
-{"extra": {"trace_id": null}, "event": "db_read_error", "level": "ERROR", "logger": "engine.shared.db.connection", "timestamp": "2026-06-13T09:07:41.620554Z", "exception": "Traceback (most recent call last):\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 521, in _prepare_and_execute\n    prepared_stmt, attributes = await adapt_connection._prepare(\n                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 768, in _prepare\n    prepared_stmt = await self._connection.prepare(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py\", line 635, in prepare\n    return await self._prepare(\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py\", line 653, in _prepare\n    stmt = await self._get_statement(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py\", line 432, in _get_statement\n    statement = await self._protocol.prepare(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"asyncpg/protocol/protocol.pyx\", line 165, in prepare\nasyncpg.exceptions.UndefinedTableError: relation \"broker_connections\" does not exist\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1964, in _exec_single_context\n    self.dialect.do_execute(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py\", line 942, in do_execute\n    cursor.execute(statement, parameters)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 580, in execute\n    self._adapt_connection.await_(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 132, in await_only\n    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 196, in greenlet_spawn\n    value = await result\n            ^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 558, in _prepare_and_execute\n    self._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 508, in _handle_exception\n    self._adapt_connection._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 792, in _handle_exception\n    raise translated_error from error\nsqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class 'asyncpg.exceptions.UndefinedTableError'>: relation \"broker_connections\" does not exist\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/home/runner/work/eTradie/eTradie/src/engine/shared/db/connection.py\", line 244, in read_session\n    yield session\n  File \"/home/runner/work/eTradie/eTradie/src/engine/dependencies.py\", line 593, in refresh_active_user_connections\n    result = await session.execute(stmt)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py\", line 463, in execute\n    result = await greenlet_spawn(\n             ^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 201, in greenlet_spawn\n    result = context.throw(*sys.exc_info())\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py\", line 2365, in execute\n    return self._execute_internal(\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py\", line 2251, in _execute_internal\n    result: Result[Any] = compile_state_cls.orm_execute_statement(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/context.py\", line 305, in orm_execute_statement\n    result = conn.execute(\n             ^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1416, in execute\n    return meth(\n           ^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/sql/elements.py\", line 516, in _execute_on_connection\n    return connection._execute_clauseelement(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1638, in _execute_clauseelement\n    ret = self._execute_context(\n          ^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1843, in _execute_context\n    return self._exec_single_context(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1983, in _exec_single_context\n    self._handle_dbapi_exception(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 2352, in _handle_dbapi_exception\n    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 1964, in _exec_single_context\n    self.dialect.do_execute(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py\", line 942, in do_execute\n    cursor.execute(statement, parameters)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 580, in execute\n    self._adapt_connection.await_(\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 132, in await_only\n    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py\", line 196, in greenlet_spawn\n    value = await result\n            ^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 558, in _prepare_and_execute\n    self._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 508, in _handle_exception\n    self._adapt_connection._handle_exception(error)\n  File \"/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py\", line 792, in _handle_exception\n    raise translated_error from error\nsqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation \"broker_connections\" does not exist\n[SQL: SELECT broker_connections.connection_type, count(distinct(broker_connections.user_id)) AS count_1 \nFROM broker_connections \nWHERE broker_connections.is_active IS true GROUP BY broker_connections.connection_type]\n(Background on this error at: https://sqlalche.me/e/20/f405)"}
-{"extra": {"error": "VAULT_ADDR is not set", "error_type": "ConfigurationError"}, "event": "hosted_recovery_startup_failed", "level": "ERROR", "logger": "engine.main", "timestamp": "2026-06-13T09:07:41.669911Z"}
------------------------------- Captured log setup ------------------------------
-ERROR    engine.shared.db.connection:connection.py:251 {'extra': {'trace_id': None}, 'event': 'db_read_error', 'level': 'ERROR', 'logger': 'engine.shared.db.connection', 'timestamp': '2026-06-13T09:07:41.620554Z', 'exception': 'Traceback (most recent call last):\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 521, in _prepare_and_execute\n    prepared_stmt, attributes = await adapt_connection._prepare(\n                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 768, in _prepare\n    prepared_stmt = await self._connection.prepare(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 635, in prepare\n    return await self._prepare(\n           ^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 653, in _prepare\n    stmt = await self._get_statement(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 432, in _get_statement\n    statement = await self._protocol.prepare(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "asyncpg/protocol/protocol.pyx", line 165, in prepare\nasyncpg.exceptions.UndefinedTableError: relation "broker_connections" does not exist\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1964, in _exec_single_context\n    self.dialect.do_execute(\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 942, in do_execute\n    cursor.execute(statement, parameters)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute\n    self._adapt_connection.await_(\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only\n    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn\n    value = await result\n            ^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute\n    self._handle_exception(error)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception\n    self._adapt_connection._handle_exception(error)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception\n    raise translated_error from error\nsqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class \'asyncpg.exceptions.UndefinedTableError\'>: relation "broker_connections" does not exist\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File "/home/runner/work/eTradie/eTradie/src/engine/shared/db/connection.py", line 244, in read_session\n    yield session\n  File "/home/runner/work/eTradie/eTradie/src/engine/dependencies.py", line 593, in refresh_active_user_connections\n    result = await session.execute(stmt)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute\n    result = await greenlet_spawn(\n             ^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn\n    result = context.throw(*sys.exc_info())\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2365, in execute\n    return self._execute_internal(\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2251, in _execute_internal\n    result: Result[Any] = compile_state_cls.orm_execute_statement(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/context.py", line 305, in orm_execute_statement\n    result = conn.execute(\n             ^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1416, in execute\n    return meth(\n           ^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/sql/elements.py", line 516, in _execute_on_connection\n    return connection._execute_clauseelement(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1638, in _execute_clauseelement\n    ret = self._execute_context(\n          ^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1843, in _execute_context\n    return self._exec_single_context(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1983, in _exec_single_context\n    self._handle_dbapi_exception(\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2352, in _handle_dbapi_exception\n    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1964, in _exec_single_context\n    self.dialect.do_execute(\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 942, in do_execute\n    cursor.execute(statement, parameters)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute\n    self._adapt_connection.await_(\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only\n    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn\n    value = await result\n            ^^^^^^^^^^^^\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute\n    self._handle_exception(error)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception\n    self._adapt_connection._handle_exception(error)\n  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception\n    raise translated_error from error\nsqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class \'asyncpg.exceptions.UndefinedTableError\'>: relation "broker_connections" does not exist\n[SQL: SELECT broker_connections.connection_type, count(distinct(broker_connections.user_id)) AS count_1 \nFROM broker_connections \nWHERE broker_connections.is_active IS true GROUP BY broker_connections.connection_type]\n(Background on this error at: https://sqlalche.me/e/20/f405)'}
-Traceback (most recent call last):
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 521, in _prepare_and_execute
-    prepared_stmt, attributes = await adapt_connection._prepare(
-                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 768, in _prepare
-    prepared_stmt = await self._connection.prepare(
-                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 635, in prepare
-    return await self._prepare(
-           ^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 653, in _prepare
-    stmt = await self._get_statement(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/asyncpg/connection.py", line 432, in _get_statement
-    statement = await self._protocol.prepare(
-                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "asyncpg/protocol/protocol.pyx", line 165, in prepare
-asyncpg.exceptions.UndefinedTableError: relation "broker_connections" does not exist
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087304,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087307,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087311,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087312,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:07 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41812->[::1]:6379: use of closed network connection
+--- PASS: TestGRPC_SetCycleInterval_Valid (0.01s)
+=== RUN   TestGRPC_SetCycleInterval_TooLow
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087312,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087312,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087314,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087314,"message":"alert_hub_closed"}
+--- PASS: TestGRPC_SetCycleInterval_TooLow (0.00s)
+=== RUN   TestGRPC_SetCycleInterval_TooHigh
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087314,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087315,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087315,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087316,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087316,"message":"alert_hub_closed"}
+--- PASS: TestGRPC_SetCycleInterval_TooHigh (0.00s)
+=== RUN   TestGRPC_GetGatewayConfig
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087316,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087316,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087316,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087319,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087320,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087320,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087320,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_GetGatewayConfig (0.00s)
+=== RUN   TestGRPC_GetActiveSymbols
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087321,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087323,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087324,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087324,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:07 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:41904->[::1]:6379: use of closed network connection
+--- PASS: TestGRPC_GetActiveSymbols (0.00s)
+=== RUN   TestGRPC_SetActiveSymbols_Valid
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087325,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087325,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087327,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087331,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087331,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087331,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_SetActiveSymbols_Valid (0.01s)
+=== RUN   TestGRPC_ResetActiveSymbols
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087331,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087335,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087337,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087337,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087337,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_ResetActiveSymbols (0.01s)
+=== RUN   TestGRPC_GetHealth
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087338,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087339,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087342,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087342,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087343,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_GetHealth (0.00s)
+=== RUN   TestGRPC_RunCycle_InvalidSymbol_EmptyString
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087343,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087346,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087354,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087354,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087354,"message":"alert_hub_closed"}
+--- PASS: TestGRPC_RunCycle_InvalidSymbol_EmptyString (0.01s)
+=== RUN   TestGRPC_NotifyExecutionCompleted_FullHandoff
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087356,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087357,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087361,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353087363,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353087361,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_NotifyExecutionCompleted_FullHandoff (0.01s)
+=== RUN   TestGRPC_NotifyExecutionCompleted_MgmtReturnsError
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353087364,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353087365,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353090747,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353090747,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353090748,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_NotifyExecutionCompleted_MgmtReturnsError (3.39s)
+=== RUN   TestGRPC_NotifyExecutionCompleted_MgmtRejectsRegistration
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781353090750,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781353090752,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781353090758,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781353090758,"message":"alert_hub_closed"}
+redis: 2026/06/13 12:18:10 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:35490->[::1]:6379: use of closed network connection
+--- PASS: TestGRPC_NotifyExecutionCompleted_MgmtRejectsRegistration (0.01s)
+FAIL
+FAIL	github.com/flamegreat-1/etradie/src/gateway/grpctest	3.521s
+?   	github.com/flamegreat-1/etradie/src/gateway/internal/collectors	[no test files]
+=== RUN   TestValidConfig_Passes
+--- PASS: TestValidConfig_Passes (0.00s)
 
-The above exception was the direct cause of the following exception:
+00s)
+=== RUN   TestFail_SetsCompletedAt
+--- PASS: TestFail_SetsCompletedAt (0.00s)
+=== RUN   TestFail_RecordsPhaseDuration
+--- PASS: TestFail_RecordsPhaseDuration (0.00s)
+=== RUN   TestToState_MatchesTrackerFields
+--- PASS: TestToState_MatchesTrackerFields (0.00s)
+=== RUN   TestToState_DurationsMapIsCopy
+--- PASS: TestToState_DurationsMapIsCopy (0.00s)
+=== RUN   TestToState_RunningCycle_NoCompletedAt
+--- PASS: TestToState_RunningCycle_NoCompletedAt (0.00s)
+=== RUN   TestToState_FailedCycle_HasErrorFields
+Error: src/gateway/internal/routing/guards_test.go:16:12: undefined: checkHighImpactEventProximity
+Error: src/gateway/internal/routing/guards_test.go:34:12: undefined: checkHighImpactEventProximity
+Error: src/gateway/internal/routing/guards_test.go:56:12: undefined: checkHighImpactEventProximity
+Error: src/gateway/internal/routing/guards_test.go:84:12: undefined: checkHighImpactEventProximity
+Error: src/gateway/internal/routing/guards_test.go:96:12: undefined: checkCounterTrend
+Error: src/gateway/internal/routing/guards_test.go:106:12: undefined: checkCounterTrend
+Error: src/gateway/internal/routing/guards_test.go:120:12: undefined: checkCounterTrend
+Error: src/gateway/internal/routing/guards_test.go:136:12: undefined: checkCounterTrend
+Error: src/gateway/internal/routing/guards_test.go:150:12: undefined: checkCounterTrend
+Error: src/gateway/internal/routing/guards_test.go:164:12: undefined: checkWeekendGapRisk
+Error: src/gateway/internal/routing/guards_test.go:164:12: too many errors
+--- PASS: TestToState_FailedCycle_HasErrorFields (0.00s)
+PASS
+ok  	github.com/flamegreat-1/etradie/src/gateway/internal/pipeline	0.026s
+?   	github.com/flamegreat-1/etradie/src/gateway/internal/ports	[no test files]
+?   	github.com/flamegreat-1/etradie/src/gateway/internal/pulse	[no test files]
+=== RUN   TestBuild_RuleFirstStrategy_NFPEvent
+--- PASS: TestBuild_RuleFirstStrategy_NFPEvent (0.00s)
+=== RUN   TestBuild_ScenarioFirstStrategy_WhenFrameworkAndSetupPresent
+--- PASS: TestBuild_ScenarioFirstStrategy_WhenFrameworkAndSetupPresent (0.00s)
+=== RUN   TestBuild_HybridStrategy_Default
+--- PASS: TestBuild_HybridStrategy_Default (0.00s)
+=== RUN   TestBuild_QueryTextContainsSymbol
+--- PASS: TestBuild_QueryTextContainsSymbol (0.00s)
+=== RUN   TestBuild_SMCFlags
+--- PASS: TestBuild_SMCFlags (0.00s)
+=== RUN   TestBuild_MacroFlags_DXYPresent
+--- PASS: TestBuild_MacroFlags_DXYPresent (0.00s)
+=== RUN   TestBuild_MacroFlags_QEQTPresent
+--- PASS: TestBuild_MacroFlags_QEQTPresent (0.00s)
+=== RUN   TestBuild_AllFrameworksAlwaysIncludesWyckoff
+--- PASS: TestBuild_AllFrameworksAlwaysIncludesWyckoff (0.00s)
+=== RUN   TestBuild_SymbolPassthrough
+--- PASS: TestBuild_SymbolPassthrough (0.00s)
+PASS
 
-Traceback (most recent call last):
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1964, in _exec_single_context
-    self.dialect.do_execute(
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 942, in do_execute
-    cursor.execute(statement, parameters)
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
-    self._adapt_connection.await_(
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
-    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
-    value = await result
-            ^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
-    self._handle_exception(error)
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 508, in _handle_exception
-    self._adapt_connection._handle_exception(error)
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 792, in _handle_exception
-    raise translated_error from error
-sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class 'asyncpg.exceptions.UndefinedTableError'>: relation "broker_connections" does not exist
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/home/runner/work/eTradie/eTradie/src/engine/shared/db/connection.py", line 244, in read_session
-    yield session
-  File "/home/runner/work/eTradie/eTradie/src/engine/dependencies.py", line 593, in refresh_active_user_connections
-    result = await session.execute(stmt)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute
-    result = await greenlet_spawn(
-             ^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
-    result = context.throw(*sys.exc_info())
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
-    return self._execute_internal(
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2251, in _execute_internal
-    result: Result[Any] = compile_state_cls.orm_execute_statement(
-                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/orm/context.py", line 305, in orm_execute_statement
-    result = conn.execute(
-             ^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1416, in execute
-    return meth(
-           ^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/sql/elements.py", line 516, in _execute_on_connection
-    return connection._execute_clauseelement(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1638, in _execute_clauseelement
-    ret = self._execute_context(
-          ^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1843, in _execute_context
-    return self._exec_single_context(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1983, in _exec_single_context
-    self._handle_dbapi_exception(
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 2352, in _handle_dbapi_exception
-    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 1964, in _exec_single_context
-    self.dialect.do_execute(
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 942, in do_execute
-    cursor.execute(statement, parameters)
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
-    self._adapt_connection.await_(
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
-    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.12.13/x64/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
-    value = await result
-            ^^^^^^^^^^^^
-
-
-
-
-
-
-      0      0      0   100%
-src/engine/ta/storage/schemas/candle.py                                        25      0      0      0   100%
-src/engine/ta/storage/schemas/snapshot.py                                      38      0      0      0   100%
-src/engine/ta/storage/uow.py                                                  117     74     20      0    31%   35-41, 45-47, 51-53, 57-59, 63-65, 68-77, 80-89, 107-113, 117-119, 123-125, 129-131, 135-137, 140-149, 152-161, 172, 181
-src/engine/verify_chroma.py                                                    23     23     10      0     0%   1-38
------------------------------------------------------------------------------------------------------------------------
-TOTAL                                                                       24865  13541   6260    385    39%
-
-=========================== short test summary info ============================
-FAILED tests/chaos/test_prometheusrule_renders.py::test_mt_node_chart_renders_memory_leak_rule - AssertionError: helm template mt-node failed: Error: execution error at (mt-node/templates/externalsecret-platform.yaml:11:18): helm/mt-node: .Values.externalSecrets.platform.vaultPath is required when externalSecrets.enabled=true. Set it to etradie/services/mt-node/<env>.
-  
-  Use --debug flag to render out invalid YAML
-  
-assert 1 == 0
- +  where 1 = CompletedProcess(args=['helm', 'template', 'release', '/home/runner/work/eTradie/eTradie/helm/mt-node', '--namespace', 'etradie-system', '--set', 'image.repository=ghcr.io/ci-stub/etradie-mt-node', '--set', 'mtConnection.enabled=true', '--set', 'mtConnection.connectionId=test-1234567890', '--set', 'mtConnection.userId=u-1', '--set', 'mtConnection.server=Exness-MT5Trial9', '--set', 'mtConnection.sealedSecretName=test-secret'], returncode=1, stdout='', stderr='Error: execution error at (mt-node/templates/externalsecret-platform.yaml:11:18): helm/mt-node: .Values.externalSecrets.platform.vaultPath is required when externalSecrets.enabled=true. Set it to etradie/services/mt-node/<env>.\n\nUse --debug flag to render out invalid YAML\n').returncode
-FAILED tests/chaos/test_watchdog_broker_disconnect_inproc.py::test_watchdog_terminates_mt_on_consecutive_health_failures - pytest.PytestUnraisableExceptionWarning: Exception ignored in: <coroutine object HostedRecoveryService._loop at 0x7f6b1bfa33d0>
-Enable tracemalloc to get traceback where the object was allocated.
-See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
-FAILED tests/ta/broker/test_mt5_config.py::TestMT5ConfigProviderValidation::test_metaapi_provider_requires_token - Failed: DID NOT RAISE <class 'pydantic_core._pydantic_core.ValidationError'>
-ERROR tests/api/test_dashboard_api.py::TestHealthEndpoints::test_health_endpoint - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestHealthEndpoints::test_health_rag - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisLatest::test_analysis_latest - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisLatest::test_analysis_latest_filter_by_pair - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisLatest::test_analysis_latest_limit - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_filter_status - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_filter_grade - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_filter_provider - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_pagination - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisStats::test_analysis_stats - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisStats::test_analysis_stats_filter_pair - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisDetail::test_analysis_detail - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisDetail::test_analysis_detail_not_found - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisRerun::test_analysis_rerun_ta_unavailable - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisRerun::test_analysis_rerun_empty_symbol - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisRerun::test_analysis_rerun_no_auth - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_models - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_config_get - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_config_update_temperature - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_config_update_invalid_provider - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_regular_user_rejected_from_processor_models - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_regular_user_rejected_from_processor_config_get - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_regular_user_rejected_from_processor_config_put - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_no_auth_returns_401 - pydantic_core._pydantic_core.ValidationError: 1 validation error for ProcessorConfig
-  Value error, Provider 'anthropic' requires PROCESSOR_ANTHROPIC_API_KEY to be set [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-======= 3 failed, 496 passed, 23 skipped, 25 errors in 70.50s (0:01:10) ========
+ols_EmptyList_ReturnsFalse (0.00s)
+=== RUN   TestSetActiveSymbols_AllWhitespace_ReturnsFalse
+--- PASS: TestSetActiveSymbols_AllWhitespace_ReturnsFalse (0.00s)
+=== RUN   TestSetActiveSymbols_OverwritesPrevious
+--- PASS: TestSetActiveSymbols_OverwritesPrevious (0.00s)
+=== RUN   TestResetToDefaults_ClearsSelection
+--- PASS: TestResetToDefaults_ClearsSelection (0.00s)
+=== RUN   TestResetToDefaults_WhenAlreadyEmpty
+--- PASS: TestResetToDefaults_WhenAlreadyEmpty (0.00s)
+PASS
+ok  	github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore	0.022s
+?   	github.com/flamegreat-1/etradie/src/gateway/internal/tradingplanadapter	[no test files]
+FAIL
 Error: Process completed with exit code 1.
+0s
 0s
