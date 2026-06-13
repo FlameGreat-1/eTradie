@@ -238,7 +238,6 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
     if "MT5_PROVIDER" not in env_overrides and "MT5_METAAPI_TOKEN" not in env_overrides:
         env_overrides["MT5_PROVIDER"] = "native"
 
-
     from unittest.mock import patch
 
     with patch.dict(os.environ, env_overrides):
