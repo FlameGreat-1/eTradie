@@ -144,3 +144,49 @@ fallback.
 | 6. No casual `apt upgrade` mid-deploy | 🟡 acknowledged | Next upgrade window: post-Phase-15. |
 | 7. No backups yet | 🟡 acknowledged | Phase 15 sets up Postgres B2 + Vault Raft snapshots. |
 | 8. Contabo root password still valid for VNC | 🟡 acknowledged | Welcome email retained as emergency recovery credential. |
+
+---
+
+## Phase 2 pre-flight: codebase verification (before running the K3s installer)
+
+The README.md Phase 2.1 install command was cross-checked against the
+repo before execution to make sure every flag it sets is one the
+charts/Terraform/ArgoCD configs actually rely on, and that nothing the
+codebase needs is missing from it. Recorded here so a future operator
+can see WHY the command is what it is, not just that we ran it.
+
+| README.md Phase 2.1 flag / setting | Why the code requires it | Source of truth in repo |
+|---|---|---|
+| `INSTALL_K3S_VERSION=v1.30.4+k3s1` | Linkerd uses native sidecars (`config.linkerd.io/proxy-enable-native-sidecar: "true"`), which is GA only from K8s 1.29. On older K8s the annotation is silently ignored, the proxy starts AFTER init containers, and meshed init-container hops (engine alembic migrate, mt-node Vault Agent init) are refused by the meshed datastores → pods never become Ready. | `infrastructure/cluster/bootstrap/README.md` step 0; `helm/data-layer/values.yaml` (postgres/redis/chromadb podAnnotations); `helm/mt-node/values.yaml` (vault + podAnnotations). |
+| `--disable=traefik` | The platform ships its own `edge-ingress` chart (Cloudflare Tunnel + envoy). A second ingress controller would race for `:80`/`:443`. | `helm/edge-ingress/` chart. |
+| `--disable=servicelb` | Cloudflare Tunnel is outbound-only — no LoadBalancer is ever needed. The data-layer namespace's ResourceQuota hard-caps `services.loadbalancers: 0`, so any LB attempt would be rejected at admission anyway. | `helm/data-layer/values.yaml::resourceQuota.hard.servicesLoadbalancers=0`; `helm/data-layer/templates/namespace.yaml`. |
+| `--kube-apiserver-arg=enable-admission-plugins=NodeRestriction,PodSecurity` | The data-layer chart owns the `etradie-system` namespace and labels it `pod-security.kubernetes.io/warn=restricted` + `audit=restricted` (PSS observe-only mode). The PodSecurity admission plugin must be enabled at the apiserver for those labels to take effect. NodeRestriction limits the kubelet to mutating only its own Node + Pods (CIS K8s Benchmark 1.2.x). | `helm/data-layer/templates/namespace.yaml`. |
+| `--kubelet-arg=eviction-hard=memory.available<200Mi` | Single-node 24 GB box (BUDGET.md Table 2B). The default eviction threshold of 100Mi is too tight — a Wine + MT5 recalc spike or a postgres autovacuum can push the node past it and kubelet starts killing healthy pods. 200Mi is the safe floor for this profile. | `BUDGET.md` Table 2B; `helm/mt-node/values.yaml` resource ceilings. |
+| `K3S_KUBECONFIG_MODE=644` | Phase 2.3 copies `/etc/rancher/k3s/k3s.yaml` from the VPS to the workstation. Default mode 600 (owned by root) would force every copy to go through sudo and a chown. 644 is safe because the file stays on the VPS root filesystem behind ufw — the operator's etradie account is already root-equivalent via passwordless sudo (Phase 1 measure 3). | README.md Phase 2.3 (Option A SSH local-forward). |
+| StorageClass: no `--default-local-storage-class=...` override | K3s ships `local-path-provisioner` as the cluster default StorageClass. The data-layer + mt-node charts BOTH set `storageClassName: ""` (= use cluster default) in every PVC, so the K3s default resolves correctly without further configuration. | `helm/data-layer/values.yaml::postgres.storage.storageClassName=""`, same for redis/chromadb/backup; `helm/mt-node/values.yaml::persistence.storageClass=""`. |
+
+### Two staging-specific consequences operators must keep in mind
+
+1. **PSS is `warn` + `audit` only, NOT `enforce`.** The namespace template
+   (`helm/data-layer/templates/namespace.yaml`) deliberately omits
+   `pod-security.kubernetes.io/enforce` (its comment: *"The enforce
+   cutover is a deliberate, reviewed follow-up MR after one full deploy
+   cycle of audit-log events shows no violations."*). Phase 2.1's
+   apiserver flag turns the PodSecurity ADMISSION PLUGIN on at the
+   cluster, but the namespace itself is in observe-only mode. Phase 14
+   verification should grep `kube-apiserver` audit events for
+   `pod-security` violations before any future enforce cutover. Do NOT
+   add the enforce label inline during this deploy.
+2. **PSS rule version is pinned to `v1.30`.** The namespace labels
+   `pod-security.kubernetes.io/warn-version: v1.30` (and same for
+   `audit-version`). K3s `v1.30.4+k3s1` matches. **If a future operator
+   upgrades K3s, they MUST bump this pin in lockstep** — otherwise PSS
+   will silently re-evaluate against a different rule version and the
+   warn/audit results will change without anyone touching the chart.
+3. **Snapshotter is OFF in staging** (`helm/mt-node/values-staging.yaml::snapshotter.enabled=false`).
+   K3s `local-path-provisioner` has no CSI VolumeSnapshot support, so
+   the Wine-prefix snapshot CronJob cannot run on this box. Re-enable
+   only after installing Longhorn (or another snapshot-capable CSI) and
+   setting `snapshotter.volumeSnapshotClassName` + `image.repository`.
+   No action required at Phase 2 — just don't be surprised when
+   `mt-node-staging` renders without the CronJob in Phase 12.
