@@ -184,12 +184,22 @@ func TestBuildWithMode_Limit_TTLCandles_ByStyle(t *testing.T) {
 	}
 }
 
-func TestBuildWithMode_Limit_NoInstantFields(t *testing.T) {
+func TestBuildWithMode_Limit_HasNoInstantOnlyFields(t *testing.T) {
 	order := BuildWithMode(testRequest(), testSizing(), testConfig(), constants.ModeLimit)
 
-	if order.WatcherID != "" {
-		t.Fatalf("LIMIT mode should have empty WatcherID, got %q", order.WatcherID)
+	// LIMIT mode DOES carry a WatcherID: the watcher Manager arms a
+	// TTL watcher (LMT_<symbol>_<suffix>) that cancels the resting
+	// broker order when the per-style TTL elapses or a news-lockout
+	// event becomes imminent. See watcher/manager.go::Arm and
+	// order_builder.go::BuildWithMode (case ModeLimit).
+	if !strings.HasPrefix(order.WatcherID, "LMT_EURUSD_") {
+		t.Fatalf("LIMIT WatcherID should start with LMT_EURUSD_, got %q", order.WatcherID)
 	}
+
+	// OvershootTolerance and LTFConfirmed are INSTANT-ONLY: they
+	// only make sense for a tick-driven watcher that fires a market
+	// order on zone re-entry. LIMIT mode must leave them at their
+	// zero values.
 	if order.OvershootTolerance != 0 {
 		t.Fatalf("LIMIT mode should have 0 OvershootTolerance, got %f", order.OvershootTolerance)
 	}
