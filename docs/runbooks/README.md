@@ -59,21 +59,116 @@ built + verified in Phase 2.5 below — do NOT expect it in GHCR yet.
 
 ## Phase 1 — VPS host hardening
 
-SSH in as `root`. Run the full procedure in `docs/runbooks/vps-host-hardening.md`. Minimum:
+SSH in as `root`. The companion runbook `docs/runbooks/vps-host-hardening.md` covers the full Tier 11 procedure; the steps below are the authoritative subset every self-managed Contabo / kubeadm / bare-metal box MUST run before Phase 2 (K3s install). They satisfy `infrastructure/cluster/bootstrap/README.md` step 0 *and* the Tier 11 "Server Hardening" + "VPN admin access" checklist (SSH key-only auth, password login disabled, fail2ban, host firewall, private K8s API).
 
-1.1 Create non-root sudo user `etradie`, copy your SSH key, reconnect as it.
-1.2 Disable root SSH + password auth in `/etc/ssh/sshd_config` (`PermitRootLogin no`, `PasswordAuthentication no`), then `sudo systemctl reload sshd`.
-1.3 `sudo apt update && sudo apt -y upgrade`; install `ca-certificates curl gnupg git make jq unzip ufw chrony`.
-1.4 Time sync: `sudo systemctl enable --now chrony && chronyc tracking` (stratum <= 3).
-1.5 Kernel/ulimit tuning in `/etc/sysctl.d/99-etradie.conf` (`vm.max_map_count=262144`, `fs.inotify.max_user_watches=524288`, `net.core.somaxconn=65535`, `vm.swappiness=10`) and `/etc/security/limits.d/99-etradie.conf` (`nofile`/`nproc` 65535); `sudo sysctl --system`.
-1.6 Firewall (Cloudflare Tunnel is outbound-only — close all inbound except SSH):
+> **Decisions baked into this phase (do not re-derive each deploy):**
+>
+> - **Firewall tool: `ufw`.** Ubuntu 24.04 ships `ufw` with `nftables` as the backend, so we get the nftables semantics with simpler ergonomics. `vps-host-hardening.md` documents an `nftables` ruleset as an equivalent alternative for operators who prefer authoring rules directly.
+> - **`PermitRootLogin no`** (this runbook), not the looser `prohibit-password` the Tier 11 runbook also documents. We use the deploy user `etradie` for everything; no root SSH escape hatch.
+> - **sshd drop-in** (`/etc/ssh/sshd_config.d/10-etradie-hardening.conf`) instead of editing `/etc/ssh/sshd_config` directly, so a future `openssh-server` package upgrade cannot silently revert the hardening.
+> - **K8s API stays private via firewall + SSH tunnel.** The Tier 11 runbook's K3s install with `--tls-san <PRIVATE_IP> --advertise-address <PRIVATE_IP> --node-ip <PRIVATE_IP>` does NOT apply to a single-NIC Contabo VPS (there is no private IP to bind to). Instead, Phase 1.6's firewall closes 6443 inbound, and Phase 2.3 reaches the API from the workstation through the existing SSH session (`ssh -L` or by editing the exported kubeconfig).
+
+1.1 **Create non-root sudo user `etradie`, copy your SSH key, reconnect as it.**
+```bash
+adduser --gecos "" --disabled-password etradie
+usermod -aG sudo etradie
+echo "etradie ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-etradie
+chmod 0440 /etc/sudoers.d/90-etradie
+visudo -cf /etc/sudoers.d/90-etradie         # "parsed OK"
+install -d -m 0700 -o etradie -g etradie /home/etradie/.ssh
+install -m 0600 -o etradie -g etradie /root/.ssh/authorized_keys /home/etradie/.ssh/authorized_keys
+```
+**Verify from a SECOND terminal** (keep the first session open): `ssh etradie@HOST` succeeds key-only, and `sudo whoami` prints `root`. Only then proceed; if it fails, fix the keys before touching sshd in 1.2.
+
+1.2 **Harden sshd via a drop-in** (not inline edits).
+```bash
+sudo tee /etc/ssh/sshd_config.d/10-etradie-hardening.conf >/dev/null <<'EOF'
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+PermitRootLogin no
+PubkeyAuthentication yes
+PermitEmptyPasswords no
+MaxAuthTries 3
+LoginGraceTime 20
+X11Forwarding no
+AllowAgentForwarding no
+ClientAliveInterval 300
+ClientAliveCountMax 2
+EOF
+
+sudo sshd -t                                   # validate before restart
+sudo systemctl restart ssh                     # 'sshd' on some distros
+```
+**Verify from a SECOND terminal**:
+```bash
+ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no etradie@HOST   # must FAIL
+ssh root@HOST                                                                       # must FAIL
+ssh etradie@HOST                                                                    # must SUCCEED (key)
+```
+
+1.3 **OS packages + updates.**
+```bash
+sudo apt update && sudo apt -y upgrade
+sudo apt install -y ca-certificates curl gnupg git make jq unzip ufw chrony fail2ban
+```
+
+1.4 **Time sync** (TLS, JWT exp, audit timestamps depend on this):
+```bash
+sudo systemctl enable --now chrony && chronyc tracking    # Stratum <= 3
+```
+
+1.5 **Kernel + ulimit tuning** (Elasticsearch/Postgres/redis common hits):
+```bash
+sudo tee /etc/sysctl.d/99-etradie.conf >/dev/null <<'EOF'
+vm.max_map_count=262144
+fs.inotify.max_user_watches=524288
+net.core.somaxconn=65535
+vm.swappiness=10
+EOF
+sudo tee /etc/security/limits.d/99-etradie.conf >/dev/null <<'EOF'
+*  soft  nofile  65535
+*  hard  nofile  65535
+*  soft  nproc   65535
+*  hard  nproc   65535
+EOF
+sudo sysctl --system
+```
+
+1.6 **Firewall — default-deny inbound, allow only SSH.** Cloudflare Tunnel is outbound-only so no application port is opened. K3s 6443 stays closed inbound; operator `kubectl` reaches it through the SSH session set up in Phase 2.3.
 ```bash
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
-sudo ufw allow 22/tcp comment 'SSH'
+sudo ufw limit 22/tcp comment 'SSH (rate-limited)'
 sudo ufw --force enable
+sudo ufw status verbose                              # only 22/tcp inbound
 ```
-**Verify:** `sudo ufw status verbose` shows only 22/tcp inbound.
+
+1.7 **fail2ban — sshd jail.**
+```bash
+sudo tee /etc/fail2ban/jail.d/sshd.local >/dev/null <<'EOF'
+[sshd]
+enabled = true
+mode = aggressive
+maxretry = 3
+findtime = 10m
+bantime = 1h
+bantime.increment = true
+bantime.maxtime = 1w
+EOF
+sudo systemctl enable --now fail2ban
+sudo fail2ban-client status sshd                     # jail active
+```
+
+1.8 **Verification checklist** (every line must hold before moving to Phase 2):
+```bash
+sudo sshd -T | grep -E 'passwordauthentication|permitrootlogin|pubkeyauthentication'
+# expect: passwordauthentication no / permitrootlogin no / pubkeyauthentication yes
+sudo fail2ban-client status sshd                     # jail active
+sudo ufw status verbose | grep -E 'Status|22/tcp'    # Status: active; only 22/tcp inbound
+chronyc tracking | grep Stratum                      # Stratum <= 3
+sudo ss -tlnp | grep ':6443' || echo 'API not yet listening (expected pre-Phase-2)'
+```
 
 ---
 
