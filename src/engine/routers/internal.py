@@ -91,7 +91,7 @@ async def internal_ta_confirm_ltf(
         # Reuse analyzers from the TA orchestrator if available
         if hasattr(container, "ta_orchestrator"):
             orch = container.ta_orchestrator
-            container.ltf_confirmation_service = LTFConfirmationService(
+            container.ltf_confirmation_service = LTFConfirmationService(  # type: ignore[attr-defined]
                 smc_config=smc_config,
                 swing_analyzer=orch.snapshot_builder.swing_analyzer,
                 session_analyzer=orch.snapshot_builder.session_analyzer,
