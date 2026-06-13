@@ -86,6 +86,18 @@ async def db_manager() -> AsyncGenerator:
         pool_recycle=300,
         echo=False,
     )
+
+    # Ensure the TA schema exists. The repository tests assume the
+    # tables have been migrated (`make db-migrate`); in CI the test DB
+    # is empty, so create the tables here. Importing the schema package
+    # registers technical_snapshots, candles, candidates and
+    # broker_symbols on the shared declarative Base.
+    import engine.ta.storage.schemas  # noqa: F401  (registers TA tables)
+    from engine.shared.db.migrations._schema_registry import Base
+
+    async with mgr.engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
     yield mgr
     await mgr.close()
 
