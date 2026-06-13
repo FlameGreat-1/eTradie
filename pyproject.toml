@@ -68,7 +68,6 @@ disable_error_code = [
     "prop-decorator",
     "import-not-found",
     "arg-type",
-    "untyped-decorator",
     "no-untyped-def",
     "attr-defined",
     "assignment",
