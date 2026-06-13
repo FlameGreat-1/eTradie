@@ -35,7 +35,7 @@ class SessionAnalyzer:
         if not active_sessions:
             primary_session = Session.ASIA
             is_overlap = False
-            overlapping = []
+            overlapping: list[Session] = []
         elif len(active_sessions) == 1:
             primary_session = active_sessions[0]
             is_overlap = False
