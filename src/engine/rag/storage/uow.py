@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.rag.storage.repositories.chunk import ChunkRepository
 from engine.rag.storage.repositories.citation_log import CitationLogRepository
@@ -30,8 +33,8 @@ class RAGUnitOfWork:
 
     def __init__(self, db: DatabaseManager) -> None:
         self._db = db
-        self._ctx = None
-        self._session = None
+        self._ctx: AbstractAsyncContextManager[AsyncSession] | None = None
+        self._session: AsyncSession | None = None
 
     async def __aenter__(self) -> RAGUnitOfWork:
         self._ctx = self._db.session()
@@ -49,7 +52,8 @@ class RAGUnitOfWork:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
+        if self._ctx is not None:
+            await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
 
 
 RAGUnitOfWorkFactory = Callable[[], RAGUnitOfWork]

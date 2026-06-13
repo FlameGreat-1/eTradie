@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.shared.db import DatabaseManager
 from engine.shared.logging import get_logger
@@ -30,8 +33,8 @@ class TAUnitOfWork:
 
     def __init__(self, db: DatabaseManager) -> None:
         self._db = db
-        self._ctx = None
-        self._session = None
+        self._ctx: AbstractAsyncContextManager[AsyncSession] | None = None
+        self._session: AsyncSession | None = None
         self.candle_repo: CandleRepository | None = None
         self.snapshot_repo: SnapshotRepository | None = None
         self.candidate_repo: CandidateRepository | None = None
@@ -49,7 +52,8 @@ class TAUnitOfWork:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
+        if self._ctx is not None:
+            await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
 
 
 class TAReadUnitOfWork:
@@ -68,8 +72,8 @@ class TAReadUnitOfWork:
 
     def __init__(self, db: DatabaseManager) -> None:
         self._db = db
-        self._ctx = None
-        self._session = None
+        self._ctx: AbstractAsyncContextManager[AsyncSession] | None = None
+        self._session: AsyncSession | None = None
         self.candle_repo: CandleRepository | None = None
         self.snapshot_repo: SnapshotRepository | None = None
         self.candidate_repo: CandidateRepository | None = None
@@ -87,7 +91,8 @@ class TAReadUnitOfWork:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
+        if self._ctx is not None:
+            await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
 
 
 TAUOWFactory = Callable[[], TAUnitOfWork]

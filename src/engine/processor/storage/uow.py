@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
 from engine.processor.storage.repositories.audit_repository import AuditRepository
@@ -20,8 +23,8 @@ class ProcessorUnitOfWork:
 
     def __init__(self, db: DatabaseManager) -> None:
         self._db = db
-        self._ctx = None
-        self._session = None
+        self._ctx: AbstractAsyncContextManager[AsyncSession] | None = None
+        self._session: AsyncSession | None = None
         self.analysis_repo: AnalysisRepository | None = None
         self.audit_repo: AuditRepository | None = None
 
@@ -35,7 +38,8 @@ class ProcessorUnitOfWork:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
+        if self._ctx is not None:
+            await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
 
 
 ProcessorUOWFactory = Callable[[], ProcessorUnitOfWork]
