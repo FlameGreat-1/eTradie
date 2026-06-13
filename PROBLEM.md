@@ -1,450 +1,717 @@
+ downloading github.com/cenkalti/backoff/v5 v5.0.3
+go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
+go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9
+?   	github.com/flamegreat-1/etradie/src/gateway/cmd/gateway	[no test files]
+=== RUN   TestFullPipeline_MultiSymbol_OnlyOneHasCandidates
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551661,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551662,"message":"redis_subscriber_started"}
+    advanced_test.go:53: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/advanced_test.go:53
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestFullPipeline_MultiSymbol_OnlyOneHasCandidates
+        	Messages:   	Processor should be called once (only for EURUSD)
+    advanced_test.go:66: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/advanced_test.go:66
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestFullPipeline_MultiSymbol_OnlyOneHasCandidates
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551667,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551667,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:51 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:44506->[::1]:6379: use of closed network connection
+--- FAIL: TestFullPipeline_MultiSymbol_OnlyOneHasCandidates (0.01s)
+=== RUN   TestFullPipeline_ExecutionPortError
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551667,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551668,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551669,"message":"redis_subscriber_started"}
+    advanced_test.go:100: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/advanced_test.go:100
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestFullPipeline_ExecutionPortError
+    advanced_test.go:111: INFO: Time-based guards rejected (blocking_rules=[MR-REJECT-008]). Execution error capture assertions skipped. Expected on weekends/off-hours.
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551673,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551673,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551673,"message":"redis_subscriber_stopped"}
+--- FAIL: TestFullPipeline_ExecutionPortError (0.01s)
+=== RUN   TestFullPipeline_PartialMacroData
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551673,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551675,"message":"redis_subscriber_started"}
+    advanced_test.go:146: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/advanced_test.go:146
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestFullPipeline_PartialMacroData
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551678,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551678,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551678,"message":"redis_subscriber_stopped"}
+--- FAIL: TestFullPipeline_PartialMacroData (0.01s)
+=== RUN   TestFullPipeline_EmptyRAGChunks
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551679,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551680,"message":"redis_subscriber_started"}
+    advanced_test.go:180: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/advanced_test.go:180
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestFullPipeline_EmptyRAGChunks
+    advanced_test.go:194: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/advanced_test.go:194
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestFullPipeline_EmptyRAGChunks
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551684,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551684,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551684,"message":"redis_subscriber_stopped"}
+redis: 2026/06/13 09:05:51 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:44572->[::1]:6379: use of closed network connection
+--- FAIL: TestFullPipeline_EmptyRAGChunks (0.01s)
+=== RUN   TestFullPipeline_EmptySymbolList
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551685,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551686,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551687,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551687,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551687,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_EmptySymbolList (0.00s)
+=== RUN   TestConfirmationPulse_LTFConfirmed
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551688,"message":"redis_transport_started"}
+    confirmation_dataflow_test.go:37: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/confirmation_dataflow_test.go:37
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestConfirmationPulse_LTFConfirmed
+        	Messages:   	TA should be called once for confirmation pulse
+    confirmation_dataflow_test.go:42: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/confirmation_dataflow_test.go:42
+        	Error:      	"[]" should have 1 item(s), but has 0
+        	Test:       	TestConfirmationPulse_LTFConfirmed
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551688,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551688,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551689,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551689,"message":"redis_subscriber_stopped"}
+--- FAIL: TestConfirmationPulse_LTFConfirmed (0.00s)
+=== RUN   TestConfirmationPulse_LTFNotConfirmed
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551689,"message":"redis_transport_started"}
+    confirmation_dataflow_test.go:94: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/confirmation_dataflow_test.go:94
+        	Error:      	Not equal: 
+        	            	expected: "SMC LTF confirmation not yet met"
+        	            	actual  : "News lockout: Economic-calendar data unavailable; failing closed to avoid trading blind into news"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-SMC LTF confirmation not yet met
+        	            	+News lockout: Economic-calendar data unavailable; failing closed to avoid trading blind into news
+        	Test:       	TestConfirmationPulse_LTFNotConfirmed
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551690,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551690,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551690,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551690,"message":"redis_subscriber_stopped"}
+--- FAIL: TestConfirmationPulse_LTFNotConfirmed (0.00s)
+=== RUN   TestConfirmationPulse_CandidateNotFound
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551690,"message":"redis_transport_started"}
+    confirmation_dataflow_test.go:115: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/confirmation_dataflow_test.go:115
+        	Error:      	"News lockout: Economic-calendar data unavailable; failing closed to avoid trading blind into news" does not contain "not found in TA results"
+        	Test:       	TestConfirmationPulse_CandidateNotFound
+    confirmation_dataflow_test.go:116: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/confirmation_dataflow_test.go:116
+        	Error:      	"News lockout: Economic-calendar data unavailable; failing closed to avoid trading blind into news" does not contain "NONEXISTENT-ANALYSIS-ID"
+        	Test:       	TestConfirmationPulse_CandidateNotFound
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551691,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551691,"message":"alert_hub_closed"}
+--- FAIL: TestConfirmationPulse_CandidateNotFound (0.00s)
+=== RUN   TestConfirmationPulse_TAFailure
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551691,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551691,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551691,"message":"redis_transport_started"}
+    confirmation_dataflow_test.go:138: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/confirmation_dataflow_test.go:138
+        	Error:      	"News lockout: Economic-calendar data unavailable; failing closed to avoid trading blind into news" does not contain "TA collection failed"
+        	Test:       	TestConfirmationPulse_TAFailure
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551692,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551692,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551692,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551692,"message":"redis_subscriber_stopped"}
+--- FAIL: TestConfirmationPulse_TAFailure (0.00s)
+=== RUN   TestConfirmationPulse_NoCandidates
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551693,"message":"redis_transport_started"}
+    confirmation_dataflow_test.go:158: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/confirmation_dataflow_test.go:158
+        	Error:      	Not equal: 
 
+       	expected: "TA returned no candidates for symbol"
+        	            	actual  : "News lockout: Economic-calendar data unavailable; failing closed to avoid trading blind into news"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-TA returned no candidates for symbol
+        	            	+News lockout: Economic-calendar data unavailable; failing closed to avoid trading blind into news
+        	Test:       	TestConfirmationPulse_NoCandidates
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551693,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551693,"message":"alert_hub_closed"}
+--- FAIL: TestConfirmationPulse_NoCandidates (0.00s)
+=== RUN   TestDataFlow_RAGReceivesCorrectQueryParams
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551694,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551694,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551694,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551695,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551699,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551699,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551699,"message":"redis_subscriber_stopped"}
+--- PASS: TestDataFlow_RAGReceivesCorrectQueryParams (0.01s)
+=== RUN   TestDataFlow_ProcessorReceivesAssembledContext
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551700,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551702,"message":"redis_subscriber_started"}
+    confirmation_dataflow_test.go:391: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/confirmation_dataflow_test.go:391
+        	Error:      	"[]" should have 1 item(s), but has 0
+        	Test:       	TestDataFlow_ProcessorReceivesAssembledContext
+        	Messages:   	Processor should be called once
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551706,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551706,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551706,"message":"redis_subscriber_stopped"}
+--- FAIL: TestDataFlow_ProcessorReceivesAssembledContext (0.01s)
+=== RUN   TestFullPipeline_NewsProximityGuardRejects
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551707,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551708,"message":"redis_subscriber_started"}
+    edge_cases_test.go:38: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:38
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestFullPipeline_NewsProximityGuardRejects
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551712,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551712,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551712,"message":"redis_subscriber_stopped"}
+--- FAIL: TestFullPipeline_NewsProximityGuardRejects (0.01s)
+=== RUN   TestFullPipeline_NilExecutionPort
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551712,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551713,"message":"redis_subscriber_started"}
+    edge_cases_test.go:111: INFO: Time-based guards rejected (blocking_rules=[MR-REJECT-008]). Nil execution port assertions skipped. Expected on weekends/off-hours.
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551718,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551718,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551718,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_NilExecutionPort (0.01s)
+=== RUN   TestFullPipeline_TASymbolErrorStatus
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551718,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551719,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551721,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551721,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551721,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_TASymbolErrorStatus (0.00s)
+=== RUN   TestFullPipeline_SnDCandidatesOnly
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551722,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551723,"message":"redis_subscriber_started"}
+    edge_cases_test.go:208: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:208
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestFullPipeline_SnDCandidatesOnly
+        	Messages:   	Processor should be called for SnD candidates
+    edge_cases_test.go:218: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:218
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestFullPipeline_SnDCandidatesOnly
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551728,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551728,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551728,"message":"redis_subscriber_stopped"}
+--- FAIL: TestFullPipeline_SnDCandidatesOnly (0.01s)
+=== RUN   TestConfirmationPulse_NestedLTFFormat
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551729,"message":"redis_transport_started"}
+    edge_cases_test.go:254: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:254
+        	Error:      	Should be true
+        	Test:       	TestConfirmationPulse_NestedLTFFormat
+        	Messages:   	nested {confirmed: true} format should be parsed correctly
+    edge_cases_test.go:256: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:256
+        	Error:      	Should be true
+        	Test:       	TestConfirmationPulse_NestedLTFFormat
+    edge_cases_test.go:257: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/edge_cases_test.go:257
+        	Error:      	Not equal: 
+        	            	expected: "SMC LTF confirmation met"
+        	            	actual  : "News lockout: Economic-calendar data unavailable; failing closed to avoid trading blind into news"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-SMC LTF confirmation met
+        	            	+News lockout: Economic-calendar data unavailable; failing closed to avoid trading blind into news
+        	Test:       	TestConfirmationPulse_NestedLTFFormat
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551730,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551730,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:51 pubsub.go:168: redis: discarding bad PubSub connection: set tcp [::1]:44782: use of closed network connection
+--- FAIL: TestConfirmationPulse_NestedLTFFormat (0.00s)
+=== RUN   TestFullPipeline_CounterTrendRejectedByGuard
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551730,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551730,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551730,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551731,"message":"redis_subscriber_started"}
+    guards_errors_test.go:44: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/guards_errors_test.go:44
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestFullPipeline_CounterTrendRejectedByGuard
+    guards_errors_test.go:62: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/guards_errors_test.go:62
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestFullPipeline_CounterTrendRejectedByGuard
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551736,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341551736,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:51 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:44796->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781341551736,"message":"redis_subscriber_stopped"}
+--- FAIL: TestFullPipeline_CounterTrendRejectedByGuard (0.01s)
+=== RUN   TestFullPipeline_TACollectionFailure
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341551736,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341551738,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552245,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341552245,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552245,"message":"redis_subscriber_stopped"}
+--- PASS: TestFullPipeline_TACollectionFailure (0.51s)
+=== RUN   TestFullPipeline_MacroCollectionFailure
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341552246,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341552247,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552755,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341552755,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:52 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:44856->[::1]:6379: use of closed network connection
+--- PASS: TestFullPipeline_MacroCollectionFailure (0.51s)
+=== RUN   TestFullPipeline_RAGFailure
 
+vel":"info","service":"alert","component":"redis_transport","time":1781341552755,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341552756,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341552757,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552760,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341552761,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552761,"message":"redis_subscriber_stopped"}
+redis: 2026/06/13 09:05:52 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:44878->[::1]:6379: use of closed network connection
+--- PASS: TestFullPipeline_RAGFailure (0.00s)
+=== RUN   TestFullPipeline_ProcessorHTTPFailure
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341552761,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341552762,"message":"redis_subscriber_started"}
+    guards_errors_test.go:287: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/guards_errors_test.go:287
+        	Error:      	"0" is not greater than or equal to "1"
+        	Test:       	TestFullPipeline_ProcessorHTTPFailure
+        	Messages:   	Processor should be called at least once (may retry)
+    guards_errors_test.go:308: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/guards_errors_test.go:308
+        	Error:      	Should be true
+        	Test:       	TestFullPipeline_ProcessorHTTPFailure
+        	Messages:   	should have a failed output for EURUSD
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552767,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341552767,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:52 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:44894->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552767,"message":"redis_subscriber_stopped"}
+--- FAIL: TestFullPipeline_ProcessorHTTPFailure (0.01s)
+=== RUN   TestFullPipeline_TradeApproved
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341552767,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341552768,"message":"redis_subscriber_started"}
+    happy_path_test.go:39: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/happy_path_test.go:39
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestFullPipeline_TradeApproved
+        	Messages:   	Processor endpoint should be called once
+    happy_path_test.go:85: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/happy_path_test.go:85
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestFullPipeline_TradeApproved
+        	Messages:   	processor output should be present
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552773,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341552773,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:52 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:44916->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552773,"message":"redis_subscriber_stopped"}
+--- FAIL: TestFullPipeline_TradeApproved (0.01s)
+=== RUN   TestFullPipeline_NoCandidates
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341552773,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341552775,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552777,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341552777,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:52 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:44930->[::1]:6379: use of closed network connection
+--- PASS: TestFullPipeline_NoCandidates (0.00s)
+=== RUN   TestFullPipeline_ProcessorRejectsNoSetup
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341552777,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552778,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341552779,"message":"redis_subscriber_started"}
+    happy_path_test.go:246: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/happy_path_test.go:246
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestFullPipeline_ProcessorRejectsNoSetup
+    happy_path_test.go:254: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/happy_path_test.go:254
+        	Error:      	Not equal: 
+        	            	expected: "NO_SETUP"
+        	            	actual  : "REJECTED_BY_GUARD"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1,2 +1,2 @@
+        	            	-(constants.CycleOutcome) (len=8) "NO_SETUP"
+        	            	+(constants.CycleOutcome) (len=17) "REJECTED_BY_GUARD"
+        	            	 
+        	Test:       	TestFullPipeline_ProcessorRejectsNoSetup
+    happy_path_test.go:262: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/happy_path_test.go:262
+        	Error:      	Expected value not to be nil.
+        	Test:       	TestFullPipeline_ProcessorRejectsNoSetup
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552783,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341552783,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:52 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:44944->[::1]:6379: use of closed network connection
+--- FAIL: TestFullPipeline_ProcessorRejectsNoSetup (0.01s)
+=== RUN   TestRetry_TAFailsThenSucceeds
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341552784,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341552784,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341552785,"message":"redis_subscriber_started"}
+    retry_concurrency_test.go:87: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/retry_concurrency_test.go:87
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestRetry_TAFailsThenSucceeds
+        	Messages:   	response should have been flipped to success after threshold
+    retry_concurrency_test.go:109: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/retry_concurrency_test.go:109
+        	Error:      	Should be true
+        	Test:       	TestRetry_TAFailsThenSucceeds
+        	Messages:   	retry should succeed: second cycle attempt should produce successful output
+{"level":"info","service":"alert","component":"redis_transport","time":1781341553292,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341553292,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:53 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:44968->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781341553292,"message":"redis_subscriber_stopped"}
+--- FAIL: TestRetry_TAFailsThenSucceeds (0.51s)
+=== RUN   TestRetry_AllAttemptsExhausted
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341553293,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341553294,"message":"redis_subscriber_started"}
+    retry_concurrency_test.go:135: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/retry_concurrency_test.go:135
+        	Error:      	"2" is not greater than or equal to "4"
+        	Test:       	TestRetry_AllAttemptsExhausted
+        	Messages:   	TA should be called multiple times across retries
+{"level":"info","service":"alert","component":"redis_transport","time":1781341553801,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341553801,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:53 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:44984->[::1]:6379: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781341553802,"message":"redis_subscriber_stopped"}
+--- FAIL: TestRetry_AllAttemptsExhausted (0.51s)
+=== RUN   TestRetry_SuccessfulCycleDoesNotRetry
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341553802,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341553803,"message":"redis_subscriber_started"}
+    retry_concurrency_test.go:184: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/retry_concurrency_test.go:184
+        	Error:      	Not equal: 
+        	            	expected: 1
+        	            	actual  : 0
+        	Test:       	TestRetry_SuccessfulCycleDoesNotRetry
+        	Messages:   	Processor should be called exactly once (no retry)
+{"level":"info","service":"alert","component":"redis_transport","time":1781341553808,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341553808,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341553808,"message":"redis_subscriber_stopped"}
+--- FAIL: TestRetry_SuccessfulCycleDoesNotRetry (0.01s)
+=== RUN   TestConcurrency_BoundedParallelism
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341553809,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341553810,"message":"redis_subscriber_started"}
+    retry_concurrency_test.go:231: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/e2etest/retry_concurrency_test.go:231
+        	Error:      	Not equal: 
+        	            	expected: 4
+        	            	actual  : 0
 
-SECTION 1:
-
-
-
-
-OTAL                                                                       24862  14079   6260    360    38%
-
-=========================== short test summary info ============================
-FAILED tests/chaos/test_hosted_recovery_service.py::test_start_background_loop_idempotent - AssertionError: assert 0 == 1
- +  where 0 = <MagicMock name='mock.create_task' id='140614840236704'>.call_count
- +    where <MagicMock name='mock.create_task' id='140614840236704'> = <MagicMock id='140614850875024'>.create_task
-FAILED tests/chaos/test_outbound_limiter_and_pool.py::test_limiter_blocks_until_refill_and_raises_on_deadline - assert False is True
-FAILED tests/chaos/test_prometheusrule_renders.py::test_mt_node_chart_renders_memory_leak_rule - AssertionError: helm template mt-node failed: Error: execution error at (mt-node/templates/statefulset.yaml:107:20): helm/mt-node: .Values.image.repository is REQUIRED. Set it in helm/mt-node/values-{staging,production}.yaml to the pinned mt-node image registry path, e.g. ghcr.io/<your-org>/etradie-mt-node.
-  
-  Use --debug flag to render out invalid YAML
-  
-assert 1 == 0
- +  where 1 = CompletedProcess(args=['helm', 'template', 'release', '/home/runner/work/eTradie/eTradie/helm/mt-node', '--namespace', 'etradie-system', '--set', 'mtConnection.enabled=true', '--set', 'mtConnection.connectionId=test-1234567890', '--set', 'mtConnection.userId=u-1', '--set', 'mtConnection.server=Exness-MT5Trial9', '--set', 'mtConnection.sealedSecretName=test-secret'], returncode=1, stdout='', stderr='Error: execution error at (mt-node/templates/statefulset.yaml:107:20): helm/mt-node: .Values.image.repository is REQUIRED. Set it in helm/mt-node/values-{staging,production}.yaml to the pinned mt-node image registry path, e.g. ghcr.io/<your-org>/etradie-mt-node.\n\nUse --debug flag to render out invalid YAML\n').returncode
-FAILED tests/integration/test_broker_endpoints.py::TestAccountInfo::test_returns_balance_fields - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestPositions::test_returns_position_list - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestPendingOrders::test_returns_order_list - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestSymbolInfo::test_returns_instrument_metadata - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestSymbolInfo::test_missing_symbol_returns_400 - assert 401 == 400
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestTickPrice::test_returns_bid_ask - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestTickPrice::test_missing_symbol_returns_400 - assert 401 == 400
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestPosition::test_returns_position_by_ticket - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestPosition::test_missing_ticket_returns_400 - assert 401 == 400
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestPlaceOrder::test_market_order - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestPlaceOrder::test_limit_order - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestPlaceOrder::test_missing_symbol_returns_400 - assert 401 == 400
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestCancelOrder::test_cancel_success - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestModifyPosition::test_modify_success - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestModifyPosition::test_missing_ticket_returns_400 - assert 401 == 400
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestClosePartial::test_partial_close_success - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestClosePartial::test_zero_volume_returns_400 - assert 401 == 400
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestClosePosition::test_close_success - assert 401 == 200
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_broker_endpoints.py::TestClosePosition::test_missing_ticket_returns_400 - assert 401 == 400
- +  where 401 = <Response [401 Unauthorized]>.status_code
-FAILED tests/integration/test_ta_repositories.py::TestSnapshotRepository::test_create_and_get_by_id - engine.shared.exceptions.DatabaseOperationalError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "technical_snapshots" does not exist
-[SQL: SELECT max(technical_snapshots.version) AS max_1 
-FROM technical_snapshots 
-WHERE technical_snapshots.user_id = $1::VARCHAR AND technical_snapshots.symbol = $2::VARCHAR AND technical_snapshots.timeframe = $3::VARCHAR]
-[parameters: ('test_user_id_123', 'EURUSD_b3d129', 'H4')]
-(Background on this error at: https://sqlalche.me/e/20/f405)
-FAILED tests/integration/test_ta_repositories.py::TestSnapshotRepository::test_get_latest_snapshot - engine.shared.exceptions.DatabaseOperationalError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "technical_snapshots" does not exist
-[SQL: SELECT max(technical_snapshots.version) AS max_1 
-FROM technical_snapshots 
-WHERE technical_snapshots.user_id = $1::VARCHAR AND technical_snapshots.symbol = $2::VARCHAR AND technical_snapshots.timeframe = $3::VARCHAR]
-[parameters: ('test_user_id_123', 'GBPUSD_cf5db4', 'D1')]
-(Background on this error at: https://sqlalche.me/e/20/f405)
-FAILED tests/integration/test_ta_repositories.py::TestSnapshotRepository::test_version_auto_increments - engine.shared.exceptions.DatabaseOperationalError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "technical_snapshots" does not exist
-[SQL: SELECT max(technical_snapshots.version) AS max_1 
-FROM technical_snapshots 
-WHERE technical_snapshots.user_id = $1::VARCHAR AND technical_snapshots.symbol = $2::VARCHAR AND technical_snapshots.timeframe = $3::VARCHAR]
-[parameters: ('test_user_id_123', 'USDJPY_a1a628', 'H1')]
-(Background on this error at: https://sqlalche.me/e/20/f405)
-FAILED tests/integration/test_ta_repositories.py::TestSnapshotRepository::test_get_snapshot_count - engine.shared.exceptions.DatabaseOperationalError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "technical_snapshots" does not exist
-[SQL: SELECT max(technical_snapshots.version) AS max_1 
-FROM technical_snapshots 
-WHERE technical_snapshots.user_id = $1::VARCHAR AND technical_snapshots.symbol = $2::VARCHAR AND technical_snapshots.timeframe = $3::VARCHAR]
-[parameters: ('test_user_id_123', 'TEST5EE023', 'M15')]
-(Background on this error at: https://sqlalche.me/e/20/f405)
-FAILED tests/integration/test_ta_repositories.py::TestSnapshotRepository::test_delete_by_id - engine.shared.exceptions.DatabaseOperationalError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "technical_snapshots" does not exist
-[SQL: SELECT max(technical_snapshots.version) AS max_1 
-FROM technical_snapshots 
-WHERE technical_snapshots.user_id = $1::VARCHAR AND technical_snapshots.symbol = $2::VARCHAR AND technical_snapshots.timeframe = $3::VARCHAR]
-[parameters: ('test_user_id_123', 'XAUUSD', 'W1')]
-(Background on this error at: https://sqlalche.me/e/20/f405)
-FAILED tests/shared/http/client.py::test_get_success - engine.shared.exceptions.HttpClientError: Unexpected error during test request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
-FAILED tests/shared/http/client.py::test_post_success - engine.shared.exceptions.HttpClientError: Unexpected error during test request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
-FAILED tests/shared/http/client.py::test_rate_limit_handling - engine.shared.exceptions.HttpClientError: Unexpected error during unknown request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
-FAILED tests/shared/http/client.py::test_non_retryable_error - engine.shared.exceptions.HttpClientError: Unexpected error during unknown request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
-FAILED tests/shared/http/client.py::test_server_error_retry - engine.shared.exceptions.HttpClientError: Unexpected error during unknown request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
-FAILED tests/shared/http/client.py::test_circuit_breaker_trip - engine.shared.exceptions.HttpClientError: Unexpected error during test request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
-ERROR tests/api/test_dashboard_api.py::TestHealthEndpoints::test_health_endpoint - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestHealthEndpoints::test_health_rag - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisLatest::test_analysis_latest - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisLatest::test_analysis_latest_filter_by_pair - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisLatest::test_analysis_latest_limit - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_filter_status - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_filter_grade - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_filter_provider - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_pagination - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisStats::test_analysis_stats - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisStats::test_analysis_stats_filter_pair - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisDetail::test_analysis_detail - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisDetail::test_analysis_detail_not_found - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisRerun::test_analysis_rerun_ta_unavailable - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisRerun::test_analysis_rerun_empty_symbol - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestAnalysisRerun::test_analysis_rerun_no_auth - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_models - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_config_get - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-
-RROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_config_update_temperature - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_config_update_invalid_provider - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_regular_user_rejected_from_processor_models - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_regular_user_rejected_from_processor_config_get - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_regular_user_rejected_from_processor_config_put - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_no_auth_returns_401 - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
-  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
-    For further information visit https://errors.pydantic.dev/2.9/v/value_error
-======= 33 failed, 466 passed, 23 skipped, 25 errors in 61.25s (0:01:01) =======
-
-
-
-SECTION 2:  
-
-
-
-13s
-Run docker/build-push-action@v6
-GitHub Actions runtime token ACs
-Docker info
-Proxy configuration
-Buildx version
-Builder info
-/usr/bin/docker buildx build --cache-from type=gha,scope=billing --file src/billing/Dockerfile --iidfile /home/runner/work/_temp/docker-actions-toolkit-qwroSc/build-iidfile-97ef29d72e.txt --tag etradie/billing:scan --load --metadata-file /home/runner/work/_temp/docker-actions-toolkit-qwroSc/build-metadata-006cb78b30.json .
-#0 building with "builder-b5e6ed2d-9c4c-4d72-9a11-b25830b69700" instance using docker-container driver
-
-#1 [internal] load build definition from Dockerfile
-#1 transferring dockerfile: 1.28kB done
-#1 DONE 0.0s
-
-#2 [auth] library/golang:pull token for registry-1.docker.io
-#2 DONE 0.0s
-
-#3 [auth] library/alpine:pull token for registry-1.docker.io
-#3 DONE 0.0s
-
-#4 [internal] load metadata for docker.io/library/golang:1.25-alpine
-#4 ...
-
-#5 [internal] load metadata for docker.io/library/alpine:3.20
-#5 DONE 0.6s
-
-#4 [internal] load metadata for docker.io/library/golang:1.25-alpine
-#4 DONE 0.6s
-
-#6 [internal] load .dockerignore
-#6 transferring context: 638B done
-#6 DONE 0.0s
-
-#7 importing cache manifest from gha:14055370830121197203
-#7 DONE 0.0s
-
-#8 [runtime 1/4] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
-#8 resolve docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc done
-#8 sha256:25f1d6b1951ac8eb3740558fe94cb83d377bdadf95fd9f98b50d2e1b96130471 3.63MB / 3.63MB 0.1s done
-#8 DONE 0.1s
-
-#9 [builder 1/7] FROM docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354
-#9 resolve docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354 done
-#9 sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 32B / 32B done
-#9 sha256:1c222edac8107d5a3691e31c4d7c3420e5e0ea0c26e110125aa79a4f09a1c1d6 125B / 125B 0.0s done
-#9 sha256:54a5de338fb4d7451a8806e26d415c6f24cebed06386053e5874af301ed71727 290.24kB / 290.24kB 0.1s done
-#9 sha256:9b70e313681f44d32991ec943f89228bc91d7431d4a84feafc269a76e3f96a63 3.87MB / 3.87MB 0.1s done
-#9 extracting sha256:9b70e313681f44d32991ec943f89228bc91d7431d4a84feafc269a76e3f96a63
-#9 sha256:05c934f997ad58295f8830de88f3ab19fa41578d69bb3a3fd4d4960be4ce8df9 23.07MB / 60.23MB 0.2s
-#9 sha256:05c934f997ad58295f8830de88f3ab19fa41578d69bb3a3fd4d4960be4ce8df9 60.23MB / 60.23MB 0.4s done
-#9 ...
-
-#8 [runtime 1/4] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
-#8 extracting sha256:25f1d6b1951ac8eb3740558fe94cb83d377bdadf95fd9f98b50d2e1b96130471 0.5s done
-#8 DONE 0.6s
-
-#9 [builder 1/7] FROM docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354
-#9 extracting sha256:9b70e313681f44d32991ec943f89228bc91d7431d4a84feafc269a76e3f96a63 0.4s done
-#9 extracting sha256:54a5de338fb4d7451a8806e26d415c6f24cebed06386053e5874af301ed71727
-#9 extracting sha256:54a5de338fb4d7451a8806e26d415c6f24cebed06386053e5874af301ed71727 0.2s done
-#9 extracting sha256:05c934f997ad58295f8830de88f3ab19fa41578d69bb3a3fd4d4960be4ce8df9
-#9 ...
-
-#10 [internal] load build context
-#10 transferring context: 24.06MB 1.3s done
-#10 DONE 1.3s
-
-#11 [runtime 2/4] RUN apk --no-cache add ca-certificates tzdata     && rm -rf /var/cache/apk/*
-#11 0.123 fetch https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/APKINDEX.tar.gz
-#11 0.625 fetch https://dl-cdn.alpinelinux.org/alpine/v3.20/community/x86_64/APKINDEX.tar.gz
-#11 1.120 (1/2) Installing ca-certificates (20260413-r0)
-#11 1.153 (2/2) Installing tzdata (2026b-r0)
-#11 1.233 Executing busybox-1.36.1-r31.trigger
-#11 1.245 Executing ca-certificates-20260413-r0.trigger
-#11 1.309 OK: 10 MiB in 16 packages
-#11 DONE 2.0s
-
-#9 [builder 1/7] FROM docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354
-#9 ...
-
-#12 [runtime 3/4] WORKDIR /app
-#12 DONE 0.1s
-
-#9 [builder 1/7] FROM docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354
-#9 extracting sha256:05c934f997ad58295f8830de88f3ab19fa41578d69bb3a3fd4d4960be4ce8df9 4.2s done
-#9 DONE 5.0s
-
-#9 [builder 1/7] FROM docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354
-#9 extracting sha256:1c222edac8107d5a3691e31c4d7c3420e5e0ea0c26e110125aa79a4f09a1c1d6 done
-#9 extracting sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 done
-#9 DONE 5.0s
-
-#13 [builder 2/7] WORKDIR /src
-#13 DONE 0.4s
-
-#14 [builder 3/7] RUN apk add --no-cache git ca-certificates tzdata make
-#14 5.062 WARNING: fetching https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/APKINDEX.tar.gz: DNS: transient error (try again later)
-#14 5.378 ERROR: unable to select packages:
-#14 5.378   git (no such package):
-#14 5.378     required by: world[git]
-#14 5.378   make (no such package):
-#14 5.378     required by: world[make]
-#14 5.378   tzdata (no such package):
-#14 5.378     required by: world[tzdata]
-#14 ERROR: process "/bin/sh -c apk add --no-cache git ca-certificates tzdata make" did not complete successfully: exit code: 3
-------
- > [builder 3/7] RUN apk add --no-cache git ca-certificates tzdata make:
-5.062 WARNING: fetching https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/APKINDEX.tar.gz: DNS: transient error (try again later)
-5.378 ERROR: unable to select packages:
-5.378   git (no such package):
-5.378     required by: world[git]
-5.378   make (no such package):
-5.378     required by: world[make]
-5.378   tzdata (no such package):
-5.378     required by: world[tzdata]
-------
-Dockerfile:6
---------------------
-   4 |     WORKDIR /src
-   5 |     
-   6 | >>> RUN apk add --no-cache git ca-certificates tzdata make
-   7 |     
-   8 |     COPY go.mod go.sum* ./
---------------------
-ERROR: failed to build: failed to solve: process "/bin/sh -c apk add --no-cache git ca-certificates tzdata make" did not complete successfully: exit code: 3
-Reference
-Check build summary support
-Error: buildx failed with: ERROR: failed to build: failed to solve: process "/bin/sh -c apk add --no-cac
-
-
-SECTION 3:
-
-
-stBuild_MacroFlags_DXYPresent
---- PASS: TestBuild_MacroFlags_DXYPresent (0.00s)
-=== RUN   TestBuild_MacroFlags_QEQTPresent
---- PASS: TestBuild_MacroFlags_QEQTPresent (0.00s)
-=== RUN   TestBuild_AllFrameworksAlwaysIncludesWyckoff
---- PASS: TestBuild_AllFrameworksAlwaysIncludesWyckoff (0.00s)
-=== RUN   TestBuild_SymbolPassthrough
---- PASS: TestBuild_SymbolPassthrough (0.00s)
-PASS
-ok  	github.com/flamegreat-1/etradie/src/gateway/internal/querybuilder	0.007s
-=== RUN   TestCheckHighImpactEventProximity_NoCalendar
---- PASS: TestCheckHighImpactEventProximity_NoCalendar (0.00s)
-=== RUN   TestCheckHighImpactEventProximity_NoHighImpactEvents
---- PASS: TestCheckHighImpactEventProximity_NoHighImpactEvents (0.00s)
-=== RUN   TestCheckHighImpactEventProximity_HighImpactWithinLockout
---- PASS: TestCheckHighImpactEventProximity_HighImpactWithinLockout (0.00s)
-=== RUN   TestCheckHighImpactEventProximity_HighImpactOutsideLockout
---- PASS: TestCheckHighImpactEventProximity_HighImpactOutsideLockout (0.00s)
-=== RUN   TestCheckCounterTrend_NoTrade
---- PASS: TestCheckCounterTrend_NoTrade (0.00s)
-=== RUN   TestCheckCounterTrend_AlignedTrade
---- PASS: TestCheckCounterTrend_AlignedTrade (0.00s)
-=== RUN   TestCheckCounterTrend_CounterWithoutChoch_Reject
---- PASS: TestCheckCounterTrend_CounterWithoutChoch_Reject (0.00s)
-=== RUN   TestCheckCounterTrend_CounterWithChoch_Warn
---- PASS: TestCheckCounterTrend_CounterWithChoch_Warn (0.00s)
-=== RUN   TestCheckCounterTrend_BearishTrendLongDirection_Reject
---- PASS: TestCheckCounterTrend_BearishTrendLongDirection_Reject (0.00s)
-=== RUN   TestCheckWeekendGapRisk_Weekday
---- PASS: TestCheckWeekendGapRisk_Weekday (0.00s)
-=== RUN   TestCheckLowLiquidityHours
---- PASS: TestCheckLowLiquidityHours (0.00s)
-=== RUN   TestGuardEvaluator_AllPassOnAlignedTrade
---- PASS: TestGuardEvaluator_AllPassOnAlignedTrade (0.00s)
-=== RUN   TestGuardEvaluator_CounterTrendRejectsWithoutChoch
---- PASS: TestGuardEvaluator_CounterTrendRejectsWithoutChoch (0.00s)
-=== RUN   TestEvaluatePreLLM_ContainsOnlyDeterministicChecks
---- PASS: TestEvaluatePreLLM_ContainsOnlyDeterministicChecks (0.00s)
-=== RUN   TestEvaluatePostLLM_ContainsOnlyCounterTrend
---- PASS: TestEvaluatePostLLM_ContainsOnlyCounterTrend (0.00s)
-=== RUN   TestMergeResults_PreservesCanonicalOrder
---- PASS: TestMergeResults_PreservesCanonicalOrder (0.00s)
-=== RUN   TestMergeResults_PreLLMRejectStillRejectsAfterMerge
---- PASS: TestMergeResults_PreLLMRejectStillRejectsAfterMerge (0.00s)
-=== RUN   TestRouter_NoSetup_ProcessorRejects
---- PASS: TestRouter_NoSetup_ProcessorRejects (0.00s)
-=== RUN   TestRouter_GuardRejection_NoExecution
---- PASS: TestRouter_GuardRejection_NoExecution (0.00s)
-=== RUN   TestRouter_TradeApproved_ExecutionCalled
---- PASS: TestRouter_TradeApproved_ExecutionCalled (0.00s)
-=== RUN   TestRouter_NilExecutionPort_Graceful
---- PASS: TestRouter_NilExecutionPort_Graceful (0.00s)
-=== RUN   TestRouter_ExecutionError_ReturnsError
---- PASS: TestRouter_ExecutionError_ReturnsError (0.00s)
-=== RUN   TestRoutePreLLM_PassesThroughOnAllPass
---- PASS: TestRoutePreLLM_PassesThroughOnAllPass (0.00s)
-=== RUN   TestRoutePreLLM_RejectsOnAsianSessionForXAUUSD
---- PASS: TestRoutePreLLM_RejectsOnAsianSessionForXAUUSD (0.00s)
-PASS
-ok  	github.com/flamegreat-1/etradie/src/gateway/internal/routing	0.015s
-=== RUN   TestReverseProxy_PathRewrite
-=== RUN   TestReverseProxy_PathRewrite/execution_state
-=== RUN   TestReverseProxy_PathRewrite/execution_account
-=== RUN   TestReverseProxy_PathRewrite/execution_settings
-=== RUN   TestReverseProxy_PathRewrite/execution_orders_cancel
-=== RUN   TestReverseProxy_PathRewrite/management_trades
-=== RUN   TestReverseProxy_PathRewrite/management_pnl
-=== RUN   TestReverseProxy_PathRewrite/engine_broker
-=== RUN   TestReverseProxy_PathRewrite/engine_analysis
-=== RUN   TestReverseProxy_PathRewrite/engine_llm
-=== RUN   TestReverseProxy_PathRewrite/engine_usage
-=== RUN   TestReverseProxy_PathRewrite/engine_processor
---- PASS: TestReverseProxy_PathRewrite (0.01s)
-    --- PASS: TestReverseProxy_PathRewrite/execution_state (0.00s)
-    --- PASS: TestReverseProxy_PathRewrite/execution_account (0.00s)
-    --- PASS: TestReverseProxy_PathRewrite/execution_settings (0.00s)
-    --- PASS: TestReverseProxy_PathRewrite/execution_orders_cancel (0.00s)
-    --- PASS: TestReverseProxy_PathRewrite/management_trades (0.00s)
-    --- PASS: TestReverseProxy_PathRewrite/management_pnl (0.00s)
-    --- PASS: TestReverseProxy_PathRewrite/engine_broker (0.00s)
-    --- PASS: TestReverseProxy_PathRewrite/engine_analysis (0.00s)
-    --- PASS: TestReverseProxy_PathRewrite/engine_llm (0.00s)
-    --- PASS: TestReverseProxy_PathRewrite/engine_usage (0.00s)
-    --- PASS: TestReverseProxy_PathRewrite/engine_processor (0.00s)
-=== RUN   TestReverseProxy_RewriteWithQueryString
---- PASS: TestReverseProxy_RewriteWithQueryString (0.00s)
-=== RUN   TestReverseProxy_ForwardsCookieAndCSRF
---- PASS: TestReverseProxy_ForwardsCookieAndCSRF (0.00s)
-=== RUN   TestReverseProxy_StatusAndBodyPassthrough
-=== RUN   TestReverseProxy_StatusAndBodyPassthrough/tier_required_403
-=== RUN   TestReverseProxy_StatusAndBodyPassthrough/llm_quota_429
---- PASS: TestReverseProxy_StatusAndBodyPassthrough (0.00s)
-    --- PASS: TestReverseProxy_StatusAndBodyPassthrough/tier_required_403 (0.00s)
-    --- PASS: TestReverseProxy_StatusAndBodyPassthrough/llm_quota_429 (0.00s)
-=== RUN   TestReverseProxy_UnreachableUpstreamReturns502
---- PASS: TestReverseProxy_UnreachableUpstreamReturns502 (0.00s)
-=== RUN   TestNewReverseProxyHandler_RejectsBadUpstream
---- PASS: TestNewReverseProxyHandler_RejectsBadUpstream (0.00s)
-PASS
-ok  	github.com/flamegreat-1/etradie/src/gateway/internal/server	0.026s
-=== RUN   TestLoad_EmptyRedis_ReturnsDefaults
---- PASS: TestLoad_EmptyRedis_ReturnsDefaults (0.00s)
-=== RUN   TestSave_Load_RoundTrip
---- PASS: TestSave_Load_RoundTrip (0.00s)
-=== RUN   TestSetCycleInterval_GetCycleInterval
---- PASS: TestSetCycleInterval_GetCycleInterval (0.00s)
-=== RUN   TestSetCycleInterval_OverwritesPrevious
---- PASS: TestSetCycleInterval_OverwritesPrevious (0.00s)
-=== RUN   TestGetCycleInterval_NoOverride_ReturnsZero
---- PASS: TestGetCycleInterval_NoOverride_ReturnsZero (0.00s)
-=== RUN   TestSave_OverwritesCompletely
---- PASS: TestSave_OverwritesCompletely (0.00s)
-PASS
-ok  	github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore	0.023s
-=== RUN   TestGetActiveSymbols_ReturnsDefaults_WhenEmpty
---- PASS: TestGetActiveSymbols_ReturnsDefaults_WhenEmpty (0.00s)
-=== RUN   TestGetActiveSymbols_DefaultsAreCopy
---- PASS: TestGetActiveSymbols_DefaultsAreCopy (0.00s)
-=== RUN   TestSetActiveSymbols_RoundTrip
---- PASS: TestSetActiveSymbols_RoundTrip (0.00s)
-=== RUN   TestSetActiveSymbols_NormalizesToUppercase
---- PASS: TestSetActiveSymbols_NormalizesToUppercase (0.00s)
-=== RUN   TestSetActiveSymbols_TrimsWhitespace
---- PASS: TestSetActiveSymbols_TrimsWhitespace (0.00s)
-=== RUN   TestSetActiveSymbols_EmptyList_ReturnsFalse
---- PASS: TestSetActiveSymbols_EmptyList_ReturnsFalse (0.00s)
-=== RUN   TestSetActiveSymbols_AllWhitespace_ReturnsFalse
---- PASS: TestSetActiveSymbols_AllWhitespace_ReturnsFalse (0.00s)
-=== RUN   TestSetActiveSymbols_OverwritesPrevious
---- PASS: TestSetActiveSymbols_OverwritesPrevious (0.00s)
-=== RUN   TestResetToDefaults_ClearsSelection
---- PASS: TestResetToDefaults_ClearsSelection (0.00s)
-=== RUN   TestResetToDefaults_WhenAlreadyEmpty
---- PASS: TestResetToDefaults_WhenAlreadyEmpty (0.00s)
-PASS
-ok  	github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore	0.022s
-?   	github.com/flamegreat-1/etradie/src/gateway/internal/tradingplanadapter	[no test files]
+   	Test:       	TestConcurrency_BoundedParallelism
+        	Messages:   	Processor should be called once per candidate symbol
+{"level":"info","service":"alert","component":"redis_transport","time":1781341553818,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341553818,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341553818,"message":"redis_subscriber_stopped"}
+--- FAIL: TestConcurrency_BoundedParallelism (0.01s)
+=== RUN   TestConcurrency_ContextCancellation
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341553819,"message":"redis_transport_started"}
+{"level":"error","service":"alert","component":"redis_transport","error":"context canceled","event_id":"20260613090553-c8694295","time":1781341553819,"message":"redis_transport_publish_failed"}
+{"level":"error","service":"alert","component":"redis_transport","error":"context canceled","event_id":"20260613090553-c0279ae9","time":1781341553819,"message":"redis_transport_publish_failed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341553819,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341553819,"message":"alert_hub_closed"}
+--- PASS: TestConcurrency_ContextCancellation (0.00s)
 FAIL
-Error: Process completed with exit code 1.
+FAIL	github.com/flamegreat-1/etradie/src/gateway/e2etest	2.166s
+=== RUN   TestGRPC_RunCycle_HappyPath
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555106,"message":"redis_transport_started"}
+    cycle_confirm_test.go:40: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:40
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_RunCycle_HappyPath
+        	Messages:   	RunCycle RPC should not return error
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555112,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555112,"message":"alert_hub_closed"}
+--- FAIL: TestGRPC_RunCycle_HappyPath (0.01s)
+=== RUN   TestGRPC_RunCycle_NoCandidates
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555112,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555112,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555112,"message":"redis_subscriber_stopped"}
+    cycle_confirm_test.go:93: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:93
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_RunCycle_NoCandidates
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555114,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555114,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555114,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555115,"message":"redis_subscriber_stopped"}
+--- FAIL: TestGRPC_RunCycle_NoCandidates (0.00s)
+=== RUN   TestGRPC_RunCycle_EmptySymbols_UsesDefaults
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555115,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555118,"message":"redis_subscriber_started"}
+    cycle_confirm_test.go:127: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:127
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_RunCycle_EmptySymbols_UsesDefaults
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555118,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555118,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555118,"message":"redis_subscriber_stopped"}
+--- FAIL: TestGRPC_RunCycle_EmptySymbols_UsesDefaults (0.00s)
+=== RUN   TestGRPC_ConfirmSetup_Confirmed
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555119,"message":"redis_transport_started"}
+    cycle_confirm_test.go:161: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:161
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_ConfirmSetup_Confirmed
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555120,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555120,"message":"alert_hub_closed"}
+--- FAIL: TestGRPC_ConfirmSetup_Confirmed (0.00s)
+=== RUN   TestGRPC_ConfirmSetup_ValidationError
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555120,"message":"redis_transport_started"}
+redis: 2026/06/13 09:05:55 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:45106->[::1]:6379: use of closed network connection
+    cycle_confirm_test.go:195: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:195
+        	Error:      	Not equal: 
+        	            	expected: 0x3
+        	            	actual  : 0x10
+        	Test:       	TestGRPC_ConfirmSetup_ValidationError
+    cycle_confirm_test.go:196: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:196
+        	Error:      	"invalid token: missing or invalid 'status' claim" does not contain "required"
+        	Test:       	TestGRPC_ConfirmSetup_ValidationError
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555122,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555122,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555123,"message":"redis_subscriber_started"}
+    cycle_confirm_test.go:207: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/cycle_confirm_test.go:207
+        	Error:      	Not equal: 
+        	            	expected: 0x3
+        	            	actual  : 0x10
+        	Test:       	TestGRPC_ConfirmSetup_ValidationError
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555123,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555123,"message":"alert_hub_closed"}
+--- FAIL: TestGRPC_ConfirmSetup_ValidationError (0.00s)
+=== RUN   TestGRPC_NotifyExecutionCompleted_NoMgmtClient
+redis: 2026/06/13 09:05:55 pubsub.go:168: redis: discarding bad PubSub connection: set tcp [::1]:45132: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555123,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555125,"message":"redis_transport_started"}
+    handoff_config_test.go:62: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:62
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_NotifyExecutionCompleted_NoMgmtClient
+        	Messages:   	should not return gRPC error
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555127,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555127,"message":"alert_hub_closed"}
+--- FAIL: TestGRPC_NotifyExecutionCompleted_NoMgmtClient (0.00s)
+=== RUN   TestGRPC_NotifyExecutionCompleted_AllFieldsPropagated
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555127,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555127,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555127,"message":"redis_subscriber_stopped"}
+    handoff_config_test.go:110: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:110
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_NotifyExecutionCompleted_AllFieldsPropagated
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555129,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555129,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555129,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:55 pubsub.go:168: redis: discarding bad PubSub connection: set tcp [::1]:45148: use of closed network connection
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555129,"message":"redis_subscriber_stopped"}
+--- FAIL: TestGRPC_NotifyExecutionCompleted_AllFieldsPropagated (0.00s)
+=== RUN   TestGRPC_SetCycleInterval_Valid
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555129,"message":"redis_transport_started"}
+    handoff_config_test.go:133: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:133
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_SetCycleInterval_Valid
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555131,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555131,"message":"alert_hub_closed"}
+--- FAIL: TestGRPC_SetCycleInterval_Valid (0.00s)
+=== RUN   TestGRPC_SetCycleInterval_TooLow
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555131,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555131,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555131,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555132,"message":"redis_subscriber_started"}
+    handoff_config_test.go:157: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:157
+        	Error:      	Not equal: 
+        	            	expected: 0x3
+        	            	actual  : 0x10
+        	Test:       	TestGRPC_SetCycleInterval_TooLow
+    handoff_config_test.go:158: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:158
+        	Error:      	"invalid token: missing or invalid 'status' claim" does not contain "60"
+        	Test:       	TestGRPC_SetCycleInterval_TooLow
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555134,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555134,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:55 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:45172->[::1]:6379: use of closed network connection
+--- FAIL: TestGRPC_SetCycleInterval_TooLow (0.00s)
+=== RUN   TestGRPC_SetCycleInterval_TooHigh
+
+
+level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555134,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555134,"message":"redis_subscriber_stopped"}
+    handoff_config_test.go:178: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:178
+        	Error:      	Not equal: 
+        	            	expected: 0x3
+        	            	actual  : 0x10
+        	Test:       	TestGRPC_SetCycleInterval_TooHigh
+    handoff_config_test.go:179: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:179
+        	Error:      	"invalid token: missing or invalid 'status' claim" does not contain "86400"
+        	Test:       	TestGRPC_SetCycleInterval_TooHigh
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555136,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555136,"message":"alert_hub_closed"}
+--- FAIL: TestGRPC_SetCycleInterval_TooHigh (0.00s)
+=== RUN   TestGRPC_GetGatewayConfig
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555137,"message":"redis_transport_started"}
+    handoff_config_test.go:198: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:198
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_GetGatewayConfig
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555138,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555138,"message":"alert_hub_closed"}
+--- FAIL: TestGRPC_GetGatewayConfig (0.00s)
+=== RUN   TestGRPC_GetActiveSymbols
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555138,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555138,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555138,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555140,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555140,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555140,"message":"redis_subscriber_started"}
+    handoff_config_test.go:231: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:231
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_GetActiveSymbols
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555141,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555141,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555141,"message":"redis_subscriber_stopped"}
+--- FAIL: TestGRPC_GetActiveSymbols (0.00s)
+=== RUN   TestGRPC_SetActiveSymbols_Valid
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555142,"message":"redis_transport_started"}
+    handoff_config_test.go:259: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:259
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_SetActiveSymbols_Valid
+        	Messages:   	SetActiveSymbols should not return gRPC error
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555143,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555143,"message":"alert_hub_closed"}
+--- FAIL: TestGRPC_SetActiveSymbols_Valid (0.00s)
+=== RUN   TestGRPC_ResetActiveSymbols
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555144,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555144,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555144,"message":"redis_subscriber_stopped"}
+    handoff_config_test.go:283: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:283
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_ResetActiveSymbols
+        	Messages:   	ResetActiveSymbols should not return gRPC error
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555146,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555146,"message":"alert_hub_closed"}
+--- FAIL: TestGRPC_ResetActiveSymbols (0.00s)
+=== RUN   TestGRPC_GetHealth
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555146,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555149,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555149,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555149,"message":"redis_subscriber_started"}
+    handoff_config_test.go:310: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/handoff_config_test.go:310
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_GetHealth
+        	Messages:   	GetHealth should not return gRPC error
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555150,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555150,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555150,"message":"redis_subscriber_stopped"}
+--- FAIL: TestGRPC_GetHealth (0.00s)
+=== RUN   TestGRPC_RunCycle_InvalidSymbol_EmptyString
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555150,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555151,"message":"redis_subscriber_started"}
+    handoff_config_test.go:354: Server returned gRPC error for empty symbol: code=Unauthenticated msg=invalid token: missing or invalid 'status' claim
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555152,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555152,"message":"alert_hub_closed"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555152,"message":"redis_subscriber_stopped"}
+--- PASS: TestGRPC_RunCycle_InvalidSymbol_EmptyString (0.00s)
+=== RUN   TestGRPC_NotifyExecutionCompleted_FullHandoff
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555154,"message":"redis_transport_started"}
+    mgmt_handoff_test.go:315: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/mgmt_handoff_test.go:315
+        	Error:      	Received unexpected error:
+        	            	rpc error: code = Unauthenticated desc = invalid token: missing or invalid 'status' claim
+        	Test:       	TestGRPC_NotifyExecutionCompleted_FullHandoff
+        	Messages:   	handoff should succeed
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555156,"message":"redis_subscriber_started"}
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555156,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555156,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:55 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:45232->[::1]:6379: use of closed network connection
+--- FAIL: TestGRPC_NotifyExecutionCompleted_FullHandoff (0.00s)
+=== RUN   TestGRPC_NotifyExecutionCompleted_MgmtReturnsError
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555156,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555157,"message":"redis_transport_started"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","time":1781341555159,"message":"redis_subscriber_started"}
+    mgmt_handoff_test.go:382: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/mgmt_handoff_test.go:382
+        	Error:      	Not equal: 
+        	            	expected: 0xd
+        	            	actual  : 0x10
+        	Test:       	TestGRPC_NotifyExecutionCompleted_MgmtReturnsError
+        	Messages:   	Gateway wraps management errors as Internal
+    mgmt_handoff_test.go:384: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/mgmt_handoff_test.go:384
+        	Error:      	"invalid token: missing or invalid 'status' claim" does not contain "management"
+        	Test:       	TestGRPC_NotifyExecutionCompleted_MgmtReturnsError
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555160,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555160,"message":"alert_hub_closed"}
+redis: 2026/06/13 09:05:55 pubsub.go:168: redis: discarding bad PubSub connection: read tcp [::1]:45236->[::1]:6379: use of closed network connection
+--- FAIL: TestGRPC_NotifyExecutionCompleted_MgmtReturnsError (0.00s)
+=== RUN   TestGRPC_NotifyExecutionCompleted_MgmtRejectsRegistration
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555160,"message":"redis_subscriber_stopped"}
+{"level":"info","service":"alert","component":"redis_transport","channel":"etradie:alerts","history_key":"etradie:alert_history","max_history":2000,"time":1781341555161,"message":"redis_transport_started"}
+    mgmt_handoff_test.go:415: 
+        	Error Trace:	/home/runner/work/eTradie/eTradie/src/gateway/grpctest/mgmt_handoff_test.go:415
+        	Error:      	Not equal: 
+        	            	expected: 0xd
+        	            	actual  : 0x10
+        	Test:       	TestGRPC_NotifyExecutionCompleted_MgmtRejectsRegistration
+{"level":"info","service":"alert","component":"redis_transport","time":1781341555168,"message":"redis_transport_closed"}
+{"level":"info","service":"alert","component":"alert_hub","time":1781341555168,"message":"alert_hub_closed"}
+--- FAIL: TestGRPC_NotifyExecutionCompleted_MgmtRejectsRegistration (0.01s)
+FAIL
+FAIL	github.com/flamegreat-1/etradie/src/gateway/grpctest	0.073s
+?   	github.com/flamegreat-1/etradie/src/gateway/internal/collectors	[no test files]
+=== RUN   TestValidConfig_Passes
+--- PASS: TestValidConfig_Passes (0.00s)
+=== RUN   TestValidate_CycleIntervalSeconds_AtMinimum
+--- PASS: TestValidate_CycleIntervalSeconds_AtMinimum (0.00s)
