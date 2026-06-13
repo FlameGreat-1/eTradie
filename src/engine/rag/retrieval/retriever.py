@@ -4,6 +4,7 @@ import time
 from uuid import UUID
 
 from engine.config import RAGConfig
+from engine.rag.constants import DocumentType
 from engine.rag.embeddings.base import BaseEmbeddingProvider
 from engine.rag.models.retrieval import RetrievedChunk
 from engine.rag.vectorstore.base import BaseVectorStore, VectorSearchResult
