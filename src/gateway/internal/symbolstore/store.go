@@ -103,8 +103,17 @@ func (s *Store) SetActiveSymbols(ctx context.Context, userID string, symbols []s
 	for _, sym := range symbols {
 		trimmed := strings.TrimSpace(sym)
 		if trimmed != "" {
-			normalized = append(normalized, trimmed)
+			normalized = append(normalized, strings.ToUpper(trimmed))
 		}
+	}
+
+	// Reject a selection that contains no usable symbol (empty input or
+	// only blank/whitespace entries) without writing to Redis, so the
+	// caller can surface a validation error instead of persisting an
+	// empty set that would silently fall back to defaults on read.
+	if len(normalized) == 0 {
+		s.log.Warn().Str("user_id", userID).Msg("symbol_store_set_rejected_empty_selection")
+		return false
 	}
 
 	key := activeSymbolsKey(userID)

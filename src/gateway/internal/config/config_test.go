@@ -34,6 +34,8 @@ func validConfig() *Config {
 		ManagementEnabled:             true,
 		ManagementAddr:                "localhost:50054",
 		ManagementTimeoutMs:           5000,
+		ExecutionHTTPURL:              "http://localhost:8080",
+		ManagementHTTPURL:             "http://localhost:8083",
 		HTTPPort:                      8080,
 		GRPCPort:                      50052,
 	}
