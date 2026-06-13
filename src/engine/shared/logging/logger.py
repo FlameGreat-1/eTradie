@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections.abc import MutableMapping
 from typing import Any
 from uuid import uuid4
 
@@ -56,8 +57,8 @@ _SENSITIVE_FIELDS: set[str] = {
 def _add_log_level_upper(
     _logger: Any,
     _method_name: str,
-    event_dict: dict[str, Any],
-) -> dict[str, Any]:
+    event_dict: MutableMapping[str, Any],
+) -> MutableMapping[str, Any]:
     """Normalize log level to uppercase for consistency."""
     if "level" in event_dict:
         event_dict["level"] = event_dict["level"].upper()
@@ -67,8 +68,8 @@ def _add_log_level_upper(
 def _drop_color_message(
     _logger: Any,
     _method_name: str,
-    event_dict: dict[str, Any],
-) -> dict[str, Any]:
+    event_dict: MutableMapping[str, Any],
+) -> MutableMapping[str, Any]:
     """Remove uvicorn's color_message key that pollutes JSON output."""
     event_dict.pop("color_message", None)
     return event_dict
@@ -77,8 +78,8 @@ def _drop_color_message(
 def _sanitize_sensitive_data(
     _logger: Any,
     _method_name: str,
-    event_dict: dict[str, Any],
-) -> dict[str, Any]:
+    event_dict: MutableMapping[str, Any],
+) -> MutableMapping[str, Any]:
     """
     Sanitize sensitive fields in log entries.
 
@@ -98,7 +99,7 @@ def _sanitize_sensitive_data(
 
 def _sanitize_dict(data: dict[str, Any]) -> dict[str, Any]:
     """Recursively sanitize sensitive fields in nested dictionaries."""
-    sanitized = {}
+    sanitized: dict[str, Any] = {}
     for key, value in data.items():
         if key.lower() in _SENSITIVE_FIELDS:
             sanitized[key] = "***REDACTED***"
@@ -114,8 +115,8 @@ def _sanitize_dict(data: dict[str, Any]) -> dict[str, Any]:
 def _record_log_metrics(
     _logger: Any,
     method_name: str,
-    event_dict: dict[str, Any],
-) -> dict[str, Any]:
+    event_dict: MutableMapping[str, Any],
+) -> MutableMapping[str, Any]:
     """Record log entry metrics for observability."""
     level = event_dict.get("level", "UNKNOWN").upper()
 
