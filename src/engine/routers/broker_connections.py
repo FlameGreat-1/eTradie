@@ -260,13 +260,13 @@ async def create_broker_connection(
 
             allocated_connection_id = str(_uuid4())
 
-            provisioner: HostedProvisioner = container.hosted_provisioner
+            hosted_provisioner: HostedProvisioner = container.hosted_provisioner
 
             # Predict the runtime details immediately so the DB row can be
             # created synchronously.
-            release = provisioner._release_name(allocated_connection_id)
+            release = hosted_provisioner._release_name(allocated_connection_id)
             hosted_container_id = release
-            ea_host = f"{release}.{provisioner._namespace}.svc.cluster.local"
+            ea_host = f"{release}.{hosted_provisioner._namespace}.svc.cluster.local"
             # ZMQ port is always DEFAULT_ZMQ_PORT (5555) for hosted nodes.
             ea_port = 5555
 
@@ -287,7 +287,7 @@ async def create_broker_connection(
                 token: str,
             ) -> None:
                 try:
-                    await provisioner.provision_account(
+                    await hosted_provisioner.provision_account(
                         connection_id=conn_id,
                         user_id=user_id,
                         login=login,
