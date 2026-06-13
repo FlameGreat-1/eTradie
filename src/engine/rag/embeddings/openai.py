@@ -68,6 +68,11 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
                 RAG_EMBEDDING_DURATION.labels(model=self._model).observe(elapsed)
                 RAG_EMBEDDING_TOTAL.labels(model=self._model, status="success").inc()
 
+                if not isinstance(response, dict):
+                    raise RAGEmbeddingProviderError(
+                        "OpenAI embedding response was not a JSON object",
+                        details={"type": type(response).__name__},
+                    )
                 data = response.get("data", [])
                 sorted_data = sorted(data, key=lambda x: x["index"])
                 vectors = [item["embedding"] for item in sorted_data]

@@ -105,7 +105,7 @@ class EmbeddingPipeline:
     async def _embed_batch(
         self,
         uow,
-        chunk_rows: list[ChunkRow] | tuple[ChunkRow, ...],
+        chunk_rows: Sequence[ChunkRow],
     ) -> list[tuple[UUID, list[float]]]:
         texts = [row.content for row in chunk_rows]
 
