@@ -346,10 +346,9 @@ jobs:
             --set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging
       - name: helm template + kubeconform - mt-node staging (per-tenant)
         run: |
-          # values-staging.yaml already sets image.repository for the
-          # repo's own staging deployment. No --set override needed.
           helm template etradie-mt-test-0000 helm/mt-node \
             -f helm/mt-node/values.yaml \
+            -f helm/mt-node/values-image.yaml \
             -f helm/mt-node/values-staging.yaml \
             --set mtConnection.connectionId=test-conn-0000 \
             --set mtConnection.userId=test-user-0000 \
@@ -366,6 +365,7 @@ jobs:
         run: |
           helm template etradie-mt-test-0000 helm/mt-node \
             -f helm/mt-node/values.yaml \
+            -f helm/mt-node/values-image.yaml \
             -f helm/mt-node/values-production.yaml \
             --set mtConnection.connectionId=test-conn-0000 \
             --set mtConnection.userId=test-user-0000 \
@@ -385,6 +385,7 @@ jobs:
           # `mt-node-production` app installs cluster-wide.
           helm template etradie-mt-node-platform helm/mt-node \
             -f helm/mt-node/values.yaml \
+            -f helm/mt-node/values-image.yaml \
             -f helm/mt-node/values-production.yaml \
             --set mtConnection.enabled=false \
             --set mtConnection.connectionId=platform \
