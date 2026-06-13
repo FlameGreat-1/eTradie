@@ -127,7 +127,7 @@ async def update_processor_config(
             detail=f"Unsupported provider '{new_provider}'. Supported: {sorted(valid_providers)}",
         )
 
-    config_overrides = {
+    config_overrides: dict[str, Any] = {
         "llm_provider": new_provider,
         "model_name": new_model,
         "temperature": new_temp,
