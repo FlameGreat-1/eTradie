@@ -1,4 +1,11 @@
-{{- include "mt-node.preflight" . -}}
+{{- /*
+Cluster-scoped resource. Renders on both per-tenant and platform paths
+when priorityClass.create=true (operators usually enable it once via
+the platform overlay). Does NOT reference any per-tenant value so
+preflight is intentionally omitted - matches servicemonitor.yaml and
+prometheusrule.yaml. Per-tenant preflight lives in the templates that
+actually use connectionId/userId/server (statefulset, service, etc).
+*/ -}}
 {{- if .Values.priorityClass.create }}
 # Cluster-scoped PriorityClass. Created ONCE per cluster; subsequent
 # releases that also have priorityClass.create=true will see

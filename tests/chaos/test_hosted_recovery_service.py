@@ -383,7 +383,18 @@ async def test_start_background_loop_idempotent():
         config=_make_config(),
     )
     coordinator = MagicMock()
-    coordinator.create_task = MagicMock(return_value=asyncio.get_event_loop().create_task(asyncio.sleep(0)))
+
+    # The real BackgroundTaskCoordinator.create_task schedules the
+    # passed coroutine on the loop. A naive `return_value=<task>` mock
+    # would silently drop the self._loop() coroutine, leaking it and
+    # tripping `RuntimeWarning: coroutine was never awaited` (caught
+    # by pytest's unraisable plugin on the next test in the file).
+    # Use side_effect to consume the coroutine cleanly.
+    def _consume(coro, **kwargs):
+        coro.close()
+        return asyncio.get_event_loop().create_task(asyncio.sleep(0))
+
+    coordinator.create_task = MagicMock(side_effect=_consume)
     svc.start_background_loop(coordinator=coordinator)
     svc.start_background_loop(coordinator=coordinator)  # second call is a no-op
     assert coordinator.create_task.call_count == 1
