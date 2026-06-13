@@ -50,6 +50,7 @@ tenacity==9.0.0
 # ── ZeroMQ (Native MT5 bridge) ───────────────────────────────
 pyzmq==26.2.1
 msgpack==1.1.0
+psutil==6.1.1
 
 # ── AI & Language Models ─────────────────────────────────────
 openai==1.14.0
