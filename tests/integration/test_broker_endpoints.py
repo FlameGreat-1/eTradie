@@ -7,30 +7,18 @@ Verifies response JSON shapes match what Go services expect.
 
 from __future__ import annotations
 
-import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import jwt as pyjwt
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-# Deterministic JWT for broker integration tests
-_BROKER_TEST_JWT_SECRET = "test-secret-key-for-jwt-signing-must-be-long-enough-64chars-ok"
-
-
-def _broker_test_jwt() -> str:
-    now = int(time.time())
-    payload = {
-        "sub": "broker-test-user",
-        "username": "brokertest",
-        "role": "etradie",
-        "iss": "etradie",
-        "iat": now,
-        "exp": now + 3600,
-    }
-    return pyjwt.encode(payload, _BROKER_TEST_JWT_SECRET, algorithm="HS256")
+# Deterministic shared secret for the engine's internal (server-to-server)
+# auth. The /internal/broker/* endpoints are guarded by verify_internal_auth,
+# which compares the X-Internal-Auth header to ENGINE_INTERNAL_SHARED_SECRET.
+# Must be >= 32 chars to satisfy internal_auth._MIN_SECRET_LEN.
+_BROKER_TEST_INTERNAL_SECRET = "test-internal-shared-secret-must-be-at-least-32-chars-long"
 
 
 from engine.ta.broker.base import (
@@ -214,13 +202,21 @@ async def client(mock_broker):
     """FastAPI test client with mock broker injected into Container."""
     import os
 
+    import engine.shared.internal_auth as internal_auth
+
     env_overrides = {
-        "AUTH_JWT_SECRET": _BROKER_TEST_JWT_SECRET,
-        "AUTH_ISSUER": "etradie",
+        "ENGINE_INTERNAL_SHARED_SECRET": _BROKER_TEST_INTERNAL_SECRET,
         "APP_ENV": "testing",
     }
+    # The internal-auth secret is loaded into a module-level constant at
+    # import time, so set the env var AND patch the already-loaded value
+    # so verify_internal_auth compares against our test secret.
     # Patch Container so it doesn't try to connect to real DB/Redis/broker
-    with patch.dict(os.environ, env_overrides), patch("engine.main.Container") as MockContainer:
+    with (
+        patch.dict(os.environ, env_overrides),
+        patch.object(internal_auth, "_INTERNAL_SECRET", _BROKER_TEST_INTERNAL_SECRET.encode()),
+        patch("engine.main.Container") as MockContainer,
+    ):
         container = MagicMock()
         container.mt5_client = mock_broker
         container.load_user_broker = AsyncMock(return_value=mock_broker)
@@ -240,7 +236,7 @@ async def client(mock_broker):
         # Manually set container on app state (lifespan won't run in test)
         app.state.container = container
 
-        auth_headers = {"Authorization": f"Bearer {_broker_test_jwt()}"}
+        auth_headers = {internal_auth.INTERNAL_AUTH_HEADER: _BROKER_TEST_INTERNAL_SECRET}
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test", headers=auth_headers) as ac:
             yield ac
