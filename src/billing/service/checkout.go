@@ -657,7 +657,7 @@ func jitter(base, spread time.Duration) time.Duration {
 		return base
 	}
 	n := binary.LittleEndian.Uint64(buf[:])
-	offset := time.Duration(n%uint64(2*spread)) - spread
+	offset := time.Duration(n%uint64(2*spread)) - spread // #nosec G115 -- modulo keeps result within [0,2*spread) which fits in time.Duration (int64).
 	result := base + offset
 	if result < 0 {
 		return 0

@@ -170,7 +170,7 @@ func LoadCloudflareNetworksFromDir(dir string) ([]*net.IPNet, []string, error) {
 // readCIDRFile reads a CIDR-per-line text file. Returns the non-empty,
 // non-comment lines verbatim (validation happens in the caller).
 func readCIDRFile(path string) ([]string, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path is constructed from admin-configured cloudflare ranges dir, not user input.
 	if err != nil {
 		return nil, err
 	}

@@ -173,7 +173,7 @@ func parseArgon2id(stored string) (mem, time uint32, threads uint8, salt, key []
 	if p < 1 || p > 255 {
 		return 0, 0, 0, nil, nil, fmt.Errorf("invalid argon2id parallelism %d", p)
 	}
-	threads = uint8(p)
+	threads = uint8(p) // #nosec G115 -- p is validated to be in [1,255] by the guard above.
 
 	salt, err = base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {

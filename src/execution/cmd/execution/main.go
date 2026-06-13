@@ -88,8 +88,8 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("database_config_parse_failed")
 	}
-	poolCfg.MaxConns = int32(cfg.DatabaseMaxConns)
-	poolCfg.MinConns = int32(cfg.DatabaseMinConns)
+	poolCfg.MaxConns = int32(cfg.DatabaseMaxConns) // #nosec G115 -- max conns is reasonably small
+	poolCfg.MinConns = int32(cfg.DatabaseMinConns) // #nosec G115
 	poolCfg.MaxConnIdleTime = time.Duration(cfg.DatabaseMaxIdleMs) * time.Millisecond
 	poolCfg.MaxConnLifetime = time.Duration(cfg.DatabaseConnMaxLife) * time.Second
 

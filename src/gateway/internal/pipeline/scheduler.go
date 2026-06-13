@@ -553,5 +553,5 @@ func cryptoRandDuration(max time.Duration) time.Duration {
 	}
 
 	n := binary.LittleEndian.Uint64(buf[:])
-	return time.Duration(n % uint64(max))
+	return time.Duration(n % uint64(max)) // #nosec G115 -- modulo keeps result within [0,max) which fits in time.Duration (int64).
 }

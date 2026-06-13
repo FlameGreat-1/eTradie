@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	"crypto/sha1" //nolint:gosec // SHA-1 is the HIBP range-API wire format, NOT password storage (that is Argon2id).
+	"crypto/sha1" // #nosec G501 -- SHA-1 is the HIBP range-API wire format, NOT password storage (that is Argon2id).
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -66,7 +66,7 @@ func (h *HIBPBreachChecker) IsBreached(ctx context.Context, plaintext string) (b
 		return false, nil
 	}
 
-	sum := sha1.Sum([]byte(plaintext)) //nolint:gosec // HIBP wire format only.
+	sum := sha1.Sum([]byte(plaintext)) // #nosec G401 -- HIBP wire format only; not used for password storage.
 	full := strings.ToUpper(hex.EncodeToString(sum[:]))
 	prefix, suffix := full[:5], full[5:]
 

@@ -38,9 +38,9 @@ import (
 // Google OIDC endpoints. Pulled to constants so test doubles and
 // air-gapped deployments could swap them via a future config knob.
 const (
-	googleAuthorizeEndpoint = "https://accounts.google.com/o/oauth2/v2/auth"
-	googleTokenEndpoint     = "https://oauth2.googleapis.com/token"
-	googleJWKSEndpoint      = "https://www.googleapis.com/oauth2/v3/certs"
+	googleAuthorizeEndpoint = "https://accounts.google.com/o/oauth2/v2/auth" // #nosec G101 -- public OAuth endpoint URL, not a credential.
+	googleTokenEndpoint     = "https://oauth2.googleapis.com/token"           // #nosec G101 -- public OAuth endpoint URL, not a credential.
+	googleJWKSEndpoint      = "https://www.googleapis.com/oauth2/v3/certs"    // #nosec G101 -- public JWKS endpoint URL, not a credential.
 
 	googleIssuerHTTPS = "https://accounts.google.com"
 	googleIssuerBare  = "accounts.google.com"

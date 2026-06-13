@@ -514,8 +514,8 @@ func (s *ExecutionServer) GetExecutionState(ctx context.Context, req *executionv
 	}
 
 	return &executionv1.GetStateResponse{
-		OpenPositionCount: int32(len(positions)),
-		PendingOrderCount: int32(len(pending)),
+		OpenPositionCount: int32(len(positions)), // #nosec G115 -- slice length will not exceed int32 max
+		PendingOrderCount: int32(len(pending)),   // #nosec G115
 		DailyRealizedPnl:  s.state.DailyPnL(userID),
 		WeeklyRealizedPnl: s.state.WeeklyPnL(userID),
 		AccountBalance:    balance,

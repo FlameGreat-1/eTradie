@@ -46,7 +46,7 @@ const (
 	// every silent-skip path (user not found, non-local provider,
 	// throttled, etc). Identical wording is what makes the endpoint
 	// non-enumerable.
-	passwordResetGenericMessage = "if an account exists for that email, a password reset link has been sent"
+	passwordResetGenericMessage = "if an account exists for that email, a password reset link has been sent" // #nosec G101 -- user-facing message, not a credential.
 
 	// passwordResetGenericRedemptionFailure is the single user-facing
 	// message returned for every failure path of POST /auth/password/reset
@@ -54,7 +54,7 @@ const (
 	// not-found / expired / consumed / inactive-user / federated-user
 	// branches means a presented token cannot be used as an oracle for
 	// the account's lifecycle state.
-	passwordResetGenericRedemptionFailure = "reset link is invalid, expired, or already used"
+	passwordResetGenericRedemptionFailure = "reset link is invalid, expired, or already used" // #nosec G101 -- user-facing message, not a credential.
 
 	// passwordResetUserWindow / passwordResetUserMax cap the number of
 	// reset requests a single user can trigger in a rolling window. The

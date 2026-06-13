@@ -365,9 +365,9 @@ func BuildExecuteRequest(d *models.ProcessorOutput) *executionv1.ExecuteTradeReq
 		ConfluenceScore: d.ConfluenceScore,
 		AnalysisId:      d.AnalysisID,
 		TraceId:         d.AnalysisID, // Trace correlation: analysis_id doubles as trace_id when no explicit trace_id exists.
-		Tp1Pct:          int32(d.TP1Pct),
-		Tp2Pct:          int32(d.TP2Pct),
-		Tp3Pct:          int32(d.TP3Pct),
+		Tp1Pct:          int32(d.TP1Pct), // #nosec G115 -- percentages are 0-100, safe to cast
+		Tp2Pct:          int32(d.TP2Pct), // #nosec G115
+		Tp3Pct:          int32(d.TP3Pct), // #nosec G115
 		ExecutionMode:   d.ExecutionMode,
 		LtfConfirmed:    d.LTFConfirmed,
 		SetupType:       d.SetupType,

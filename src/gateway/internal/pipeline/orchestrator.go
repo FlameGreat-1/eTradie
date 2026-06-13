@@ -1178,7 +1178,7 @@ func (o *Orchestrator) processSymbol(
 		// built. The engine handler accepts nil/empty values for those
 		// fields and writes only the populated files.
 		go func() {
-			debugCtx, debugCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			debugCtx, debugCancel := context.WithTimeout(context.Background(), 10*time.Second) // #nosec G114 -- intentionally detached from request context; this is fire-and-forget debug persistence.
 			defer debugCancel()
 			if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
 				debugCtx = auth.InjectTokenIntoContext(debugCtx, rawToken)
@@ -1352,7 +1352,7 @@ func (o *Orchestrator) processSymbol(
 	// Runs in a background goroutine so it NEVER blocks the pipeline.
 	// Uses processorInput (assembled TA + Macro + RAG) plus processorOutput.
 	go func() {
-		debugCtx, debugCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		debugCtx, debugCancel := context.WithTimeout(context.Background(), 10*time.Second) // #nosec G114 -- intentionally detached from request context; this is fire-and-forget debug persistence.
 		defer debugCancel()
 
 		// Carry the auth token so the engine can authenticate the request.

@@ -19,8 +19,8 @@ import (
 type contextKey string
 
 const (
-	claimsKey   contextKey = "auth_claims"
-	rawTokenKey contextKey = "auth_raw_token"
+	claimsKey   contextKey = "auth_claims"   // #nosec G101 -- not a credential, this is a context map key name.
+	rawTokenKey contextKey = "auth_raw_token" // #nosec G101 -- not a credential, this is a context map key name.
 )
 
 // ClaimsFromContext extracts the JWT claims from the request context.
