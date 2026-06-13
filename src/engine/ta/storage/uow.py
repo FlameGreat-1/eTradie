@@ -35,19 +35,43 @@ class TAUnitOfWork:
         self._db = db
         self._ctx: AbstractAsyncContextManager[AsyncSession] | None = None
         self._session: AsyncSession | None = None
-        self.candle_repo: CandleRepository | None = None
-        self.snapshot_repo: SnapshotRepository | None = None
-        self.candidate_repo: CandidateRepository | None = None
-        self.broker_symbol_repo: BrokerSymbolRepository | None = None
+        self._candle_repo: CandleRepository | None = None
+        self._snapshot_repo: SnapshotRepository | None = None
+        self._candidate_repo: CandidateRepository | None = None
+        self._broker_symbol_repo: BrokerSymbolRepository | None = None
+
+    @property
+    def candle_repo(self) -> CandleRepository:
+        if self._candle_repo is None:
+            raise RuntimeError("TAUnitOfWork used outside its async context")
+        return self._candle_repo
+
+    @property
+    def snapshot_repo(self) -> SnapshotRepository:
+        if self._snapshot_repo is None:
+            raise RuntimeError("TAUnitOfWork used outside its async context")
+        return self._snapshot_repo
+
+    @property
+    def candidate_repo(self) -> CandidateRepository:
+        if self._candidate_repo is None:
+            raise RuntimeError("TAUnitOfWork used outside its async context")
+        return self._candidate_repo
+
+    @property
+    def broker_symbol_repo(self) -> BrokerSymbolRepository:
+        if self._broker_symbol_repo is None:
+            raise RuntimeError("TAUnitOfWork used outside its async context")
+        return self._broker_symbol_repo
 
     async def __aenter__(self) -> TAUnitOfWork:
         self._ctx = self._db.session()
         self._session = await self._ctx.__aenter__()
 
-        self.candle_repo = CandleRepository(self._session)
-        self.snapshot_repo = SnapshotRepository(self._session)
-        self.candidate_repo = CandidateRepository(self._session)
-        self.broker_symbol_repo = BrokerSymbolRepository(self._session)
+        self._candle_repo = CandleRepository(self._session)
+        self._snapshot_repo = SnapshotRepository(self._session)
+        self._candidate_repo = CandidateRepository(self._session)
+        self._broker_symbol_repo = BrokerSymbolRepository(self._session)
 
         return self
 
@@ -74,19 +98,43 @@ class TAReadUnitOfWork:
         self._db = db
         self._ctx: AbstractAsyncContextManager[AsyncSession] | None = None
         self._session: AsyncSession | None = None
-        self.candle_repo: CandleRepository | None = None
-        self.snapshot_repo: SnapshotRepository | None = None
-        self.candidate_repo: CandidateRepository | None = None
-        self.broker_symbol_repo: BrokerSymbolRepository | None = None
+        self._candle_repo: CandleRepository | None = None
+        self._snapshot_repo: SnapshotRepository | None = None
+        self._candidate_repo: CandidateRepository | None = None
+        self._broker_symbol_repo: BrokerSymbolRepository | None = None
+
+    @property
+    def candle_repo(self) -> CandleRepository:
+        if self._candle_repo is None:
+            raise RuntimeError("TAReadUnitOfWork used outside its async context")
+        return self._candle_repo
+
+    @property
+    def snapshot_repo(self) -> SnapshotRepository:
+        if self._snapshot_repo is None:
+            raise RuntimeError("TAReadUnitOfWork used outside its async context")
+        return self._snapshot_repo
+
+    @property
+    def candidate_repo(self) -> CandidateRepository:
+        if self._candidate_repo is None:
+            raise RuntimeError("TAReadUnitOfWork used outside its async context")
+        return self._candidate_repo
+
+    @property
+    def broker_symbol_repo(self) -> BrokerSymbolRepository:
+        if self._broker_symbol_repo is None:
+            raise RuntimeError("TAReadUnitOfWork used outside its async context")
+        return self._broker_symbol_repo
 
     async def __aenter__(self) -> TAReadUnitOfWork:
         self._ctx = self._db.read_session()
         self._session = await self._ctx.__aenter__()
 
-        self.candle_repo = CandleRepository(self._session)
-        self.snapshot_repo = SnapshotRepository(self._session)
-        self.candidate_repo = CandidateRepository(self._session)
-        self.broker_symbol_repo = BrokerSymbolRepository(self._session)
+        self._candle_repo = CandleRepository(self._session)
+        self._snapshot_repo = SnapshotRepository(self._session)
+        self._candidate_repo = CandidateRepository(self._session)
+        self._broker_symbol_repo = BrokerSymbolRepository(self._session)
 
         return self
 
