@@ -40,10 +40,10 @@ structlog==24.4.0
 PyJWT==2.13.0
 
 # ── Credential Encryption ───────────────────────────────────
-cryptography==46.0.6
+cryptography==46.0.7
 
 # ── Serialization / Utilities ────────────────────────────────
-orjson==3.11.5
+orjson==3.11.6
 python-dateutil==2.9.0
 tenacity==9.0.0
 
@@ -73,4 +73,4 @@ kubernetes_asyncio==28.2.1
 starlette>=0.49.1
 pillow>=12.2.0
 transformers>=5.0.0rc3
-torch>=2.2.2
+torch>=2.12.1

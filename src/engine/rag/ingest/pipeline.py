@@ -94,7 +94,6 @@ class IngestPipeline:
         source_format: SourceFormat,
         title: str,
     ) -> UUID:
-
         start = time.monotonic()
 
         try:

@@ -61,7 +61,6 @@ class ChromaVectorStore(BaseVectorStore):
         return loop.run_in_executor(self._executor, lambda: fn(*args, **kwargs))
 
     async def create_collection(self, name: str, *, dimensions: int) -> None:
-
         start = time.monotonic()
         try:
             client = self._get_client()

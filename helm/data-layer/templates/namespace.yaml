@@ -33,7 +33,6 @@ metadata:
   namespace: {{ include "data-layer.namespace" . }}
   labels:
     {{- include "data-layer.commonLabels" . | nindent 4 }}
-    app.kubernetes.io/component: resource-quota
 spec:
   hard:
     requests.cpu: {{ .Values.resourceQuota.hard.requestsCpu | quote }}
@@ -53,7 +52,6 @@ metadata:
   namespace: {{ include "data-layer.namespace" . }}
   labels:
     {{- include "data-layer.commonLabels" . | nindent 4 }}
-    app.kubernetes.io/component: limit-range
 spec:
   limits:
     - max:

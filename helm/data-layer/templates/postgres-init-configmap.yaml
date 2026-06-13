@@ -6,7 +6,6 @@ metadata:
   namespace: {{ include "data-layer.namespace" . }}
   labels:
     {{- include "postgres.labels" . | nindent 4 }}
-    app.kubernetes.io/component: postgres-init
   annotations:
     description: "PostgreSQL one-time initialisation SQL. Mounted at /docker-entrypoint-initdb.d/init.sql; executed by the postgres entrypoint on first container start only."
 data:

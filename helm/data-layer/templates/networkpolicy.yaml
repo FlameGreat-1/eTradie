@@ -7,7 +7,6 @@ metadata:
   namespace: {{ include "data-layer.namespace" . }}
   labels:
     {{- include "postgres.labels" . | nindent 4 }}
-    app.kubernetes.io/component: postgres-network-policy
 spec:
   podSelector:
     matchLabels:
@@ -122,7 +121,6 @@ metadata:
   namespace: {{ include "data-layer.namespace" . }}
   labels:
     {{- include "redis.labels" . | nindent 4 }}
-    app.kubernetes.io/component: redis-network-policy
 spec:
   podSelector:
     matchLabels:
@@ -222,7 +220,6 @@ metadata:
   namespace: {{ include "data-layer.namespace" . }}
   labels:
     {{- include "postgres.labels" . | nindent 4 }}
-    app.kubernetes.io/component: postgres-backup-network-policy
 spec:
   podSelector:
     matchLabels:
@@ -287,7 +284,6 @@ metadata:
   namespace: {{ include "data-layer.namespace" . }}
   labels:
     {{- include "postgres.labels" . | nindent 4 }}
-    app.kubernetes.io/component: postgres-restore-drill-network-policy
 spec:
   podSelector:
     matchLabels:
@@ -326,7 +322,6 @@ metadata:
   namespace: {{ include "data-layer.namespace" . }}
   labels:
     {{- include "chromadb.labels" . | nindent 4 }}
-    app.kubernetes.io/component: chromadb-network-policy
 spec:
   podSelector:
     matchLabels:

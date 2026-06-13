@@ -6,7 +6,6 @@ metadata:
   namespace: {{ include "data-layer.namespace" . }}
   labels:
     {{- include "postgres.labels" . | nindent 4 }}
-    app.kubernetes.io/component: postgres-backup
 spec:
   accessModes:
     {{- toYaml .Values.postgres.backup.storage.accessModes | nindent 4 }}
@@ -25,7 +24,6 @@ metadata:
   labels:
     {{- include "postgres.labels" . | nindent 4 }}
     app.kubernetes.io/name: postgres-backup
-    app.kubernetes.io/component: postgres-backup
 spec:
   schedule: {{ .Values.postgres.backup.schedule | quote }}
   concurrencyPolicy: Forbid
@@ -45,7 +43,6 @@ spec:
           labels:
             {{- include "data-layer.commonLabels" . | nindent 12 }}
             app.kubernetes.io/name: postgres-backup
-            app.kubernetes.io/component: postgres-backup
         spec:
           restartPolicy: OnFailure
           automountServiceAccountToken: false

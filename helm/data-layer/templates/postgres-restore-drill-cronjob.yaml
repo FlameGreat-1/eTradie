@@ -12,7 +12,6 @@ metadata:
   labels:
     {{- include "postgres.labels" . | nindent 4 }}
     app.kubernetes.io/name: postgres-restore-drill
-    app.kubernetes.io/component: postgres-restore-drill
 spec:
   schedule: {{ .Values.postgres.restoreDrill.schedule | quote }}
   concurrencyPolicy: Forbid
@@ -29,7 +28,6 @@ spec:
           labels:
             {{- include "data-layer.commonLabels" . | nindent 12 }}
             app.kubernetes.io/name: postgres-restore-drill
-            app.kubernetes.io/component: postgres-restore-drill
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false

@@ -61,7 +61,6 @@ spec:
             # Postgres needs writable /var/run/postgresql for the unix
             # socket; cannot run with readOnlyRootFilesystem=true. The
             # data dir is on the PVC and all caps are dropped.
-            # trivy:ignore:KSV-0014
             readOnlyRootFilesystem: false
             runAsNonRoot: true
             runAsUser: 70

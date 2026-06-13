@@ -6,7 +6,6 @@ metadata:
   namespace: {{ include "data-layer.namespace" . }}
   labels:
     {{- include "redis.labels" . | nindent 4 }}
-    app.kubernetes.io/component: redis-config
   annotations:
     description: "Redis runtime configuration template. Mirrors docker-compose.yml command-line flags. The password is never persisted here; an init container appends it to the rendered runtime config."
 data:

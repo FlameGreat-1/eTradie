@@ -761,7 +761,6 @@ class ZmqClient(BrokerBase):
     # -- Trading methods (Execution + Management bridge) -----------------------
 
     async def get_account_info(self) -> AccountInfo:
-
         raw = await self._request({"command": "ACCOUNT_INFO"})
         if not isinstance(raw, dict):
             raise ProviderResponseError(
@@ -778,7 +777,6 @@ class ZmqClient(BrokerBase):
         )
 
     async def get_positions(self) -> list[PositionInfo]:
-
         raw = await self._request({"command": "POSITIONS"})
         if not isinstance(raw, list):
             raise ProviderResponseError(
@@ -814,7 +812,6 @@ class ZmqClient(BrokerBase):
         return positions
 
     async def get_history(self, days: int = 30) -> list[HistoryDealInfo]:
-
         raw = await self._request({"command": "HISTORY", "days": days})
         if not isinstance(raw, list):
             raise ProviderResponseError(
@@ -844,7 +841,6 @@ class ZmqClient(BrokerBase):
         return history
 
     async def get_pending_orders(self) -> list[PendingOrderInfo]:
-
         raw = await self._request({"command": "PENDING_ORDERS"})
         if not isinstance(raw, list):
             raise ProviderResponseError(
@@ -872,7 +868,6 @@ class ZmqClient(BrokerBase):
         return orders
 
     async def get_position(self, ticket: str) -> PositionInfo:
-
         raw = await self._request({"command": "POSITION", "ticket": ticket})
         if not isinstance(raw, dict):
             raise ProviderResponseError(
@@ -1031,7 +1026,6 @@ class ZmqClient(BrokerBase):
         lot_size: float,
         comment: str = "",
     ) -> OrderResult:
-
         request = {
             "command": "ORDER_SEND",
             "symbol": symbol,
