@@ -36,6 +36,9 @@ func validConfig() *Config {
 		ManagementTimeoutMs:           5000,
 		ExecutionHTTPURL:              "http://localhost:8080",
 		ManagementHTTPURL:             "http://localhost:8083",
+		BillingServiceURL:             "http://localhost:8082",
+		BillingInternalSharedSecret:   "test-billing-internal-shared-secret-0001",
+		BillingClientTimeoutMs:        15000,
 		HTTPPort:                      8080,
 		GRPCPort:                      50052,
 	}
