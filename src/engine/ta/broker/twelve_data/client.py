@@ -19,6 +19,7 @@ from engine.ta.broker.base import (
     AccountInfo,
     BrokerBase,
     BrokerCapabilities,
+    HistoryDealInfo,
     OrderResult,
     PendingOrderInfo,
     PositionInfo,
