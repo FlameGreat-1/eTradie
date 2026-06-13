@@ -28,7 +28,7 @@ def build_analysis_record(
     raw_output: dict[str, Any] | None = None,
 ) -> AnalysisRecord:
     """Build an AnalysisRecord from a validated AnalysisOutput."""
-    tp_prices = [None, None, None]
+    tp_prices: list[float | None] = [None, None, None]
     for i, tp in enumerate(output.take_profits[:3]):
         tp_prices[i] = tp.level
 
