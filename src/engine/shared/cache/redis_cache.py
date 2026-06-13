@@ -188,7 +188,7 @@ class RedisCache:
             CacheConnectionError: On connection failures
             CacheError: On other Redis errors
         """
-        last_error = None
+        last_error: Exception | None = None
         base_delay = 0.1
 
         for attempt in range(self._max_retries):
