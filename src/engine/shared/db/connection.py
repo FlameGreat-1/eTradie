@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
 from sqlalchemy import event, text
+from sqlalchemy.pool import QueuePool
 from sqlalchemy.exc import (
     DBAPIError,
     IntegrityError,
