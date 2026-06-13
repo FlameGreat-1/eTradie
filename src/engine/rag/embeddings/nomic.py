@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 from engine.config import RAGConfig
 from engine.rag.embeddings.base import BaseEmbeddingProvider
@@ -24,13 +25,13 @@ class NomicEmbeddingProvider(BaseEmbeddingProvider):
 
     @property
     def model_name(self) -> str:
-        return self._model_name
+        return str(self._model_name)
 
     @property
     def dimensions(self) -> int:
-        return self._dims
+        return int(self._dims)
 
-    def _load_model(self):
+    def _load_model(self) -> Any:
         if self._model is None:
             try:
                 from sentence_transformers import SentenceTransformer

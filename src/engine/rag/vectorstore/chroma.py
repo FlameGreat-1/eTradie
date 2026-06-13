@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
@@ -27,14 +28,14 @@ class ChromaVectorStore(BaseVectorStore):
     def __init__(self, *, config: RAGConfig) -> None:
         self._config = config
         self._executor = ThreadPoolExecutor(max_workers=4)
-        self._client: chromadb.HttpClient | None = None
+        self._client: Any | None = None
 
-    def _get_client(self) -> chromadb.HttpClient:
+    def _get_client(self) -> Any:
         if self._client is None:
             settings = ChromaSettings(
                 anonymized_telemetry=False,
             )
-            kwargs: dict = {
+            kwargs: dict[str, Any] = {
                 "host": self._config.chroma_host,
                 "port": self._config.chroma_port,
                 "settings": settings,
@@ -56,7 +57,7 @@ class ChromaVectorStore(BaseVectorStore):
                 ) from exc
         return self._client
 
-    def _run_sync(self, fn, *args, **kwargs):
+    def _run_sync(self, fn: Any, *args: Any, **kwargs: Any) -> Any:
         loop = asyncio.get_running_loop()
         return loop.run_in_executor(self._executor, lambda: fn(*args, **kwargs))
 
@@ -154,14 +155,14 @@ class ChromaVectorStore(BaseVectorStore):
         *,
         query_embedding: list[float],
         top_k: int,
-        where: dict | None = None,
+        where: dict[str, Any] | None = None,
     ) -> list[VectorSearchResult]:
         start = time.monotonic()
         try:
             client = self._get_client()
             col = await self._run_sync(client.get_collection, name=collection)
 
-            query_kwargs: dict = {
+            query_kwargs: dict[str, Any] = {
                 "query_embeddings": [query_embedding],
                 "n_results": top_k,
                 "include": ["documents", "metadatas", "distances"],
@@ -209,7 +210,7 @@ class ChromaVectorStore(BaseVectorStore):
         try:
             client = self._get_client()
             col = await self._run_sync(client.get_collection, name=collection)
-            return await self._run_sync(col.count)
+            return int(await self._run_sync(col.count))
         except Exception as exc:
             raise RAGVectorStoreError(
                 f"Failed to count collection {collection}",

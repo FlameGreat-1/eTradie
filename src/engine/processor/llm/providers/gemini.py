@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import AsyncGenerator
+from typing import Any
 
 from google import genai
 from google.genai import types
@@ -103,7 +104,7 @@ class GeminiClient(LLMClient):
         when the capability matrix says they apply; unknown user-
         supplied models silently fall back to the unconstrained path.
         """
-        kwargs: dict = {
+        kwargs: dict[str, Any] = {
             "system_instruction": system_prompt,
             "temperature": self._config.temperature,
             "max_output_tokens": self._config.max_output_tokens,
@@ -170,10 +171,14 @@ class GeminiClient(LLMClient):
 
         elapsed_ms = (time.monotonic() - start) * 1000
         text = response.text or ""
-        stop_reason = response.candidates[0].finish_reason.name if response.candidates else None
+        stop_reason = None
+        if response.candidates:
+            fr = response.candidates[0].finish_reason
+            if fr is not None:
+                stop_reason = fr.name if hasattr(fr, "name") else str(fr)
         usage = response.usage_metadata
-        input_tokens = usage.prompt_token_count if usage else 0
-        output_tokens = usage.candidates_token_count if usage else 0
+        input_tokens = (usage.prompt_token_count or 0) if usage else 0
+        output_tokens = (usage.candidates_token_count or 0) if usage else 0
 
         self._record_metrics(model, input_tokens, output_tokens, elapsed_ms)
         logger.info(
@@ -206,7 +211,7 @@ class GeminiClient(LLMClient):
         system_prompt: str,
         user_message: str,
         trace_id: str | None = None,
-        usage_out: dict | None = None,
+        usage_out: dict[str, Any] | None = None,
         use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
@@ -215,7 +220,7 @@ class GeminiClient(LLMClient):
             import asyncio
             import threading
 
-            queue: asyncio.Queue = asyncio.Queue()
+            queue: asyncio.Queue[Any] = asyncio.Queue()
             loop = asyncio.get_running_loop()
             generation_config = self._build_generation_config(
                 system_prompt=system_prompt,

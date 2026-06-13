@@ -152,7 +152,7 @@ class OpenAICompatibleClient(LLMClient):
         # and a free-text call must not flip it.
         attempt_with_format = use_structured_output and self._response_format_supported is not False
 
-        async def _do_call(use_format: bool):
+        async def _do_call(use_format: bool) -> Any:
             return await self._client.chat.completions.create(
                 **self._build_request_kwargs(
                     system_prompt=system_prompt,
@@ -245,12 +245,12 @@ class OpenAICompatibleClient(LLMClient):
         system_prompt: str,
         user_message: str,
         trace_id: str | None = None,
-        usage_out: dict | None = None,
+        usage_out: dict[str, Any] | None = None,
         use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
 
-        async def _open_stream(use_format: bool):
+        async def _open_stream(use_format: bool) -> Any:
             return await self._client.chat.completions.create(
                 **self._build_request_kwargs(
                     system_prompt=system_prompt,

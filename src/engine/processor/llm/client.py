@@ -31,7 +31,9 @@ Structured-output contract:
 from __future__ import annotations
 
 import abc
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -95,9 +97,9 @@ class LLMClient(abc.ABC):
         system_prompt: str,
         user_message: str,
         trace_id: str | None = None,
-        usage_out: dict | None = None,
+        usage_out: dict[str, Any] | None = None,
         use_structured_output: bool = True,
-    ) -> __import__("typing").AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str, None]:
         """Send a prompt and yield the raw text chunks as they arrive.
 
         Args:
@@ -115,7 +117,7 @@ class LLMClient(abc.ABC):
         Yields:
             str: Token chunks from the provider.
         """
-        ...
+        yield ""
 
     @abc.abstractmethod
     async def close(self) -> None:

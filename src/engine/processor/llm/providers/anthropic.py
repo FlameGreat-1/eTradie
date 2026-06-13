@@ -156,7 +156,7 @@ class AnthropicClient(LLMClient):
             if block_type == "tool_use" and getattr(block, "name", "") == _TOOL_NAME:
                 return orjson.dumps(getattr(block, "input", {})).decode()
             if block_type == "text" and getattr(block, "text", None):
-                return block.text
+                return str(block.text)
         return ""
 
     async def call(
@@ -227,7 +227,7 @@ class AnthropicClient(LLMClient):
         system_prompt: str,
         user_message: str,
         trace_id: str | None = None,
-        usage_out: dict | None = None,
+        usage_out: dict[str, Any] | None = None,
         use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name
