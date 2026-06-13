@@ -25,7 +25,7 @@ def _merge_snapshots(
     if not snapshots:
         return None
 
-    merged_data: dict[str, object] = {
+    merged_data: dict[str, Any] = {
         "dxy_value": None,
         "dxy_momentum": None,
         "gold_price": None,
