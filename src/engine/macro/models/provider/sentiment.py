@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 from engine.shared.models.base import TimestampedModel
 from engine.shared.models.currency import Currency
 

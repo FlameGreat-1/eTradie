@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Signal extraction helpers for the dashboard rerun pipeline.
 
 These functions replicate the Go gateway's macro_extractor.go and
@@ -10,7 +13,6 @@ The Go gateway path does NOT use these functions. It extracts signals
 in Go code and passes them via HTTP to the Python engine.
 """
 
-from __future__ import annotations
 
 
 def derive_macro_signals(macro: dict[str, Any]) -> dict[str, Any]:

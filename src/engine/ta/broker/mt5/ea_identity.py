@@ -22,7 +22,6 @@ in. This keeps the module trivially unit-testable.
 Audit ref: CHECKLIST Section 4 - 'Detect EA vs backend signal
 mismatch' + 'Kill-switch if EA diverges from expected logic'.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass

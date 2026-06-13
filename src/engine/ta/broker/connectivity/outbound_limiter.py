@@ -17,7 +17,6 @@ own ZMQ REQ socket to the EA. The combined ceiling is
 
 Audit ref: CHECKLIST Section 5 - 'Rate limits prevent EA flooding'.
 """
-
 from __future__ import annotations
 
 import asyncio

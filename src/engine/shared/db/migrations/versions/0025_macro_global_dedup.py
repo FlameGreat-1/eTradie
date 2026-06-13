@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Restore global dedup on macro tables, drop accidental multi-tenancy.
 
 Macro data (central-bank RSS, economic calendar, COT reports, DXY,
@@ -54,7 +57,6 @@ Revises: 0024
 Create Date: 2026-05-25
 """
 
-from __future__ import annotations
 
 from collections.abc import Sequence
 

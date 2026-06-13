@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
-
 from datetime import UTC
 from datetime import datetime as dt
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError

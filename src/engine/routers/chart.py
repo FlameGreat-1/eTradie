@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Chart data endpoints (Dashboard TradingView chart).
 
 These public-facing endpoints power the dashboard's Lightweight Charts.
@@ -13,7 +16,6 @@ Routes:
     WS  /api/broker/stream-positions
 """
 
-from __future__ import annotations
 
 import asyncio
 import hashlib

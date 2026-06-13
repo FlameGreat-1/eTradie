@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """CSRF enforcement for the Python FastAPI engine.
 
 Implements the same double-submit pattern as the Go gateway
@@ -33,7 +36,6 @@ environment at startup so it stays in sync with the Go gateway's
 configuration without any extra wiring.
 """
 
-from __future__ import annotations
 
 import hashlib
 import hmac

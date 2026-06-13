@@ -1,4 +1,5 @@
 from typing import Any
+
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer

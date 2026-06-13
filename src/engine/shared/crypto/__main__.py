@@ -16,7 +16,6 @@ This module is intentionally tiny: all logic lives in
 CredentialRewrapService. It only wires the engine settings into a
 DatabaseManager and translates the run outcome into a process exit code.
 """
-
 from __future__ import annotations
 
 import argparse

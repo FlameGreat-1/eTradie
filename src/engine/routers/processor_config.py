@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Admin processor configuration endpoints.
 
 Routes:
@@ -7,7 +10,6 @@ Routes:
     PUT /api/processor/config
 """
 
-from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import SecretStr

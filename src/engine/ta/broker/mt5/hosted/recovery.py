@@ -42,7 +42,6 @@ Design invariants
 - All four metrics are bounded-cardinality (see prometheus.py
   comments). Per-connection detail goes to structured logs.
 """
-
 from __future__ import annotations
 
 import asyncio

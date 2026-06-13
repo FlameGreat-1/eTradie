@@ -21,7 +21,6 @@ The system is pair-agnostic: it accepts ANY instrument the user selects
 from the dashboard. USD detection is dynamic (checks if symbol contains
 "USD"), not based on a hardcoded list.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

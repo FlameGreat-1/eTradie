@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Credential re-wrap maintenance service (KEK rotation / revocation).
 
 Executes a key rotation by upgrading every stored credential ciphertext
@@ -28,7 +31,6 @@ version, so the first run after this feature ships also migrates every
 pre-existing credential onto the envelope format.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 

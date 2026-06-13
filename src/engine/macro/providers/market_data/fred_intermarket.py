@@ -24,7 +24,6 @@ change, so direction is correct regardless of the absolute scale.
 
 FRED API docs: https://fred.stlouisfed.org/docs/api/fred/
 """
-
 from __future__ import annotations
 
 import time

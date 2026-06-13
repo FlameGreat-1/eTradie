@@ -17,7 +17,6 @@ This module installs a single catch-all handler that instead:
   * returns a sanitized generic JSON 500, so no internal error string,
     exception type, or stack trace is ever returned to the caller.
 """
-
 from __future__ import annotations
 
 from fastapi import FastAPI, Request

@@ -4,7 +4,6 @@ All configuration is loaded from environment variables and validated at startup.
 The application fails fast if any required variable is missing or malformed.
 This is the single source of truth for every tuneable parameter in the system.
 """
-
 from __future__ import annotations
 
 from enum import StrEnum

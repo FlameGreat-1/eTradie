@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 from typing import Any
+
 """SQLAlchemy table definitions for processor persistence.
 
 Defines analysis_outputs and analysis_audit_logs tables.
 Follows the same pattern as TA and RAG schemas.
 """
 
-from __future__ import annotations
 
 from datetime import UTC, datetime
 from uuid import uuid4

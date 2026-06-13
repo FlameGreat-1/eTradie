@@ -24,7 +24,6 @@ The ``AnalysisOutput`` Pydantic model in ``models/analysis.py`` is the
 single source of truth. Nothing here mutates it. We only read from
 its ``.model_json_schema()`` output.
 """
-
 from __future__ import annotations
 
 import copy

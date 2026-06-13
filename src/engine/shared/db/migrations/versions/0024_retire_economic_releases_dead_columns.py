@@ -36,7 +36,6 @@ Downgrade restores the previous shape with empty values where the
 providers never populated data. Surprise enums fall back to
 'INLINE' / 'MEDIUM' to satisfy the original NOT NULL defaults.
 """
-
 from __future__ import annotations
 
 from collections.abc import Sequence

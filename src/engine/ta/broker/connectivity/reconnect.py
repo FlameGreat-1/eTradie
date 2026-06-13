@@ -20,7 +20,6 @@ Design
   module only computes the next delay and tracks the attempt counter.
   Makes unit testing trivial (no event loop, no mocking).
 """
-
 from __future__ import annotations
 
 import asyncio

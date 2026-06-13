@@ -9,7 +9,6 @@ This ensures the LLM always receives comprehensive knowledge coverage
 regardless of which retrieval strategy was selected or how semantic
 similarity scores distributed across documents.
 """
-
 from __future__ import annotations
 
 from engine.rag.constants import DocumentType

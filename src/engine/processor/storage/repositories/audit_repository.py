@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Repository for persisting analysis audit logs.
 
 Extends BaseRepository. Audit logs are append-only and immutable.
 """
 
-from __future__ import annotations
 
 from collections.abc import Sequence
 

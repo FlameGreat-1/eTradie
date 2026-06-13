@@ -1,5 +1,6 @@
-from typing import Any
 from __future__ import annotations
+
+from typing import Any
 
 from engine.rag.constants import (
     METADATA_KEY_DOC_TYPE,

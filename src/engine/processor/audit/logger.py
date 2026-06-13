@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Build audit records from processor state.
 
 Constructs AnalysisRecord and AuditLogRecord from the processor's
@@ -6,7 +9,6 @@ internal data for Postgres persistence. Pure data transformation
 with no I/O.
 """
 
-from __future__ import annotations
 
 from datetime import UTC, datetime
 

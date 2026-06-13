@@ -13,7 +13,6 @@ Protocol commands:
 All blocking zmq operations are wrapped in asyncio.to_thread
 so the event loop is never blocked.
 """
-
 from __future__ import annotations
 
 import asyncio

@@ -17,7 +17,6 @@ is the right statistic for clock skew over a window of 16 samples.
 Audit ref: CHECKLIST Section 4 - 'Time synchronization (critical
 for trading logic)'.
 """
-
 from __future__ import annotations
 
 import statistics

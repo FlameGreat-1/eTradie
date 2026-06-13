@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Metering client: calls the gateway's /internal/metering/* endpoints.
 
 The gateway is the single source of truth for LLM token quotas. The
@@ -54,7 +57,6 @@ the error in the logs of the failed request instead of in a startup
 crash loop.
 """
 
-from __future__ import annotations
 
 import os
 import threading

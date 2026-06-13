@@ -36,7 +36,6 @@ cannot silently silence the cross-service bus.
 
 Audit ref: ADMIN-QUOTA-9.
 """
-
 from __future__ import annotations
 
 import os

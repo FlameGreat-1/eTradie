@@ -5,7 +5,6 @@ configured provider. This is the single construction point.
 No provider-specific logic exists outside this factory and
 the provider modules themselves.
 """
-
 from __future__ import annotations
 
 from engine.processor.config import ProcessorConfig

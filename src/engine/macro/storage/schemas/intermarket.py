@@ -1,8 +1,8 @@
-from typing import Any
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, Float, Index, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSON, UUID

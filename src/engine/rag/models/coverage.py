@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 from pydantic import Field
 
 from engine.rag.constants import CoverageResult, DocumentType, Framework

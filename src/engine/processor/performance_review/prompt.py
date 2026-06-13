@@ -22,7 +22,6 @@ rejects any payload that does not parse or does not validate, and
 the gateway rejects any payload whose fields are out of bounds or
 contain banned phrases.
 """
-
 from __future__ import annotations
 
 import json

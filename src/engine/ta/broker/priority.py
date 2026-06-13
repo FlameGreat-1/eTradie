@@ -37,7 +37,6 @@ Why a context manager not an argument
     creation, so a foreground task's priority is never accidentally seen
     by a sibling background task.
 """
-
 from __future__ import annotations
 
 import contextlib

@@ -8,7 +8,6 @@ market sentiment across all 8 major currencies.
 Reads from the global Redis COT cache, so this provider has zero
 external API calls and zero cost.
 """
-
 from __future__ import annotations
 
 import time

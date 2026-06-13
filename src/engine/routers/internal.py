@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Internal endpoints called by the Go gateway.
 
 Routes:
@@ -10,7 +13,6 @@ Routes:
     POST /internal/debug/runcycle
 """
 
-from __future__ import annotations
 
 import asyncio
 

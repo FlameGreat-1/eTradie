@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Repository for broker connection CRUD operations.
 
 All database operations for the broker_connections table.
@@ -20,7 +23,6 @@ user-configured via the dashboard and follow the same CRUD + encryption
 pattern.
 """
 
-from __future__ import annotations
 
 import re
 from datetime import UTC, datetime

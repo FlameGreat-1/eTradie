@@ -1,5 +1,5 @@
-from typing import Any
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, DateTime, Index, String, Text

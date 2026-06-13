@@ -1,7 +1,7 @@
-from typing import Any
 from __future__ import annotations
 
 import time
+from typing import Any
 from uuid import UUID
 
 from engine.config import RAGConfig

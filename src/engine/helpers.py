@@ -3,7 +3,6 @@
 Extracted from main.py for maintainability. These are stateless utility
 functions used across multiple router modules.
 """
-
 from __future__ import annotations
 
 import json
@@ -13,7 +12,7 @@ from collections import OrderedDict
 from datetime import UTC
 from datetime import datetime as dt
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException
 

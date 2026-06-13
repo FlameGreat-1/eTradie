@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Parse raw LLM JSON text into the canonical AnalysisOutput model.
 
 Handles JSON extraction from potentially noisy LLM output,
@@ -6,7 +9,6 @@ Pydantic validation, and error recovery. Records parse metrics
 via shared Prometheus counters.
 """
 
-from __future__ import annotations
 
 import re
 

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Map AnalysisOutput to the gateway's ProcessorOutput.
 
 The gateway's ProcessorOutput is a simpler model used for guard
@@ -8,7 +11,6 @@ AnalysisOutput (full Rulebook schema) to the gateway contract.
 Single responsibility: model translation. No business logic.
 """
 
-from __future__ import annotations
 
 from engine.processor.constants import (
     RISK_PERCENT_A,

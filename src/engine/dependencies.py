@@ -1,7 +1,7 @@
-from typing import Any
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from engine.config import get_rag_config, get_settings
 from engine.macro.collectors.calendar.collector import CalendarCollector

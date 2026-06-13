@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 
 # shared/models/currency.py
 
-from __future__ import annotations
 
 from enum import StrEnum
 from threading import Lock

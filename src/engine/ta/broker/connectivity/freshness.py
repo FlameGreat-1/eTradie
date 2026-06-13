@@ -10,7 +10,6 @@ can be invoked on every tick without affecting the latency budget.
 Audit ref: CHECKLIST Section 2 - 'Price feed validation layer
 (anti-stale pricing detection)'.
 """
-
 from __future__ import annotations
 
 import time as _time

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Internal route for Trading Plan generation dispatch.
 
 The Go gateway calls this when the user clicks \"Generate plan\" (or
@@ -35,7 +38,6 @@ Responses:
                           URL or internal secret missing).
 """
 
-from __future__ import annotations
 
 import asyncio
 

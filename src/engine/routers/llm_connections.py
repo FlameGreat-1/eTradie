@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """LLM connection management endpoints.
 
 Routes:
@@ -15,7 +18,6 @@ Routes:
     DELETE /api/llm/platform/connection
 """
 
-from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 

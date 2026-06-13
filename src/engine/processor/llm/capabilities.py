@@ -12,7 +12,6 @@ model strings (per ``ProcessorConfig.model_name``) without breaking:
 an unknown model falls back to a permissive default profile that
 works via the existing free-text path.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass

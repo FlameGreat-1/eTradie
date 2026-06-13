@@ -10,7 +10,6 @@ The response contract is STRICT JSON only. We use response shape
 validation on the engine side (json.loads + structural checks) so the
 LLM cannot smuggle markdown fences or commentary into the payload.
 """
-
 from __future__ import annotations
 
 import json

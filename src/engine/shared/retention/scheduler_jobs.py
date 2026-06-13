@@ -8,7 +8,6 @@ TA and Macro tables in a single pass.
 The cron schedule is configurable via environment variable:
     RETENTION_PRUNE_CRON="0 3 * * *"  (default: daily at 03:00 UTC)
 """
-
 from __future__ import annotations
 
 import os

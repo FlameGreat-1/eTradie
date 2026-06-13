@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Health check endpoints.
 
 Routes:
@@ -16,7 +19,6 @@ worst case is traffic stops being routed to this pod until the
 dependency recovers. Audit ref: V-14, X-8.
 """
 
-from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response, status
 

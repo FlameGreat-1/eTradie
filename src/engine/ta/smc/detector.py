@@ -1,5 +1,5 @@
-from typing import Any
 from datetime import timedelta
+from typing import Any
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.candles import CandleAnalyzer

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Internal broker bridge endpoints (Go Execution + Management).
 
 These endpoints proxy broker operations from the Go services through
@@ -21,7 +24,6 @@ Routes:
     POST /internal/broker/close_position
 """
 
-from __future__ import annotations
 
 import asyncio
 import contextlib

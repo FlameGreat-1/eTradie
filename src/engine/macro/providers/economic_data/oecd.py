@@ -11,7 +11,6 @@ Covers: EUR (Euro Area), GBP (UK), JPY (Japan), CHF (Switzerland),
 API docs: https://data-explorer.oecd.org/
 No API key required. Rate limit: reasonable for hourly polling.
 """
-
 from __future__ import annotations
 
 import time

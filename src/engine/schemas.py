@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Request and response schemas for the engine API.
 
 Extracted from main.py for maintainability. Every schema is a pure
 Pydantic model with no side effects.
 """
 
-from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 

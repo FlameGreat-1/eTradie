@@ -15,7 +15,6 @@ Three creation paths from DB rows:
                                    Pod in-cluster, provisioned by
                                    HostedProvisioner)
 """
-
 from __future__ import annotations
 
 import os

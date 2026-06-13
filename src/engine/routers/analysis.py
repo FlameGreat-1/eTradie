@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Analysis dashboard endpoints.
 
 Routes:
@@ -10,7 +13,6 @@ Routes:
     POST /api/analysis/rerun
 """
 
-from __future__ import annotations
 
 import asyncio
 import contextlib

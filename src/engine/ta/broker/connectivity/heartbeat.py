@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Broker heartbeat service.
 
 Runs one async task per active broker connection. Each task:
@@ -24,7 +27,6 @@ Audit ref: CHECKLIST Section 2 - 'Heartbeat system per MT terminal',
 'Detection of silent disconnect'.
 """
 
-from __future__ import annotations
 
 import asyncio
 import json

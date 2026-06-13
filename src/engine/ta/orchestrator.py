@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """
 TA workflow orchestration — multi-timeframe top-down analysis.
 
@@ -15,7 +18,6 @@ The Gateway does NOT dictate timeframes. It simply calls:
 and receives a fully structured multi-timeframe result.
 """
 
-from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 

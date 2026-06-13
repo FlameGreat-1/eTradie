@@ -10,7 +10,6 @@ flag so subsequent calls skip the rejection round-trip. ``service.py``
 reads ``structured_output_active`` to decide whether to engage the
 strict path or the hardened free-text parser.
 """
-
 from __future__ import annotations
 
 import time

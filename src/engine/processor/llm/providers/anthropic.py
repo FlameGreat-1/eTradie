@@ -18,7 +18,6 @@ dashboard's existing regex that scans the partial JSON for
 ``thinking={'type': 'enabled', 'budget_tokens': N}`` is sent only
 for thinking-capable SKUs (Opus 4.x with extended thinking enabled).
 """
-
 from __future__ import annotations
 
 import time

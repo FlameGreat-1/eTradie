@@ -7,8 +7,9 @@ When direction is NO SETUP, trade-specific fields are null but keys exist.
 The LLM raw JSON is parsed and validated into this model before being
 mapped to the gateway's ProcessorOutput for routing.
 """
-
 from __future__ import annotations
+
+
 
 from datetime import datetime
 from typing import Optional

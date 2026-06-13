@@ -3,8 +3,9 @@
 These models represent the rows written to Postgres for every
 processor invocation, as required by LLM.md Section 9.
 """
-
 from __future__ import annotations
+
+
 
 from datetime import datetime
 from typing import Any, Optional

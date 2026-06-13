@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 #!/usr/bin/env python3
 """Daily VolumeSnapshot pass for every mt-node Wine prefix PVC.
 
@@ -36,7 +39,6 @@ grants exactly:
 Nothing else. No cluster-scoped verbs.
 """
 
-from __future__ import annotations
 
 import asyncio
 import os

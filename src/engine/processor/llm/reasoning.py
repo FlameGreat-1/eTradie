@@ -26,7 +26,6 @@ provider implementations translate it into their native knob inside
 their own module so the rest of the codebase never touches a
 provider-specific reasoning parameter.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass

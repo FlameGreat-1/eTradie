@@ -30,7 +30,6 @@ The ``phase`` field maps to the "in-place update" UI rows:
     REASONING     → LLM processor / AI decision
     ACTIONING     → Persistence and finalisation
 """
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable

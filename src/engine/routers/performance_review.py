@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Internal routes for Performance Review dispatch.
 
 The Go gateway calls /internal/performance-review/dispatch when the
@@ -17,7 +20,6 @@ authenticated the caller. We verify the shared-secret HMAC via the
 same dependency the rest of the /internal/* surface uses.
 """
 
-from __future__ import annotations
 
 import asyncio
 from datetime import datetime

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Drop NOT NULL constraint on candidates.take_profit.
 
 The CandidateSchema ORM declares take_profit as nullable and
@@ -24,7 +27,6 @@ Revises: 0014
 Create Date: 2026-04-17
 """
 
-from __future__ import annotations
 
 from collections.abc import Sequence
 

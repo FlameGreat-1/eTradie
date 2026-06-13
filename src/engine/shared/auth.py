@@ -44,7 +44,6 @@ Usage in FastAPI WebSocket endpoints:
             return
         ...
 """
-
 from __future__ import annotations
 
 import os

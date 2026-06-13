@@ -3,7 +3,6 @@
 All processor-specific enumerations and fixed values.
 Every other processor module imports from this file.
 """
-
 from __future__ import annotations
 
 from enum import StrEnum, unique

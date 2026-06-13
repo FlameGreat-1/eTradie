@@ -27,7 +27,6 @@ Structured-output contract:
     byte-for-byte. Only callers that own a different wire schema
     should pass False.
 """
-
 from __future__ import annotations
 
 import abc

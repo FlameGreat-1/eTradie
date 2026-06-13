@@ -34,7 +34,6 @@ container; the watchdog sidecar enforces semantic restart
 (EA disconnected, memory soft-cap, CPU soft-cap). All three layers
 are independent.
 """
-
 from __future__ import annotations
 
 import asyncio

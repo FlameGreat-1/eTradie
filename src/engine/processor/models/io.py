@@ -20,8 +20,9 @@ If you add, remove, or rename a field here, you MUST also update:
   3. Run `make proto-gen` to regenerate Go proto types
   4. Run `make contract-check` to verify Python parity
 """
-
 from __future__ import annotations
+
+
 
 import abc
 from typing import Any, Optional

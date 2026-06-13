@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from typing import Any
+
 """Lightweight LTF confirmation service with HTF invalidation.
 
 Designed for the execution watcher's fast-path confirmation pulse.
@@ -21,7 +24,6 @@ Total latency: ~100-200ms (two sequential broker fetches + scans).
 This replaces the full TA pipeline re-run (~5-10s).
 """
 
-from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
