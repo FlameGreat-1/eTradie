@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 """Analysis dashboard endpoints.
 
 Routes:
@@ -20,6 +18,7 @@ import json
 from collections.abc import Sequence
 from datetime import UTC
 from datetime import datetime as dt
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
