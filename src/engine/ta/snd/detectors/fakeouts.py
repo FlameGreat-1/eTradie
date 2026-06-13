@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.compression import CompressionAnalyzer
 from engine.ta.common.analyzers.marubozu import MarubozuAnalyzer
@@ -24,7 +26,7 @@ class FakeoutTest:
         timeframe: str,
         test_number: int,
         level: float,
-        timestamp: object,
+        timestamp: datetime,
         candle_index: int,
         direction: Direction,
         is_diamond_fakeout: bool = False,
