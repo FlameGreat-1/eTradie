@@ -172,9 +172,13 @@ func TestGRPC_ConfirmSetup_Confirmed(t *testing.T) {
 	assert.Equal(t, "SMC LTF confirmation met", resp.Reason)
 	assert.Equal(t, "trace-grpc-confirm-001", resp.TraceId)
 
-	// Only TA should have been called (confirmation pulse bypasses others).
+	// TA and Macro are both called: Macro is needed by the news-lockout
+	// re-check in RunConfirmationPulse (fire-time gate for INSTANT
+	// orders against fiat symbols). RAG and Processor are bypassed.
+	// Matches e2e TestConfirmationPulse_LTFConfirmed.
 	assert.Equal(t, int64(1), h.Engine.TACalls.Load())
-	assert.Equal(t, int64(0), h.Engine.MacroCalls.Load())
+	assert.Equal(t, int64(1), h.Engine.MacroCalls.Load(),
+		"Macro should be called for news-lockout check")
 	assert.Equal(t, int64(0), h.Engine.RAGCalls.Load())
 	assert.Equal(t, int64(0), h.Engine.ProcessorCalls.Load())
 }

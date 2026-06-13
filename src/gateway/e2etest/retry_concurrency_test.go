@@ -33,11 +33,16 @@ func TestRetry_TAFailsThenSucceeds(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	// The HTTP client retries 3+1=4 times per cycle attempt.
-	// We want the first cycle attempt to fully fail (all HTTP retries exhausted),
-	// then the second cycle attempt to succeed.
-	// So we fail the first 4 calls (1 original + 3 retries), then succeed.
-	failThreshold := int64(4)
+	// The HTTP client uses resilience.TransientRetryConfig with
+	// MaxRetries=1 (one retry only, the correct production policy for
+	// 502/503/504 upstream errors). So each cycle attempt makes 2 TA
+	// calls (1 original + 1 retry). With MaxCycleRetries=1 the total
+	// budget is 2 cycle attempts × 2 HTTP calls = 4 calls.
+	//
+	// We want the first cycle attempt to fully fail and the second
+	// cycle attempt to succeed, so we flip after the first cycle
+	// attempt's two HTTP calls return 503.
+	failThreshold := int64(2)
 
 	successResponse := TAResponseWithCandidates()
 
