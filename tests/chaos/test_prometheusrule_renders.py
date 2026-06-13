@@ -75,6 +75,13 @@ def test_mt_node_chart_renders_memory_leak_rule():
             # that satisfies the guard so the full chart renders in CI. Real
             # values come from values-{staging,production}.yaml overlays.
             "externalSecrets.platform.vaultPath=etradie/services/mt-node/test",
+            # cronjob-snapshotter.yaml is platform-only and requires
+            # snapshotter.volumeSnapshotClassName + snapshotter.image.repository
+            # which are CSI- and registry-specific operator inputs supplied by
+            # values-{staging,production}.yaml. This test asserts on the
+            # PrometheusRule only, so disable the snapshotter to keep the
+            # scope tight.
+            "snapshotter.enabled=false",
         ],
     )
     assert "MTNodePodPending" in rendered
