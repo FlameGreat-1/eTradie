@@ -41,6 +41,8 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import and_, delete
 
 # Macro schemas
+from engine.shared.db.migrations._schema_registry import Base
+
 from engine.macro.storage.schemas.calendar import CalendarEventRow
 from engine.macro.storage.schemas.central_bank import CentralBankEventRow
 from engine.macro.storage.schemas.cot import COTReportRow
@@ -216,7 +218,7 @@ class RetentionPruner:
 
     async def _prune_processor_table(
         self,
-        schema_class: type,
+        schema_class: type[Base],
         timestamp_column: str,
         retention_hours: int,
     ) -> int:
@@ -234,7 +236,7 @@ class RetentionPruner:
 
     async def _prune_macro_table(
         self,
-        schema_class: type,
+        schema_class: type[Base],
         timestamp_column: str,
         retention_hours: int,
     ) -> int:
