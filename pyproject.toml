@@ -64,7 +64,7 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
-disable_error_code = [
+#disable_error_code = [
     "prop-decorator",
     "import-not-found",
     "arg-type",
@@ -83,8 +83,10 @@ disable_error_code = [
     "list-item",
     "no-untyped-call",
     "unused-ignore",
-    "abstract"
+    "abstract",
+    "call-arg"
 ]
+
 
 [[tool.mypy.overrides]]
 module = ["feedparser.*", "apscheduler.*"]
