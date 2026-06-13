@@ -111,19 +111,32 @@ func TestValidate_CycleTimeoutSeconds_BelowLowerBound(t *testing.T) {
 
 func TestValidate_CycleTimeoutSeconds_AtUpperBound(t *testing.T) {
 	cfg := validConfig()
-	cfg.CycleTimeoutSeconds = 600
-	// sub-phase = 120 + 100 = 220 < 600 ✓
+	// The production ceiling was raised to 900s (see config.go field
+	// comment) so operators can absorb the Anthropic p99 latency on
+	// large 26-RAG-chunk processor calls. Exercise the real boundary.
+	cfg.CycleTimeoutSeconds = 900
+	// sub-phase = 120 + 30 + 60 + 10 = 220 < 900 ✓
 	if err := cfg.validate(); err != nil {
-		t.Fatalf("timeout=600 should be valid, got: %v", err)
+		t.Fatalf("timeout=900 should be valid, got: %v", err)
 	}
 }
 
 func TestValidate_CycleTimeoutSeconds_AboveUpperBound(t *testing.T) {
 	cfg := validConfig()
-	cfg.CycleTimeoutSeconds = 601
+	cfg.CycleTimeoutSeconds = 901
+	// Sub-phase budget intentionally well under 901 so the
+	// CYCLE_TIMEOUT_SECONDS bound is the cause of the rejection
+	// rather than the sub-phase budget rule masking it.
+	cfg.TAMacroParallelTimeoutSeconds = 120
+	cfg.RAGTimeoutSeconds = 30
+	cfg.ProcessorTimeoutSeconds = 60
+	cfg.GuardTimeoutSeconds = 10
 	err := cfg.validate()
 	if err == nil {
-		t.Fatal("timeout=601 should fail validation")
+		t.Fatal("timeout=901 should fail validation")
+	}
+	if !strings.Contains(err.Error(), "CYCLE_TIMEOUT_SECONDS") {
+		t.Fatalf("error should mention CYCLE_TIMEOUT_SECONDS, got: %v", err)
 	}
 }
 
