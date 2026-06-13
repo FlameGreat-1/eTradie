@@ -41,8 +41,6 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import and_, delete
 
 # Macro schemas
-from engine.shared.db.migrations._schema_registry import Base
-
 from engine.macro.storage.schemas.calendar import CalendarEventRow
 from engine.macro.storage.schemas.central_bank import CentralBankEventRow
 from engine.macro.storage.schemas.cot import COTReportRow
@@ -57,6 +55,7 @@ from engine.processor.storage.schemas.processor_schema import (
     AnalysisOutputRow,
 )
 from engine.shared.db import DatabaseManager
+from engine.shared.db.migrations._schema_registry import Base
 from engine.shared.logging import get_logger
 from engine.ta.storage.schemas.candidate import CandidateSchema
 
