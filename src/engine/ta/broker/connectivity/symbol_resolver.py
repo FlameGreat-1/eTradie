@@ -28,6 +28,8 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
+from redis.asyncio import Redis
+
 from engine.shared.exceptions import ProviderResponseError
 from engine.shared.logging import get_logger
 from engine.shared.metrics.prometheus import (
@@ -70,7 +72,7 @@ class SymbolResolver:
     account_id: str
     fetch_all_names: FetchAllNamesFn
     uow_factory: TAUOWFactory
-    redis_client: object
+    redis_client: Redis
     cache_ttl_secs: int = 3600
 
     REDIS_KEY_PREFIX = "etradie:symbol:resolve:"
