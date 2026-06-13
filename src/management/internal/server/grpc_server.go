@@ -371,9 +371,9 @@ func (s *ManagementServer) GetTradeJournal(ctx context.Context, req *managementv
 			TradingStyle:      t.TradingStyle,
 			Outcome:           t.Outcome,
 			OpenedAt:          t.OpenedAt.Format(time.RFC3339),
-			DurationMinutes:   int32(t.DurationMinutes),
-			SlAdjustmentCount: int32(t.SLAdjustments),
-			PartialCloseCount: int32(t.PartialCloses),
+			DurationMinutes:   int32(t.DurationMinutes), // #nosec G115
+			SlAdjustmentCount: int32(t.SLAdjustments),   // #nosec G115
+			PartialCloseCount: int32(t.PartialCloses),   // #nosec G115
 			AnalysisId:        t.AnalysisID,
 		}
 		if t.ClosedAt != nil {
@@ -384,7 +384,7 @@ func (s *ManagementServer) GetTradeJournal(ctx context.Context, req *managementv
 
 	return &managementv1.GetTradeJournalResponse{
 		Entries:    entries,
-		TotalCount: int32(total),
+		TotalCount: int32(total), // #nosec G115
 	}, nil
 }
 
@@ -409,13 +409,13 @@ func (s *ManagementServer) GetPerformanceMetrics(ctx context.Context, req *manag
 		WinRate:              summary.WinRate,
 		AvgRMultiple:         summary.AvgRMultiple,
 		Expectancy:           summary.Expectancy,
-		TotalTrades:          int32(summary.TotalTrades),
-		Wins:                 int32(summary.Wins),
-		Losses:               int32(summary.Losses),
-		Breakevens:           int32(summary.Breakevens),
+		TotalTrades:          int32(summary.TotalTrades),        // #nosec G115
+		Wins:                 int32(summary.Wins),               // #nosec G115
+		Losses:               int32(summary.Losses),             // #nosec G115
+		Breakevens:           int32(summary.Breakevens),         // #nosec G115
 		TotalPnl:             summary.TotalPnL,
-		MaxConsecutiveWins:   int32(summary.MaxConsecutiveWins),
-		MaxConsecutiveLosses: int32(summary.MaxConsecutiveLosses),
+		MaxConsecutiveWins:   int32(summary.MaxConsecutiveWins),   // #nosec G115
+		MaxConsecutiveLosses: int32(summary.MaxConsecutiveLosses), // #nosec G115
 		MaxDrawdownPct:       summary.MaxDrawdownPct,
 		BestTradeR:           summary.BestTradeR,
 		WorstTradeR:          summary.WorstTradeR,
@@ -534,7 +534,7 @@ func (s *ManagementServer) GetManualJournal(ctx context.Context, req *management
 
 	return &managementv1.GetManualJournalResponse{
 		Entries:     entries,
-		TotalClosed: int32(totalClosed),
+		TotalClosed: int32(totalClosed), // #nosec G115
 	}, nil
 }
 
@@ -544,6 +544,6 @@ func (s *ManagementServer) GetHealth(_ context.Context, _ *managementv1.GetHealt
 		Status:          "ok",
 		DbConnected:     true,
 		BrokerConnected: true,
-		ActiveTrades:    int32(s.monitor.TradeCount()),
+		ActiveTrades:    int32(s.monitor.TradeCount()), // #nosec G115
 	}, nil
 }

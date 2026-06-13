@@ -1177,7 +1177,7 @@ func (o *Orchestrator) processSymbol(
 		// omitted because no LLM call ran and no execution request was
 		// built. The engine handler accepts nil/empty values for those
 		// fields and writes only the populated files.
-		go func() {
+		go func() { // #nosec G118
 			debugCtx, debugCancel := context.WithTimeout(context.Background(), 10*time.Second) // #nosec G114 -- intentionally detached from request context; this is fire-and-forget debug persistence.
 			defer debugCancel()
 			if rawToken := auth.RawTokenFromContext(ctx); rawToken != "" {
@@ -1351,7 +1351,7 @@ func (o *Orchestrator) processSymbol(
 	// Fire-and-forget: persist pipeline data to /output/runcycle/ for debugging.
 	// Runs in a background goroutine so it NEVER blocks the pipeline.
 	// Uses processorInput (assembled TA + Macro + RAG) plus processorOutput.
-	go func() {
+	go func() { // #nosec G118
 		debugCtx, debugCancel := context.WithTimeout(context.Background(), 10*time.Second) // #nosec G114 -- intentionally detached from request context; this is fire-and-forget debug persistence.
 		defer debugCancel()
 

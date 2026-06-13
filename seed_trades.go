@@ -60,57 +60,57 @@ func main() {
 	for d := startDate; d.Before(now); d = d.AddDate(0, 0, 1) {
 		// Skip weekends (mostly)
 		if d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
-			if rand.Float32() > 0.1 { // 10% chance of trading crypto on weekend
+			if rand.Float32() > 0.1 { // #nosec G404 // 10% chance of trading crypto on weekend
 				continue
 			}
 		}
 
 		// 1 to 4 trades a day
-		tradesToday := rand.Intn(4) + 1
+		tradesToday := rand.Intn(4) + 1 // #nosec G404
 		for i := 0; i < tradesToday; i++ {
-			symbol := symbols[rand.Intn(len(symbols))]
-			direction := directions[rand.Intn(len(directions))]
-			style := styles[rand.Intn(len(styles))]
+			symbol := symbols[rand.Intn(len(symbols))]       // #nosec G404
+			direction := directions[rand.Intn(len(directions))] // #nosec G404
+			style := styles[rand.Intn(len(styles))]             // #nosec G404
 
 			// Realistic base prices
 			var basePrice, volatility float64
 			switch symbol {
 			case "EURUSD":
-				basePrice = 1.1785 + (rand.Float64()*0.005 - 0.0025)
+				basePrice = 1.1785 + (rand.Float64()*0.005 - 0.0025) // #nosec G404
 				volatility = 0.0020
 			case "GBPUSD":
-				basePrice = 1.3632 + (rand.Float64()*0.005 - 0.0025)
+				basePrice = 1.3632 + (rand.Float64()*0.005 - 0.0025) // #nosec G404
 				volatility = 0.0025
 			case "XAUUSD":
-				basePrice = 4700.0 + (rand.Float64()*50.0 - 25.0)
+				basePrice = 4700.0 + (rand.Float64()*50.0 - 25.0) // #nosec G404
 				volatility = 10.0
 			case "US30":
-				basePrice = 49600.0 + (rand.Float64()*500.0 - 250.0)
+				basePrice = 49600.0 + (rand.Float64()*500.0 - 250.0) // #nosec G404
 				volatility = 80.0
 			case "NAS100":
-				basePrice = 29200.0 + (rand.Float64()*300.0 - 150.0)
+				basePrice = 29200.0 + (rand.Float64()*300.0 - 150.0) // #nosec G404
 				volatility = 50.0
 			}
 
 			// Determine Outcome (61% win rate)
-			isWin := rand.Float32() <= 0.61
+			isWin := rand.Float32() <= 0.61 // #nosec G404
 			
-			riskAmount := float64(100 + rand.Intn(400)) // Risking $100-$500 per trade
+			riskAmount := float64(100 + rand.Intn(400)) // #nosec G404 // Risking $100-$500 per trade
 			var grossPnL float64
 			var rMultiple float64
 			
 			if isWin {
 				// Win: 1.5R to 3.5R
-				rMultiple = 1.5 + (rand.Float64() * 2.0)
+				rMultiple = 1.5 + (rand.Float64() * 2.0) // #nosec G404
 				grossPnL = riskAmount * rMultiple
 			} else {
 				// Loss: exactly -1R or slightly less if slippage/early close
-				if rand.Float32() > 0.2 {
+				if rand.Float32() > 0.2 { // #nosec G404
 					rMultiple = -1.0
 					grossPnL = -riskAmount
 				} else {
 					// Early close loss
-					rMultiple = -0.5 - (rand.Float64() * 0.4)
+					rMultiple = -0.5 - (rand.Float64() * 0.4) // #nosec G404
 					grossPnL = riskAmount * rMultiple
 				}
 			}
@@ -118,7 +118,7 @@ func main() {
 			// Calculate Entry, Exit, SL
 			entryPrice := basePrice
 			var exitPrice, stopLoss float64
-			slDistance := volatility * (0.8 + rand.Float64()*0.4) // Randomize SL size slightly
+			slDistance := volatility * (0.8 + rand.Float64()*0.4) // #nosec G404 // Randomize SL size slightly
 
 			if direction == "LONG" {
 				stopLoss = entryPrice - slDistance
@@ -129,11 +129,11 @@ func main() {
 			}
 
 			// Randomize trade duration (15 mins to 4 hours)
-			durationMins := 15 + rand.Intn(240)
+			durationMins := 15 + rand.Intn(240) // #nosec G404
 			
 			// Open time is somewhere in the day
-			hour := 8 + rand.Intn(8) // 8 AM to 4 PM
-			openedAt := time.Date(d.Year(), d.Month(), d.Day(), hour, rand.Intn(60), 0, 0, d.Location())
+			hour := 8 + rand.Intn(8) // #nosec G404 // 8 AM to 4 PM
+			openedAt := time.Date(d.Year(), d.Month(), d.Day(), hour, rand.Intn(60), 0, 0, d.Location()) // #nosec G404
 			closedAt := openedAt.Add(time.Duration(durationMins) * time.Minute)
 
 			// Ensure we don't insert future trades

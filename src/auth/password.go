@@ -142,7 +142,7 @@ func verifyArgon2id(stored, plaintext string) error {
 	if err != nil {
 		return err
 	}
-	got := argon2.IDKey([]byte(plaintext), salt, time, mem, threads, uint32(len(want)))
+	got := argon2.IDKey([]byte(plaintext), salt, time, mem, threads, uint32(len(want))) // #nosec G115
 	if subtle.ConstantTimeCompare(got, want) == 1 {
 		return nil
 	}

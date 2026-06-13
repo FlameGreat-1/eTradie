@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	"crypto/sha1" // #nosec G501 -- SHA-1 is the HIBP range-API wire format, NOT password storage (that is Argon2id).
+	"crypto/sha1" // #nosec G501 G505 -- SHA-1 is the HIBP range-API wire format, NOT password storage (that is Argon2id).
 	"encoding/hex"
 	"fmt"
 	"io"

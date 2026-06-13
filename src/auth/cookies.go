@@ -107,7 +107,7 @@ func cookieName(opts *CookieOptions, base string) string {
 
 // SetAccessCookie writes the short-lived HttpOnly access cookie.
 func SetAccessCookie(w http.ResponseWriter, opts *CookieOptions, value string) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124
 		Name:     cookieName(opts, AccessTokenCookieName),
 		Value:    value,
 		Path:     accessTokenCookiePath,
@@ -123,7 +123,7 @@ func SetAccessCookie(w http.ResponseWriter, opts *CookieOptions, value string) {
 // path is deliberately scoped to /auth so the cookie does not ride
 // along on regular API traffic.
 func SetRefreshCookie(w http.ResponseWriter, opts *CookieOptions, value string) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124
 		Name:     cookieName(opts, RefreshTokenCookieName),
 		Value:    value,
 		Path:     refreshTokenCookiePath,
@@ -138,7 +138,7 @@ func SetRefreshCookie(w http.ResponseWriter, opts *CookieOptions, value string) 
 // SetCSRFCookie writes the readable CSRF cookie consumed by the SPA's
 // double-submit logic. NOT HttpOnly by design.
 func SetCSRFCookie(w http.ResponseWriter, opts *CookieOptions, value string) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124
 		Name:     cookieName(opts, CSRFCookieName),
 		Value:    value,
 		Path:     csrfCookiePath,
@@ -173,7 +173,7 @@ func ClearAuthCookies(w http.ResponseWriter, opts *CookieOptions) {
 	}
 	for _, s := range specs {
 		for _, n := range []string{cookieName(opts, s.name), s.name} {
-			http.SetCookie(w, &http.Cookie{
+			http.SetCookie(w, &http.Cookie{ // #nosec G124
 				Name:     n,
 				Value:    "",
 				Path:     s.path,

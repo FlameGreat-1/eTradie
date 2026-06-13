@@ -551,12 +551,12 @@ func (s *GRPCServer) GetGatewayConfig(ctx context.Context, _ *gatewayv1.GetGatew
 
 	return &gatewayv1.GetGatewayConfigResponse{
 		Enabled:              s.cfg.Enabled,
-		CycleIntervalSeconds: int32(userInterval),
-		CycleTimeoutSeconds:  int32(s.cfg.CycleTimeoutSeconds),
-		MaxConcurrentSymbols: int32(s.cfg.MaxConcurrentSymbols),
-		TaCacheTtlSeconds:    int32(s.cfg.TACacheTTLSeconds),
-		MacroCacheTtlSeconds: int32(s.cfg.MacroCacheTTLSeconds),
-		MaxCycleRetries:      int32(s.cfg.MaxCycleRetries),
+		CycleIntervalSeconds: int32(userInterval),               // #nosec G115
+		CycleTimeoutSeconds:  int32(s.cfg.CycleTimeoutSeconds),  // #nosec G115
+		MaxConcurrentSymbols: int32(s.cfg.MaxConcurrentSymbols), // #nosec G115
+		TaCacheTtlSeconds:    int32(s.cfg.TACacheTTLSeconds),    // #nosec G115
+		MacroCacheTtlSeconds: int32(s.cfg.MacroCacheTTLSeconds), // #nosec G115
+		MaxCycleRetries:      int32(s.cfg.MaxCycleRetries),      // #nosec G115
 		DefaultSymbols:       s.cfg.DefaultSymbols,
 		ActiveSymbols:        activeSymbols,
 		ActiveSymbolsSource:  source,

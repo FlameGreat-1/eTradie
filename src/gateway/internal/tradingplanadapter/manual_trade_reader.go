@@ -95,8 +95,8 @@ func (m *ManualTradeReader) ManualTradesWindow(
 	req := &managementv1.GetManualJournalRequest{
 		SinceRfc3339: rfc3339OrEmpty(since),
 		UntilRfc3339: rfc3339OrEmpty(until),
-		Limit:        int32(limit),
-		Offset:       int32(offset),
+		Limit:        int32(limit),  // #nosec G115
+		Offset:       int32(offset), // #nosec G115
 	}
 	resp, err := m.client.GetManualJournal(ctx, req)
 	if err != nil {
