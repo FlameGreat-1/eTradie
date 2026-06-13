@@ -53,8 +53,12 @@ class RAGUnitOfWork:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        if self._ctx is not None:
-            await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
+        try:
+            if self._ctx is not None:
+                await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
+        finally:
+            self._ctx = None
+            self._session = None
 
 
 RAGUnitOfWorkFactory = Callable[[], RAGUnitOfWork]
