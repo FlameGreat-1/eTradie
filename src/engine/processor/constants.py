@@ -240,6 +240,21 @@ RISK_PERCENT_B: Final[float] = 0.5
 # Re-exported from engine.shared.risk so there is a single canonical
 # definition shared with the TA layer; importers of
 # engine.processor.constants.MIN_RR_* are unaffected.
+from engine.shared.risk import (  # noqa: E402
+    LOWEST_STYLE_MIN_RR,
+    MIN_RR_INTRADAY,
+    MIN_RR_POSITIONAL,
+    MIN_RR_SCALPING,
+    MIN_RR_SWING,
+)
+
+__all__ = [
+    "LOWEST_STYLE_MIN_RR",
+    "MIN_RR_INTRADAY",
+    "MIN_RR_POSITIONAL",
+    "MIN_RR_SCALPING",
+    "MIN_RR_SWING",
+]
 
 # LLM response constraints
 MAX_LLM_RESPONSE_LENGTH: Final[int] = 65536
