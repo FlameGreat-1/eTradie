@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import Field, field_validator, computed_field
 
@@ -77,7 +77,7 @@ class TechnicalSnapshot(FrozenModel):
     
     candidates: list[TechnicalCandidate] = Field(default_factory=list)
     
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict[str, Any])
     
     @field_validator("symbol")
     @classmethod
@@ -212,7 +212,7 @@ class MultiTimeframeSnapshot(FrozenModel):
     
     htf_ltf_aligned: bool = Field(default=False)
     
-    alignment_metadata: dict = Field(default_factory=dict)
+    alignment_metadata: dict[str, Any] = Field(default_factory=dict[str, Any])
     
     @field_validator("symbol")
     @classmethod

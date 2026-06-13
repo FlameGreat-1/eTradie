@@ -1,3 +1,4 @@
+from typing import Any
 """Health check endpoints.
 
 Routes:
@@ -29,7 +30,7 @@ router = APIRouter()
 
 
 @router.get("/health")
-async def health() -> dict:
+async def health() -> dict[str, Any]:
     """Liveness probe. Returns immediately; never blocks on a downstream.
 
     The helm chart configures liveness + startup probes against this
@@ -40,7 +41,7 @@ async def health() -> dict:
 
 
 @router.get("/readiness")
-async def readiness(request: Request, response: Response) -> dict:
+async def readiness(request: Request, response: Response) -> dict[str, Any]:
     """Readiness probe. 200 when every critical dependency is healthy.
 
     Returns 503 (Service Unavailable) when any dependency is
@@ -63,7 +64,7 @@ async def readiness(request: Request, response: Response) -> dict:
     # Ready as soon as DB + cache pass.
     rag_config = get_rag_config()
     rag_ok = True
-    rag_detail: dict = {"enabled": False}
+    rag_detail: dict[str, Any] = {"enabled": False}
     if rag_config.enabled and hasattr(container, "rag_health_service"):
         rag_status = await container.rag_health_service.check()
         rag_ok = rag_status.overall_healthy
@@ -90,7 +91,7 @@ async def readiness(request: Request, response: Response) -> dict:
 
 
 @router.get("/health/rag")
-async def rag_health(request: Request) -> dict:
+async def rag_health(request: Request) -> dict[str, Any]:
     """Detailed RAG diagnostics for operators (not used by probes)."""
     container: Container = request.app.state.container
     if not hasattr(container, "rag_health_service"):
@@ -107,7 +108,7 @@ async def rag_health(request: Request) -> dict:
 
 
 @router.get("/health/providers")
-async def providers_health(request: Request) -> dict:
+async def providers_health(request: Request) -> dict[str, Any]:
     """Per-provider health for operators (not used by probes).
 
     Runs the provider registry's health check across every registered

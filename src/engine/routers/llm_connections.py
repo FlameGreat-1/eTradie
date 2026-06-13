@@ -1,3 +1,4 @@
+from typing import Any
 """LLM connection management endpoints.
 
 Routes:
@@ -36,7 +37,7 @@ router = APIRouter()
 async def get_llm_providers(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """List available LLM models and providers.
 
     Used by the dashboard "Connect LLM" modal to populate the
@@ -66,7 +67,7 @@ async def get_llm_providers(
 async def list_llm_connections(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """List all saved LLM connections."""
     container: Container = request.app.state.container
 
@@ -98,7 +99,7 @@ async def list_llm_connections(
 async def get_active_llm_connection(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Get the currently active LLM connection."""
     container: Container = request.app.state.container
 
@@ -133,7 +134,7 @@ async def create_llm_connection(
     request: Request,
     body: CreateLLMConnectionRequest,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Create a new LLM connection.
 
     User selects provider, model, enters API key, and saves.
@@ -211,7 +212,7 @@ async def update_llm_connection(
     connection_id: str,
     body: UpdateLLMConnectionRequest,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Update an existing LLM connection."""
     container: Container = request.app.state.container
 
@@ -263,7 +264,7 @@ async def activate_llm_connection(
     request: Request,
     connection_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Activate a saved LLM connection.
 
     Deactivates all other connections and hot-swaps the processor
@@ -300,7 +301,7 @@ async def deactivate_llm_connection(
     request: Request,
     connection_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Deactivate a connection without deleting it."""
     container: Container = request.app.state.container
 
@@ -335,7 +336,7 @@ async def delete_llm_connection(
     request: Request,
     connection_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Permanently delete a saved LLM connection."""
     container: Container = request.app.state.container
 
@@ -360,7 +361,7 @@ async def delete_llm_connection(
 async def get_platform_llm_connection(
     request: Request,
     admin: AuthenticatedUser = Depends(get_admin_user),
-) -> dict:
+) -> dict[str, Any]:
     """Get the currently active Platform LLM connection from the DB."""
     container: Container = request.app.state.container
 
@@ -396,7 +397,7 @@ async def create_platform_llm_connection(
     request: Request,
     body: CreateLLMConnectionRequest,
     admin: AuthenticatedUser = Depends(get_admin_user),
-) -> dict:
+) -> dict[str, Any]:
     """Create or overwrite the Platform LLM connection."""
     await _rate_limit(request, "llm_platform_create", max_requests=10, window_seconds=60)
     container: Container = request.app.state.container
@@ -462,7 +463,7 @@ async def create_platform_llm_connection(
 async def delete_platform_llm_connection(
     request: Request,
     admin: AuthenticatedUser = Depends(get_admin_user),
-) -> dict:
+) -> dict[str, Any]:
     """Delete the Platform LLM connection."""
     container: Container = request.app.state.container
 

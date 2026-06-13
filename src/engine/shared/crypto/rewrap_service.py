@@ -1,3 +1,4 @@
+from typing import Any
 """Credential re-wrap maintenance service (KEK rotation / revocation).
 
 Executes a key rotation by upgrading every stored credential ciphertext
@@ -87,7 +88,7 @@ class RewrapStats:
     failed_columns: int = 0
     per_table: dict[str, dict[str, int]] = field(default_factory=dict)
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "active_version": self.active_version,
             "scanned_rows": self.scanned_rows,
@@ -180,14 +181,14 @@ class CredentialRewrapService:
         target: _Target,
         col_list: str,
         cursor: str | None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Read one keyset page ordered by id (stable, memory-bounded)."""
         where = "" if cursor is None else f"WHERE {target.id_column} > :cursor"
         sql = (
             f"SELECT {col_list} FROM {target.table} "  # nosec B608
             f"{where} ORDER BY {target.id_column} ASC LIMIT :limit"
         )
-        params: dict = {"limit": self._batch_size}
+        params: dict[str, Any] = {"limit": self._batch_size}
         if cursor is not None:
             params["cursor"] = cursor
         async with self._db.read_session() as session:
@@ -197,7 +198,7 @@ class CredentialRewrapService:
     async def _process_row(
         self,
         target: _Target,
-        row: dict,
+        row: dict[str, Any],
         *,
         dry_run: bool,
         stats: RewrapStats,
@@ -294,7 +295,7 @@ class CredentialRewrapService:
             f"UPDATE {target.table} SET {', '.join(set_clauses)} "  # nosec B608
             f"WHERE {target.id_column} = :__row_id"
         )
-        params: dict = dict(updates)
+        params: dict[str, Any] = dict[str, Any](updates)
         params["__key_version"] = active_key_version()
         params["__row_id"] = row_id
         async with self._db.session() as session:

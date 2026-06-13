@@ -1,3 +1,4 @@
+from typing import Any
 """Internal endpoints called by the Go gateway.
 
 Routes:
@@ -57,7 +58,7 @@ async def internal_ta_confirm_ltf(
     request: Request,
     body: InternalLTFConfirmRequest,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Lightweight LTF-only confirmation check.
 
     Called by the Go gateway's RunConfirmationPulse when the
@@ -129,7 +130,7 @@ async def internal_ta_analyze(
     request: Request,
     body: InternalTARequest,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Run TA analysis for the given symbols.
 
     Called by the Go gateway. Delegates to TAOrchestrator.analyze()
@@ -164,7 +165,7 @@ async def internal_ta_analyze(
 
     semaphore = asyncio.Semaphore(get_ta_config().max_concurrent_symbol_analysis)
 
-    def _error_result(symbol: str, exc: Exception) -> dict:
+    def _error_result(symbol: str, exc: Exception) -> dict[str, Any]:
         logger.error(
             "internal_ta_analyze_failed",
             extra={
@@ -189,7 +190,7 @@ async def internal_ta_analyze(
             "overall_trend": "NEUTRAL",
         }
 
-    def _build_pulse(symbol: str):
+    def _build_pulse(symbol: str) -> Any:
         """Per-symbol pulse publisher for the gateway-driven path.
 
         The gateway already forwards X-User-Id, so we can broadcast on
@@ -205,7 +206,7 @@ async def internal_ta_analyze(
         except Exception:  # noqa: BLE001 - pulse must never break analysis
             return NoOpPulse()
 
-    async def _analyze_one(symbol: str) -> dict:
+    async def _analyze_one(symbol: str) -> dict[str, Any]:
         async with semaphore:
             pulse = _build_pulse(symbol)
             await pulse.emit("LOADING", f"Preparing analysis for {symbol}")
@@ -230,7 +231,7 @@ async def internal_macro_collect(
     request: Request,
     body: InternalMacroRequest,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Run all 8 macro collectors in parallel.
 
     Called by the Go gateway. Delegates to each macro collector
@@ -279,7 +280,7 @@ async def internal_macro_collect(
         "sentiment": container.sentiment_collector,
     }
 
-    async def _collect_one(name: str, collector):
+    async def _collect_one(name: str, collector) -> Any:
         """Run one collector, emitting a CLAUDING pulse on start and on
         completion. The pulse is best-effort; collection behaviour and
         per-collector isolation are unchanged.
@@ -334,7 +335,7 @@ async def internal_rag_retrieve(
     request: Request,
     body: InternalRAGRequest,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Perform RAG retrieval with the given query parameters.
 
     Called by the Go gateway. Delegates to RAGOrchestrator.retrieve_context().
@@ -627,7 +628,7 @@ async def internal_processor_process(
                 "details": exc.details,
             },
         )
-        body_out: dict = {
+        body_out: dict[str, Any] = {
             "error": code,
             "detail": str(exc),
             "trace_id": body.trace_id,
@@ -656,7 +657,7 @@ async def internal_debug_runcycle(
     request: Request,
     body: InternalDebugRunCycleRequest,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Persist analysis cycle outputs to /output/runcycle/ for debugging.
 
     Called by the Go gateway (fire-and-forget) after a successful

@@ -1,3 +1,4 @@
+from typing import Any
 from engine.shared.logging import get_logger
 from engine.ta.common.utils.price.math import calculate_pips
 from engine.ta.constants import Direction
@@ -27,7 +28,7 @@ class PreviousHighsLows:
         timeframe: str,
         level: float,
         direction: Direction,
-        touches: list,
+        touches: list[Any],
         touch_count: int,
     ) -> None:
         self.symbol = symbol
@@ -128,7 +129,7 @@ class PreviousLevelDetector:
 
     def _cluster_levels(
         self,
-        swings: list,
+        swings: list[Any],
         symbol: str,
         direction: Direction,
     ) -> list[PreviousHighsLows]:

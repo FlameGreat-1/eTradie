@@ -24,7 +24,7 @@ If you add, remove, or rename a field here, you MUST also update:
 from __future__ import annotations
 
 import abc
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import Field
 
@@ -41,10 +41,10 @@ class ProcessorInput(FrozenModel):
     """
 
     symbol: str
-    ta_analysis: dict = Field(default_factory=dict)
-    macro_analysis: dict = Field(default_factory=dict)
-    retrieved_knowledge: dict = Field(default_factory=dict)
-    metadata: dict = Field(default_factory=dict)
+    ta_analysis: dict[str, Any] = Field(default_factory=dict[str, Any])
+    macro_analysis: dict[str, Any] = Field(default_factory=dict[str, Any])
+    retrieved_knowledge: dict[str, Any] = Field(default_factory=dict[str, Any])
+    metadata: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
 class ProcessorOutput(FrozenModel):
@@ -68,7 +68,7 @@ class ProcessorOutput(FrozenModel):
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
     rejection_rules: list[str] = Field(default_factory=list)
-    raw_response: dict = Field(default_factory=dict)
+    raw_response: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     # Execution-critical fields for Module B.
     # entry_price above is the midpoint (kept for backward compat with guards);

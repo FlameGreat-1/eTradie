@@ -1,3 +1,4 @@
+from typing import Any
 from __future__ import annotations
 
 from engine.rag.constants import (
@@ -16,7 +17,7 @@ def build_where_filter(
     timeframes: list[str] | None = None,
     styles: list[str] | None = None,
     scenario_outcomes: list[str] | None = None,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Build a ChromaDB where filter from retrieval parameters.
 
     Uses $eq/$in for single-value metadata fields (doc_type, framework,
@@ -27,7 +28,7 @@ def build_where_filter(
     Example: A chunk with metadata direction="long,short" will match
     a filter for direction="long" via $contains.
     """
-    conditions: list[dict] = []
+    conditions: list[dict[str, Any]] = []
 
     # Single-value fields: use exact matching ($eq / $in)
     if doc_types and len(doc_types) == 1:

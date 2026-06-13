@@ -1,3 +1,4 @@
+from typing import Any
 """Admin processor configuration endpoints.
 
 Routes:
@@ -33,7 +34,7 @@ router = APIRouter()
 async def get_available_models(
     request: Request,
     user: AuthenticatedUser = Depends(get_admin_user),
-) -> dict:
+) -> dict[str, Any]:
     """Available models per provider for the admin processor config.
 
     Admin-only. Returns the model list for each provider plus the
@@ -99,7 +100,7 @@ async def update_processor_config(
     request: Request,
     body: ProcessorConfigUpdateRequest,
     user: AuthenticatedUser = Depends(get_admin_user),
-) -> dict:
+) -> dict[str, Any]:
     """Hot-swap the system-level LLM processor at runtime.
 
     Admin-only. Rebuilds the global container.processor with new

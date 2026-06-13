@@ -55,7 +55,7 @@ class ProviderDisconnectedError(ProviderUnavailableError):
     Audit ref: CHECKLIST Section 2 - 'Detection of silent disconnect'.
     """
 
-    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+    def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:  # noqa: D401
         super().__init__(message, details=details)
 
 
@@ -75,7 +75,7 @@ class ProviderStalePriceError(ProviderResponseError):
     pricing detection)'.
     """
 
-    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+    def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:  # noqa: D401
         super().__init__(message, details=details)
 
 
@@ -92,7 +92,7 @@ class EAIdentityMismatchError(ProviderAuthenticationError):
     mismatch', 'Kill-switch if EA diverges from expected logic'.
     """
 
-    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+    def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:  # noqa: D401
         super().__init__(message, details=details)
 
 
@@ -107,7 +107,7 @@ class OutboundRateLimitExceededError(ProviderError):
     Audit ref: CHECKLIST Section 5 - 'Rate limits prevent EA flooding'.
     """
 
-    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+    def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:  # noqa: D401
         super().__init__(message, details=details)
 
 
@@ -119,7 +119,7 @@ class EAClockSkewError(ProviderError):
     Audit ref: CHECKLIST Section 4 - 'Time synchronization'.
     """
 
-    def __init__(self, message: str, *, details: dict | None = None) -> None:  # noqa: D401
+    def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:  # noqa: D401
         super().__init__(message, details=details)
 
 
@@ -157,7 +157,7 @@ class MeteringUnavailableError(ETradieBaseError):
         message: str,
         *,
         retry_after: int = 5,
-        details: dict | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message, details=details or {})
         self.retry_after = retry_after
@@ -192,7 +192,7 @@ class QuotaExceededError(ETradieBaseError):
         requested: int = 0,
         resets_at: str = "",
         retry_after: int = 60,
-        details: dict | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message, details=details or {})
         self.dimension = dimension
@@ -268,7 +268,7 @@ class AuthUserMissingError(ETradieBaseError):
             to a partially-authenticated caller.
     """
 
-    def __init__(self, user_id: str, *, details: dict | None = None) -> None:
+    def __init__(self, user_id: str, *, details: dict[str, Any] | None = None) -> None:
         super().__init__(
             "Authenticated user no longer exists",
             details={**(details or {}), "user_id": user_id},

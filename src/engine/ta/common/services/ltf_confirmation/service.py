@@ -1,3 +1,4 @@
+from typing import Any
 """Lightweight LTF confirmation service with HTF invalidation.
 
 Designed for the execution watcher's fast-path confirmation pulse.
@@ -69,14 +70,14 @@ class LTFConfirmationResponse(BaseModel):
     symbol: str
     direction: str
     ltf_timeframe: str
-    checks: dict  # Individual check results
+    checks: dict[str, Any]  # Individual check results
     duration_ms: float
     error: str | None = None
 
     # Invalidation layer results.
     invalidated: bool = False
     invalidation_reason: str | None = None
-    invalidation_checks: dict | None = None
+    invalidation_checks: dict[str, Any] | None = None
 
 
 class LTFConfirmationService:
@@ -329,7 +330,7 @@ class LTFConfirmationService:
         stop_loss: float | None,
         broker_client: BrokerBase,
         trace_id: str | None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Run HTF invalidation checks against the exact approved candidate.
 
         Returns:
@@ -593,7 +594,7 @@ class LTFConfirmationService:
         ob_upper: float,
         ob_lower: float,
         entry_price: float,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Run all 7 LTF confirmation checks and return individual results."""
         swing_highs = self._swing_analyzer.detect_swing_highs(sequence)
         swing_lows = self._swing_analyzer.detect_swing_lows(sequence)

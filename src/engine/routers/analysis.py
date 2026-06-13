@@ -1,3 +1,4 @@
+from typing import Any
 """Analysis dashboard endpoints.
 
 Routes:
@@ -53,7 +54,7 @@ router = APIRouter()
 async def get_my_usage(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Return the current user's usage metrics (for dashboard countdown timer).
 
     Returns HTTP 401 when the JWT references a user that no longer
@@ -118,7 +119,7 @@ async def get_latest_analyses(
     pair: str | None = None,
     limit: int = 20,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """List recent analyses for the dashboard."""
     container: Container = request.app.state.container
     if not hasattr(container, "processor_uow_factory"):
@@ -212,7 +213,7 @@ async def get_analysis_history(
     offset: int = 0,
     limit: int = 20,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Paginated analysis history with filters.
 
     Query params:
@@ -305,7 +306,7 @@ async def get_analysis_stats(
     since: str | None = None,
     until: str | None = None,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Aggregate analysis statistics for the dashboard.
 
     Returns total count, success rate, grade distribution,
@@ -359,7 +360,7 @@ async def stream_live_analysis(
     container: Container = request.app.state.container
     channel_name = stream_channel_for_user(user.user_id)
 
-    async def event_generator():
+    async def event_generator() -> Any:
         pubsub = container.cache.pubsub()
         await pubsub.subscribe(channel_name)
         logger.info(
@@ -422,7 +423,7 @@ async def stream_live_analysis(
             )
         finally:
 
-            async def _cleanup_pubsub():
+            async def _cleanup_pubsub() -> Any:
                 with contextlib.suppress(Exception):
                     await pubsub.unsubscribe(channel_name)
                 with contextlib.suppress(Exception):
@@ -453,7 +454,7 @@ async def get_analysis_detail(
     request: Request,
     analysis_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Full analysis detail including LLM reasoning and raw output."""
     container: Container = request.app.state.container
     if not hasattr(container, "processor_uow_factory"):
@@ -541,7 +542,7 @@ async def rerun_analysis(
     symbol: str,
     trace_id: str | None = None,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Re-trigger analysis for a single symbol on demand.
 
     Uses the current processor config (provider, model, temperature).
@@ -657,7 +658,7 @@ async def rerun_analysis(
         }
 
     # Step 2: Run macro collection.
-    macro_analysis: dict = {}
+    macro_analysis: dict[str, Any] = {}
     try:
         await pulse.emit("CLAUDING", "Collecting macro intelligence", source="macro")
         collector_map = {
@@ -843,12 +844,12 @@ async def _rerun_process_and_return(
     user: AuthenticatedUser,
     symbol: str,
     trace_id: str | None,
-    ta_analysis: dict,
-    macro_analysis: dict,
-    macro_signals: dict,
-    ta_signals: dict,
-    retrieved_knowledge: dict,
-) -> dict:
+    ta_analysis: dict[str, Any],
+    macro_analysis: dict[str, Any],
+    macro_signals: dict[str, Any],
+    ta_signals: dict[str, Any],
+    retrieved_knowledge: dict[str, Any],
+) -> dict[str, Any]:
     """Build enriched metadata matching the Go gateway's assembler.go output,
     run the processor LLM, and return the final result.
 
@@ -868,7 +869,7 @@ async def _rerun_process_and_return(
         ]
         if macro_analysis.get(name) is not None
     ]
-    metadata: dict = {
+    metadata: dict[str, Any] = {
         "symbol": symbol,
         "source": "dashboard_rerun",
         "trace_id": trace_id or "",

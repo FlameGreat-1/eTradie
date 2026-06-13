@@ -1,3 +1,4 @@
+from typing import Any
 from __future__ import annotations
 
 import uuid
@@ -17,8 +18,8 @@ class DXYSnapshotRow(Base):
     value: Mapped[float] = mapped_column(Float, nullable=False)
     trend_direction: Mapped[str] = mapped_column(String(10), nullable=False, default="SIDEWAYS")
     momentum: Mapped[str] = mapped_column(String(15), nullable=False, default="FLAT")
-    key_levels_json: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
-    divergence_signals_json: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
+    key_levels_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default={})
+    divergence_signals_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default={})
     bias: Mapped[str] = mapped_column(String(10), nullable=False, default="NEUTRAL")
     analyzed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

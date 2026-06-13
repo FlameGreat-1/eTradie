@@ -49,8 +49,6 @@ helm.sh/chart: {{ include "mt-node.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: etradie
-app.kubernetes.io/component: mt-node
-etradie.connection-id: {{ .Values.mtConnection.connectionId | quote }}
 etradie.user-id: {{ .Values.mtConnection.userId | quote }}
 etradie.platform: {{ .Values.mtConnection.platform | quote }}
 {{- end -}}

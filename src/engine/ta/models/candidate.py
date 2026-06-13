@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import Field, field_validator, computed_field
 
@@ -24,8 +24,8 @@ class TechnicalCandidate(FrozenModel):
     htf_timeframe: Optional[Timeframe] = None
     ltf_timeframe: Optional[Timeframe] = None
     
-    htf_context: dict = Field(default_factory=dict)
-    ltf_confirmation: dict = Field(default_factory=dict)
+    htf_context: dict[str, Any] = Field(default_factory=dict[str, Any])
+    ltf_confirmation: dict[str, Any] = Field(default_factory=dict[str, Any])
     
     zone_upper: Optional[float] = Field(default=None, gt=0)
     zone_lower: Optional[float] = Field(default=None, gt=0)
@@ -40,7 +40,7 @@ class TechnicalCandidate(FrozenModel):
     
     fib_level: Optional[str] = None
     
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict[str, Any])
     
     @field_validator("symbol")
     @classmethod
@@ -196,7 +196,7 @@ class SMCCandidate(FrozenModel):
     
     session_context: Optional[str] = None
     
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict[str, Any])
     
     @field_validator("symbol")
     @classmethod
@@ -321,7 +321,7 @@ class SnDCandidate(FrozenModel):
     
     session_context: Optional[str] = None
     
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict[str, Any])
     
     @field_validator("symbol")
     @classmethod

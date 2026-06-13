@@ -1,3 +1,4 @@
+from typing import Any
 """CSRF enforcement for the Python FastAPI engine.
 
 Implements the same double-submit pattern as the Go gateway
@@ -210,7 +211,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         self._signed = _is_signed_mode()
         self._secret = _get_jwt_secret()
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next) -> Any:
         # Safe methods never need a CSRF token.
         if request.method not in _MUTATING_METHODS:
             return await call_next(request)

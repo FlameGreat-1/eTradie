@@ -1,3 +1,4 @@
+from typing import Any
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
@@ -465,7 +466,7 @@ class ContinuationBuilder:
     def _find_nearest_bsl_target(
         self,
         entry_price: float,
-        swing_highs: list,
+        swing_highs: list[Any],
         pip_val: float,
         stop_loss: float | None = None,
         min_tp_rr: float | None = None,
@@ -496,7 +497,7 @@ class ContinuationBuilder:
     def _find_nearest_ssl_target(
         self,
         entry_price: float,
-        swing_lows: list,
+        swing_lows: list[Any],
         pip_val: float,
         stop_loss: float | None = None,
         min_tp_rr: float | None = None,
@@ -559,7 +560,7 @@ class ContinuationBuilder:
         )
 
     @staticmethod
-    def _get_swing_highs_from_sequence(sequence: CandleSequence) -> list:
+    def _get_swing_highs_from_sequence(sequence: CandleSequence) -> list[Any]:
         """Extract approximate swing highs from a candle sequence.
 
         Used as a fallback when explicit swing highs are not passed.
@@ -586,7 +587,7 @@ class ContinuationBuilder:
         return highs
 
     @staticmethod
-    def _get_swing_lows_from_sequence(sequence: CandleSequence) -> list:
+    def _get_swing_lows_from_sequence(sequence: CandleSequence) -> list[Any]:
         """Extract approximate swing lows from a candle sequence."""
         from engine.ta.models.swing import SwingLow
 
@@ -628,12 +629,12 @@ class ContinuationBuilder:
 
     def _build_metadata(
         self,
-        base: dict,
+        base: dict[str, Any],
         price: float,
         retracement: FibonacciRetracement | None,
         sweep: LiquiditySweep | None = None,
         ob: OrderBlock | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Attach fib_context and sweep_context to the metadata dict.
 
         The returned dict always contains ``base`` plus, when the

@@ -172,7 +172,7 @@ _POD_ANNOTATIONS_JSON_RAW = os.environ.get("MT_NODE_POD_ANNOTATIONS_JSON", "").s
 _PLATFORM_SECRET_NAME = os.environ.get("MT_NODE_PLATFORM_SECRET_NAME", "").strip()
 
 
-def _parse_json_envelope(env_name: str, raw: str, expected: type):
+def _parse_json_envelope(env_name: str, raw: str, expected: type) -> Any:
     """Parse a JSON envelope env var into a dict or list.
 
     Returns None when the env var is empty or decodes to an empty

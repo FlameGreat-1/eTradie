@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from datetime import UTC
 from datetime import datetime as dt
 
@@ -44,7 +46,7 @@ class BillingRepository:
     def __init__(self, session: AsyncSession):
         self._session = session
 
-    async def get_or_create_usage(self, user_id: str) -> dict:
+    async def get_or_create_usage(self, user_id: str) -> dict[str, Any]:
         """Get the user's usage, creating a new row if none exists.
 
         Raises:
@@ -78,7 +80,7 @@ class BillingRepository:
             raise
         return dict(row) if row else {}
 
-    async def reset_daily_usage_if_needed(self, user_id: str):
+    async def reset_daily_usage_if_needed(self, user_id: str) -> Any:
         """Reset analyses_today if last_reset_at is not today."""
         usage = await self.get_or_create_usage(user_id)
         last_reset = usage.get("last_reset_at")
@@ -95,7 +97,7 @@ class BillingRepository:
                 await self._session.execute(stmt, {"user_id": user_id})
                 await self._session.commit()
 
-    async def increment_analysis(self, user_id: str):
+    async def increment_analysis(self, user_id: str) -> Any:
         """Increment the analyses_today count and record the timestamp atomically."""
         stmt = text("""
             UPDATE billing_usage
@@ -113,7 +115,7 @@ class BillingRepository:
         await self._session.execute(stmt, {"user_id": user_id})
         await self._session.commit()
 
-    async def get_usage_for_user(self, user_id: str) -> dict:
+    async def get_usage_for_user(self, user_id: str) -> dict[str, Any]:
         """Return the full usage row for a user (for the dashboard countdown)."""
         stmt = text("""
             SELECT analyses_today, llm_tokens_used, ta_cycles_used,
@@ -133,7 +135,7 @@ class BillingRepository:
                 result[key] = result[key].isoformat()
         return result
 
-    async def increment_tokens(self, user_id: str, tokens: int):
+    async def increment_tokens(self, user_id: str, tokens: int) -> Any:
         """Add tokens to the user's running total."""
         stmt = text("""
             UPDATE billing_usage
@@ -143,7 +145,7 @@ class BillingRepository:
         await self._session.execute(stmt, {"user_id": user_id, "tokens": tokens})
         await self._session.commit()
 
-    async def increment_usage_metric(self, user_id: str, column: str, amount: int = 1):
+    async def increment_usage_metric(self, user_id: str, column: str, amount: int = 1) -> Any:
         """Increment a specific usage metric column (e.g., ta_cycles_used)."""
         # Validate column name to prevent SQL injection
         allowed = {

@@ -1,3 +1,4 @@
+from typing import Any
 """Build audit records from processor state.
 
 Constructs AnalysisRecord and AuditLogRecord from the processor's
@@ -22,7 +23,7 @@ def build_analysis_record(
     error_message: str | None = None,
     duration_ms: float = 0.0,
     trace_id: str | None = None,
-    raw_output: dict | None = None,
+    raw_output: dict[str, Any] | None = None,
 ) -> AnalysisRecord:
     """Build an AnalysisRecord from a validated AnalysisOutput."""
     tp_prices = [None, None, None]

@@ -1,3 +1,4 @@
+from typing import Any
 """Repository for broker connection CRUD operations.
 
 All database operations for the broker_connections table.
@@ -381,7 +382,7 @@ class BrokerConnectionRepository:
         Only non-None values are updated. Credentials are re-encrypted
         if provided.
         """
-        values: dict = {"updated_at": datetime.now(UTC)}
+        values: dict[str, Any] = {"updated_at": datetime.now(UTC)}
 
         if name is not None:
             values["name"] = name
@@ -453,7 +454,7 @@ class BrokerConnectionRepository:
         omitted because the provisioner runs server-side without a user
         session; connection_id is sufficient and the call is internal.
         """
-        values: dict = {
+        values: dict[str, Any] = {
             "mt5_symbol": chart_symbol.strip(),
             "updated_at": datetime.now(UTC),
         }
@@ -538,7 +539,7 @@ class BrokerConnectionRepository:
         connected: bool = False,
     ) -> BrokerConnectionRow | None:
         """Update the health status of a connection after a test or connect."""
-        values: dict = {
+        values: dict[str, Any] = {
             "status": status,
             "status_message": status_message,
             "updated_at": datetime.now(UTC),

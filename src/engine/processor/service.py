@@ -560,7 +560,7 @@ class AnalysisProcessor(ProcessorPort):
                 )
 
             last_published_reasoning = ""
-            usage_dict: dict = {}
+            usage_dict: dict[str, Any] = {}
             async for chunk in self._llm.stream_call(
                 system_prompt=system_prompt,
                 user_message=user_message,
@@ -949,7 +949,7 @@ class AnalysisProcessor(ProcessorPort):
         llm_response: LLMResponse,
         prompt_hash: str,
         validation_warnings: list[str],
-        raw_dict: dict,
+        raw_dict: dict[str, Any],
         elapsed_ms: float,
         trace_id: str | None,
     ) -> None:

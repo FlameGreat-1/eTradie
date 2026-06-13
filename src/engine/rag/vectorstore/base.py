@@ -1,3 +1,4 @@
+from typing import Any
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -40,7 +41,7 @@ class BaseVectorStore(ABC):
         *,
         query_embedding: list[float],
         top_k: int,
-        where: dict | None = None,
+        where: dict[str, Any] | None = None,
     ) -> list[VectorSearchResult]: ...
 
     @abstractmethod

@@ -1,3 +1,4 @@
+from typing import Any
 """Map AnalysisOutput to the gateway's ProcessorOutput.
 
 The gateway's ProcessorOutput is a simpler model used for guard
@@ -21,7 +22,7 @@ from engine.processor.models.io import ProcessorOutput
 def map_to_processor_output(
     analysis: AnalysisOutput,
     *,
-    raw_response: dict | None = None,
+    raw_response: dict[str, Any] | None = None,
 ) -> ProcessorOutput:
     """Map AnalysisOutput to the gateway's ProcessorOutput.
 

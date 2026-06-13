@@ -1,3 +1,4 @@
+from typing import Any
 import asyncio
 
 from engine.shared.logging import get_logger
@@ -48,7 +49,7 @@ class BrokerSyncService:
             # 2. Fetch specifications in limited concurrency batches
             semaphore = asyncio.Semaphore(self._concurrency)
 
-            async def sync_one(name: str):
+            async def sync_one(name: str) -> Any:
                 async with semaphore:
                     try:
                         # Fetch full spec (path, digits, etc)

@@ -651,7 +651,7 @@ class ZmqClient(BrokerBase):
             )
         return sequence.candles[-1]
 
-    async def get_symbol_info(self, symbol: str) -> dict:
+    async def get_symbol_info(self, symbol: str) -> dict[str, Any]:
         reply = await self._request(
             {
                 "command": "SYMBOL_INFO",
@@ -692,7 +692,7 @@ class ZmqClient(BrokerBase):
         symbols = await self.get_all_symbols()
         return [s["name"] for s in symbols]
 
-    async def get_all_symbols(self) -> list[dict]:
+    async def get_all_symbols(self) -> list[dict[str, Any]]:
         """Fetch all symbols from the MT5 Market Watch via ZMQ EA."""
         reply = await self._request({"command": "GET_ALL_SYMBOLS"})
 
@@ -706,7 +706,7 @@ class ZmqClient(BrokerBase):
         if not isinstance(raw_symbols, list):
             return []
 
-        symbols: list[dict] = []
+        symbols: list[dict[str, Any]] = []
         for s in raw_symbols:
             if not isinstance(s, dict):
                 continue

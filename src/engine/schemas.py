@@ -1,3 +1,4 @@
+from typing import Any
 """Request and response schemas for the engine API.
 
 Extracted from main.py for maintainability. Every schema is a pure
@@ -117,7 +118,7 @@ class InternalProcessorRequest(BaseModel):
 
     model_config = _STRICT_REQUEST_CONFIG
 
-    processor_input: dict
+    processor_input: dict[str, Any]
     trace_id: str | None = None
     user_id: str | None = None
     tier: str | None = None
@@ -135,11 +136,11 @@ class InternalDebugRunCycleRequest(BaseModel):
     model_config = _STRICT_REQUEST_CONFIG
 
     symbol: str
-    ta_data: dict
-    macro_data: dict | None = None
-    rag_data: dict | None = None
-    processor_data: dict | None = None
-    execution_request: dict | None = None
+    ta_data: dict[str, Any]
+    macro_data: dict[str, Any] | None = None
+    rag_data: dict[str, Any] | None = None
+    processor_data: dict[str, Any] | None = None
+    execution_request: dict[str, Any] | None = None
     trace_id: str | None = None
 
 

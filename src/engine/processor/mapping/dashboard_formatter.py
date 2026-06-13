@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 
-def format_for_dashboard(raw_output: dict, row: Any) -> dict[str, str]:
+def format_for_dashboard(raw_output: dict[str, Any], row: Any) -> dict[str, str]:
     """Convert raw analysis data into dashboard-friendly plain text.
 
     Args:
@@ -50,14 +50,14 @@ def _build_summary(pair: str, direction: str, grade: str, score: float) -> str:
     return f"{direction} {pair} - Grade {grade} - Score {score}/10"
 
 
-def _build_reasoning(raw: dict) -> str:
+def _build_reasoning(raw: dict[str, Any]) -> str:
     reasoning = raw.get("explainable_reasoning", "")
     if reasoning:
         return reasoning
     return "No detailed reasoning available for this analysis."
 
 
-def _build_macro_summary(raw: dict) -> str:
+def _build_macro_summary(raw: dict[str, Any]) -> str:
     parts: list[str] = []
 
     macro = raw.get("macro_bias", {})
@@ -85,7 +85,7 @@ def _build_macro_summary(raw: dict) -> str:
     return "\n".join(parts)
 
 
-def _build_technical_summary(raw: dict) -> str:
+def _build_technical_summary(raw: dict[str, Any]) -> str:
     parts: list[str] = []
 
     htf = raw.get("htf_bias", {})
@@ -121,7 +121,7 @@ def _build_technical_summary(raw: dict) -> str:
     return "\n".join(parts)
 
 
-def _build_trade_plan(raw: dict, row: Any) -> str:
+def _build_trade_plan(raw: dict[str, Any], row: Any) -> str:
     direction = getattr(row, "direction", raw.get("direction", "NO SETUP"))
 
     if direction == "NO SETUP":
@@ -158,7 +158,7 @@ def _build_trade_plan(raw: dict, row: Any) -> str:
     return "\n".join(parts)
 
 
-def _build_confluence_breakdown(raw: dict) -> str:
+def _build_confluence_breakdown(raw: dict[str, Any]) -> str:
     conf = raw.get("confluence_score", {})
     factors = conf.get("factors", [])
 
@@ -189,7 +189,7 @@ def _build_confluence_breakdown(raw: dict) -> str:
     return "\n".join(parts)
 
 
-def _build_risk_info(raw: dict, row: Any) -> str:
+def _build_risk_info(raw: dict[str, Any], row: Any) -> str:
     parts: list[str] = []
 
     confidence = getattr(row, "confidence", raw.get("confidence", "N/A"))
@@ -214,7 +214,7 @@ def _build_risk_info(raw: dict, row: Any) -> str:
     return "\n".join(parts)
 
 
-def _build_event_warnings(raw: dict) -> str:
+def _build_event_warnings(raw: dict[str, Any]) -> str:
     events = raw.get("event_risk", [])
     if not events:
         return "No high-impact economic events in the next 48 hours."
@@ -234,7 +234,7 @@ def _build_event_warnings(raw: dict) -> str:
     return "\n".join(parts)
 
 
-def _build_analyzed_by(raw: dict, row: Any) -> str:
+def _build_analyzed_by(raw: dict[str, Any], row: Any) -> str:
     provider = getattr(row, "llm_provider", raw.get("_llm_provider", "Unknown"))
     model = getattr(row, "llm_model", raw.get("_llm_model", "Unknown"))
     duration = getattr(row, "duration_ms", 0)

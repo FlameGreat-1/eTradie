@@ -193,7 +193,7 @@ class OpenAIClient(LLMClient):
         system_prompt: str,
         user_message: str,
         trace_id: str | None = None,
-        usage_out: dict | None = None,
+        usage_out: dict[str, Any] | None = None,
         use_structured_output: bool = True,
     ) -> AsyncGenerator[str, None]:
         model = self._config.model_name

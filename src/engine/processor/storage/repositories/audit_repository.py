@@ -1,3 +1,4 @@
+from typing import Any
 """Repository for persisting analysis audit logs.
 
 Extends BaseRepository. Audit logs are append-only and immutable.
@@ -53,14 +54,14 @@ class AuditRepository(BaseRepository[AnalysisAuditLogRow]):
         llm_input_tokens: int = 0,
         llm_output_tokens: int = 0,
         llm_duration_ms: float = 0.0,
-        llm_response: dict | None = None,
-        citations: list | None = None,
+        llm_response: dict[str, Any] | None = None,
+        citations: list[Any] | None = None,
         final_direction: str = "",
         final_grade: str = "",
         final_confidence: str = "",
         final_proceed: str = "",
         validation_passed: bool = False,
-        validation_errors: list | None = None,
+        validation_errors: list[Any] | None = None,
         trace_id: str | None = None,
     ) -> None:
         """Append an immutable audit log entry."""

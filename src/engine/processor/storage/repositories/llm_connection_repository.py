@@ -1,3 +1,4 @@
+from typing import Any
 """Repository for LLM connection CRUD operations.
 
 All database operations for the llm_connections table. API keys are
@@ -308,7 +309,7 @@ class LLMConnectionRepository:
         label: str | None = None,
     ) -> LLMConnectionRow | None:
         """Update fields on an existing connection, scoped to user."""
-        values: dict = {"updated_at": datetime.now(UTC)}
+        values: dict[str, Any] = {"updated_at": datetime.now(UTC)}
 
         if provider is not None:
             values["provider"] = provider

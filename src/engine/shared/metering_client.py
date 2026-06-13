@@ -1,3 +1,4 @@
+from typing import Any
 """Metering client: calls the gateway's /internal/metering/* endpoints.
 
 The gateway is the single source of truth for LLM token quotas. The
@@ -445,7 +446,7 @@ async def refund(*, reservation_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _safe_json(resp: httpx.Response) -> dict:
+def _safe_json(resp: httpx.Response) -> dict[str, Any]:
     """Parse JSON body without raising on malformed content."""
     try:
         return resp.json()

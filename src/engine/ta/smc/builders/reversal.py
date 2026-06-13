@@ -1,3 +1,4 @@
+from typing import Any
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
@@ -417,7 +418,7 @@ class ReversalBuilder:
         # (entry_price == sweep.swept_level == leg anchor => 1.0).
         # See commit message for rationale; we deliberately emit no
         # fib_context and no fib_level on this pattern.
-        turtle_metadata: dict = {}
+        turtle_metadata: dict[str, Any] = {}
         sweep_context = self.zone_validator.build_sweep_context(sweep, ob=None)
         if sweep_context is not None:
             turtle_metadata["sweep_context"] = sweep_context
@@ -500,7 +501,7 @@ class ReversalBuilder:
         # (entry_price == sweep.swept_level == leg anchor => 1.0).
         # See commit message for rationale; we deliberately emit no
         # fib_context and no fib_level on this pattern.
-        turtle_metadata: dict = {}
+        turtle_metadata: dict[str, Any] = {}
         sweep_context = self.zone_validator.build_sweep_context(sweep, ob=None)
         if sweep_context is not None:
             turtle_metadata["sweep_context"] = sweep_context
@@ -700,12 +701,12 @@ class ReversalBuilder:
 
     def _build_metadata(
         self,
-        base: dict,
+        base: dict[str, Any],
         price: float,
         retracement: FibonacciRetracement | None,
         sweep: LiquiditySweep | None = None,
         ob: OrderBlock | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Attach fib_context and sweep_context to the metadata dict.
 
         The returned dict always contains ``base`` plus, when the

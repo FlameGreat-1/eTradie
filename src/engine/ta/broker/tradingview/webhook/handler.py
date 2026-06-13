@@ -1,3 +1,4 @@
+from typing import Any
 import hashlib
 import hmac
 import ipaddress
@@ -30,7 +31,7 @@ class TradingViewAlert(FrozenModel):
     price: float | None = Field(default=None, gt=0)
     message: str = Field(default="")
     timestamp: str | None = None
-    raw_payload: dict = Field(default_factory=dict)
+    raw_payload: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     @field_validator("symbol")
     @classmethod
@@ -126,7 +127,7 @@ class TradingViewWebhookHandler:
                 },
             )
 
-    def parse_alert(self, payload: dict) -> TradingViewAlert:
+    def parse_alert(self, payload: dict[str, Any]) -> TradingViewAlert:
         try:
             symbol = payload.get("ticker") or payload.get("symbol")
             if not symbol:

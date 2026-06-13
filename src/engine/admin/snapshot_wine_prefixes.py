@@ -1,3 +1,4 @@
+from typing import Any
 #!/usr/bin/env python3
 """Daily VolumeSnapshot pass for every mt-node Wine prefix PVC.
 
@@ -84,7 +85,7 @@ def _build_snapshot_manifest(
     snapshot_class: str,
     namespace: str,
     release: str,
-) -> dict:
+) -> dict[str, Any]:
     return {
         "apiVersion": f"{_SNAPSHOT_API_GROUP}/{_SNAPSHOT_API_VERSION}",
         "kind": "VolumeSnapshot",
@@ -117,7 +118,7 @@ _HTTP_CONFLICT = 409
 async def _create_snapshot(
     custom_api: client.CustomObjectsApi,
     namespace: str,
-    manifest: dict,
+    manifest: dict[str, Any],
 ) -> None:
     name = manifest["metadata"]["name"]
     try:

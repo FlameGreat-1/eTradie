@@ -1,3 +1,4 @@
+from typing import Any
 from __future__ import annotations
 
 import asyncio
@@ -518,7 +519,7 @@ class Container:
             },
         )
 
-    async def load_user_broker(self, user_id: str):
+    async def load_user_broker(self, user_id: str) -> Any:
         """Load the active broker connection for a specific user.
 
         Section 5 (CHECKLIST): routed through BrokerClientPool so
@@ -548,7 +549,7 @@ class Container:
             return None
         provider, account_id = row_meta
 
-        async def _factory():
+        async def _factory() -> Any:
             client = await self._load_active_broker_connection(user_id)
             if client is None:
                 raise RuntimeError(
@@ -671,7 +672,7 @@ class Container:
     # -- Section 8 (CHECKLIST): hosted MT-node failure recovery -----------
 
     @property
-    def vault_client(self):
+    def vault_client(self) -> Any:
         """Lazy-built singleton VaultClient.
 
         Constructed on first access; reuses the engine's shared
@@ -700,7 +701,7 @@ class Container:
         return self._vault_client
 
     @property
-    def hosted_provisioner(self):
+    def hosted_provisioner(self) -> Any:
         """Lazy-built singleton HostedProvisioner.
 
         Every hosted-connection call site (router create / update /
@@ -840,7 +841,7 @@ class Container:
         return self._hosted_provisioner
 
     @property
-    def hosted_recovery_service(self):
+    def hosted_recovery_service(self) -> Any:
         """Lazy-built singleton HostedRecoveryService.
 
         First access constructs the service. Subsequent accesses return
@@ -888,7 +889,7 @@ class Container:
                 extra={"user_id": user_id, "provider": provider},
             )
 
-    async def _load_active_broker_connection(self, user_id: str):
+    async def _load_active_broker_connection(self, user_id: str) -> Any:
         """Load the active broker connection from the database.
 
         Returns a BrokerBase instance built from the saved connection,
@@ -1176,7 +1177,7 @@ class Container:
         api_key = decrypt_api_key(row.api_key_encrypted)
         env_cfg = get_processor_config()
 
-        overrides: dict = {
+        overrides: dict[str, Any] = {
             "llm_provider": row.provider,
             "model_name": row.model_name,
             "temperature": row.temperature,

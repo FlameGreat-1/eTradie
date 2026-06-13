@@ -252,7 +252,7 @@ class TwelveDataClient(BrokerBase):
 
         return sequence.candles[-1]
 
-    async def get_symbol_info(self, symbol: str) -> dict:
+    async def get_symbol_info(self, symbol: str) -> dict[str, Any]:
         normalized = self._normalize_symbol(symbol)
 
         try:

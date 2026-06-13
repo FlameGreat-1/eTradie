@@ -1,3 +1,4 @@
+from typing import Any
 """SQLAlchemy table definitions for processor persistence.
 
 Defines analysis_outputs and analysis_audit_logs tables.
@@ -72,7 +73,7 @@ class AnalysisOutputRow(ProcessorBase):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[float] = mapped_column(Float, nullable=False, server_default="0.0")
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    raw_output: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    raw_output: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -129,10 +130,10 @@ class AnalysisAuditLogRow(ProcessorBase):
     llm_duration_ms: Mapped[float] = mapped_column(Float, nullable=False, server_default="0.0")
 
     # Response
-    llm_response: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    llm_response: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")
 
     # Citations
-    citations: Mapped[list] = mapped_column(JSON, nullable=False, server_default="[]")
+    citations: Mapped[list[Any]] = mapped_column(JSON, nullable=False, server_default="[]")
 
     # Final decision
     final_direction: Mapped[str] = mapped_column(String(20), nullable=False, server_default="")
@@ -142,7 +143,7 @@ class AnalysisAuditLogRow(ProcessorBase):
 
     # Validation
     validation_passed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
-    validation_errors: Mapped[list] = mapped_column(JSON, nullable=False, server_default="[]")
+    validation_errors: Mapped[list[Any]] = mapped_column(JSON, nullable=False, server_default="[]")
 
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(

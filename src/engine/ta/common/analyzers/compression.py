@@ -1,3 +1,4 @@
+from typing import Any
 from engine.shared.logging import get_logger
 from engine.ta.constants import Direction
 from engine.ta.models.candle import CandleSequence
@@ -94,7 +95,7 @@ class CompressionAnalyzer:
 
         return None
 
-    def _determine_compression_direction(self, candles: list) -> Direction:
+    def _determine_compression_direction(self, candles: list[Any]) -> Direction:
         if not candles:
             return Direction.NEUTRAL
 
@@ -127,7 +128,7 @@ class CompressionAnalyzer:
 
         return None
 
-    def is_compression(self, candles: list, symbol: str) -> bool:
+    def is_compression(self, candles: list[Any], symbol: str) -> bool:
         """Legacy backwards-compatibility wrapper for validators."""
         if len(candles) < self.min_candles:
             return False

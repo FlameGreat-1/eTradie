@@ -1,3 +1,4 @@
+from typing import Any
 """Internal broker bridge endpoints (Go Execution + Management).
 
 These endpoints proxy broker operations from the Go services through
@@ -40,7 +41,7 @@ router = APIRouter()
 async def broker_account_info(
     request: Request,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Return live account balance, equity, margin, free margin.
     Uses a Stale-While-Revalidate pattern with Redis to survive ZMQ lockouts.
     """
@@ -91,7 +92,7 @@ async def broker_account_info(
 async def broker_positions(
     request: Request,
     _: None = Depends(verify_internal_auth),
-) -> list:
+) -> list[Any]:
     """Return all open positions at the broker.
     Uses a Stale-While-Revalidate pattern with Redis to survive ZMQ lockouts.
     """
@@ -148,7 +149,7 @@ async def broker_history(
     request: Request,
     days: int = 30,
     _: None = Depends(verify_internal_auth),
-) -> list:
+) -> list[Any]:
     """Return historical closed deals at the broker."""
     container: Container = request.app.state.container
     user_id = request.headers.get("X-User-Id", "")
@@ -190,7 +191,7 @@ async def broker_history(
 async def broker_pending_orders(
     request: Request,
     _: None = Depends(verify_internal_auth),
-) -> list:
+) -> list[Any]:
     """Return all pending limit/stop orders at the broker."""
     container: Container = request.app.state.container
     user_id = request.headers.get("X-User-Id", "")
@@ -239,7 +240,7 @@ async def broker_symbol_info(
     request: Request,
     symbol: str = "",
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Return instrument metadata for the Go sizing engine.
     Uses a Stale-While-Revalidate pattern with Redis to survive ZMQ lockouts.
     """
@@ -278,7 +279,7 @@ async def broker_tick_price(
     request: Request,
     symbol: str = "",
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Return latest bid/ask for a symbol.
 
     Called by both Execution (watcher tick polling) and Management
@@ -308,7 +309,7 @@ async def broker_tick_price(
 async def broker_place_order(
     request: Request,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Place a limit or market order at the broker.
 
     Called by Execution Module B's bridge.go placeOrder().
@@ -366,7 +367,7 @@ async def broker_place_order(
 async def broker_cancel_order(
     request: Request,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Cancel a pending order by broker order ID."""
     container: Container = request.app.state.container
     user_id = request.headers.get("X-User-Id", "")
@@ -393,7 +394,7 @@ async def broker_position(
     request: Request,
     ticket: str = "",
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Return a single open position by broker ticket.
 
     Called by Management Module C's stream.go GetPosition().
@@ -430,7 +431,7 @@ async def broker_position(
 async def broker_modify_position(
     request: Request,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Modify SL/TP on an existing open position.
 
     Called by Management Module C's client.go ModifyPosition().
@@ -466,7 +467,7 @@ async def broker_modify_position(
 async def broker_close_partial(
     request: Request,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Partially close a position by volume.
 
     Called by Management Module C's client.go ClosePartial().
@@ -509,7 +510,7 @@ async def broker_close_partial(
 async def broker_close_position(
     request: Request,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     """Fully close a position at market.
 
     Called by Management Module C's client.go ClosePosition().

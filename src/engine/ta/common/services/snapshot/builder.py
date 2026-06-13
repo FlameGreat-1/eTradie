@@ -1,3 +1,4 @@
+from typing import Any
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.dealing_range import DealingRangeAnalyzer
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
@@ -78,7 +79,7 @@ class SnapshotBuilder:
         fibonacci_retracements: list[FibonacciRetracement] | None = None,
         dealing_ranges: list[DealingRange] | None = None,
         candidates: list[TechnicalCandidate] | None = None,
-        metadata: dict | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> TechnicalSnapshot:
         swing_highs = self.swing_analyzer.detect_swing_highs(candles)
         swing_lows = self.swing_analyzer.detect_swing_lows(candles)
@@ -147,8 +148,8 @@ class SnapshotBuilder:
     def _determine_trend_direction(
         self,
         candles: CandleSequence,
-        swing_highs: list,
-        swing_lows: list,
+        swing_highs: list[Any],
+        swing_lows: list[Any],
         bms_events: list[BreakInMarketStructure],
         choch_events: list[ChangeOfCharacter],
     ) -> Direction:

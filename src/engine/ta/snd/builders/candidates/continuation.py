@@ -1,5 +1,5 @@
 import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
@@ -326,7 +326,7 @@ class ContinuationCandidateBuilder:
     def _check_compression(
         self,
         sequence: CandleSequence,
-        fakeout_tests: list,
+        fakeout_tests: list[Any],
     ) -> bool:
         """Check if real compression exists at the fakeout zone."""
         if not fakeout_tests:

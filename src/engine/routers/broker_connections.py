@@ -1,3 +1,4 @@
+from typing import Any
 """Broker connection management endpoints (dashboard CRUD).
 
 Routes:
@@ -59,7 +60,7 @@ def _ea_connection_type_disabled() -> bool:
     return env in ("production", "staging")
 
 
-def _serialize_broker_connection(row) -> dict:
+def _serialize_broker_connection(row) -> dict[str, Any]:
     """Serialize a BrokerConnectionRow to a JSON-safe dict.
 
     For hosted connections ea_host/ea_port hold the cluster-internal
@@ -96,7 +97,7 @@ async def create_broker_connection(
     body: CreateBrokerConnectionRequest,
     background_tasks: BackgroundTasks,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Create a new broker connection (EA or MetaAPI).
 
     User selects connection type, enters credentials, and saves.
@@ -371,7 +372,7 @@ async def create_broker_connection(
 async def list_broker_connections(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """List all saved broker connections."""
     container: Container = request.app.state.container
 
@@ -387,7 +388,7 @@ async def list_broker_connections(
 async def get_active_broker_connection(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Get the currently active broker connection."""
     container: Container = request.app.state.container
 
@@ -413,7 +414,7 @@ async def get_broker_connection(
     request: Request,
     connection_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Get a specific broker connection by ID."""
     container: Container = request.app.state.container
 
@@ -433,7 +434,7 @@ async def update_broker_connection(
     connection_id: str,
     body: UpdateBrokerConnectionRequest,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Update an existing broker connection.
 
     Updates are saved to the database. The user's broker is resolved
@@ -545,7 +546,7 @@ async def activate_broker_connection(
     request: Request,
     connection_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Activate a broker connection.
 
     Deactivates all other connections for this user and marks
@@ -573,7 +574,7 @@ async def deactivate_broker_connection(
     request: Request,
     connection_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Deactivate a broker connection without deleting it."""
     container: Container = request.app.state.container
 
@@ -596,7 +597,7 @@ async def set_primary_broker_connection(
     request: Request,
     connection_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Set a connection as primary (also activates it).
 
     The user's broker is resolved per-request from the database
@@ -623,7 +624,7 @@ async def test_broker_connection(
     request: Request,
     connection_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Test a broker connection's health.
     Rate limited to prevent flooding the broker with health checks.
 
@@ -720,7 +721,7 @@ async def delete_broker_connection(
     request: Request,
     connection_id: str,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Permanently delete a saved broker connection."""
     container: Container = request.app.state.container
 

@@ -1,3 +1,4 @@
+from typing import Any
 """Internal route for Trading Plan generation dispatch.
 
 The Go gateway calls this when the user clicks \"Generate plan\" (or
@@ -61,7 +62,7 @@ class DispatchBody(BaseModel):
     balance_currency: str = Field(..., min_length=3, max_length=8)
     balance_source: str = Field(..., min_length=1, max_length=16)
     profile_version: int = Field(..., ge=0)
-    profile: dict
+    profile: dict[str, Any]
     # Identity fields forwarded by the gateway so the engine can apply
     # the platform-key fallback policy (admin / pro_managed) without a
     # separate identity lookup. Optional on the wire because a slightly
@@ -129,7 +130,7 @@ async def dispatch_trading_plan_generation(
     request: Request,
     body: DispatchBody,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     container: Container = request.app.state.container
 
     generator = await _resolve_generator(container)

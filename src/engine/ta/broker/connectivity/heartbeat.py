@@ -1,3 +1,4 @@
+from typing import Any
 """Broker heartbeat service.
 
 Runs one async task per active broker connection. Each task:
@@ -71,7 +72,7 @@ class HeartbeatResult:
     broker_connected: bool = False
     authenticated: bool = False
     uptime_seconds: float = 0.0
-    raw: dict = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict[str, Any])
     error_type: str = ""
     error_message: str = ""
 

@@ -1,3 +1,4 @@
+from typing import Any
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -40,47 +41,47 @@ class SnapshotSchema(Base):
 
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
-    swing_highs: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    swing_highs: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    swing_lows: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    swing_lows: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    bms_events: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    bms_events: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    choch_events: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    choch_events: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    sms_events: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    sms_events: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    order_blocks: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    order_blocks: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    fair_value_gaps: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    fair_value_gaps: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    breaker_blocks: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    breaker_blocks: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    liquidity_sweeps: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    liquidity_sweeps: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    inducement_events: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    inducement_events: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    qm_levels: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    qm_levels: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    sr_flips: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    sr_flips: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    rs_flips: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    rs_flips: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    previous_levels: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    previous_levels: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    mpl_levels: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    mpl_levels: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    fakeout_tests: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    fakeout_tests: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    supply_zones: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    supply_zones: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    demand_zones: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    demand_zones: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    fibonacci_retracements: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    fibonacci_retracements: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    dealing_ranges: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    dealing_ranges: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict[str, Any])
 
-    meta_data: Mapped[dict] = mapped_column(JSON, nullable=True)
+    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=True)
 
     version: Mapped[int] = mapped_column(default=1, nullable=False)
 

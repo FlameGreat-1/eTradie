@@ -1,3 +1,4 @@
+from typing import Any
 """Signal extraction helpers for the dashboard rerun pipeline.
 
 These functions replicate the Go gateway's macro_extractor.go and
@@ -12,14 +13,14 @@ in Go code and passes them via HTTP to the Python engine.
 from __future__ import annotations
 
 
-def derive_macro_signals(macro: dict) -> dict:
+def derive_macro_signals(macro: dict[str, Any]) -> dict[str, Any]:
     """Derive enriched macro signal flags from raw macro collection output.
 
     Replicates the signal extraction logic from the Go gateway's
     macro_extractor.go so the rerun endpoint produces identical
     signals as the normal Go gateway pipeline.
     """
-    signals: dict = {
+    signals: dict[str, Any] = {
         "has_macro_data": False,
         "has_cot_data": False,
         "has_rate_decision": False,
@@ -207,7 +208,7 @@ def derive_macro_signals(macro: dict) -> dict:
     return signals
 
 
-def derive_ta_signals(ta: dict) -> dict:
+def derive_ta_signals(ta: dict[str, Any]) -> dict[str, Any]:
     """Derive TA signal flags from raw TA analysis output.
 
     MIRROR of the Go gateway's ta_extractor.go (ExtractTASignals). The
@@ -217,7 +218,7 @@ def derive_ta_signals(ta: dict) -> dict:
     query than production. (Tracked: a future refactor should have the rerun
     endpoint call the gateway so this duplicate can be deleted.)
     """
-    signals: dict = {
+    signals: dict[str, Any] = {
         "direction": "",
         "overall_trend": (ta.get("overall_trend") or "NEUTRAL"),
         "framework": "",

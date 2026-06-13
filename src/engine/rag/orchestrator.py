@@ -1,3 +1,4 @@
+from typing import Any
 from __future__ import annotations
 
 import time
@@ -309,7 +310,7 @@ class RAGOrchestrator:
         direction: str | None,
         timeframe: str | None,
         all_frameworks: list[str] | None,
-    ) -> list:
+    ) -> list[Any]:
         """Match scenarios across ALL setup families and frameworks.
 
         Instead of matching only the primary setup_family, this iterates

@@ -1,3 +1,4 @@
+from typing import Any
 """Parse raw LLM JSON text into the canonical AnalysisOutput model.
 
 Handles JSON extraction from potentially noisy LLM output,
@@ -64,7 +65,7 @@ _NULLABLE_LIST_PATHS: tuple[str, ...] = (
 )
 
 
-def _coerce_null_collections(raw: dict) -> None:
+def _coerce_null_collections(raw: dict[str, Any]) -> None:
     """In-place: replace None with [] at every path in ``_NULLABLE_LIST_PATHS``.
 
     Walks the dict by dotted path. Missing intermediate keys are

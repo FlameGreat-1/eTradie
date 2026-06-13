@@ -141,7 +141,7 @@ class BrokerBase(ABC):
         pass
 
     @abstractmethod
-    async def get_symbol_info(self, symbol: str) -> dict:
+    async def get_symbol_info(self, symbol: str) -> dict[str, Any]:
         pass
 
     @abstractmethod
@@ -149,7 +149,7 @@ class BrokerBase(ABC):
         pass
 
     @abstractmethod
-    async def get_all_symbols(self) -> list[dict]:
+    async def get_all_symbols(self) -> list[dict[str, Any]]:
         """Return all available broker symbols with name, description, and category path."""
 
     @abstractmethod

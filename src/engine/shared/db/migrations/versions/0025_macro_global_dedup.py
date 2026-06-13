@@ -1,3 +1,4 @@
+from typing import Any
 """Restore global dedup on macro tables, drop accidental multi-tenancy.
 
 Macro data (central-bank RSS, economic calendar, COT reports, DXY,
@@ -86,7 +87,7 @@ depends_on: str | Sequence[str] | None = None
 # symmetric and makes future schema audits trivial: every entry is in
 # one place.
 
-_MACRO_TABLES: list[dict] = [
+_MACRO_TABLES: list[dict[str, Any]] = [
     {
         "table": "calendar_events",
         "tenant_uq": "uq_cal_user_event",

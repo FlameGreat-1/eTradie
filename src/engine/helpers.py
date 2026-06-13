@@ -13,7 +13,7 @@ from collections import OrderedDict
 from datetime import UTC
 from datetime import datetime as dt
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from fastapi import HTTPException
 
@@ -148,7 +148,7 @@ async def _resolve_user_processor(container: Container, user: AuthenticatedUser)
         raise HTTPException(status_code=503, detail=str(exc))
 
 
-async def _resolve_user_broker(container: Container, user_id: str):
+async def _resolve_user_broker(container: Container, user_id: str) -> Any:
     """Resolve the authenticated user's broker connection.
 
     Called by every endpoint that needs broker access to ensure
@@ -175,13 +175,13 @@ async def _resolve_user_broker(container: Container, user_id: str):
 
 def _save_debug_output(
     symbol: str,
-    ta_data: dict,
-    macro_data: dict | None = None,
-    rag_data: dict | None = None,
-    processor_data: dict | None = None,
-    execution_request: dict | None = None,
+    ta_data: dict[str, Any],
+    macro_data: dict[str, Any] | None = None,
+    rag_data: dict[str, Any] | None = None,
+    processor_data: dict[str, Any] | None = None,
+    execution_request: dict[str, Any] | None = None,
     subdirectory: str = "rerun",
-) -> dict:
+) -> dict[str, Any]:
     """Persist analysis outputs to /output/<subdirectory>/<symbol>_<ts>/ as separate JSON files.
 
     Args:
@@ -200,7 +200,7 @@ def _save_debug_output(
 
     files: dict[str, str] = {}
 
-    def _write(name: str, data: dict | None) -> None:
+    def _write(name: str, data: dict[str, Any] | None) -> None:
         if data is None:
             return
         path = out_dir / f"{name}.json"

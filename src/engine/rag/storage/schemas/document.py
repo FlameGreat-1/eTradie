@@ -1,3 +1,4 @@
+from typing import Any
 from __future__ import annotations
 
 import uuid
@@ -21,8 +22,8 @@ class DocumentRow(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     checksum: Mapped[str] = mapped_column(String(128), nullable=False)
     active_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-    framework_tags: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="[]")
-    meta_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    framework_tags: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="[]")
+    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

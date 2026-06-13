@@ -1,3 +1,4 @@
+from typing import Any
 from __future__ import annotations
 
 import uuid
@@ -26,7 +27,7 @@ class DocumentVersionRow(Base):
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     superseded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     change_summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    meta_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

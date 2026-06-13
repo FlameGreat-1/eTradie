@@ -1,3 +1,4 @@
+from typing import Any
 from __future__ import annotations
 
 import uuid
@@ -27,7 +28,7 @@ class IntermarketSnapshotRow(Base):
     dxy_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     sp500: Mapped[float | None] = mapped_column(Float, nullable=True)
     vix: Mapped[float | None] = mapped_column(Float, nullable=True)
-    correlation_signals_json: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
+    correlation_signals_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default={})
     snapshot_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -149,7 +149,7 @@ class MetaApiClient(BrokerBase):
     # -- Helpers ---------------------------------------------------------------
 
     @contextlib.asynccontextmanager
-    async def _acquire_candles_slot(self):
+    async def _acquire_candles_slot(self) -> Any:
         """Acquire the correct candles semaphore pair for the current request.
 
         Reads the priority tier from the active broker_priority context. The
@@ -343,7 +343,7 @@ class MetaApiClient(BrokerBase):
             )
         return sequence.candles[-1]
 
-    async def get_symbol_info(self, symbol: str) -> dict:
+    async def get_symbol_info(self, symbol: str) -> dict[str, Any]:
         path = f"/symbols/{urllib.parse.quote(symbol)}/specification"
         try:
             info = await self._api_get(path, category="symbol_info")
@@ -388,7 +388,7 @@ class MetaApiClient(BrokerBase):
             return []
         return [str(s) for s in raw]
 
-    async def get_all_symbols(self) -> list[dict]:
+    async def get_all_symbols(self) -> list[dict[str, Any]]:
         """Fetch all symbols from MetaApi account."""
         try:
             raw = await self._api_get("/symbols", category="symbols")
@@ -401,7 +401,7 @@ class MetaApiClient(BrokerBase):
         if not isinstance(raw, list):
             return []
 
-        symbols: list[dict] = []
+        symbols: list[dict[str, Any]] = []
         for s in raw:
             if isinstance(s, str):
                 name = s

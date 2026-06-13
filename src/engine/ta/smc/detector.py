@@ -1,3 +1,4 @@
+from typing import Any
 from datetime import timedelta
 
 from engine.shared.logging import get_logger
@@ -383,17 +384,17 @@ class SMCDetector:
         self,
         htf_sequence: CandleSequence,
         ltf_sequence: CandleSequence,
-        htf_choch_bullish: list,
-        htf_choch_bearish: list,
-        ltf_bms_bullish: list,
-        ltf_bms_bearish: list,
-        ltf_choch_bullish: list,
-        ltf_choch_bearish: list,
-        ltf_fvgs: list,
-        inducement_events: list,
-        sweeps: list,
-        ltf_swing_highs: list = None,
-        ltf_swing_lows: list = None,
+        htf_choch_bullish: list[Any],
+        htf_choch_bearish: list[Any],
+        ltf_bms_bullish: list[Any],
+        ltf_bms_bearish: list[Any],
+        ltf_choch_bullish: list[Any],
+        ltf_choch_bearish: list[Any],
+        ltf_fvgs: list[Any],
+        inducement_events: list[Any],
+        sweeps: list[Any],
+        ltf_swing_highs: list[Any] = None,
+        ltf_swing_lows: list[Any] = None,
     ) -> list[SMCCandidate]:
         """Build reversal candidates from HTF CHoCH events.
 
@@ -553,11 +554,11 @@ class SMCDetector:
         ltf_choch: ChangeOfCharacter | None,
         ltf_sweep: LiquiditySweep | None,
         ob: "OrderBlock",
-        ltf_fvgs: list,
-        inducement_events: list,
+        ltf_fvgs: list[Any],
+        inducement_events: list[Any],
         direction: Direction,
-        swing_highs: list = None,
-        swing_lows: list = None,
+        swing_highs: list[Any] = None,
+        swing_lows: list[Any] = None,
     ) -> SMCCandidate | None:
         """Build a single CHOCH_BMS_RTO candidate.
 
@@ -741,9 +742,9 @@ class SMCDetector:
         ltf_choch: ChangeOfCharacter | None,
         ltf_sweep: LiquiditySweep | None,
         ob: "OrderBlock",
-        fvgs: list,
+        fvgs: list[Any],
         retracement: FibonacciRetracement | None,
-        inducement_events: list,
+        inducement_events: list[Any],
     ) -> int:
         """Count confluences for a CHoCH reversal candidate.
 
@@ -821,12 +822,12 @@ class SMCDetector:
 
     def _build_choch_metadata(
         self,
-        base: dict,
+        base: dict[str, Any],
         price: float,
         retracement: FibonacciRetracement | None,
         sweep: LiquiditySweep | None = None,
         ob=None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Attach fib_context and sweep_context to the CHoCH reversal metadata."""
         metadata = dict(base)
 
@@ -843,7 +844,7 @@ class SMCDetector:
     @staticmethod
     def _find_bsl_target(
         entry_price: float,
-        swing_highs: list,
+        swing_highs: list[Any],
         min_reward: float = 0.0,
     ) -> float | None:
         """Find the nearest BSL (swing high) above entry.
@@ -862,7 +863,7 @@ class SMCDetector:
     @staticmethod
     def _find_ssl_target(
         entry_price: float,
-        swing_lows: list,
+        swing_lows: list[Any],
         min_reward: float = 0.0,
     ) -> float | None:
         """Find the nearest SSL (swing low) below entry.
@@ -884,15 +885,15 @@ class SMCDetector:
         self,
         htf_sequence: CandleSequence,
         ltf_sequence: CandleSequence,
-        htf_bms_bullish: list,
-        htf_bms_bearish: list,
-        ltf_bms_bullish: list,
-        ltf_bms_bearish: list,
-        ltf_choch_bullish: list,
-        ltf_choch_bearish: list,
-        ltf_fvgs: list,
-        inducement_events: list,
-        sweeps: list,
+        htf_bms_bullish: list[Any],
+        htf_bms_bearish: list[Any],
+        ltf_bms_bullish: list[Any],
+        ltf_bms_bearish: list[Any],
+        ltf_choch_bullish: list[Any],
+        ltf_choch_bearish: list[Any],
+        ltf_fvgs: list[Any],
+        inducement_events: list[Any],
+        sweeps: list[Any],
     ) -> list[SMCCandidate]:
         """Build continuation candidates.
 
@@ -1094,16 +1095,16 @@ class SMCDetector:
         self,
         htf_sequence: CandleSequence,
         ltf_sequence: CandleSequence,
-        htf_sms_bullish: list,
-        htf_sms_bearish: list,
-        ltf_bms_bullish: list,
-        ltf_bms_bearish: list,
-        ltf_choch_bullish: list,
-        ltf_choch_bearish: list,
-        ltf_fvgs: list,
-        inducement_events: list,
-        ltf_swing_highs: list = None,
-        ltf_swing_lows: list = None,
+        htf_sms_bullish: list[Any],
+        htf_sms_bearish: list[Any],
+        ltf_bms_bullish: list[Any],
+        ltf_bms_bearish: list[Any],
+        ltf_choch_bullish: list[Any],
+        ltf_choch_bearish: list[Any],
+        ltf_fvgs: list[Any],
+        inducement_events: list[Any],
+        ltf_swing_highs: list[Any] = None,
+        ltf_swing_lows: list[Any] = None,
     ) -> list[SMCCandidate]:
         """Build reversal candidates.
 
@@ -1294,10 +1295,10 @@ class SMCDetector:
     def _build_turtle_soup_candidates(
         self,
         ltf_sequence: CandleSequence,
-        turtle_soup_long: list,
-        turtle_soup_short: list,
-        ltf_swing_highs: list = None,
-        ltf_swing_lows: list = None,
+        turtle_soup_long: list[Any],
+        turtle_soup_short: list[Any],
+        ltf_swing_highs: list[Any] = None,
+        ltf_swing_lows: list[Any] = None,
     ) -> list[SMCCandidate]:
         """Build Turtle Soup candidates, limited to the most recent per direction.
 
@@ -1348,15 +1349,15 @@ class SMCDetector:
         htf_sequence: CandleSequence,
         ltf_sequence: CandleSequence,
         amd_context: AMDContext,
-        ltf_bms_bullish: list,
-        ltf_bms_bearish: list,
-        ltf_choch_bullish: list,
-        ltf_choch_bearish: list,
-        ltf_fvgs: list,
-        inducement_events: list,
-        sweeps: list,
-        ltf_swing_highs: list = None,
-        ltf_swing_lows: list = None,
+        ltf_bms_bullish: list[Any],
+        ltf_bms_bearish: list[Any],
+        ltf_choch_bullish: list[Any],
+        ltf_choch_bearish: list[Any],
+        ltf_fvgs: list[Any],
+        inducement_events: list[Any],
+        sweeps: list[Any],
+        ltf_swing_highs: list[Any] = None,
+        ltf_swing_lows: list[Any] = None,
     ) -> list[SMCCandidate]:
         """Build AMD candidates.
 
@@ -1425,7 +1426,7 @@ class SMCDetector:
 
     def _find_relevant_sweep(
         self,
-        sweeps: list,
+        sweeps: list[Any],
         direction: Direction,
         bms: BreakInMarketStructure,
     ) -> LiquiditySweep | None:

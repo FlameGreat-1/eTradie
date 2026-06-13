@@ -1,3 +1,4 @@
+from typing import Any
 """Chart data endpoints (Dashboard TradingView chart).
 
 These public-facing endpoints power the dashboard's Lightweight Charts.
@@ -59,14 +60,14 @@ import contextlib
 from collections import OrderedDict
 
 _BROKER_SYMBOLS_CACHE_CAPACITY: int = 1024
-_broker_symbols_cache: OrderedDict[tuple[str, str, str], tuple[dict, float]] = OrderedDict()
+_broker_symbols_cache: OrderedDict[tuple[str, str, str], tuple[dict[str, Any], float]] = OrderedDict()
 
 
 def _broker_symbols_cache_get(
     key: tuple[str, str, str],
     *,
     now: float,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Return the cached payload for `key` if still fresh, else None.
 
     Touches the entry's LRU position so frequently-accessed users
@@ -88,7 +89,7 @@ def _broker_symbols_cache_get(
 
 def _broker_symbols_cache_set(
     key: tuple[str, str, str],
-    payload: dict,
+    payload: dict[str, Any],
     *,
     now: float,
     ttl_seconds: float,
@@ -109,7 +110,7 @@ def _broker_symbols_cache_set(
 async def broker_symbols(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Return all available broker instruments with name, description, and path.
 
     Reads from the persistent BrokerSymbolRegistry for maximum performance
@@ -239,7 +240,7 @@ async def chart_candles(
     timeframe: str = Query("H1", description="Timeframe: M1,M5,M15,M30,H1,H4,D1,W1"),
     count: int = Query(2000, ge=10, le=5000, description="Number of candles"),
     user: AuthenticatedUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """Return historical OHLCV candles for the dashboard chart.
 
     Implements an enterprise-grade Stale-While-Revalidate cache backed
@@ -276,7 +277,7 @@ async def chart_candles(
         target_tf_label: str,
         *,
         background: bool,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Authoritative broker fetch -> normalized payload."""
         client = await _resolve_user_broker(container, user.user_id)
         if background:
@@ -310,7 +311,7 @@ async def chart_candles(
             "candles": candles_out,
         }
 
-    async def _store(key: str, payload: dict) -> None:
+    async def _store(key: str, payload: dict[str, Any]) -> None:
         try:
             await container.cache.set_with_meta("candles", key, payload, ttl_seconds=TOTAL_TTL_S)
         except Exception as e:
@@ -319,7 +320,7 @@ async def chart_candles(
                 extra={"key": key, "error": str(e)},
             )
 
-    async def _refresh_under_lock(*, background: bool) -> dict | None:
+    async def _refresh_under_lock(*, background: bool) -> dict[str, Any] | None:
         """Acquire the single-flight lock and refresh the cache."""
         token = uuid.uuid4().hex
         acquired = await container.cache.try_acquire_lock("candles", lock_key, token, ttl_seconds=LOCK_TTL_S)
@@ -528,7 +529,7 @@ async def chart_candles(
 
 
 @router.websocket("/api/broker/stream-ticks")
-async def stream_ticks(websocket: WebSocket):
+async def stream_ticks(websocket: WebSocket) -> Any:
     """True WebSocket stream of live tick prices for the dashboard chart.
 
     Protocol (cookie-auth, browser clients):
@@ -666,7 +667,7 @@ async def stream_ticks(websocket: WebSocket):
 
 
 @router.websocket("/api/broker/stream-positions")
-async def stream_positions(websocket: WebSocket):
+async def stream_positions(websocket: WebSocket) -> Any:
     """WebSocket stream of live position updates.
 
     Protocol (cookie-auth):

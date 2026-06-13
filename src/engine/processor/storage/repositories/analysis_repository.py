@@ -55,7 +55,7 @@ class AnalysisRepository(BaseRepository[AnalysisOutputRow]):
         error_message: str | None = None,
         duration_ms: float = 0.0,
         trace_id: str | None = None,
-        raw_output: dict | None = None,
+        raw_output: dict[str, Any] | None = None,
     ) -> None:
         """Idempotent upsert of an analysis output, scoped to user."""
         await self.upsert(

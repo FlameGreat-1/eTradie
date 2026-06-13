@@ -7,7 +7,7 @@ processor invocation, as required by LLM.md Section 9.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import Field
@@ -44,7 +44,7 @@ class AnalysisRecord(TimestampedModel):
     error_message: Optional[str] = None
     duration_ms: float = 0.0
     trace_id: Optional[str] = None
-    raw_output: dict = Field(default_factory=dict)
+    raw_output: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
 class AuditLogRecord(TimestampedModel):
@@ -76,10 +76,10 @@ class AuditLogRecord(TimestampedModel):
     llm_duration_ms: float = 0.0
 
     # Response
-    llm_response: dict = Field(default_factory=dict)
+    llm_response: dict[str, Any] = Field(default_factory=dict[str, Any])
 
     # Citations
-    citations: list[dict] = Field(default_factory=list)
+    citations: list[dict[str, Any]] = Field(default_factory=list)
 
     # Final decision
     final_direction: str = ""

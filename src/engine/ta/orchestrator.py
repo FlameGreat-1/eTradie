@@ -1,3 +1,4 @@
+from typing import Any
 """
 TA workflow orchestration — multi-timeframe top-down analysis.
 
@@ -122,7 +123,7 @@ class TAOrchestrator:
         broker_client: BrokerBase,
         user_id: str,
         pulse=None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Run a complete multi-timeframe top-down analysis for *symbol*.
 
@@ -306,7 +307,7 @@ class TAOrchestrator:
                 await pulse.emit("SHIMMING", "Zone scanning complete", completed=True)
                 await pulse.emit("PONTIFICATING", "Liquidity & confirmation complete", completed=True)
                 await pulse.emit("FERMENTING", "Performing multi-timeframe trend alignment")
-            alignments: dict[str, dict] = {}
+            alignments: dict[str, dict[str, Any]] = {}
             ordered_tfs = [tf for tf in all_timeframes if tf in snapshots]
             for i in range(len(ordered_tfs) - 1):
                 higher_tf = ordered_tfs[i]
@@ -410,10 +411,10 @@ class TAOrchestrator:
         snapshots: dict[Timeframe, TechnicalSnapshot] | None = None,
         smc_candidates: list[SMCCandidate] | None = None,
         snd_candidates: list[SnDCandidate] | None = None,
-        alignments: dict[str, dict] | None = None,
+        alignments: dict[str, dict[str, Any]] | None = None,
         overall_trend: str = "NEUTRAL",
         error: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Build the structured result dict returned by analyze().
 
         Single chokepoint where the in-memory algorithmic truth is
@@ -455,7 +456,7 @@ class TAOrchestrator:
             snapshot_map.items(),
             key=lambda kv: TIMEFRAME_MINUTES[kv[0]],
         )
-        serialized_snapshots: dict[str, dict] = {}
+        serialized_snapshots: dict[str, dict[str, Any]] = {}
         for tf, snap in ordered_for_prompt:
             serialized_snapshots[tf.value] = self._serialize_snapshot(snap)
 
@@ -552,7 +553,7 @@ class TAOrchestrator:
         # Each pair previously carried both flat fields AND an identical
         # nested ``alignment_metadata`` block. Promote ``zones_nested``
         # to top-level and drop the nested block.
-        flat_alignments: dict[str, dict] = {}
+        flat_alignments: dict[str, dict[str, Any]] = {}
         for pair_key, pair_data in (alignments or {}).items():
             metadata = pair_data.get("alignment_metadata") or {}
             zones_nested = metadata.get("zones_nested")
@@ -568,7 +569,7 @@ class TAOrchestrator:
         # cost (~5 tokens x candidate count). `timeframe` is preserved
         # because the candidate list is flat -- without it the LLM
         # cannot attribute each candidate to its source timeframe.
-        def _dump_without_symbol(c) -> dict:
+        def _dump_without_symbol(c) -> dict[str, Any]:
             if not hasattr(c, "model_dump"):
                 return {}
             d = c.model_dump(mode="json")
@@ -601,7 +602,7 @@ class TAOrchestrator:
     # Bucket width = 2 * tolerance (one tolerance band on each side of
     # the midpoint), which is the natural granularity for midpoint
     # rounding.
-    _ZONE_PIP_TOLERANCE: dict = {
+    _ZONE_PIP_TOLERANCE: dict[str, Any] = {
         Timeframe.M1: 5,
         Timeframe.M5: 5,
         Timeframe.M15: 15,
@@ -691,17 +692,17 @@ class TAOrchestrator:
     @classmethod
     def _dedupe_smc_candidates_by_zone(
         cls,
-        candidates: list,
+        candidates: list[Any],
         *,
         symbol: str,
-    ) -> list:
+    ) -> list[Any]:
         """Keep the highest-ranked SMC candidate per
         (timeframe, direction, OB-midpoint bucket). Candidates
         without a usable OB zone fall back to the FVG bounds;
         without either, they bypass dedup entirely (kept verbatim).
         """
         best_in_bucket: dict[tuple, object] = {}
-        bypass: list = []
+        bypass: list[Any] = []
         for c in candidates:
             ob_lower = getattr(c, "order_block_lower", None)
             ob_upper = getattr(c, "order_block_upper", None)
@@ -726,17 +727,17 @@ class TAOrchestrator:
     @classmethod
     def _dedupe_snd_candidates_by_zone(
         cls,
-        candidates: list,
+        candidates: list[Any],
         *,
         symbol: str,
-    ) -> list:
+    ) -> list[Any]:
         """Keep the highest-ranked SnD candidate per
         (timeframe, direction, zone-midpoint bucket). The zone is
         either supply_zone_* (bearish setups) or demand_zone_*
         (bullish setups); candidates without either bypass dedup.
         """
         best_in_bucket: dict[tuple, object] = {}
-        bypass: list = []
+        bypass: list[Any] = []
         for c in candidates:
             zone_lower = getattr(c, "supply_zone_lower", None) or getattr(c, "demand_zone_lower", None)
             zone_upper = getattr(c, "supply_zone_upper", None) or getattr(c, "demand_zone_upper", None)
@@ -1465,7 +1466,7 @@ class TAOrchestrator:
         )
 
     @staticmethod
-    def _build_snapshot_metadata(snapshot: TechnicalSnapshot) -> dict:
+    def _build_snapshot_metadata(snapshot: TechnicalSnapshot) -> dict[str, Any]:
         """Build the meta_data column payload for a persisted snapshot.
 
         SnapshotRepository.create accepts an optional ``metadata`` kwarg
@@ -1492,7 +1493,7 @@ class TAOrchestrator:
         live_qms = sum(1 for qm in snapshot.qml_levels if not qm.tested)
         live_mpls = sum(1 for mpl in snapshot.mpl_levels if not mpl.tested)
 
-        meta: dict = {
+        meta: dict[str, Any] = {
             "trend_direction": snapshot.trend_direction.value,
             "live_order_block_count": live_obs,
             "live_breaker_block_count": live_breakers,
@@ -1633,7 +1634,7 @@ class TAOrchestrator:
             return 3
         return 5
 
-    def _serialize_snapshot(self, snapshot: TechnicalSnapshot) -> dict:
+    def _serialize_snapshot(self, snapshot: TechnicalSnapshot) -> dict[str, Any]:
         """Serialize a TechnicalSnapshot into the unified prompt + DB shape.
 
         Dead structures are filtered BEFORE the trailing-N slice so the
@@ -1676,7 +1677,7 @@ class TAOrchestrator:
         live_supply = [sz for sz in snapshot.supply_zones if not sz.broken]
         live_demand = [dz for dz in snapshot.demand_zones if not dz.broken]
 
-        out: dict = {
+        out: dict[str, Any] = {
             "timestamp": snapshot.timestamp.isoformat(),
             "trend_direction": snapshot.trend_direction.value,
             "swing_highs": self._serialize_swing_highs(snapshot.swing_highs[-swing_cap:]),
@@ -1734,7 +1735,7 @@ class TAOrchestrator:
     # parallel serializer and no shape divergence between paths.
 
     @staticmethod
-    def _serialize_swing_highs(swing_highs: list) -> list:
+    def _serialize_swing_highs(swing_highs: list[Any]) -> list[Any]:
         return [
             {
                 "price": sh.price,
@@ -1745,7 +1746,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_swing_lows(swing_lows: list) -> list:
+    def _serialize_swing_lows(swing_lows: list[Any]) -> list[Any]:
         return [
             {
                 "price": sl.price,
@@ -1756,7 +1757,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_bms_events(bms_events: list) -> list:
+    def _serialize_bms_events(bms_events: list[Any]) -> list[Any]:
         return [
             {
                 "breakout_price": bms.breakout_price,
@@ -1770,7 +1771,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_choch_events(choch_events: list) -> list:
+    def _serialize_choch_events(choch_events: list[Any]) -> list[Any]:
         return [
             {
                 "breakout_price": choch.breakout_price,
@@ -1783,7 +1784,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_sms_events(sms_events: list) -> list:
+    def _serialize_sms_events(sms_events: list[Any]) -> list[Any]:
         return [
             {
                 "failed_level": sms.failed_level,
@@ -1796,7 +1797,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_order_blocks(order_blocks: list) -> list:
+    def _serialize_order_blocks(order_blocks: list[Any]) -> list[Any]:
         return [
             {
                 "upper_bound": ob.upper_bound,
@@ -1811,7 +1812,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_fvgs(fvgs: list) -> list:
+    def _serialize_fvgs(fvgs: list[Any]) -> list[Any]:
         # `fill_percentage` is removed: it is dead state -- never
         # assigned back to the model after construction and no
         # consumer reads it. The model and detector also drop the
@@ -1828,7 +1829,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_breaker_blocks(breaker_blocks: list) -> list:
+    def _serialize_breaker_blocks(breaker_blocks: list[Any]) -> list[Any]:
         return [
             {
                 "upper_bound": bb.upper_bound,
@@ -1843,7 +1844,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_sweeps(sweeps: list) -> list:
+    def _serialize_sweeps(sweeps: list[Any]) -> list[Any]:
         return [
             {
                 "swept_level": sweep.swept_level,
@@ -1856,7 +1857,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_inducements(inducements: list) -> list:
+    def _serialize_inducements(inducements: list[Any]) -> list[Any]:
         return [
             {
                 "inducement_level": ind.inducement_level,
@@ -1870,7 +1871,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_equal_highs_lows(equal_highs_lows: list) -> list:
+    def _serialize_equal_highs_lows(equal_highs_lows: list[Any]) -> list[Any]:
         return [
             {
                 "price_level": ehl.price_level,
@@ -1884,7 +1885,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_liquidity_grabs(liquidity_grabs: list) -> list:
+    def _serialize_liquidity_grabs(liquidity_grabs: list[Any]) -> list[Any]:
         return [
             {
                 "grab_price": grab.grab_price,
@@ -1898,7 +1899,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_qm_levels(qm_levels: list) -> list:
+    def _serialize_qm_levels(qm_levels: list[Any]) -> list[Any]:
         return [
             {
                 "qml_price": qm.qml_price,
@@ -1914,7 +1915,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_sr_flips(sr_flips: list) -> list:
+    def _serialize_sr_flips(sr_flips: list[Any]) -> list[Any]:
         return [
             {
                 "flip_level": sr.flip_level,
@@ -1927,7 +1928,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_rs_flips(rs_flips: list) -> list:
+    def _serialize_rs_flips(rs_flips: list[Any]) -> list[Any]:
         return [
             {
                 "flip_level": rs.flip_level,
@@ -1940,7 +1941,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_mpl_levels(mpl_levels: list) -> list:
+    def _serialize_mpl_levels(mpl_levels: list[Any]) -> list[Any]:
         return [
             {
                 "mpl_price": mpl.mpl_price,
@@ -1953,7 +1954,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_supply_zones(supply_zones: list) -> list:
+    def _serialize_supply_zones(supply_zones: list[Any]) -> list[Any]:
         return [
             {
                 "upper_bound": sz.upper_bound,
@@ -1968,7 +1969,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_demand_zones(demand_zones: list) -> list:
+    def _serialize_demand_zones(demand_zones: list[Any]) -> list[Any]:
         return [
             {
                 "upper_bound": dz.upper_bound,
@@ -1983,7 +1984,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_fibonacci(fibonacci_retracements: list) -> list:
+    def _serialize_fibonacci(fibonacci_retracements: list[Any]) -> list[Any]:
         return [
             {
                 "swing_high": fib.swing_high,
@@ -1997,7 +1998,7 @@ class TAOrchestrator:
         ]
 
     @staticmethod
-    def _serialize_dealing_ranges(dealing_ranges: list) -> list:
+    def _serialize_dealing_ranges(dealing_ranges: list[Any]) -> list[Any]:
         return [
             {
                 "high": dr.high,

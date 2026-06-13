@@ -1,4 +1,4 @@
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from engine.shared.logging import get_logger
 from engine.ta.common.utils.price.math import is_within_tolerance
@@ -168,7 +168,7 @@ class SwingAnalyzer:
 
     def _calculate_strength(
         self,
-        candles: list,
+        candles: list[Any],
         index: int,
         is_high: bool,
     ) -> int:

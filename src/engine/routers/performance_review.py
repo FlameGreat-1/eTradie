@@ -1,3 +1,4 @@
+from typing import Any
 """Internal routes for Performance Review dispatch.
 
 The Go gateway calls /internal/performance-review/dispatch when the
@@ -159,7 +160,7 @@ async def dispatch_performance_review(
     request: Request,
     body: DispatchBody,
     _: None = Depends(verify_internal_auth),
-) -> dict:
+) -> dict[str, Any]:
     container: Container = request.app.state.container
 
     role = (body.role.strip() or request.headers.get("X-User-Role", "").strip() or "etradie").lower()

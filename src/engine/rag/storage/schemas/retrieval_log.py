@@ -1,3 +1,4 @@
+from typing import Any
 from __future__ import annotations
 
 import uuid
@@ -17,7 +18,7 @@ class RetrievalLogRow(Base):
     user_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     query_text: Mapped[str] = mapped_column(Text, nullable=False)
     strategy: Mapped[str] = mapped_column(String(32), nullable=False)
-    filters_applied: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    filters_applied: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")
     total_candidates: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     chunks_returned: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     score_threshold: Mapped[float] = mapped_column(Float, nullable=False, default=0.25)
@@ -25,7 +26,7 @@ class RetrievalLogRow(Base):
     conflict_result: Mapped[str] = mapped_column(String(20), nullable=False, default="none_detected")
     duration_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    meta_data: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

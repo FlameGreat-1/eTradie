@@ -1,3 +1,4 @@
+from typing import Any
 from __future__ import annotations
 
 from uuid import UUID
@@ -25,7 +26,7 @@ class AuditService:
         user_id: str,
         query_text: str,
         strategy: str,
-        filters_applied: dict,
+        filters_applied: dict[str, Any],
         total_candidates: int,
         chunks_returned: int,
         score_threshold: float,

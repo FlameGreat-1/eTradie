@@ -1,3 +1,4 @@
+from typing import Any
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.common.utils.price.math import get_pip_value
@@ -577,12 +578,12 @@ class AMDCandidateBuilder:
 
     def _build_metadata(
         self,
-        base: dict,
+        base: dict[str, Any],
         price: float,
         retracement: FibonacciRetracement | None,
         sweep: LiquiditySweep | None = None,
         ob: OrderBlock | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Attach fib_context and sweep_context to the metadata dict.
 
         ``fib_context`` is the structured Fibonacci context from

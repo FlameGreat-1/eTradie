@@ -1,3 +1,4 @@
+from typing import Any
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.fibonacci import FibonacciAnalyzer
 from engine.ta.constants import (
@@ -285,7 +286,7 @@ class ZoneValidator:
         if not candidates:
             return None
 
-        def _cleared_ts(idm: InducementEvent):
+        def _cleared_ts(idm: InducementEvent) -> Any:
             return idm.cleared_timestamp or idm.inducement_timestamp
 
         return max(candidates, key=_cleared_ts)
@@ -298,7 +299,7 @@ class ZoneValidator:
         self,
         sweep: LiquiditySweep | None,
         ob: OrderBlock | None = None,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Build precise liquidity-sweep context for a candidate.
 
         A bare ``swept_level`` float is insufficient to reason about a
@@ -362,7 +363,7 @@ class ZoneValidator:
         self,
         price: float,
         retracement: FibonacciRetracement | None,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Build precise Fibonacci context for a candidate entry price.
 
         Returns a structured dict containing:

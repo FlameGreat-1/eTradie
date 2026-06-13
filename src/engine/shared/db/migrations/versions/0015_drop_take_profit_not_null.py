@@ -1,3 +1,4 @@
+from typing import Any
 """Drop NOT NULL constraint on candidates.take_profit.
 
 The CandidateSchema ORM declares take_profit as nullable and
@@ -87,7 +88,7 @@ def downgrade() -> None:
         )
 
 
-def _get_column(inspector, table_name: str, column_name: str) -> dict | None:
+def _get_column(inspector, table_name: str, column_name: str) -> dict[str, Any] | None:
     """Return the column info dict for a named column, or None if absent."""
     for col in inspector.get_columns(table_name):
         if col["name"] == column_name:
