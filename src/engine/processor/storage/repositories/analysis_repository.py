@@ -3,6 +3,7 @@
 Extends BaseRepository with processor-specific queries.
 Idempotent upsert on analysis_id to handle retries safely.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

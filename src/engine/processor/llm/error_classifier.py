@@ -24,6 +24,7 @@ still boots. Recognition is by exception class name plus message
 substring, which is the same surface both generators already used
 inline.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

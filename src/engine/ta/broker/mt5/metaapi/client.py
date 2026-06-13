@@ -6,6 +6,7 @@ for all HTTP calls (inheriting circuit breaker, retries, metrics).
 
 No local MT5 terminal or Windows dependency required.
 """
+
 from __future__ import annotations
 
 import asyncio

@@ -21,6 +21,7 @@ GET/HEAD/OPTIONS/DELETE-with-no-body requests carry no body and are
 unaffected. The SSE streaming RESPONSE is outbound and is likewise
 unaffected (this middleware only bounds the inbound request body).
 """
+
 from __future__ import annotations
 
 import os

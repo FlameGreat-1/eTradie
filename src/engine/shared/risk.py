@@ -13,6 +13,7 @@ Values are reward-to-risk MULTIPLES (R), never pip distances:
     Swing      1:3  -> 3.0
     Positional 1:5  -> 5.0
 """
+
 from __future__ import annotations
 
 from typing import Final

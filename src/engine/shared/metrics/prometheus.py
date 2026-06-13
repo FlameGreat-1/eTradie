@@ -15,6 +15,7 @@ Cardinality Warning:
 - Monitor metric cardinality in production
 
 """
+
 from __future__ import annotations
 
 from prometheus_client import Counter, Gauge, Histogram, Info

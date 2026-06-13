@@ -6,6 +6,7 @@ on the dashboard. No JSON, no code, no technical jargon.
 
 The React dashboard renders these text fields directly.
 """
+
 from __future__ import annotations
 
 from typing import Any

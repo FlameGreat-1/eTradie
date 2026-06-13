@@ -32,6 +32,7 @@ Usage in FastAPI endpoints:
 The dependency returns None on success and raises HTTP 401 on failure
 so the error shape is consistent with the user-auth dependencies.
 """
+
 from __future__ import annotations
 
 import hmac

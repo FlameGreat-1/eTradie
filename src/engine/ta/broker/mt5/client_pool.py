@@ -18,6 +18,7 @@ touch coroutines do not each instantiate a client.
 Audit ref: CHECKLIST Section 5 - 'No global locks blocking unrelated
 users', 'Each user's terminal is isolated'.
 """
+
 from __future__ import annotations
 
 import asyncio

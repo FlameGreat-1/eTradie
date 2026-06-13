@@ -18,6 +18,7 @@ the FRED-sourced fields are never affected.
 
 Yahoo rate-limits requests with no User-Agent, so one is sent. No API key.
 """
+
 from __future__ import annotations
 
 import time

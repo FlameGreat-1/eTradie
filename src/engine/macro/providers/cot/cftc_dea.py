@@ -18,6 +18,7 @@ Each currency block looks like:
   PERCENT OF OPEN INTEREST ...
   23.9 43.7 1.3 65.6 44.0 90.8 88.9 9.2 11.1
 """
+
 from __future__ import annotations
 
 import re

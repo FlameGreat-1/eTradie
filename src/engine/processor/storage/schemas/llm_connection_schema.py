@@ -19,6 +19,7 @@ row-level lock on the user's existing rows so concurrent transactions
 serialise on the happy path instead of racing past the unique index
 and returning IntegrityError to the caller.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

@@ -20,6 +20,7 @@ Flow:
 The generator is fully self-contained: it does not own its HTTP
 client or LLM client, so unit tests can swap both with fakes.
 """
+
 from __future__ import annotations
 
 import asyncio

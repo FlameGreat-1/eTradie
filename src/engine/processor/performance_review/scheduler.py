@@ -22,6 +22,7 @@ versions; the generator's _fetch_profile resolves the authoritative
 version from the gateway at job execution time and overrides this
 sentinel. See engine.processor.performance_review.generator.
 """
+
 from __future__ import annotations
 
 import os

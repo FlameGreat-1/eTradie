@@ -12,6 +12,7 @@ The Go gateway WRITES to these keys.
 The Python engine READS from these keys.
 Both use the same Redis instance and the same key format.
 """
+
 from __future__ import annotations
 
 from engine.shared.cache import RedisCache

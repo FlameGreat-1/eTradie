@@ -12,6 +12,7 @@ This module centralises the channel naming convention so the producer
 (processor.service) and the consumer (main.stream_live_analysis)
 cannot drift apart. Changing the name here changes both ends at once.
 """
+
 from __future__ import annotations
 
 from typing import Final

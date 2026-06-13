@@ -14,6 +14,7 @@ breaker, and Prometheus instrumentation are shared with the rest of
 the engine's outbound calls. Token refresh is asyncio-Lock-guarded so
 concurrent first-touch callers serialise into a single auth round-trip.
 """
+
 from __future__ import annotations
 
 import asyncio

@@ -4,6 +4,7 @@ Enforces Rulebook constraints that the LLM must satisfy.
 Returns a list of validation error strings. Empty list = valid.
 Pure functions with no I/O or side effects.
 """
+
 from __future__ import annotations
 
 from engine.processor.constants import (

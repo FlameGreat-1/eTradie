@@ -17,6 +17,7 @@ Neither parameter is sent as a prompt token; both are part of the
 request config and not billed against ``prompt_token_count`` or
 ``candidates_token_count``.
 """
+
 from __future__ import annotations
 
 import time

@@ -34,6 +34,7 @@ This keeps the unit-test surface narrow and makes the same primitive
 reusable for any future SWR pipeline (account info, positions, symbol
 info) that needs the same guarantees.
 """
+
 from __future__ import annotations
 
 import asyncio

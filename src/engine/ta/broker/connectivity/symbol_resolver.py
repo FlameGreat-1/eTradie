@@ -22,6 +22,7 @@ bound at construction time.
 
 Audit ref: CHECKLIST Section 2 - 'Symbol mapping consistency layer'.
 """
+
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable

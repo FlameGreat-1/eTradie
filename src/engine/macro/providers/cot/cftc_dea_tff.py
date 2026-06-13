@@ -29,6 +29,7 @@ The "Positions" row carries 14 numbers in a fixed column order:
 so Asset Manager Long/Short are indices 3/4 and Leveraged Long/Short are
 indices 6/7.
 """
+
 from __future__ import annotations
 
 import re

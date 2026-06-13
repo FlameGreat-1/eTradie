@@ -15,6 +15,7 @@ router translates these typed errors to per-symbol unavailable
 results so one symbol's bad LLM output never aborts a multi-symbol
 cycle.
 """
+
 from __future__ import annotations
 
 from typing import Any

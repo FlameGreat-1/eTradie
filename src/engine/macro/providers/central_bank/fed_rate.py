@@ -28,6 +28,7 @@ yields no rate decisions, leaving the tone-only signal intact.
 
 FRED API docs: https://fred.stlouisfed.org/docs/api/fred/
 """
+
 from __future__ import annotations
 
 import time

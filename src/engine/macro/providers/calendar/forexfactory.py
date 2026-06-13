@@ -16,6 +16,7 @@ Feed entry shape:
    "date": "2026-06-05T08:30:00-04:00", "impact": "High",
    "forecast": "95K", "previous": "115K"}
 """
+
 from __future__ import annotations
 
 import time

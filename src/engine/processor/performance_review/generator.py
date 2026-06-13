@@ -24,6 +24,7 @@ The generator is self-contained: it does not own its HTTP client or
 LLM client, so unit tests can swap both with fakes. Mirrors the
 trading_plan generator exactly.
 """
+
 from __future__ import annotations
 
 import asyncio

@@ -14,6 +14,7 @@ changing the call shape:
     o-series reasoning models (capability flag
     ``is_thinking=True``).
 """
+
 from __future__ import annotations
 
 import time

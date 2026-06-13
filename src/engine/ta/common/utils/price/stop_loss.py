@@ -31,6 +31,7 @@ Design principles (all enforced here, none indicator-based):
 The helper is pure: no I/O, no logging side effects, deterministic for
 a given input.
 """
+
 from __future__ import annotations
 
 from engine.shared.risk import (

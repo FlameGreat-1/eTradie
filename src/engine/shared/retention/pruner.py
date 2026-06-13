@@ -33,6 +33,7 @@ Design:
     Each table prune is wrapped in its own transaction to prevent
     a failure in one table from blocking others.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta

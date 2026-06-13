@@ -14,6 +14,7 @@ Security:
 - Use sanitization processors for sensitive fields
 - Bind minimal context (trace_id, correlation_id only)
 """
+
 from __future__ import annotations
 
 import logging

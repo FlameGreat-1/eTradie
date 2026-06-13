@@ -43,6 +43,7 @@ result verbatim to the existing zone-validator / fib-context machinery.
 This module deliberately has no dependency on the builders or the
 SMCDetector, and no side effects.  It can be exercised in isolation.
 """
+
 from __future__ import annotations
 
 from datetime import datetime

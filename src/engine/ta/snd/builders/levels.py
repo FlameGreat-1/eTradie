@@ -30,6 +30,7 @@ the instrument classification lives in
 ``engine.ta.common.utils.price.math`` and is the single source of
 truth.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

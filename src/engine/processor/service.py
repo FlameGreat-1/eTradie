@@ -9,6 +9,7 @@ processor pipeline:
 
 This service is stateless. All dependencies are injected.
 """
+
 from __future__ import annotations
 
 import asyncio

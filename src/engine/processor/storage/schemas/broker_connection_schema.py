@@ -13,6 +13,7 @@ The is_primary flag marks the preferred connection for trading.
 
 Follows the exact same pattern as LLMConnectionRow.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

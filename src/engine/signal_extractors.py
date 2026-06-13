@@ -14,7 +14,6 @@ in Go code and passes them via HTTP to the Python engine.
 """
 
 
-
 def derive_macro_signals(macro: dict[str, Any]) -> dict[str, Any]:
     """Derive enriched macro signal flags from raw macro collection output.
 

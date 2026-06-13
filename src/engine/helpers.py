@@ -3,6 +3,7 @@
 Extracted from main.py for maintainability. These are stateless utility
 functions used across multiple router modules.
 """
+
 from __future__ import annotations
 
 import json

@@ -21,6 +21,7 @@ as injected dependencies so tests drive it without infrastructure.
 Audit ref: CHECKLIST Section 4 'Kill-switch if EA diverges from
 expected logic'.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

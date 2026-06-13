@@ -9,6 +9,7 @@ The gateway already structures ProcessorInput with ta_analysis,
 macro_analysis, and retrieved_knowledge dicts. This module does NOT
 re-format that data. It wraps it in the prompt envelope.
 """
+
 from __future__ import annotations
 
 import hashlib

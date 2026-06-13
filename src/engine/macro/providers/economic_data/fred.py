@@ -6,6 +6,7 @@ payrolls, retail sales).  Used as backup when TradingEconomics is unavailable.
 
 API docs: https://fred.stlouisfed.org/docs/api/fred/
 """
+
 from __future__ import annotations
 
 import time

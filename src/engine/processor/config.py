@@ -16,6 +16,7 @@ should not be re-resolvable per ProcessorConfig instance (which is
 built per-user from saved LLM connection rows). Mirroring them here
 would create two sources of truth and silent drift.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache

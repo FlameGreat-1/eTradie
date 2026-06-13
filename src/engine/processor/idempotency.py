@@ -33,6 +33,7 @@ cache outage must never break a real user analysis.
 Only SUCCESSFUL outputs are cached. Callers must never call
 ``store_result`` for an error / truncation / no-decision-yet state.
 """
+
 from __future__ import annotations
 
 import asyncio
