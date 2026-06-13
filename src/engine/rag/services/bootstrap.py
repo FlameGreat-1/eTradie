@@ -72,7 +72,7 @@ class BootstrapService:
                     await self._ingest_pipeline.ingest(
                         path=Path(doc.source_path),
                         doc_type=doc.doc_type,
-                        source_format=doc.source_format,
+                        source_format=SourceFormat(doc.source_format),
                         title=doc.title,
                     )
 
