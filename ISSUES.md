@@ -1,379 +1,450 @@
-Run mypy src/
-pyproject.toml: [mypy]: disable_error_code: Invalid error code(s): untyped-decorator
-src/engine/ta/common/utils/__init__.py:8: error: Need type annotation for "__all__" (hint: "__all__: list[<type>] = ...")  [var-annotated]
-src/engine/ta/common/__init__.py:13: error: Need type annotation for "__all__" (hint: "__all__: list[<type>] = ...")  [var-annotated]
-src/engine/admin/snapshot_wine_prefixes.py:48: error: Skipping analyzing "kubernetes_asyncio": module is installed, but missing library stubs or py.typed marker  [import-untyped]
-src/engine/admin/snapshot_wine_prefixes.py:49: error: Skipping analyzing "kubernetes_asyncio.client.exceptions": module is installed, but missing library stubs or py.typed marker  [import-untyped]
-src/engine/admin/snapshot_wine_prefixes.py:49: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
-src/engine/rag/knowledge/policies.py:10: error: Argument 1 to "frozenset" has incompatible type "set[str]"; expected "Iterable[DocumentType]"  [arg-type]
-src/engine/rag/ingest/chunkers/metadata.py:132: error: Incompatible types in assignment (expression has type "bool", target has type "str")  [assignment]
-src/engine/rag/ingest/chunkers/metadata.py:139: error: Incompatible types in assignment (expression has type "bool", target has type "str")  [assignment]
-src/engine/rag/ingest/chunkers/metadata.py:146: error: Incompatible types in assignment (expression has type "bool", target has type "str")  [assignment]
-src/engine/ta/models/zone.py:37: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:42: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:47: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:52: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:96: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:101: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:106: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:111: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:157: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:162: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:167: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:172: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:219: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:224: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:229: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:234: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:294: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:300: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:305: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:365: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:371: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:376: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:446: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:452: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:458: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:464: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:470: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:476: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:482: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:488: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:494: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:499: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:534: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:540: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/zone.py:545: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/swing.py:25: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/swing.py:30: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/swing.py:54: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/swing.py:89: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:28: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:33: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:56: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:61: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:97: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:102: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:139: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:144: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:180: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:185: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:236: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:242: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:247: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:298: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:304: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/structure_event.py:309: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/session.py:17: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/session.py:56: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/session.py:61: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/session.py:66: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/session.py:71: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/session.py:121: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/session.py:126: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/session.py:131: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/session.py:136: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/session.py:165: error: Need type annotation for "overlapping" (hint: "overlapping: list[<type>] = ...")  [var-annotated]
-src/engine/ta/models/liquidity_event.py:25: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:33: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:63: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:72: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:81: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:105: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:110: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:134: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:139: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:165: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:170: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:175: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:205: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:210: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/liquidity_event.py:215: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/fibonacci.py:43: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/fibonacci.py:152: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/fibonacci.py:194: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/fibonacci.py:199: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/fibonacci.py:204: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/fibonacci.py:216: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:73: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:78: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:83: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:88: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:93: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:98: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:103: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:108: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:115: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:122: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:129: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:210: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:215: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:220: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:225: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candle.py:230: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:50: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:55: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:60: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:65: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:70: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:76: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:100: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:206: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:211: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:220: error: Incompatible types in assignment (expression has type "str | None", target has type "float | None")  [assignment]
-src/engine/ta/models/candidate.py:223: error: Incompatible types in assignment (expression has type "str | None", target has type "float | None")  [assignment]
-src/engine/ta/models/candidate.py:226: error: Incompatible types in assignment (expression has type "str | None", target has type "float | None")  [assignment]
-src/engine/ta/models/candidate.py:274: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:331: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:336: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/candidate.py:345: error: Incompatible types in assignment (expression has type "str | None", target has type "float | None")  [assignment]
-src/engine/ta/models/candidate.py:348: error: Incompatible types in assignment (expression has type "str | None", target has type "float | None")  [assignment]
-src/engine/ta/models/candidate.py:351: error: Incompatible types in assignment (expression has type "str | None", target has type "float | None")  [assignment]
-src/engine/ta/models/candidate.py:354: error: Incompatible types in assignment (expression has type "str | None", target has type "float | None")  [assignment]
-src/engine/ta/models/snapshot.py:87: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:92: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:97: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:102: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:107: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:112: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:117: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:129: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:139: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:150: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:155: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:222: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:227: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:232: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:237: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:242: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/ta/models/snapshot.py:247: error: Decorators on top of @property are not supported  [prop-decorator]
-src/engine/rag/retrieval/filters.py:27: error: Argument "frameworks" to "RetrievalFilter" has incompatible type "frozenset[str]"; expected "frozenset[Framework]"  [arg-type]
-src/engine/rag/retrieval/filters.py:30: error: Argument "directions" to "RetrievalFilter" has incompatible type "frozenset[str]"; expected "frozenset[Direction]"  [arg-type]
-src/engine/rag/retrieval/filters.py:59: error: Argument 1 to <set> has incompatible type "str"; expected "Framework"  [arg-type]
-src/engine/rag/retrieval/filters.py:60: error: Argument "setup_families" to "RetrievalFilter" has incompatible type "frozenset[str]"; expected "frozenset[SetupFamily]"  [arg-type]
-src/engine/rag/retrieval/filters.py:61: error: Argument "directions" to "RetrievalFilter" has incompatible type "frozenset[str]"; expected "frozenset[Direction]"  [arg-type]
-src/engine/rag/retrieval/filters.py:82: error: Argument "frameworks" to "RetrievalFilter" has incompatible type "frozenset[str]"; expected "frozenset[Framework]"  [arg-type]
-src/engine/rag/retrieval/filters.py:83: error: Argument "setup_families" to "RetrievalFilter" has incompatible type "frozenset[str]"; expected "frozenset[SetupFamily]"  [arg-type]
-src/engine/rag/retrieval/filters.py:84: error: Argument "directions" to "RetrievalFilter" has incompatible type "frozenset[str]"; expected "frozenset[Direction]"  [arg-type]
-src/engine/rag/retrieval/filters.py:107: error: Argument "directions" to "RetrievalFilter" has incompatible type "frozenset[str]"; expected "frozenset[Direction]"  [arg-type]
-src/engine/processor/prompts/system_prompt.py:585: error: Incompatible types in assignment (expression has type "list[Any]", variable has type "dict[Any, Any]")  [assignment]
 
-src/engine/processor/prompts/system_prompt.py:633: error: Incompatible types in assignment (expression has type "dict[Any, Any]", variable has type "list[tuple[int, dict[str, Any]]]")  [assignment]
-src/engine/processor/parsing/validators.py:10: error: Module "engine.processor.constants" has no attribute "MIN_RR_INTRADAY"  [attr-defined]
-src/engine/processor/audit/logger.py:33: error: Incompatible types in assignment (expression has type "float | None", target has type "None")  [assignment]
-src/engine/rag/tests_support/factories.py:37: error: Argument "doc_type" to "Document" has incompatible type "str"; expected "DocumentType"  [arg-type]
-src/engine/rag/tests_support/factories.py:41: error: Argument "status" to "Document" has incompatible type "str"; expected "DocumentStatus"  [arg-type]
-src/engine/rag/tests_support/factories.py:56: error: Argument "status" to "DocumentVersion" has incompatible type "str"; expected "DocumentStatus"  [arg-type]
-src/engine/rag/tests_support/factories.py:76: error: Argument "doc_type" to "Chunk" has incompatible type "str"; expected "DocumentType"  [arg-type]
-src/engine/rag/tests_support/factories.py:81: error: Argument "embedding_status" to "Chunk" has incompatible type "str"; expected "EmbeddingStatus"  [arg-type]
-src/engine/rag/tests_support/factories.py:97: error: Argument "doc_type" to "RetrievedChunk" has incompatible type "str"; expected "DocumentType"  [arg-type]
-src/engine/rag/tests_support/factories.py:117: error: Argument "framework" to "Scenario" has incompatible type "str"; expected "Framework"  [arg-type]
-src/engine/rag/tests_support/factories.py:118: error: Argument "setup_family" to "Scenario" has incompatible type "str"; expected "SetupFamily"  [arg-type]
-src/engine/rag/tests_support/factories.py:119: error: Argument "direction" to "Scenario" has incompatible type "str"; expected "Direction"  [arg-type]
-src/engine/rag/tests_support/factories.py:121: error: Argument "outcome" to "Scenario" has incompatible type "str"; expected "ScenarioOutcome"  [arg-type]
-src/engine/rag/tests_support/factories.py:137: error: Argument "doc_type" to "Citation" has incompatible type "str"; expected "DocumentType"  [arg-type]
-src/engine/rag/tests_support/factories.py:154: error: Argument "strategy_used" to "ContextBundle" has incompatible type "str"; expected "RetrievalStrategy"  [arg-type]
-src/engine/rag/tests_support/factories.py:174: error: Argument "result" to "CoverageCheck" has incompatible type "str"; expected "CoverageResult"  [arg-type]
-src/engine/shared/logging/logger.py:106: error: Incompatible types in assignment (expression has type "dict[str, Any]", target has type "str")  [assignment]
-src/engine/shared/logging/logger.py:108: error: Incompatible types in assignment (expression has type "list[dict[str, Any] | Any]", target has type "str")  [assignment]
-src/engine/shared/logging/logger.py:170: error: List item 2 has incompatible type "Callable[[Any, str, dict[str, Any]], dict[str, Any]]"; expected "Callable[[Any, str, MutableMapping[str, Any]], Mapping[str, Any] | str | bytes | bytearray | tuple[Any, ...]]"  [list-item]
-src/engine/shared/logging/logger.py:173: error: List item 5 has incompatible type "Callable[[Any, str, dict[str, Any]], dict[str, Any]]"; expected "Callable[[Any, str, MutableMapping[str, Any]], Mapping[str, Any] | str | bytes | bytearray | tuple[Any, ...]]"  [list-item]
-src/engine/shared/logging/logger.py:174: error: List item 6 has incompatible type "Callable[[Any, str, dict[str, Any]], dict[str, Any]]"; expected "Callable[[Any, str, MutableMapping[str, Any]], Mapping[str, Any] | str | bytes | bytearray | tuple[Any, ...]]"  [list-item]
-src/engine/shared/logging/logger.py:178: error: List item 10 has incompatible type "Callable[[Any, str, dict[str, Any]], dict[str, Any]]"; expected "Callable[[Any, str, MutableMapping[str, Any]], Mapping[str, Any] | str | bytes | bytearray | tuple[Any, ...]]"  [list-item]
-src/engine/ta/storage/repositories/candidate.py:248: error: Argument 1 to "_fetch_existing_dedup_keys" of "CandidateRepository" has incompatible type "list[SMCCandidate]"; expected "list[SMCCandidate | SnDCandidate]"  [arg-type]
-src/engine/ta/storage/repositories/candidate.py:248: note: "List" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
-src/engine/ta/storage/repositories/candidate.py:248: note: Consider using "Sequence" instead, which is covariant
-src/engine/ta/storage/repositories/candidate.py:364: error: Argument 1 to "_fetch_existing_dedup_keys" of "CandidateRepository" has incompatible type "list[SnDCandidate]"; expected "list[SMCCandidate | SnDCandidate]"  [arg-type]
-src/engine/ta/storage/repositories/candidate.py:364: note: "List" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance
-src/engine/ta/storage/repositories/candidate.py:364: note: Consider using "Sequence" instead, which is covariant
-src/engine/ta/snd/detectors/supply_demand.py:49: error: Argument "timestamp" to "SupplyZone" has incompatible type "object"; expected "datetime"  [arg-type]
-src/engine/ta/snd/detectors/supply_demand.py:51: error: Argument "qml_timestamp" to "SupplyZone" has incompatible type "object"; expected "datetime"  [arg-type]
-src/engine/ta/snd/detectors/supply_demand.py:53: error: Argument "sr_flip_timestamp" to "SupplyZone" has incompatible type "object"; expected "datetime"  [arg-type]
-src/engine/ta/snd/detectors/supply_demand.py:87: error: Argument "timestamp" to "DemandZone" has incompatible type "object"; expected "datetime"  [arg-type]
-src/engine/ta/snd/detectors/supply_demand.py:89: error: Argument "qmh_timestamp" to "DemandZone" has incompatible type "object"; expected "datetime"  [arg-type]
-src/engine/ta/snd/detectors/supply_demand.py:91: error: Argument "rs_flip_timestamp" to "DemandZone" has incompatible type "object"; expected "datetime"  [arg-type]
-src/engine/ta/snd/detectors/qm.py:44: error: Need type annotation for "qml_levels" (hint: "qml_levels: list[<type>] = ...")  [var-annotated]
-src/engine/ta/snd/detectors/qm.py:159: error: Need type annotation for "qmh_levels" (hint: "qmh_levels: list[<type>] = ...")  [var-annotated]
-src/engine/ta/snd/detectors/previous_levels.py:72: error: Need type annotation for "previous_highs" (hint: "previous_highs: list[<type>] = ...")  [var-annotated]
-src/engine/ta/snd/detectors/previous_levels.py:104: error: Need type annotation for "previous_lows" (hint: "previous_lows: list[<type>] = ...")  [var-annotated]
-src/engine/ta/snd/detectors/mpl.py:37: error: Need type annotation for "mpl_levels" (hint: "mpl_levels: list[<type>] = ...")  [var-annotated]
-src/engine/ta/snd/detectors/mpl.py:112: error: Need type annotation for "mpl_levels" (hint: "mpl_levels: list[<type>] = ...")  [var-annotated]
-src/engine/ta/snd/detectors/mpl.py:187: error: "object" has no attribute "is_bullish"  [attr-defined]
-src/engine/ta/snd/detectors/mpl.py:189: error: "object" has no attribute "close"  [attr-defined]
-src/engine/ta/snd/detectors/mpl.py:189: error: "object" has no attribute "open"  [attr-defined]
-src/engine/ta/snd/detectors/mpl.py:191: error: "object" has no attribute "close"  [attr-defined]
-src/engine/ta/snd/detectors/mpl.py:191: error: "object" has no attribute "open"  [attr-defined]
-src/engine/ta/smc/detectors/sms.py:35: error: Need type annotation for "sms_events" (hint: "sms_events: list[<type>] = ...")  [var-annotated]
-src/engine/ta/smc/detectors/sms.py:89: error: Need type annotation for "sms_events" (hint: "sms_events: list[<type>] = ...")  [var-annotated]
-src/engine/ta/common/analyzers/swings.py:77: error: Need type annotation for "swing_highs" (hint: "swing_highs: list[<type>] = ...")  [var-annotated]
-src/engine/ta/common/analyzers/swings.py:125: error: Need type annotation for "swing_lows" (hint: "swing_lows: list[<type>] = ...")  [var-annotated]
-src/engine/ta/common/analyzers/session.py:38: error: Need type annotation for "overlapping" (hint: "overlapping: list[<type>] = ...")  [var-annotated]
-src/engine/ta/common/analyzers/marubozu.py:234: error: Incompatible return value type (got "tuple[int | None, Candle, float]", expected "tuple[int, Candle, float] | None")  [return-value]
-src/engine/shared/db/connection.py:302: error: "Pool" has no attribute "checkedin"  [attr-defined]
-src/engine/shared/db/connection.py:303: error: "Pool" has no attribute "checkedout"  [attr-defined]
-src/engine/shared/db/connection.py:304: error: "Pool" has no attribute "overflow"  [attr-defined]
-src/engine/shared/cache/redis_cache.py:73: error: Need type annotation for "_pool"  [var-annotated]
-src/engine/shared/cache/redis_cache.py:211: error: Incompatible types in assignment (expression has type "ConnectionError | redis.exceptions.TimeoutError", variable has type "builtins.TimeoutError | None")  [assignment]
-src/engine/shared/cache/redis_cache.py:744: error: "Redis[bytes]" has no attribute "aclose"; maybe "close"?  [attr-defined]
-src/engine/rag/retrieval/retriever.py:109: error: Argument "doc_type" to "RetrievedChunk" has incompatible type "str"; expected "DocumentType"  [arg-type]
-src/engine/rag/ingest/loaders/docx.py:25: error: Cannot find implementation or library stub for module named "docx"  [import-not-found]
-src/engine/processor/parsing/response_parser.py:89: error: Incompatible types in assignment (expression has type "Any | None", variable has type "dict[str, Any]")  [assignment]
-src/engine/processor/parsing/response_parser.py:183: error: Incompatible types in assignment (expression has type "str", variable has type "ErrorDetails")  [assignment]
-src/engine/processor/parsing/response_parser.py:184: error: Argument 1 to "_error_to_rule" has incompatible type "ErrorDetails"; expected "str"  [arg-type]
-src/engine/processor/parsing/response_parser.py:185: error: Argument 1 to "_is_non_fatal_warning" has incompatible type "ErrorDetails"; expected "str"  [arg-type]
-src/engine/processor/parsing/response_parser.py:186: error: Argument 1 to "append" of "list" has incompatible type "ErrorDetails"; expected "str"  [arg-type]
-src/engine/processor/parsing/response_parser.py:188: error: Argument 1 to "append" of "list" has incompatible type "ErrorDetails"; expected "str"  [arg-type]
-src/engine/ta/snd/detectors/sr_flip.py:116: error: "SRFlip" has no attribute "candle_index"  [attr-defined]
-src/engine/ta/snd/detectors/sr_flip.py:119: error: "SRFlip" has no attribute "candle_index"  [attr-defined]
-src/engine/ta/snd/detectors/rs_flip.py:116: error: "RSFlip" has no attribute "candle_index"  [attr-defined]
-src/engine/ta/snd/detectors/rs_flip.py:119: error: "RSFlip" has no attribute "candle_index"  [attr-defined]
-src/engine/ta/smc/validators/zone/validator.py:526: error: "OrderBlock" has no attribute "overlaps_with"  [attr-defined]
-src/engine/rag/retrieval/coverage.py:133: error: Argument 1 to "frozenset" has incompatible type "set[str]"; expected "Iterable[DocumentType]"  [arg-type]
-src/engine/rag/retrieval/coverage.py:134: error: Argument 1 to "frozenset" has incompatible type "set[str]"; expected "Iterable[Framework]"  [arg-type]
-src/engine/ta/storage/uow.py:41: error: Incompatible types in assignment (expression has type "_AsyncGeneratorContextManager[AsyncSession, None]", variable has type "None")  [assignment]
-src/engine/ta/storage/uow.py:42: error: "None" has no attribute "__aenter__"  [attr-defined]
-src/engine/ta/storage/uow.py:44: error: Argument 1 to "CandleRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/ta/storage/uow.py:45: error: Argument 1 to "SnapshotRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/ta/storage/uow.py:46: error: Argument 1 to "CandidateRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/ta/storage/uow.py:47: error: Argument 1 to "BrokerSymbolRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/ta/storage/uow.py:52: error: "None" has no attribute "__aexit__"  [attr-defined]
-src/engine/ta/storage/uow.py:79: error: Incompatible types in assignment (expression has type "_AsyncGeneratorContextManager[AsyncSession, None]", variable has type "None")  [assignment]
-src/engine/ta/storage/uow.py:80: error: "None" has no attribute "__aenter__"  [attr-defined]
-src/engine/ta/storage/uow.py:82: error: Argument 1 to "CandleRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/ta/storage/uow.py:83: error: Argument 1 to "SnapshotRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/ta/storage/uow.py:84: error: Argument 1 to "CandidateRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/ta/storage/uow.py:85: error: Argument 1 to "BrokerSymbolRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/ta/storage/uow.py:90: error: "None" has no attribute "__aexit__"  [attr-defined]
-src/engine/shared/retention/pruner.py:226: error: "type" has no attribute "__tablename__"; maybe "__qualname__" or "__name__"?  [attr-defined]
-src/engine/shared/retention/pruner.py:249: error: "type" has no attribute "__tablename__"; maybe "__qualname__" or "__name__"?  [attr-defined]
-src/engine/rag/storage/uow.py:37: error: Incompatible types in assignment (expression has type "_AsyncGeneratorContextManager[AsyncSession, None]", variable has type "None")  [assignment]
-src/engine/rag/storage/uow.py:38: error: "None" has no attribute "__aenter__"  [attr-defined]
-src/engine/rag/storage/uow.py:40: error: Argument 1 to "DocumentRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/rag/storage/uow.py:41: error: Argument 1 to "DocumentVersionRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/rag/storage/uow.py:42: error: Argument 1 to "ChunkRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/rag/storage/uow.py:43: error: Argument 1 to "ScenarioRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/rag/storage/uow.py:44: error: Argument 1 to "IngestJobRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/rag/storage/uow.py:45: error: Argument 1 to "RetrievalLogRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/rag/storage/uow.py:46: error: Argument 1 to "CitationLogRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/rag/storage/uow.py:47: error: Argument 1 to "ReembedQueueRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/rag/storage/uow.py:52: error: "None" has no attribute "__aexit__"  [attr-defined]
-src/engine/rag/embeddings/openai.py:71: error: Item "list[Any]" of "dict[str, Any] | list[Any] | str" has no attribute "get"  [union-attr]
-src/engine/rag/embeddings/openai.py:71: error: Item "str" of "dict[str, Any] | list[Any] | str" has no attribute "get"  [union-attr]
-src/engine/processor/storage/uow.py:29: error: Incompatible types in assignment (expression has type "_AsyncGeneratorContextManager[AsyncSession, None]", variable has type "None")  [assignment]
-src/engine/processor/storage/uow.py:30: error: "None" has no attribute "__aenter__"  [attr-defined]
-src/engine/processor/storage/uow.py:32: error: Argument 1 to "AnalysisRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/processor/storage/uow.py:33: error: Argument 1 to "AuditRepository" has incompatible type "None"; expected "AsyncSession"  [arg-type]
-src/engine/processor/storage/uow.py:38: error: "None" has no attribute "__aexit__"  [attr-defined]
-src/engine/macro/providers/cot/cftc_dea.py:45: error: Dict entry 7 has incompatible type "str": "Any | None"; expected "str": "Currency"  [dict-item]
-src/engine/macro/providers/cot/cftc_dea.py:45: note: Error code "dict-item" not covered by "type: ignore" comment
-src/engine/ta/snd/builders/candidates/qm.py:134: error: Argument "fakeout_timestamp" to "SnDCandidate" has incompatible type "object"; expected "datetime | None"  [arg-type]
-src/engine/ta/snd/builders/candidates/qm.py:237: error: Argument "fakeout_timestamp" to "SnDCandidate" has incompatible type "object"; expected "datetime | None"  [arg-type]
-src/engine/ta/snd/builders/candidates/qm.py:342: error: Argument "fakeout_timestamp" to "SnDCandidate" has incompatible type "object"; expected "datetime | None"  [arg-type]
-src/engine/ta/snd/builders/candidates/qm.py:445: error: Argument "fakeout_timestamp" to "SnDCandidate" has incompatible type "object"; expected "datetime | None"  [arg-type]
-src/engine/ta/snd/builders/candidates/fakeout.py:124: error: Argument "fakeout_timestamp" to "SnDCandidate" has incompatible type "object"; expected "datetime | None"  [arg-type]
-src/engine/ta/snd/builders/candidates/fakeout.py:220: error: Argument "fakeout_timestamp" to "SnDCandidate" has incompatible type "object"; expected "datetime | None"  [arg-type]
-src/engine/ta/snd/builders/candidates/continuation.py:155: error: Argument "fakeout_timestamp" to "SnDCandidate" has incompatible type "object"; expected "datetime | None"  [arg-type]
-src/engine/ta/snd/builders/candidates/continuation.py:279: error: Argument "fakeout_timestamp" to "SnDCandidate" has incompatible type "object"; expected "datetime | None"  [arg-type]
-src/engine/ta/smc/detector.py:556: error: Name "OrderBlock" is not defined  [name-defined]
-src/engine/ta/smc/detector.py:744: error: Name "OrderBlock" is not defined  [name-defined]
-src/engine/ta/broker/sync.py:59: error: Item "None" of "BrokerSymbolRepository | None" has no attribute "upsert"  [union-attr]
-src/engine/ta/broker/mt5/hosted/provisioner.py:51: error: Skipping analyzing "kubernetes_asyncio": module is installed, but missing library stubs or py.typed marker  [import-untyped]
-src/engine/ta/broker/mt5/hosted/provisioner.py:52: error: Skipping analyzing "kubernetes_asyncio.client.exceptions": module is installed, but missing library stubs or py.typed marker  [import-untyped]
-src/engine/ta/broker/connectivity/symbol_resolver.py:97: error: "object" has no attribute "get"  [attr-defined]
-src/engine/ta/broker/connectivity/symbol_resolver.py:121: error: Item "None" of "BrokerSymbolRepository | None" has no attribute "get_by_name"  [union-attr]
-src/engine/ta/broker/connectivity/symbol_resolver.py:144: error: Item "None" of "BrokerSymbolRepository | None" has no attribute "get_all_by_account"  [union-attr]
-src/engine/ta/broker/connectivity/symbol_resolver.py:211: error: "object" has no attribute "set"  [attr-defined]
-src/engine/ta/broker/connectivity/symbol_resolver.py:225: error: Item "None" of "BrokerSymbolRepository | None" has no attribute "upsert"  [union-attr]
-src/engine/rag/scenarios/matcher.py:40: error: Argument "framework" to "Scenario" has incompatible type "str"; expected "Framework"  [arg-type]
-src/engine/rag/scenarios/matcher.py:41: error: Argument "setup_family" to "Scenario" has incompatible type "str"; expected "SetupFamily"  [arg-type]
-src/engine/rag/scenarios/matcher.py:42: error: Argument "direction" to "Scenario" has incompatible type "str"; expected "Direction"  [arg-type]
-src/engine/rag/scenarios/matcher.py:44: error: Argument "outcome" to "Scenario" has incompatible type "str"; expected "ScenarioOutcome"  [arg-type]
-src/engine/rag/embeddings/pipeline.py:50: error: Argument 2 to "_embed_batch" of "EmbeddingPipeline" has incompatible type "Sequence[ChunkRow]"; expected "list[ChunkRow] | tuple[ChunkRow, ...]"  [arg-type]
-src/engine/processor/service.py:510: error: "LLMClient" has no attribute "PROVIDER"  [attr-defined]
-src/engine/processor/service.py:524: error: "LLMClient" has no attribute "PROVIDER"  [attr-defined]
-src/engine/processor/service.py:553: error: Item "None" of "Any | None" has no attribute "publish"  [union-attr]
-src/engine/processor/service.py:586: error: Item "None" of "Any | None" has no attribute "publish"  [union-attr]
-src/engine/processor/service.py:608: error: Item "None" of "Any | None" has no attribute "publish"  [union-attr]
-src/engine/processor/service.py:619: error: Item "None" of "Any | None" has no attribute "publish"  [union-attr]
-src/engine/processor/service.py:635: error: "LLMClient" has no attribute "PROVIDER"  [attr-defined]
-src/engine/processor/service.py:644: error: "LLMClient" has no attribute "PROVIDER"  [attr-defined]
-src/engine/processor/service.py:972: error: Item "None" of "AnalysisRepository | None" has no attribute "save_analysis"  [union-attr]
-src/engine/processor/service.py:1009: error: Item "None" of "AuditRepository | None" has no attribute "save_audit_log"  [union-attr]
-src/engine/processor/service.py:1073: error: Item "None" of "AnalysisRepository | None" has no attribute "save_analysis"  [union-attr]
-src/engine/processor/performance_review/generator.py:639: error: Incompatible return value type (got "Any | list[Any] | None", expected "list[Any]")  [return-value]
-src/engine/macro/collectors/intermarket/collector.py:59: error: Argument "dxy_value" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:60: error: Argument "dxy_momentum" to "IntermarketSnapshot" has incompatible type "object"; expected "DXYMomentum | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:61: error: Argument "gold_price" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:62: error: Argument "silver_price" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:63: error: Argument "oil_price" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:64: error: Argument "iron_ore" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:65: error: Argument "dairy_gdt" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:66: error: Argument "copper" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:67: error: Argument "natural_gas" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:68: error: Argument "us2y_yield" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:69: error: Argument "us10y_yield" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:70: error: Argument "us30y_yield" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:71: error: Argument "sp500" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:72: error: Argument "vix" to "IntermarketSnapshot" has incompatible type "object"; expected "float | None"  [arg-type]
-src/engine/macro/collectors/intermarket/collector.py:242: error: Argument 2 to "_compute_trend_signals" has incompatible type "IntermarketSnapshotRow | None"; expected "IntermarketSnapshot | None"  [arg-type]
-src/engine/ta/snd/detector.py:183: error: Argument 3 to "detect_bearish_mpl" of "MPLDetector" has incompatible type "int | None"; expected "int"  [arg-type]
-src/engine/ta/snd/detector.py:276: error: Argument 3 to "detect_bullish_mpl" of "MPLDetector" has incompatible type "int | None"; expected "int"  [arg-type]
-src/engine/rag/orchestrator.py:332: error: List item 0 has incompatible type "None"; expected "str"  [list-item]
-src/engine/rag/orchestrator.py:334: error: List item 0 has incompatible type "None"; expected "str"  [list-item]
 
-c/engine/ta/orchestrator.py:1428: error: Item "None" of "CandidateRepository | None" has no attribute "bulk_create_smc_candidates"  [union-attr]
-src/engine/ta/orchestrator.py:1444: error: Item "None" of "CandidateRepository | None" has no attribute "bulk_create_snd_candidates"  [union-attr]
-src/engine/ta/broker/mt5/zmq/client.py:923: error: Module "engine.shared.metrics.prometheus" has no attribute "BROKER_TICK_FETCH_RECOVERY_TOTAL"  [attr-defined]
-src/engine/rag/services/bootstrap.py:75: error: Argument "source_format" to "ingest" of "IngestPipeline" has incompatible type "str"; expected "SourceFormat"  [arg-type]
-src/engine/ta/broker/mt5/factory.py:216: error: Incompatible types in assignment (expression has type "ZmqClient", variable has type "MetaApiClient")  [assignment]
-src/engine/ta/broker/mt5/factory.py:370: error: Incompatible types in assignment (expression has type "MetaApiClient", variable has type "ZmqClient")  [assignment]
-src/engine/processor/llm/factory.py:42: error: Incompatible types in assignment (expression has type "OpenAIClient", variable has type "AnthropicClient")  [assignment]
-src/engine/processor/llm/factory.py:47: error: Incompatible types in assignment (expression has type "GeminiClient", variable has type "AnthropicClient")  [assignment]
-src/engine/processor/llm/factory.py:54: error: Incompatible types in assignment (expression has type "OpenAICompatibleClient", variable has type "AnthropicClient")  [assignment]
-src/engine/dependencies.py:308: error: Incompatible types in assignment (expression has type "FREDEconomicProvider | OECDEconomicProvider", variable has type "FedRateProvider | ECBRateProvider | BOERateProvider | BOJRateProvider | RBARateProvider | BOCRateProvider | RBNZRateProvider | SNBRateProvider")  [assignment]
-src/engine/dependencies.py:412: error: Cannot instantiate abstract class "TwelveDataClient" with abstract attributes "account_id", "get_all_symbol_names", "get_all_symbols", "get_history" and "provider_name"  [abstract]
-src/engine/dependencies.py:1072: error: Name "AuthenticatedUser" is not defined  [name-defined]
-src/engine/dependencies.py:1143: error: Name "AuthenticatedUser" is not defined  [name-defined]
-src/engine/dependencies.py:1279: error: Name "AuthenticatedUser" is not defined  [name-defined]
-src/engine/dependencies.py:1332: error: Name "LLMClient" is not defined  [name-defined]
-src/engine/dependencies.py:1529: error: Name "LLMClient" is not defined  [name-defined]
-src/engine/helpers.py:135: error: Name "AuthenticatedUser" is not defined  [name-defined]
-src/engine/routers/trading_plan.py:112: error: Incompatible types in assignment (expression has type "Any | None", variable has type "Lock")  [assignment]
-src/engine/routers/processor_config.py:157: error: Argument 1 to "ProcessorConfig" has incompatible type "**dict[str, object]"; expected "str"  [arg-type]
-src/engine/routers/processor_config.py:157: error: Argument 1 to "ProcessorConfig" has incompatible type "**dict[str, object]"; expected "float"  [arg-type]
-src/engine/routers/processor_config.py:157: error: Argument 1 to "ProcessorConfig" has incompatible type "**dict[str, object]"; expected "int"  [arg-type]
-src/engine/routers/processor_config.py:157: error: Argument 1 to "ProcessorConfig" has incompatible type "**dict[str, object]"; expected "int | None"  [arg-type]
-src/engine/routers/processor_config.py:157: error: Argument 1 to "ProcessorConfig" has incompatible type "**dict[str, object]"; expected "SecretStr | None"  [arg-type]
-src/engine/routers/processor_config.py:157: error: Argument 1 to "ProcessorConfig" has incompatible type "**dict[str, object]"; expected "str | None"  [arg-type]
-src/engine/routers/processor_config.py:157: error: Argument 1 to "ProcessorConfig" has incompatible type "**dict[str, object]"; expected "bool"  [arg-type]
-src/engine/routers/processor_config.py:157: error: Argument 1 to "ProcessorConfig" has incompatible type "**dict[str, object]"; expected "bool | None"  [arg-type]
-src/engine/routers/processor_config.py:157: error: Argument 1 to "ProcessorConfig" has incompatible type "**dict[str, object]"; expected "Path | str | Sequence[Path | str] | None"  [arg-type]
-src/engine/routers/processor_config.py:157: error: Argument 1 to "ProcessorConfig" has incompatible type "**dict[str, object]"; expected "bool | list[str] | tuple[str, ...] | None"  [arg-type]
-src/engine/routers/processor_config.py:157: error: Argument 1 to "ProcessorConfig" has incompatible type "**dict[str, object]"; expected "CliSettingsSource[Any] | None"  [arg-type]
-src/engine/routers/performance_review.py:81: error: Incompatible types in assignment (expression has type "Any | None", variable has type "Lock")  [assignment]
-src/engine/routers/internal.py:93: error: "Container" has no attribute "ltf_confirmation_service"  [attr-defined]
-src/engine/routers/internal.py:259: error: Incompatible types in assignment (expression has type "NoOpPulse", variable has type "PulsePublisher")  [assignment]
-src/engine/routers/internal.py:261: error: Incompatible types in assignment (expression has type "NoOpPulse", variable has type "PulsePublisher")  [assignment]
-src/engine/routers/internal.py:302: error: Need type annotation for "datasets" (hint: "datasets: dict[<type>, <type>] = ...")  [var-annotated]
-src/engine/routers/internal.py:314: error: Incompatible types in assignment (expression has type "None", target has type "dict[Any, Any]")  [assignment]
-src/engine/routers/internal.py:356: error: Incompatible types in assignment (expression has type "NoOpPulse", variable has type "PulsePublisher")  [assignment]
-src/engine/routers/internal.py:358: error: Incompatible types in assignment (expression has type "NoOpPulse", variable has type "PulsePublisher")  [assignment]
-src/engine/routers/internal.py:482: error: Incompatible types in assignment (expression has type "NoOpPulse", variable has type "PulsePublisher")  [assignment]
-src/engine/routers/internal.py:484: error: Incompatible types in assignment (expression has type "NoOpPulse", variable has type "PulsePublisher")  [assignment]
-src/engine/routers/internal.py:494: error: Incompatible return value type (got "dict[str, Any]", expected "Response")  [return-value]
-src/engine/routers/internal.py:497: error: Incompatible return value type (got "dict[str, str]", expected "Response")  [return-value]
-src/engine/routers/broker_connections.py:266: error: "MetaApiProvisioner" has no attribute "_release_name"  [attr-defined]
-src/engine/routers/broker_connections.py:268: error: "MetaApiProvisioner" has no attribute "_namespace"  [attr-defined]
-src/engine/routers/broker_connections.py:289: error: Unexpected keyword argument "connection_id" for "provision_account" of "MetaApiProvisioner"  [call-arg]
-src/engine/ta/broker/mt5/metaapi/provisioner.py:123: note: "provision_account" of "MetaApiProvisioner" defined here
-src/engine/routers/broker_connections.py:289: error: Unexpected keyword argument "user_id" for "provision_account" of "MetaApiProvisioner"  [call-arg]
-src/engine/ta/broker/mt5/metaapi/provisioner.py:123: note: "provision_account" of "MetaApiProvisioner" defined here
-src/engine/routers/broker_connections.py:289: error: Unexpected keyword argument "per_user_zmq_token" for "provision_account" of "MetaApiProvisioner"  [call-arg]
-src/engine/ta/broker/mt5/metaapi/provisioner.py:123: note: "provision_account" of "MetaApiProvisioner" defined here
-src/engine/routers/analysis.py:432: error: "PubSub" has no attribute "aclose"; maybe "close"?  [attr-defined]
-src/engine/routers/analysis.py:469: error: Need type annotation for "audit_rows" (hint: "audit_rows: list[<type>] = ...")  [var-annotated]
-src/engine/routers/analysis.py:471: error: Incompatible types in assignment (expression has type "Sequence[AnalysisAuditLogRow]", variable has type "list[Any]")  [assignment]
-Found 363 errors in 71 files (checked 487 source files)
+
+SECTION 1:
+
+
+
+
+OTAL                                                                       24862  14079   6260    360    38%
+
+=========================== short test summary info ============================
+FAILED tests/chaos/test_hosted_recovery_service.py::test_start_background_loop_idempotent - AssertionError: assert 0 == 1
+ +  where 0 = <MagicMock name='mock.create_task' id='140614840236704'>.call_count
+ +    where <MagicMock name='mock.create_task' id='140614840236704'> = <MagicMock id='140614850875024'>.create_task
+FAILED tests/chaos/test_outbound_limiter_and_pool.py::test_limiter_blocks_until_refill_and_raises_on_deadline - assert False is True
+FAILED tests/chaos/test_prometheusrule_renders.py::test_mt_node_chart_renders_memory_leak_rule - AssertionError: helm template mt-node failed: Error: execution error at (mt-node/templates/statefulset.yaml:107:20): helm/mt-node: .Values.image.repository is REQUIRED. Set it in helm/mt-node/values-{staging,production}.yaml to the pinned mt-node image registry path, e.g. ghcr.io/<your-org>/etradie-mt-node.
+  
+  Use --debug flag to render out invalid YAML
+  
+assert 1 == 0
+ +  where 1 = CompletedProcess(args=['helm', 'template', 'release', '/home/runner/work/eTradie/eTradie/helm/mt-node', '--namespace', 'etradie-system', '--set', 'mtConnection.enabled=true', '--set', 'mtConnection.connectionId=test-1234567890', '--set', 'mtConnection.userId=u-1', '--set', 'mtConnection.server=Exness-MT5Trial9', '--set', 'mtConnection.sealedSecretName=test-secret'], returncode=1, stdout='', stderr='Error: execution error at (mt-node/templates/statefulset.yaml:107:20): helm/mt-node: .Values.image.repository is REQUIRED. Set it in helm/mt-node/values-{staging,production}.yaml to the pinned mt-node image registry path, e.g. ghcr.io/<your-org>/etradie-mt-node.\n\nUse --debug flag to render out invalid YAML\n').returncode
+FAILED tests/integration/test_broker_endpoints.py::TestAccountInfo::test_returns_balance_fields - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestPositions::test_returns_position_list - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestPendingOrders::test_returns_order_list - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestSymbolInfo::test_returns_instrument_metadata - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestSymbolInfo::test_missing_symbol_returns_400 - assert 401 == 400
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestTickPrice::test_returns_bid_ask - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestTickPrice::test_missing_symbol_returns_400 - assert 401 == 400
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestPosition::test_returns_position_by_ticket - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestPosition::test_missing_ticket_returns_400 - assert 401 == 400
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestPlaceOrder::test_market_order - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestPlaceOrder::test_limit_order - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestPlaceOrder::test_missing_symbol_returns_400 - assert 401 == 400
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestCancelOrder::test_cancel_success - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestModifyPosition::test_modify_success - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestModifyPosition::test_missing_ticket_returns_400 - assert 401 == 400
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestClosePartial::test_partial_close_success - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestClosePartial::test_zero_volume_returns_400 - assert 401 == 400
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestClosePosition::test_close_success - assert 401 == 200
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_broker_endpoints.py::TestClosePosition::test_missing_ticket_returns_400 - assert 401 == 400
+ +  where 401 = <Response [401 Unauthorized]>.status_code
+FAILED tests/integration/test_ta_repositories.py::TestSnapshotRepository::test_create_and_get_by_id - engine.shared.exceptions.DatabaseOperationalError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "technical_snapshots" does not exist
+[SQL: SELECT max(technical_snapshots.version) AS max_1 
+FROM technical_snapshots 
+WHERE technical_snapshots.user_id = $1::VARCHAR AND technical_snapshots.symbol = $2::VARCHAR AND technical_snapshots.timeframe = $3::VARCHAR]
+[parameters: ('test_user_id_123', 'EURUSD_b3d129', 'H4')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+FAILED tests/integration/test_ta_repositories.py::TestSnapshotRepository::test_get_latest_snapshot - engine.shared.exceptions.DatabaseOperationalError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "technical_snapshots" does not exist
+[SQL: SELECT max(technical_snapshots.version) AS max_1 
+FROM technical_snapshots 
+WHERE technical_snapshots.user_id = $1::VARCHAR AND technical_snapshots.symbol = $2::VARCHAR AND technical_snapshots.timeframe = $3::VARCHAR]
+[parameters: ('test_user_id_123', 'GBPUSD_cf5db4', 'D1')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+FAILED tests/integration/test_ta_repositories.py::TestSnapshotRepository::test_version_auto_increments - engine.shared.exceptions.DatabaseOperationalError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "technical_snapshots" does not exist
+[SQL: SELECT max(technical_snapshots.version) AS max_1 
+FROM technical_snapshots 
+WHERE technical_snapshots.user_id = $1::VARCHAR AND technical_snapshots.symbol = $2::VARCHAR AND technical_snapshots.timeframe = $3::VARCHAR]
+[parameters: ('test_user_id_123', 'USDJPY_a1a628', 'H1')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+FAILED tests/integration/test_ta_repositories.py::TestSnapshotRepository::test_get_snapshot_count - engine.shared.exceptions.DatabaseOperationalError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "technical_snapshots" does not exist
+[SQL: SELECT max(technical_snapshots.version) AS max_1 
+FROM technical_snapshots 
+WHERE technical_snapshots.user_id = $1::VARCHAR AND technical_snapshots.symbol = $2::VARCHAR AND technical_snapshots.timeframe = $3::VARCHAR]
+[parameters: ('test_user_id_123', 'TEST5EE023', 'M15')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+FAILED tests/integration/test_ta_repositories.py::TestSnapshotRepository::test_delete_by_id - engine.shared.exceptions.DatabaseOperationalError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "technical_snapshots" does not exist
+[SQL: SELECT max(technical_snapshots.version) AS max_1 
+FROM technical_snapshots 
+WHERE technical_snapshots.user_id = $1::VARCHAR AND technical_snapshots.symbol = $2::VARCHAR AND technical_snapshots.timeframe = $3::VARCHAR]
+[parameters: ('test_user_id_123', 'XAUUSD', 'W1')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+FAILED tests/shared/http/client.py::test_get_success - engine.shared.exceptions.HttpClientError: Unexpected error during test request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
+FAILED tests/shared/http/client.py::test_post_success - engine.shared.exceptions.HttpClientError: Unexpected error during test request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
+FAILED tests/shared/http/client.py::test_rate_limit_handling - engine.shared.exceptions.HttpClientError: Unexpected error during unknown request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
+FAILED tests/shared/http/client.py::test_non_retryable_error - engine.shared.exceptions.HttpClientError: Unexpected error during unknown request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
+FAILED tests/shared/http/client.py::test_server_error_retry - engine.shared.exceptions.HttpClientError: Unexpected error during unknown request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
+FAILED tests/shared/http/client.py::test_circuit_breaker_trip - engine.shared.exceptions.HttpClientError: Unexpected error during test request: ClientResponse.__init__() missing 1 required keyword-only argument: 'stream_writer'
+ERROR tests/api/test_dashboard_api.py::TestHealthEndpoints::test_health_endpoint - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestHealthEndpoints::test_health_rag - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisLatest::test_analysis_latest - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisLatest::test_analysis_latest_filter_by_pair - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisLatest::test_analysis_latest_limit - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_filter_status - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_filter_grade - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_filter_provider - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisHistory::test_analysis_history_pagination - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisStats::test_analysis_stats - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisStats::test_analysis_stats_filter_pair - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisDetail::test_analysis_detail - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisDetail::test_analysis_detail_not_found - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisRerun::test_analysis_rerun_ta_unavailable - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisRerun::test_analysis_rerun_empty_symbol - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestAnalysisRerun::test_analysis_rerun_no_auth - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_models - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_config_get - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+
+RROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_config_update_temperature - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_processor_config_update_invalid_provider - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_regular_user_rejected_from_processor_models - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_regular_user_rejected_from_processor_config_get - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_regular_user_rejected_from_processor_config_put - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+ERROR tests/api/test_dashboard_api.py::TestProcessorConfig::test_no_auth_returns_401 - pydantic_core._pydantic_core.ValidationError: 1 validation error for MT5Config
+  Value error, MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi [type=value_error, input_value={}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/value_error
+======= 33 failed, 466 passed, 23 skipped, 25 errors in 61.25s (0:01:01) =======
+
+
+
+SECTION 2:  
+
+
+
+13s
+Run docker/build-push-action@v6
+GitHub Actions runtime token ACs
+Docker info
+Proxy configuration
+Buildx version
+Builder info
+/usr/bin/docker buildx build --cache-from type=gha,scope=billing --file src/billing/Dockerfile --iidfile /home/runner/work/_temp/docker-actions-toolkit-qwroSc/build-iidfile-97ef29d72e.txt --tag etradie/billing:scan --load --metadata-file /home/runner/work/_temp/docker-actions-toolkit-qwroSc/build-metadata-006cb78b30.json .
+#0 building with "builder-b5e6ed2d-9c4c-4d72-9a11-b25830b69700" instance using docker-container driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.28kB done
+#1 DONE 0.0s
+
+#2 [auth] library/golang:pull token for registry-1.docker.io
+#2 DONE 0.0s
+
+#3 [auth] library/alpine:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#4 [internal] load metadata for docker.io/library/golang:1.25-alpine
+#4 ...
+
+#5 [internal] load metadata for docker.io/library/alpine:3.20
+#5 DONE 0.6s
+
+#4 [internal] load metadata for docker.io/library/golang:1.25-alpine
+#4 DONE 0.6s
+
+#6 [internal] load .dockerignore
+#6 transferring context: 638B done
+#6 DONE 0.0s
+
+#7 importing cache manifest from gha:14055370830121197203
+#7 DONE 0.0s
+
+#8 [runtime 1/4] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+#8 resolve docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc done
+#8 sha256:25f1d6b1951ac8eb3740558fe94cb83d377bdadf95fd9f98b50d2e1b96130471 3.63MB / 3.63MB 0.1s done
+#8 DONE 0.1s
+
+#9 [builder 1/7] FROM docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354
+#9 resolve docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354 done
+#9 sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 32B / 32B done
+#9 sha256:1c222edac8107d5a3691e31c4d7c3420e5e0ea0c26e110125aa79a4f09a1c1d6 125B / 125B 0.0s done
+#9 sha256:54a5de338fb4d7451a8806e26d415c6f24cebed06386053e5874af301ed71727 290.24kB / 290.24kB 0.1s done
+#9 sha256:9b70e313681f44d32991ec943f89228bc91d7431d4a84feafc269a76e3f96a63 3.87MB / 3.87MB 0.1s done
+#9 extracting sha256:9b70e313681f44d32991ec943f89228bc91d7431d4a84feafc269a76e3f96a63
+#9 sha256:05c934f997ad58295f8830de88f3ab19fa41578d69bb3a3fd4d4960be4ce8df9 23.07MB / 60.23MB 0.2s
+#9 sha256:05c934f997ad58295f8830de88f3ab19fa41578d69bb3a3fd4d4960be4ce8df9 60.23MB / 60.23MB 0.4s done
+#9 ...
+
+#8 [runtime 1/4] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+#8 extracting sha256:25f1d6b1951ac8eb3740558fe94cb83d377bdadf95fd9f98b50d2e1b96130471 0.5s done
+#8 DONE 0.6s
+
+#9 [builder 1/7] FROM docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354
+#9 extracting sha256:9b70e313681f44d32991ec943f89228bc91d7431d4a84feafc269a76e3f96a63 0.4s done
+#9 extracting sha256:54a5de338fb4d7451a8806e26d415c6f24cebed06386053e5874af301ed71727
+#9 extracting sha256:54a5de338fb4d7451a8806e26d415c6f24cebed06386053e5874af301ed71727 0.2s done
+#9 extracting sha256:05c934f997ad58295f8830de88f3ab19fa41578d69bb3a3fd4d4960be4ce8df9
+#9 ...
+
+#10 [internal] load build context
+#10 transferring context: 24.06MB 1.3s done
+#10 DONE 1.3s
+
+#11 [runtime 2/4] RUN apk --no-cache add ca-certificates tzdata     && rm -rf /var/cache/apk/*
+#11 0.123 fetch https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/APKINDEX.tar.gz
+#11 0.625 fetch https://dl-cdn.alpinelinux.org/alpine/v3.20/community/x86_64/APKINDEX.tar.gz
+#11 1.120 (1/2) Installing ca-certificates (20260413-r0)
+#11 1.153 (2/2) Installing tzdata (2026b-r0)
+#11 1.233 Executing busybox-1.36.1-r31.trigger
+#11 1.245 Executing ca-certificates-20260413-r0.trigger
+#11 1.309 OK: 10 MiB in 16 packages
+#11 DONE 2.0s
+
+#9 [builder 1/7] FROM docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354
+#9 ...
+
+#12 [runtime 3/4] WORKDIR /app
+#12 DONE 0.1s
+
+#9 [builder 1/7] FROM docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354
+#9 extracting sha256:05c934f997ad58295f8830de88f3ab19fa41578d69bb3a3fd4d4960be4ce8df9 4.2s done
+#9 DONE 5.0s
+
+#9 [builder 1/7] FROM docker.io/library/golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354
+#9 extracting sha256:1c222edac8107d5a3691e31c4d7c3420e5e0ea0c26e110125aa79a4f09a1c1d6 done
+#9 extracting sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 done
+#9 DONE 5.0s
+
+#13 [builder 2/7] WORKDIR /src
+#13 DONE 0.4s
+
+#14 [builder 3/7] RUN apk add --no-cache git ca-certificates tzdata make
+#14 5.062 WARNING: fetching https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/APKINDEX.tar.gz: DNS: transient error (try again later)
+#14 5.378 ERROR: unable to select packages:
+#14 5.378   git (no such package):
+#14 5.378     required by: world[git]
+#14 5.378   make (no such package):
+#14 5.378     required by: world[make]
+#14 5.378   tzdata (no such package):
+#14 5.378     required by: world[tzdata]
+#14 ERROR: process "/bin/sh -c apk add --no-cache git ca-certificates tzdata make" did not complete successfully: exit code: 3
+------
+ > [builder 3/7] RUN apk add --no-cache git ca-certificates tzdata make:
+5.062 WARNING: fetching https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/APKINDEX.tar.gz: DNS: transient error (try again later)
+5.378 ERROR: unable to select packages:
+5.378   git (no such package):
+5.378     required by: world[git]
+5.378   make (no such package):
+5.378     required by: world[make]
+5.378   tzdata (no such package):
+5.378     required by: world[tzdata]
+------
+Dockerfile:6
+--------------------
+   4 |     WORKDIR /src
+   5 |     
+   6 | >>> RUN apk add --no-cache git ca-certificates tzdata make
+   7 |     
+   8 |     COPY go.mod go.sum* ./
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c apk add --no-cache git ca-certificates tzdata make" did not complete successfully: exit code: 3
+Reference
+Check build summary support
+Error: buildx failed with: ERROR: failed to build: failed to solve: process "/bin/sh -c apk add --no-cac
+
+
+SECTION 3:
+
+
+stBuild_MacroFlags_DXYPresent
+--- PASS: TestBuild_MacroFlags_DXYPresent (0.00s)
+=== RUN   TestBuild_MacroFlags_QEQTPresent
+--- PASS: TestBuild_MacroFlags_QEQTPresent (0.00s)
+=== RUN   TestBuild_AllFrameworksAlwaysIncludesWyckoff
+--- PASS: TestBuild_AllFrameworksAlwaysIncludesWyckoff (0.00s)
+=== RUN   TestBuild_SymbolPassthrough
+--- PASS: TestBuild_SymbolPassthrough (0.00s)
+PASS
+ok  	github.com/flamegreat-1/etradie/src/gateway/internal/querybuilder	0.007s
+=== RUN   TestCheckHighImpactEventProximity_NoCalendar
+--- PASS: TestCheckHighImpactEventProximity_NoCalendar (0.00s)
+=== RUN   TestCheckHighImpactEventProximity_NoHighImpactEvents
+--- PASS: TestCheckHighImpactEventProximity_NoHighImpactEvents (0.00s)
+=== RUN   TestCheckHighImpactEventProximity_HighImpactWithinLockout
+--- PASS: TestCheckHighImpactEventProximity_HighImpactWithinLockout (0.00s)
+=== RUN   TestCheckHighImpactEventProximity_HighImpactOutsideLockout
+--- PASS: TestCheckHighImpactEventProximity_HighImpactOutsideLockout (0.00s)
+=== RUN   TestCheckCounterTrend_NoTrade
+--- PASS: TestCheckCounterTrend_NoTrade (0.00s)
+=== RUN   TestCheckCounterTrend_AlignedTrade
+--- PASS: TestCheckCounterTrend_AlignedTrade (0.00s)
+=== RUN   TestCheckCounterTrend_CounterWithoutChoch_Reject
+--- PASS: TestCheckCounterTrend_CounterWithoutChoch_Reject (0.00s)
+=== RUN   TestCheckCounterTrend_CounterWithChoch_Warn
+--- PASS: TestCheckCounterTrend_CounterWithChoch_Warn (0.00s)
+=== RUN   TestCheckCounterTrend_BearishTrendLongDirection_Reject
+--- PASS: TestCheckCounterTrend_BearishTrendLongDirection_Reject (0.00s)
+=== RUN   TestCheckWeekendGapRisk_Weekday
+--- PASS: TestCheckWeekendGapRisk_Weekday (0.00s)
+=== RUN   TestCheckLowLiquidityHours
+--- PASS: TestCheckLowLiquidityHours (0.00s)
+=== RUN   TestGuardEvaluator_AllPassOnAlignedTrade
+--- PASS: TestGuardEvaluator_AllPassOnAlignedTrade (0.00s)
+=== RUN   TestGuardEvaluator_CounterTrendRejectsWithoutChoch
+--- PASS: TestGuardEvaluator_CounterTrendRejectsWithoutChoch (0.00s)
+=== RUN   TestEvaluatePreLLM_ContainsOnlyDeterministicChecks
+--- PASS: TestEvaluatePreLLM_ContainsOnlyDeterministicChecks (0.00s)
+=== RUN   TestEvaluatePostLLM_ContainsOnlyCounterTrend
+--- PASS: TestEvaluatePostLLM_ContainsOnlyCounterTrend (0.00s)
+=== RUN   TestMergeResults_PreservesCanonicalOrder
+--- PASS: TestMergeResults_PreservesCanonicalOrder (0.00s)
+=== RUN   TestMergeResults_PreLLMRejectStillRejectsAfterMerge
+--- PASS: TestMergeResults_PreLLMRejectStillRejectsAfterMerge (0.00s)
+=== RUN   TestRouter_NoSetup_ProcessorRejects
+--- PASS: TestRouter_NoSetup_ProcessorRejects (0.00s)
+=== RUN   TestRouter_GuardRejection_NoExecution
+--- PASS: TestRouter_GuardRejection_NoExecution (0.00s)
+=== RUN   TestRouter_TradeApproved_ExecutionCalled
+--- PASS: TestRouter_TradeApproved_ExecutionCalled (0.00s)
+=== RUN   TestRouter_NilExecutionPort_Graceful
+--- PASS: TestRouter_NilExecutionPort_Graceful (0.00s)
+=== RUN   TestRouter_ExecutionError_ReturnsError
+--- PASS: TestRouter_ExecutionError_ReturnsError (0.00s)
+=== RUN   TestRoutePreLLM_PassesThroughOnAllPass
+--- PASS: TestRoutePreLLM_PassesThroughOnAllPass (0.00s)
+=== RUN   TestRoutePreLLM_RejectsOnAsianSessionForXAUUSD
+--- PASS: TestRoutePreLLM_RejectsOnAsianSessionForXAUUSD (0.00s)
+PASS
+ok  	github.com/flamegreat-1/etradie/src/gateway/internal/routing	0.015s
+=== RUN   TestReverseProxy_PathRewrite
+=== RUN   TestReverseProxy_PathRewrite/execution_state
+=== RUN   TestReverseProxy_PathRewrite/execution_account
+=== RUN   TestReverseProxy_PathRewrite/execution_settings
+=== RUN   TestReverseProxy_PathRewrite/execution_orders_cancel
+=== RUN   TestReverseProxy_PathRewrite/management_trades
+=== RUN   TestReverseProxy_PathRewrite/management_pnl
+=== RUN   TestReverseProxy_PathRewrite/engine_broker
+=== RUN   TestReverseProxy_PathRewrite/engine_analysis
+=== RUN   TestReverseProxy_PathRewrite/engine_llm
+=== RUN   TestReverseProxy_PathRewrite/engine_usage
+=== RUN   TestReverseProxy_PathRewrite/engine_processor
+--- PASS: TestReverseProxy_PathRewrite (0.01s)
+    --- PASS: TestReverseProxy_PathRewrite/execution_state (0.00s)
+    --- PASS: TestReverseProxy_PathRewrite/execution_account (0.00s)
+    --- PASS: TestReverseProxy_PathRewrite/execution_settings (0.00s)
+    --- PASS: TestReverseProxy_PathRewrite/execution_orders_cancel (0.00s)
+    --- PASS: TestReverseProxy_PathRewrite/management_trades (0.00s)
+    --- PASS: TestReverseProxy_PathRewrite/management_pnl (0.00s)
+    --- PASS: TestReverseProxy_PathRewrite/engine_broker (0.00s)
+    --- PASS: TestReverseProxy_PathRewrite/engine_analysis (0.00s)
+    --- PASS: TestReverseProxy_PathRewrite/engine_llm (0.00s)
+    --- PASS: TestReverseProxy_PathRewrite/engine_usage (0.00s)
+    --- PASS: TestReverseProxy_PathRewrite/engine_processor (0.00s)
+=== RUN   TestReverseProxy_RewriteWithQueryString
+--- PASS: TestReverseProxy_RewriteWithQueryString (0.00s)
+=== RUN   TestReverseProxy_ForwardsCookieAndCSRF
+--- PASS: TestReverseProxy_ForwardsCookieAndCSRF (0.00s)
+=== RUN   TestReverseProxy_StatusAndBodyPassthrough
+=== RUN   TestReverseProxy_StatusAndBodyPassthrough/tier_required_403
+=== RUN   TestReverseProxy_StatusAndBodyPassthrough/llm_quota_429
+--- PASS: TestReverseProxy_StatusAndBodyPassthrough (0.00s)
+    --- PASS: TestReverseProxy_StatusAndBodyPassthrough/tier_required_403 (0.00s)
+    --- PASS: TestReverseProxy_StatusAndBodyPassthrough/llm_quota_429 (0.00s)
+=== RUN   TestReverseProxy_UnreachableUpstreamReturns502
+--- PASS: TestReverseProxy_UnreachableUpstreamReturns502 (0.00s)
+=== RUN   TestNewReverseProxyHandler_RejectsBadUpstream
+--- PASS: TestNewReverseProxyHandler_RejectsBadUpstream (0.00s)
+PASS
+ok  	github.com/flamegreat-1/etradie/src/gateway/internal/server	0.026s
+=== RUN   TestLoad_EmptyRedis_ReturnsDefaults
+--- PASS: TestLoad_EmptyRedis_ReturnsDefaults (0.00s)
+=== RUN   TestSave_Load_RoundTrip
+--- PASS: TestSave_Load_RoundTrip (0.00s)
+=== RUN   TestSetCycleInterval_GetCycleInterval
+--- PASS: TestSetCycleInterval_GetCycleInterval (0.00s)
+=== RUN   TestSetCycleInterval_OverwritesPrevious
+--- PASS: TestSetCycleInterval_OverwritesPrevious (0.00s)
+=== RUN   TestGetCycleInterval_NoOverride_ReturnsZero
+--- PASS: TestGetCycleInterval_NoOverride_ReturnsZero (0.00s)
+=== RUN   TestSave_OverwritesCompletely
+--- PASS: TestSave_OverwritesCompletely (0.00s)
+PASS
+ok  	github.com/flamegreat-1/etradie/src/gateway/internal/settingsstore	0.023s
+=== RUN   TestGetActiveSymbols_ReturnsDefaults_WhenEmpty
+--- PASS: TestGetActiveSymbols_ReturnsDefaults_WhenEmpty (0.00s)
+=== RUN   TestGetActiveSymbols_DefaultsAreCopy
+--- PASS: TestGetActiveSymbols_DefaultsAreCopy (0.00s)
+=== RUN   TestSetActiveSymbols_RoundTrip
+--- PASS: TestSetActiveSymbols_RoundTrip (0.00s)
+=== RUN   TestSetActiveSymbols_NormalizesToUppercase
+--- PASS: TestSetActiveSymbols_NormalizesToUppercase (0.00s)
+=== RUN   TestSetActiveSymbols_TrimsWhitespace
+--- PASS: TestSetActiveSymbols_TrimsWhitespace (0.00s)
+=== RUN   TestSetActiveSymbols_EmptyList_ReturnsFalse
+--- PASS: TestSetActiveSymbols_EmptyList_ReturnsFalse (0.00s)
+=== RUN   TestSetActiveSymbols_AllWhitespace_ReturnsFalse
+--- PASS: TestSetActiveSymbols_AllWhitespace_ReturnsFalse (0.00s)
+=== RUN   TestSetActiveSymbols_OverwritesPrevious
+--- PASS: TestSetActiveSymbols_OverwritesPrevious (0.00s)
+=== RUN   TestResetToDefaults_ClearsSelection
+--- PASS: TestResetToDefaults_ClearsSelection (0.00s)
+=== RUN   TestResetToDefaults_WhenAlreadyEmpty
+--- PASS: TestResetToDefaults_WhenAlreadyEmpty (0.00s)
+PASS
+ok  	github.com/flamegreat-1/etradie/src/gateway/internal/symbolstore	0.022s
+?   	github.com/flamegreat-1/etradie/src/gateway/internal/tradingplanadapter	[no test files]
+FAIL
 Error: Process completed with exit code 1.
-0s
-0s
