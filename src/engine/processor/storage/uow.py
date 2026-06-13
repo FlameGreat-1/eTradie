@@ -42,10 +42,11 @@ class ProcessorUnitOfWork:
 
     async def __aenter__(self) -> ProcessorUnitOfWork:
         self._ctx = self._db.session()
-        self._session = await self._ctx.__aenter__()
+        session = await self._ctx.__aenter__()
+        self._session = session
 
-        self._analysis_repo = AnalysisRepository(self._session)
-        self._audit_repo = AuditRepository(self._session)
+        self._analysis_repo = AnalysisRepository(session)
+        self._audit_repo = AuditRepository(session)
 
         return self
 

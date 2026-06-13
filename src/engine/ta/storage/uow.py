@@ -66,12 +66,13 @@ class TAUnitOfWork:
 
     async def __aenter__(self) -> TAUnitOfWork:
         self._ctx = self._db.session()
-        self._session = await self._ctx.__aenter__()
+        session = await self._ctx.__aenter__()
+        self._session = session
 
-        self._candle_repo = CandleRepository(self._session)
-        self._snapshot_repo = SnapshotRepository(self._session)
-        self._candidate_repo = CandidateRepository(self._session)
-        self._broker_symbol_repo = BrokerSymbolRepository(self._session)
+        self._candle_repo = CandleRepository(session)
+        self._snapshot_repo = SnapshotRepository(session)
+        self._candidate_repo = CandidateRepository(session)
+        self._broker_symbol_repo = BrokerSymbolRepository(session)
 
         return self
 
@@ -129,12 +130,13 @@ class TAReadUnitOfWork:
 
     async def __aenter__(self) -> TAReadUnitOfWork:
         self._ctx = self._db.read_session()
-        self._session = await self._ctx.__aenter__()
+        session = await self._ctx.__aenter__()
+        self._session = session
 
-        self._candle_repo = CandleRepository(self._session)
-        self._snapshot_repo = SnapshotRepository(self._session)
-        self._candidate_repo = CandidateRepository(self._session)
-        self._broker_symbol_repo = BrokerSymbolRepository(self._session)
+        self._candle_repo = CandleRepository(session)
+        self._snapshot_repo = SnapshotRepository(session)
+        self._candidate_repo = CandidateRepository(session)
+        self._broker_symbol_repo = BrokerSymbolRepository(session)
 
         return self
 
