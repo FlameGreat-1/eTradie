@@ -228,7 +228,7 @@ class MarubozuAnalyzer:
                 strongest_candle = candle
                 strongest_displacement = displacement
 
-        if strongest_candle is None:
+        if strongest_candle is None or strongest_idx is None:
             return None
 
         return (strongest_idx, strongest_candle, strongest_displacement)

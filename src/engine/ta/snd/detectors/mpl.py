@@ -1,6 +1,6 @@
 from engine.shared.logging import get_logger
 from engine.ta.constants import Direction
-from engine.ta.models.candle import CandleSequence
+from engine.ta.models.candle import Candle, CandleSequence
 from engine.ta.models.zone import MiniPriceLevel
 from engine.ta.snd.config import SnDConfig
 
@@ -34,7 +34,7 @@ class MPLDetector:
         qml_level: float,
         h2_index: int,
     ) -> list[MiniPriceLevel]:
-        mpl_levels = []
+        mpl_levels: list[MiniPriceLevel] = []
 
         if h2_index < 2:
             return mpl_levels
@@ -109,7 +109,7 @@ class MPLDetector:
         qmh_level: float,
         l2_index: int,
     ) -> list[MiniPriceLevel]:
-        mpl_levels = []
+        mpl_levels: list[MiniPriceLevel] = []
 
         if l2_index < 2:
             return mpl_levels
@@ -180,9 +180,9 @@ class MPLDetector:
 
     def _check_internal_engulfing(
         self,
-        prev_candle: object,
-        candle: object,
-        next_candle: object,
+        prev_candle: Candle,
+        candle: Candle,
+        next_candle: Candle,
     ) -> bool:
         if candle.is_bullish:
             return (

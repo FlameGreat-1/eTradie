@@ -582,8 +582,8 @@ def build_user_message(context: ProcessorInput) -> str:
                 cleaned[k] = v_clean
             return cleaned
         if isinstance(d, list):
-            cleaned = [_clean_dict(item) for item in d]
-            return [item for item in cleaned if item is not None and item != "" and item != [] and item != {}]
+            cleaned_list = [_clean_dict(item) for item in d]
+            return [item for item in cleaned_list if item is not None and item != "" and item != [] and item != {}]
         if isinstance(d, bool):
             # Booleans must be returned BEFORE the float branch because
             # isinstance(True, int) is True in Python; without this
@@ -630,8 +630,8 @@ def build_user_message(context: ProcessorInput) -> str:
                 # JSON instead of a KeyError.
                 return 10**9
 
-        ordered = dict(sorted(snapshots.items(), key=lambda kv: _tf_rank(kv[0])))
-        clean_ta["snapshots"] = ordered
+        ordered_snapshots = dict(sorted(snapshots.items(), key=lambda kv: _tf_rank(kv[0])))
+        clean_ta["snapshots"] = ordered_snapshots
 
     # Strip infrastructure plumbing from metadata before it reaches the
     # LLM. Two categories are removed:

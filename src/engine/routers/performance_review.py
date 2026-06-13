@@ -78,7 +78,7 @@ async def _resolve_generator(
     gen = getattr(container, "_performance_review_generator", None)
     if gen is not None:
         return gen
-    lock: asyncio.Lock = getattr(container, "_performance_review_generator_lock", None)
+    lock: asyncio.Lock | None = getattr(container, "_performance_review_generator_lock", None)
     if lock is None:
         lock = asyncio.Lock()
         container._performance_review_generator_lock = lock  # type: ignore[attr-defined]

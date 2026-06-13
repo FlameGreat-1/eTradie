@@ -41,7 +41,7 @@ class QMDetector:
         QM structure: H -> L -> HH -> break of L level (Neckline) = QML established.
         QML sits at the first H price (the level where Supply zone sits).
         """
-        qml_levels = []
+        qml_levels: list[QuasiModoLevel] = []
 
         if len(swing_highs) < 2 or not swing_lows:
             return qml_levels
@@ -156,7 +156,7 @@ class QMDetector:
         QM structure: L -> H -> LL -> break of H level (Neckline) = QMH established.
         QMH sits at the first L price (the level where Demand zone sits).
         """
-        qmh_levels = []
+        qmh_levels: list[QuasiModoLevel] = []
 
         if len(swing_lows) < 2 or not swing_highs:
             return qmh_levels

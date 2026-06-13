@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
     from engine.dependencies import Container
     from engine.processor.service import AnalysisProcessor
+    from engine.shared.auth import AuthenticatedUser
 
 logger = get_logger(__name__)
 

@@ -37,6 +37,7 @@ from engine.schemas import CreateBrokerConnectionRequest, UpdateBrokerConnection
 from engine.shared.auth import AuthenticatedUser, get_current_user
 from engine.shared.logging import get_logger
 from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
+from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
 from engine.ta.broker.mt5.metaapi.provisioner import MetaApiProvisioner
 
 logger = get_logger(__name__)
@@ -259,7 +260,7 @@ async def create_broker_connection(
 
             allocated_connection_id = str(_uuid4())
 
-            provisioner = container.hosted_provisioner
+            provisioner: HostedProvisioner = container.hosted_provisioner
 
             # Predict the runtime details immediately so the DB row can be
             # created synchronously.

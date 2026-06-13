@@ -180,7 +180,7 @@ class SnDDetector:
                 mpl_levels = self.mpl_detector.detect_bearish_mpl(
                     htf_sequence,
                     qml.level,
-                    qml.hh_index if hasattr(qml, "hh_index") else 0,
+                    (qml.hh_index if hasattr(qml, "hh_index") else 0) or 0,
                 )
 
                 if self.config.enable_qml_baseline:
@@ -273,7 +273,7 @@ class SnDDetector:
                 mpl_levels = self.mpl_detector.detect_bullish_mpl(
                     htf_sequence,
                     qmh.level,
-                    qmh.ll_index if hasattr(qmh, "ll_index") else 0,
+                    (qmh.ll_index if hasattr(qmh, "ll_index") else 0) or 0,
                 )
 
                 if self.config.enable_qml_baseline:

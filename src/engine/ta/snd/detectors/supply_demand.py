@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from engine.shared.logging import get_logger
 from engine.ta.models.candle import CandleSequence
 from engine.ta.models.zone import DemandZone, SupplyZone
@@ -34,9 +36,9 @@ class SupplyDemandDetector:
         self,
         sequence: CandleSequence,
         qml_level: float,
-        qml_timestamp: object,
+        qml_timestamp: datetime,
         sr_flip_level: float,
-        sr_flip_timestamp: object,
+        sr_flip_timestamp: datetime,
     ) -> SupplyZone:
         upper_bound = max(qml_level, sr_flip_level)
         lower_bound = min(qml_level, sr_flip_level)
@@ -72,9 +74,9 @@ class SupplyDemandDetector:
         self,
         sequence: CandleSequence,
         qmh_level: float,
-        qmh_timestamp: object,
+        qmh_timestamp: datetime,
         rs_flip_level: float,
-        rs_flip_timestamp: object,
+        rs_flip_timestamp: datetime,
     ) -> DemandZone:
         upper_bound = max(qmh_level, rs_flip_level)
         lower_bound = min(qmh_level, rs_flip_level)

@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
 from sqlalchemy import event, text
+from sqlalchemy.pool import QueuePool
 from sqlalchemy.exc import (
     DBAPIError,
     IntegrityError,
@@ -298,7 +299,7 @@ class DatabaseManager:
         """Update Prometheus metrics for connection pool state."""
         try:
             pool = self._engine.pool
-            if pool is not None:
+            if isinstance(pool, QueuePool):
                 DB_CONNECTION_POOL_SIZE.labels(state="checked_in").set(pool.checkedin())
                 DB_CONNECTION_POOL_SIZE.labels(state="checked_out").set(pool.checkedout())
                 DB_CONNECTION_POOL_SIZE.labels(state="overflow").set(pool.overflow())

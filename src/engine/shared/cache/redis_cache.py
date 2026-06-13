@@ -70,7 +70,7 @@ class RedisCache:
         self._operation_timeout = operation_timeout
         self._max_retries = max_retries
 
-        self._pool = aioredis.ConnectionPool.from_url(
+        self._pool: aioredis.ConnectionPool = aioredis.ConnectionPool.from_url(
             url,
             max_connections=max_connections,
             socket_timeout=socket_timeout,
@@ -188,7 +188,7 @@ class RedisCache:
             CacheConnectionError: On connection failures
             CacheError: On other Redis errors
         """
-        last_error = None
+        last_error: Exception | None = None
         base_delay = 0.1
 
         for attempt in range(self._max_retries):

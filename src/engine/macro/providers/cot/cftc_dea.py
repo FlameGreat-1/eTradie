@@ -34,7 +34,7 @@ from engine.shared.models.currency import Currency
 logger = get_logger(__name__)
 
 # Map contract header keywords → Currency enum
-_HEADER_CURRENCY_MAP: dict[str, Currency] = {
+_HEADER_CURRENCY_MAP: dict[str, Currency | None] = {
     "CANADIAN DOLLAR": Currency.CAD,
     "SWISS FRANC": Currency.CHF,
     "BRITISH POUND": Currency.GBP,
@@ -42,7 +42,7 @@ _HEADER_CURRENCY_MAP: dict[str, Currency] = {
     "EURO FX -": Currency.EUR,
     "NZ DOLLAR": Currency.NZD,
     "AUSTRALIAN DOLLAR": Currency.AUD,
-    "MEXICAN PESO": Currency.MXN if hasattr(Currency, "MXN") else None,  # type: ignore[arg-type]
+    "MEXICAN PESO": Currency.MXN if hasattr(Currency, "MXN") else None,
 }
 
 # Regex to capture the "AS OF MM/DD/YY" date

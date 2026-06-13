@@ -214,7 +214,7 @@ class SMCCandidate(FrozenModel):
         return self.direction == Direction.BEARISH
     
     def to_technical_candidate(self) -> TechnicalCandidate:
-        htf_context = {}
+        htf_context: dict[str, Any] = {}
         if self.bms_detected:
             htf_context["bms_price"] = self.bms_price
             htf_context["bms_timestamp"] = self.bms_timestamp.isoformat() if self.bms_timestamp else None
@@ -339,7 +339,7 @@ class SnDCandidate(FrozenModel):
         return self.direction == Direction.BEARISH
     
     def to_technical_candidate(self) -> TechnicalCandidate:
-        htf_context = {}
+        htf_context: dict[str, Any] = {}
         if self.qml_detected:
             htf_context["qml_price"] = self.qml_price
             htf_context["qml_timestamp"] = self.qml_timestamp.isoformat() if self.qml_timestamp else None

@@ -10,4 +10,4 @@ This package contains:
 All components are framework-agnostic and reusable.
 """
 
-__all__ = []
+__all__: list[str] = []

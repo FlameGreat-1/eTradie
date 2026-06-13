@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from engine.config import get_rag_config, get_settings
 from engine.macro.collectors.calendar.collector import CalendarCollector
@@ -80,6 +80,10 @@ from engine.ta.smc.detector import SMCDetector
 from engine.ta.snd.config import SnDConfig
 from engine.ta.snd.detector import SnDDetector
 from engine.ta.storage.uow import ta_read_uow_factory, ta_uow_factory
+
+if TYPE_CHECKING:
+    from engine.processor.llm.client import LLMClient
+    from engine.shared.auth import AuthenticatedUser
 
 _logger = get_logger(__name__)
 
@@ -305,8 +309,8 @@ class Container:
             h,
             base_url=s.oecd_api_base_url,
         )
-        for p in (self.fred_provider, self.oecd_provider):
-            self.registry.register(p)
+        for econ_provider in (self.fred_provider, self.oecd_provider):
+            self.registry.register(econ_provider)
 
         self.fred_intermarket_provider = FREDIntermarketProvider(
             h,

@@ -74,7 +74,7 @@ class SwingAnalyzer:
         self,
         sequence: CandleSequence,
     ) -> list[SwingHigh]:
-        swing_highs = []
+        swing_highs: list[SwingHigh] = []
         candles = sequence.candles
         effective_left, effective_right = self._get_effective_bars(sequence)
 
@@ -122,7 +122,7 @@ class SwingAnalyzer:
         self,
         sequence: CandleSequence,
     ) -> list[SwingLow]:
-        swing_lows = []
+        swing_lows: list[SwingLow] = []
         candles = sequence.candles
         effective_left, effective_right = self._get_effective_bars(sequence)
 

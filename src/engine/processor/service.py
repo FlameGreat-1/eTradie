@@ -549,7 +549,7 @@ class AnalysisProcessor(ProcessorPort):
             # rather than fabricated, and a warning log records it.
             full_text = ""
             start_llm = time.monotonic()
-            if stream_channel:
+            if stream_channel and self._cache is not None:
                 await self._cache.publish(
                     stream_channel,
                     {
@@ -582,7 +582,7 @@ class AnalysisProcessor(ProcessorPort):
                     if len(current_extracted) > len(last_published_reasoning):
                         new_text = current_extracted[len(last_published_reasoning) :]
                         last_published_reasoning = current_extracted
-                        if stream_channel and new_text:
+                        if stream_channel and new_text and self._cache is not None:
                             await self._cache.publish(
                                 stream_channel,
                                 {
@@ -597,7 +597,7 @@ class AnalysisProcessor(ProcessorPort):
             # of the analysis feed. Publishing here (not inside the
             # except path) guarantees we only emit `final` when the LLM
             # call actually completed.
-            if stream_channel:
+            if stream_channel and self._cache is not None:
                 # Settle the REASONING phase row to the done (✓) state.
                 # The row was opened by the gateway/engine processor
                 # pulses but otherwise only ever ended via the separate

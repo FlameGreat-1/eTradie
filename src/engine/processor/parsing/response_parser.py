@@ -81,7 +81,7 @@ def _coerce_null_collections(raw: dict[str, Any]) -> None:
         leaf = parts[-1]
         parents = parts[:-1]
 
-        node = raw
+        node: Any = raw
         for p in parents:
             if not isinstance(node, dict):
                 node = None
@@ -155,7 +155,7 @@ def parse_llm_response(
         output = AnalysisOutput.model_validate(raw_dict)
     except ValidationError as exc:
         TRADE_PLAN_GENERATED_TOTAL.labels(status="validation_error").inc()
-        error_details = []
+        error_details: list[str] = []
         for err in exc.errors():
             loc = ".".join(str(l) for l in err["loc"])
             error_details.append(f"{loc}: {err['msg']}")

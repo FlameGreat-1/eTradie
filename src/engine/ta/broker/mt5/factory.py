@@ -186,6 +186,8 @@ def create_mt5_broker(
     Raises:
         ConfigurationError: On invalid provider or missing dependencies.
     """
+    client: BrokerBase
+
     if config.provider == "metaapi":
         if http_client is None:
             raise ConfigurationError(

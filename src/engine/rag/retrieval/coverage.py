@@ -61,7 +61,7 @@ def check_coverage(
     scenario_count = sum(1 for c in chunks if c.doc_type in _SCENARIO_DOC_TYPES)
 
     retrieved_doc_types = frozenset(c.doc_type for c in chunks)
-    missing_doc_types: set[str] = set()
+    missing_doc_types: set[DocumentType] = set()
     missing_frameworks: set[str] = set()
     gaps: list[str] = []
 
@@ -131,7 +131,7 @@ def check_coverage(
         framework_chunks_found=framework_count,
         framework_chunks_required=config.coverage_min_framework_chunks,
         missing_doc_types=frozenset(missing_doc_types),
-        missing_frameworks=frozenset(missing_frameworks),
+        missing_frameworks=frozenset(Framework(fw) for fw in missing_frameworks),
         gaps=tuple(gaps),
     )
 

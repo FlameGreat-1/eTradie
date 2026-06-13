@@ -55,6 +55,7 @@ from engine.processor.storage.schemas.processor_schema import (
     AnalysisOutputRow,
 )
 from engine.shared.db import DatabaseManager
+from engine.shared.db.migrations._schema_registry import Base
 from engine.shared.logging import get_logger
 from engine.ta.storage.schemas.candidate import CandidateSchema
 
@@ -216,7 +217,7 @@ class RetentionPruner:
 
     async def _prune_processor_table(
         self,
-        schema_class: type,
+        schema_class: type[Base],
         timestamp_column: str,
         retention_hours: int,
     ) -> int:
@@ -234,7 +235,7 @@ class RetentionPruner:
 
     async def _prune_macro_table(
         self,
-        schema_class: type,
+        schema_class: type[Base],
         timestamp_column: str,
         retention_hours: int,
     ) -> int:

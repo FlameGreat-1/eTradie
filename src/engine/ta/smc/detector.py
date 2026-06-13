@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from engine.shared.logging import get_logger
 from engine.ta.common.analyzers.candles import CandleAnalyzer
@@ -39,6 +39,9 @@ from engine.ta.smc.validators.zone.validator import ZoneValidator
 from engine.ta.smc.zones.breaker import BreakerDetector
 from engine.ta.smc.zones.fvg import FVGDetector
 from engine.ta.smc.zones.order_block import OrderBlockDetector
+
+if TYPE_CHECKING:
+    from engine.ta.models.zone import OrderBlock
 
 logger = get_logger(__name__)
 

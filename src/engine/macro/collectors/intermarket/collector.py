@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from engine.macro.collectors.base import BaseCollector
 from engine.macro.models.collector.market_data import MarketDataSet
 from engine.macro.models.provider.market_data import IntermarketSnapshot
 from engine.macro.storage.repositories.intermarket.snapshot import IntermarketRepository
 from engine.shared.logging import get_logger
+
+if TYPE_CHECKING:
+    from engine.macro.storage.schemas.intermarket import IntermarketSnapshotRow
 
 logger = get_logger(__name__)
 
@@ -25,7 +28,7 @@ def _merge_snapshots(
     if not snapshots:
         return None
 
-    merged_data: dict[str, object] = {
+    merged_data: dict[str, Any] = {
         "dxy_value": None,
         "dxy_momentum": None,
         "gold_price": None,
@@ -143,7 +146,7 @@ def _compute_correlation_signals(
 
 def _compute_trend_signals(
     current: IntermarketSnapshot,
-    previous: IntermarketSnapshot | None,
+    previous: IntermarketSnapshot | IntermarketSnapshotRow | None,
 ) -> dict[str, Any]:
     """Direction + change for the fields whose TRAJECTORY is a real risk signal.
 

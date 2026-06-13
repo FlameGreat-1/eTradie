@@ -69,7 +69,7 @@ class PreviousLevelDetector:
         sequence: CandleSequence,
         swing_highs: list[SwingHigh],
     ) -> list[PreviousHighsLows]:
-        previous_highs = []
+        previous_highs: list[PreviousHighsLows] = []
 
         if len(swing_highs) < self.config.min_previous_touches:
             return previous_highs
@@ -101,7 +101,7 @@ class PreviousLevelDetector:
         sequence: CandleSequence,
         swing_lows: list[SwingLow],
     ) -> list[PreviousHighsLows]:
-        previous_lows = []
+        previous_lows: list[PreviousHighsLows] = []
 
         if len(swing_lows) < self.config.min_previous_touches:
             return previous_lows

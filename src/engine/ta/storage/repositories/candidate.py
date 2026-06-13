@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -469,7 +470,7 @@ class CandidateRepository:
 
     async def _fetch_existing_dedup_keys(
         self,
-        candidates: list[SMCCandidate | SnDCandidate],
+        candidates: Sequence[SMCCandidate | SnDCandidate],
         *,
         user_id: str,
     ) -> set[tuple]:

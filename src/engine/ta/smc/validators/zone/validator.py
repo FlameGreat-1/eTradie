@@ -523,7 +523,7 @@ class ZoneValidator:
             if other_ob.timestamp == ob.timestamp:
                 continue
 
-            if ob.overlaps_with(other_ob.to_zone()):
+            if ob.to_zone().overlaps_with(other_ob.to_zone()):
                 return False
 
         return True

@@ -4,6 +4,7 @@ import time
 from uuid import UUID
 
 from engine.config import RAGConfig
+from engine.rag.constants import DocumentType
 from engine.rag.embeddings.base import BaseEmbeddingProvider
 from engine.rag.models.retrieval import RetrievedChunk
 from engine.rag.vectorstore.base import BaseVectorStore, VectorSearchResult
@@ -99,6 +100,7 @@ class Retriever:
             try:
                 chunk_id = UUID(result.chunk_id)
                 doc_id = UUID(result.metadata.get("doc_id", result.chunk_id))
+                doc_type = DocumentType(result.metadata.get("doc_type", ""))
             except ValueError:
                 continue
 
@@ -106,7 +108,7 @@ class Retriever:
                 RetrievedChunk(
                     chunk_id=chunk_id,
                     document_id=doc_id,
-                    doc_type=result.metadata.get("doc_type", ""),
+                    doc_type=doc_type,
                     content=result.content,
                     score=result.score,
                     rank=rank,

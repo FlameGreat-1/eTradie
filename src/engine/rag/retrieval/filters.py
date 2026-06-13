@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from engine.rag.constants import DocumentType, Framework
+from engine.rag.constants import Direction, DocumentType, Framework, SetupFamily
 from engine.rag.models.retrieval import RetrievalFilter
 
 
@@ -17,10 +17,10 @@ def build_rule_filters(
             DocumentType.TRADING_STYLE_RULES,
         }
     )
-    frameworks = frozenset({framework}) if framework else frozenset()
+    frameworks = frozenset({Framework(framework)}) if framework else frozenset()
     styles = frozenset({style}) if style else frozenset()
     timeframes = frozenset({timeframe}) if timeframe else frozenset()
-    directions = frozenset({direction}) if direction else frozenset()
+    directions = frozenset({Direction(direction)}) if direction else frozenset()
 
     return RetrievalFilter(
         doc_types=doc_types,
@@ -47,16 +47,17 @@ def build_framework_filters(
         Framework.MACRO: DocumentType.MACRO_TO_PRICE_GUIDE,
         Framework.STYLE: DocumentType.TRADING_STYLE_RULES,
     }
-    doc_type = doc_type_map.get(framework)
+    framework_enum = Framework(framework)
+    doc_type = doc_type_map.get(framework_enum)
     doc_types = frozenset({doc_type}) if doc_type else frozenset()
 
-    setup_families = frozenset({setup_family}) if setup_family else frozenset()
-    directions = frozenset({direction}) if direction else frozenset()
+    setup_families = frozenset({SetupFamily(setup_family)}) if setup_family else frozenset()
+    directions = frozenset({Direction(direction)}) if direction else frozenset()
     timeframes = frozenset({timeframe}) if timeframe else frozenset()
 
     return RetrievalFilter(
         doc_types=doc_types,
-        frameworks=frozenset({framework}),
+        frameworks=frozenset({framework_enum}),
         setup_families=setup_families,
         directions=directions,
         timeframes=timeframes,
@@ -71,10 +72,10 @@ def build_scenario_filters(
     timeframe: str | None = None,
 ) -> RetrievalFilter:
     doc_types = frozenset({DocumentType.CHART_SCENARIO_LIBRARY})
-    frameworks = frozenset({framework}) if framework else frozenset()
+    frameworks = frozenset({Framework(framework)}) if framework else frozenset()
 
-    setup_families = frozenset({setup_family}) if setup_family else frozenset()
-    directions = frozenset({direction}) if direction else frozenset()
+    setup_families = frozenset({SetupFamily(setup_family)}) if setup_family else frozenset()
+    directions = frozenset({Direction(direction)}) if direction else frozenset()
     timeframes = frozenset({timeframe}) if timeframe else frozenset()
 
     return RetrievalFilter(
@@ -99,7 +100,7 @@ def build_macro_filters(
         }
     )
     styles = frozenset({style}) if style else frozenset()
-    directions = frozenset({direction}) if direction else frozenset()
+    directions = frozenset({Direction(direction)}) if direction else frozenset()
 
     return RetrievalFilter(
         doc_types=doc_types,

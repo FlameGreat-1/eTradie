@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
 from engine.processor.storage.repositories.audit_repository import AuditRepository
@@ -20,22 +23,42 @@ class ProcessorUnitOfWork:
 
     def __init__(self, db: DatabaseManager) -> None:
         self._db = db
-        self._ctx = None
-        self._session = None
-        self.analysis_repo: AnalysisRepository | None = None
-        self.audit_repo: AuditRepository | None = None
+        self._ctx: AbstractAsyncContextManager[AsyncSession] | None = None
+        self._session: AsyncSession | None = None
+        self._analysis_repo: AnalysisRepository | None = None
+        self._audit_repo: AuditRepository | None = None
+
+    @property
+    def analysis_repo(self) -> AnalysisRepository:
+        if self._analysis_repo is None:
+            raise RuntimeError("ProcessorUnitOfWork used outside its async context")
+        return self._analysis_repo
+
+    @property
+    def audit_repo(self) -> AuditRepository:
+        if self._audit_repo is None:
+            raise RuntimeError("ProcessorUnitOfWork used outside its async context")
+        return self._audit_repo
 
     async def __aenter__(self) -> ProcessorUnitOfWork:
         self._ctx = self._db.session()
-        self._session = await self._ctx.__aenter__()
+        session = await self._ctx.__aenter__()
+        self._session = session
 
-        self.analysis_repo = AnalysisRepository(self._session)
-        self.audit_repo = AuditRepository(self._session)
+        self._analysis_repo = AnalysisRepository(session)
+        self._audit_repo = AuditRepository(session)
 
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
+        try:
+            if self._ctx is not None:
+                await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
+        finally:
+            self._ctx = None
+            self._session = None
+            self._analysis_repo = None
+            self._audit_repo = None
 
 
 ProcessorUOWFactory = Callable[[], ProcessorUnitOfWork]

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from engine.rag.storage.repositories.chunk import ChunkRepository
 from engine.rag.storage.repositories.citation_log import CitationLogRepository
@@ -30,26 +33,32 @@ class RAGUnitOfWork:
 
     def __init__(self, db: DatabaseManager) -> None:
         self._db = db
-        self._ctx = None
-        self._session = None
+        self._ctx: AbstractAsyncContextManager[AsyncSession] | None = None
+        self._session: AsyncSession | None = None
 
     async def __aenter__(self) -> RAGUnitOfWork:
         self._ctx = self._db.session()
-        self._session = await self._ctx.__aenter__()
+        session = await self._ctx.__aenter__()
+        self._session = session
 
-        self.document_repo = DocumentRepository(self._session)
-        self.version_repo = DocumentVersionRepository(self._session)
-        self.chunk_repo = ChunkRepository(self._session)
-        self.scenario_repo = ScenarioRepository(self._session)
-        self.ingest_job_repo = IngestJobRepository(self._session)
-        self.retrieval_log_repo = RetrievalLogRepository(self._session)
-        self.citation_log_repo = CitationLogRepository(self._session)
-        self.reembed_queue_repo = ReembedQueueRepository(self._session)
+        self.document_repo = DocumentRepository(session)
+        self.version_repo = DocumentVersionRepository(session)
+        self.chunk_repo = ChunkRepository(session)
+        self.scenario_repo = ScenarioRepository(session)
+        self.ingest_job_repo = IngestJobRepository(session)
+        self.retrieval_log_repo = RetrievalLogRepository(session)
+        self.citation_log_repo = CitationLogRepository(session)
+        self.reembed_queue_repo = ReembedQueueRepository(session)
 
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
+        try:
+            if self._ctx is not None:
+                await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
+        finally:
+            self._ctx = None
+            self._session = None
 
 
 RAGUnitOfWorkFactory = Callable[[], RAGUnitOfWork]

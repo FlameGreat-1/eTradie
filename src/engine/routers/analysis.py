@@ -17,6 +17,7 @@ Routes:
 import asyncio
 import contextlib
 import json
+from collections.abc import Sequence
 from datetime import UTC
 from datetime import datetime as dt
 
@@ -34,6 +35,7 @@ from engine.processor.mapping.dashboard_formatter import format_for_dashboard
 from engine.processor.models.io import ProcessorInput
 from engine.processor.storage.repositories.analysis_repository import AnalysisRepository
 from engine.processor.storage.repositories.audit_repository import AuditRepository
+from engine.processor.storage.schemas.processor_schema import AnalysisAuditLogRow
 from engine.processor.streaming import (
     SSE_HEARTBEAT_SECONDS,
     stream_channel_for_user,
@@ -466,7 +468,7 @@ async def get_analysis_detail(
         repo = AnalysisRepository(session)
         row = await repo.get_by_analysis_id(analysis_id, user_id=user.user_id)
 
-        audit_rows = []
+        audit_rows: Sequence[AnalysisAuditLogRow] = []
         audit_repo = AuditRepository(session)
         audit_rows = await audit_repo.get_by_analysis_id(analysis_id, user_id=user.user_id)
 

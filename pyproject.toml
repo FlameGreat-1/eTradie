@@ -68,7 +68,6 @@ disable_error_code = [
     "prop-decorator",
     "import-not-found",
     "arg-type",
-    "untyped-decorator",
     "no-untyped-def",
     "attr-defined",
     "assignment",
@@ -89,7 +88,7 @@ disable_error_code = [
 
 
 [[tool.mypy.overrides]]
-module = ["feedparser.*", "apscheduler.*"]
+module = ["feedparser.*", "apscheduler.*", "kubernetes_asyncio.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

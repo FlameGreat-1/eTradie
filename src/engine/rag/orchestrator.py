@@ -323,13 +323,13 @@ class RAGOrchestrator:
         seen_ids: set = set()
 
         # Match using primary framework + each setup family
-        frameworks_to_try = [framework] if framework else []
+        frameworks_to_try: list[str | None] = [framework] if framework else []
         if all_frameworks:
             for fw in all_frameworks:
                 if fw not in frameworks_to_try:
                     frameworks_to_try.append(fw)
 
-        families_to_try = setup_families if setup_families else [None]
+        families_to_try: list[str | None] = list(setup_families) if setup_families else [None]
 
         for fw in frameworks_to_try or [None]:
             for family in families_to_try:

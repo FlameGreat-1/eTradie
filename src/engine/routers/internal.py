@@ -50,6 +50,7 @@ from engine.shared.exceptions import (
 from engine.shared.internal_auth import verify_internal_auth
 from engine.shared.logging import get_logger
 from engine.shared.pulse import NoOpPulse, PulsePublisher
+from engine.shared.pulse.publisher import PulseEmitter
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -90,7 +91,7 @@ async def internal_ta_confirm_ltf(
         # Reuse analyzers from the TA orchestrator if available
         if hasattr(container, "ta_orchestrator"):
             orch = container.ta_orchestrator
-            container.ltf_confirmation_service = LTFConfirmationService(
+            container.ltf_confirmation_service = LTFConfirmationService(  # type: ignore[attr-defined]
                 smc_config=smc_config,
                 swing_analyzer=orch.snapshot_builder.swing_analyzer,
                 session_analyzer=orch.snapshot_builder.session_analyzer,
@@ -254,7 +255,7 @@ async def internal_macro_collect(
     cache = getattr(container, "cache", None)
     if cache is not None and user_id:
         try:
-            pulse = PulsePublisher(cache=cache, user_id=user_id, symbol="macro")
+            pulse: PulseEmitter = PulsePublisher(cache=cache, user_id=user_id, symbol="macro")
         except Exception:  # noqa: BLE001 - pulse must never break collection
             pulse = NoOpPulse()
     else:
@@ -299,8 +300,8 @@ async def internal_macro_collect(
         return_exceptions=True,
     )
 
-    datasets = {}
-    errors = {}
+    datasets: dict[str, Any] = {}
+    errors: dict[str, Any] = {}
     for name, result in zip(tasks.keys(), raw_results, strict=False):
         if isinstance(result, Exception):
             logger.error(
@@ -351,7 +352,7 @@ async def internal_rag_retrieve(
     cache = getattr(container, "cache", None)
     if cache is not None and user_id:
         try:
-            pulse = PulsePublisher(cache=cache, user_id=user_id, symbol=body.symbol or "")
+            pulse: PulseEmitter = PulsePublisher(cache=cache, user_id=user_id, symbol=body.symbol or "")
         except Exception:  # noqa: BLE001 - pulse must never break retrieval
             pulse = NoOpPulse()
     else:
@@ -477,7 +478,7 @@ async def internal_processor_process(
         _proc_symbol = getattr(processor_input, "symbol", "") or ""
         if cache is not None and user_id:
             try:
-                _proc_pulse = PulsePublisher(cache=cache, user_id=user_id, symbol=_proc_symbol)
+                _proc_pulse: PulseEmitter = PulsePublisher(cache=cache, user_id=user_id, symbol=_proc_symbol)
             except Exception:  # noqa: BLE001 - pulse must never break the LLM call
                 _proc_pulse = NoOpPulse()
         else:
@@ -491,10 +492,10 @@ async def internal_processor_process(
         )
 
         if hasattr(result, "model_dump"):
-            return result.model_dump(mode="json")
+            return JSONResponse(content=result.model_dump(mode="json"))
         if isinstance(result, dict):
-            return result
-        return {"raw": str(result)}
+            return JSONResponse(content=result)
+        return JSONResponse(content={"raw": str(result)})
 
     except QuotaExceededError as exc:
         # The metering layer rejected the reservation. Log the rejection

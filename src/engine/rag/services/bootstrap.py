@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from engine.config import RAGConfig
-from engine.rag.constants import CollectionName
+from engine.rag.constants import CollectionName, SourceFormat
 from engine.rag.ingest.pipeline import IngestPipeline
 from engine.rag.knowledge.bootstrap.seed import seed_knowledge_assets
 from engine.rag.knowledge.bootstrap.validator import validate_knowledge_readiness
@@ -72,7 +72,7 @@ class BootstrapService:
                     await self._ingest_pipeline.ingest(
                         path=Path(doc.source_path),
                         doc_type=doc.doc_type,
-                        source_format=doc.source_format,
+                        source_format=SourceFormat(doc.source_format),
                         title=doc.title,
                     )
 

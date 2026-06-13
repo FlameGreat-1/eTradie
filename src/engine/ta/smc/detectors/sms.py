@@ -32,7 +32,7 @@ class SMSDetector:
         sequence: CandleSequence,
         swing_lows: list[SwingLow],
     ) -> list[ShiftInMarketStructure]:
-        sms_events = []
+        sms_events: list[ShiftInMarketStructure] = []
 
         if len(swing_lows) < 3:
             return sms_events
@@ -86,7 +86,7 @@ class SMSDetector:
         sequence: CandleSequence,
         swing_highs: list[SwingHigh],
     ) -> list[ShiftInMarketStructure]:
-        sms_events = []
+        sms_events: list[ShiftInMarketStructure] = []
 
         if len(swing_highs) < 3:
             return sms_events
