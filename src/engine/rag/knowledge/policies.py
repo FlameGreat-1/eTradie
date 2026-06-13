@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from engine.rag.constants import MANDATORY_KNOWLEDGE_GROUPS
+from engine.rag.constants import MANDATORY_KNOWLEDGE_GROUPS, DocumentType
 from engine.shared.exceptions import RAGKnowledgeBaseError
 
 
 def enforce_mandatory_assets(
     active_doc_types: set[str],
 ) -> None:
-    missing = MANDATORY_KNOWLEDGE_GROUPS - frozenset(active_doc_types)
+    missing = MANDATORY_KNOWLEDGE_GROUPS - frozenset(DocumentType(dt) for dt in active_doc_types)
     if missing:
         raise RAGKnowledgeBaseError(
             f"Missing mandatory knowledge assets: {sorted(missing)}",
