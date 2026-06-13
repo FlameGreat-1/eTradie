@@ -27,10 +27,10 @@ from engine.rag.models.scenario import Scenario
 
 def make_document(
     *,
-    doc_type: str = DocumentType.MASTER_RULEBOOK,
+    doc_type: DocumentType = DocumentType.MASTER_RULEBOOK,
     title: str = "Test Rulebook",
     source_path: str = "knowledge/test_rulebook.md",
-    status: str = DocumentStatus.ACTIVE,
+    status: DocumentStatus = DocumentStatus.ACTIVE,
     checksum: str = "a" * 64,
 ) -> Document:
     return Document(
@@ -47,7 +47,7 @@ def make_document_version(
     *,
     document_id: uuid.UUID | None = None,
     version_number: int = 1,
-    status: str = DocumentStatus.ACTIVE,
+    status: DocumentStatus = DocumentStatus.ACTIVE,
     checksum: str = "b" * 64,
 ) -> DocumentVersion:
     return DocumentVersion(
@@ -62,12 +62,12 @@ def make_chunk(
     *,
     document_id: uuid.UUID | None = None,
     document_version_id: uuid.UUID | None = None,
-    doc_type: str = DocumentType.MASTER_RULEBOOK,
+    doc_type: DocumentType = DocumentType.MASTER_RULEBOOK,
     chunk_index: int = 0,
     content: str = "Test chunk content for retrieval.",
     content_hash: str = "c" * 64,
     token_count: int = 10,
-    embedding_status: str = EmbeddingStatus.EMBEDDED,
+    embedding_status: EmbeddingStatus = EmbeddingStatus.EMBEDDED,
     section: str | None = "Test Section",
 ) -> Chunk:
     return Chunk(
@@ -87,7 +87,7 @@ def make_retrieved_chunk(
     *,
     score: float = 0.85,
     rank: int = 0,
-    doc_type: str = DocumentType.MASTER_RULEBOOK,
+    doc_type: DocumentType = DocumentType.MASTER_RULEBOOK,
     content: str = "Retrieved rule content.",
     section: str | None = "Rules",
 ) -> RetrievedChunk:
@@ -104,11 +104,11 @@ def make_retrieved_chunk(
 
 def make_scenario(
     *,
-    framework: str = Framework.SMC,
-    setup_family: str = SetupFamily.ORDER_BLOCK,
-    direction: str = Direction.LONG,
+    framework: Framework = Framework.SMC,
+    setup_family: SetupFamily = SetupFamily.ORDER_BLOCK,
+    direction: Direction = Direction.LONG,
     timeframe: str = "H4",
-    outcome: str = ScenarioOutcome.VALID_WIN,
+    outcome: ScenarioOutcome = ScenarioOutcome.VALID_WIN,
     title: str = "Test Scenario",
     explanation_text: str = "Bullish OB setup with displacement.",
 ) -> Scenario:
@@ -126,7 +126,7 @@ def make_scenario(
 
 def make_citation(
     *,
-    doc_type: str = DocumentType.SMC_FRAMEWORK,
+    doc_type: DocumentType = DocumentType.SMC_FRAMEWORK,
     section: str = "Section 3.2",
     relevance_score: float = 0.9,
 ) -> Citation:
@@ -142,7 +142,7 @@ def make_citation(
 
 def make_context_bundle(
     *,
-    strategy: str = RetrievalStrategy.HYBRID,
+    strategy: RetrievalStrategy = RetrievalStrategy.HYBRID,
     chunk_count: int = 3,
     scenario_count: int = 1,
 ) -> ContextBundle:
@@ -164,7 +164,7 @@ def make_context_bundle(
 
 def make_coverage_check(
     *,
-    result: str = CoverageResult.SUFFICIENT,
+    result: CoverageResult = CoverageResult.SUFFICIENT,
     rule_chunks_found: int = 3,
     rule_chunks_required: int = 2,
     framework_chunks_found: int = 2,
