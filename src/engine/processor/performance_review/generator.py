@@ -636,7 +636,8 @@ class PerformanceReviewGenerator:
         def _list_from(name: str, key: str = "items") -> list[Any]:
             v = parsed.get(name)
             if isinstance(v, dict):
-                return v.get(key) if isinstance(v.get(key), list) else []
+                inner = v.get(key)
+                return inner if isinstance(inner, list) else []
             return v if isinstance(v, list) else []
 
         def _list(value: Any) -> list[Any]:
