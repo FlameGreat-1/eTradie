@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from engine.rag.constants import Direction, Framework, ScenarioOutcome, SetupFamily
 from engine.rag.models.scenario import Scenario
 from engine.rag.storage.uow import RAGUnitOfWorkFactory
 from engine.shared.logging import get_logger
@@ -37,11 +38,11 @@ class ScenarioMatcher:
                 Scenario(
                     id=row.id,
                     document_id=row.document_id,
-                    framework=row.framework,
-                    setup_family=row.setup_family,
-                    direction=row.direction,
+                    framework=Framework(row.framework),
+                    setup_family=SetupFamily(row.setup_family),
+                    direction=Direction(row.direction),
                     timeframe=row.timeframe,
-                    outcome=row.outcome,
+                    outcome=ScenarioOutcome(row.outcome),
                     title=row.title,
                     explanation_text=row.explanation_text,
                     image_refs=(tuple(row.image_refs) if isinstance(row.image_refs, list) else ()),
