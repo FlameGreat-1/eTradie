@@ -2,6 +2,23 @@ package e2e
 
 import "time"
 
+// HarnessFrozenNow is the deterministic clock used by both e2etest and
+// grpctest harnesses. The GuardEvaluator's nowFunc is pinned to this
+// instant so weekend / Asian-session / low-liquidity guards behave
+// predictably regardless of when CI runs. Fixtures that build relative
+// timestamps (e.g. MacroResponseWithImmediateNews) MUST use this same
+// clock or the guard and the fixture disagree about "now" and tests
+// flake or fail outright.
+//
+// Wednesday 2023-10-11 14:00 UTC is mid-London-NY overlap; it bypasses:
+//   - Asian session (hour 0-6 UTC)
+//   - Friday late close (Fri >= 20:00 UTC)
+//   - Weekend (Sat/Sun)
+//   - Low-liquidity hours (hour >= 21 or < 1)
+func HarnessFrozenNow() time.Time {
+	return time.Date(2023, time.October, 11, 14, 0, 0, 0, time.UTC)
+}
+
 // This file provides factory functions that build realistic response
 // payloads for the mock engine server. Every field matches the exact
 // JSON contract the Gateway's collectors, adapters, and pipeline
@@ -229,11 +246,15 @@ func MacroResponsePartial() map[string]interface{} {
 // ---------------------------------------------------------------------------
 
 // MacroResponseWithImmediateNews returns a macro response with a HIGH-impact
-// calendar event scheduled 10 minutes from now. This triggers the
-// MR-REJECT-001 news proximity guard (30-minute lockout window).
+// calendar event scheduled 10 minutes from the harness's frozen clock.
+// This triggers the MR-REJECT-001 news proximity guard (30-minute lockout
+// window). Uses HarnessFrozenNow() rather than time.Now() so the event
+// is 10 minutes ahead of the GUARD'S clock, not the wall clock.
 func MacroResponseWithImmediateNews() map[string]interface{} {
-	// Build the event time 10 minutes from now in RFC3339 format.
-	eventTime := time.Now().UTC().Add(10 * time.Minute).Format(time.RFC3339)
+	// Build the event time 10 minutes from the frozen harness clock
+	// in RFC3339 format. Must match the guard's nowFunc or the event
+	// will appear years out of the lockout window.
+	eventTime := HarnessFrozenNow().UTC().Add(10 * time.Minute).Format(time.RFC3339)
 
 	return map[string]interface{}{
 		"central_bank": map[string]interface{}{

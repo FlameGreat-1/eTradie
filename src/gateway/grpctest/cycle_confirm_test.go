@@ -147,6 +147,12 @@ func TestGRPC_ConfirmSetup_Confirmed(t *testing.T) {
 	defer h.Close()
 
 	h.Engine.TAResponse = e2e.TAResponseWithCandidates()
+	// ConfirmSetup -> RunConfirmationPulse re-checks the news lockout
+	// before returning Confirmed=true. For a fiat symbol like EURUSD,
+	// a macro probe error fails closed ("trading blind into news").
+	// Provide the empty-events fixture so the news guard passes; the
+	// e2e TestConfirmationPulse_LTFConfirmed uses the same pattern.
+	h.Engine.MacroResponse = e2e.MacroResponseFull()
 
 	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
 	ctx, cancel := context.WithTimeout(authCtx, 30*time.Second)

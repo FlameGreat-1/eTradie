@@ -8,12 +8,24 @@ import (
 	"github.com/flamegreat-1/etradie/src/gateway/internal/models"
 )
 
+// newTestEval builds a fresh *GuardEvaluator for unit tests. The four
+// pre/post checks were refactored into methods on *GuardEvaluator so
+// they can share the injected nowFunc; tests still want to exercise
+// each method in isolation, so this helper provides a default-config
+// evaluator (real time.Now) for the per-method tests below. The
+// integration tests further down construct their own evaluator via
+// NewGuardEvaluator() so this helper is only used by the single-check
+// tests that previously called the methods as free functions.
+func newTestEval() *GuardEvaluator {
+	return NewGuardEvaluator()
+}
+
 // ── High-Impact Event Proximity Guard ───────────────────────────────────────
 
 func TestCheckHighImpactEventProximity_NoCalendar(t *testing.T) {
 	ta := &models.TASymbolResult{Symbol: "EURUSD"}
 	macro := &models.MacroResult{}
-	result := checkHighImpactEventProximity(ta, macro)
+	result := newTestEval().checkHighImpactEventProximity(ta, macro)
 
 	// A fiat symbol with no calendar data fails closed (N3): trading
 	// blind into a possible high-impact event is the unsafe outcome.
@@ -31,7 +43,7 @@ func TestCheckHighImpactEventProximity_NoHighImpactEvents(t *testing.T) {
 		},
 	}
 	ta := &models.TASymbolResult{Symbol: "EURUSD"}
-	result := checkHighImpactEventProximity(ta, macro)
+	result := newTestEval().checkHighImpactEventProximity(ta, macro)
 
 	if result.Verdict != constants.VerdictPass {
 		t.Fatalf("expected PASS for LOW impact events, got %s: %s", result.Verdict, result.Reason)
@@ -53,7 +65,7 @@ func TestCheckHighImpactEventProximity_HighImpactWithinLockout(t *testing.T) {
 		},
 	}
 	ta := &models.TASymbolResult{Symbol: "EURUSD"}
-	result := checkHighImpactEventProximity(ta, macro)
+	result := newTestEval().checkHighImpactEventProximity(ta, macro)
 
 	if result.Verdict != constants.VerdictReject {
 		t.Fatalf("expected REJECT for HIGH impact within lockout, got %s: %s", result.Verdict, result.Reason)
@@ -81,7 +93,7 @@ func TestCheckHighImpactEventProximity_HighImpactOutsideLockout(t *testing.T) {
 		},
 	}
 	ta := &models.TASymbolResult{Symbol: "EURUSD"}
-	result := checkHighImpactEventProximity(ta, macro)
+	result := newTestEval().checkHighImpactEventProximity(ta, macro)
 
 	if result.Verdict != constants.VerdictPass {
 		t.Fatalf("expected PASS for HIGH impact outside lockout, got %s: %s", result.Verdict, result.Reason)
@@ -93,7 +105,7 @@ func TestCheckHighImpactEventProximity_HighImpactOutsideLockout(t *testing.T) {
 func TestCheckCounterTrend_NoTrade(t *testing.T) {
 	processor := &models.ProcessorOutput{TradeValid: false}
 	ta := &models.TASymbolResult{Symbol: "EURUSD", OverallTrend: "BULLISH"}
-	result := checkCounterTrend(processor, ta)
+	result := newTestEval().checkCounterTrend(processor, ta)
 
 	if result.Verdict != constants.VerdictPass {
 		t.Fatalf("expected PASS when trade is not valid, got %s", result.Verdict)
@@ -103,7 +115,7 @@ func TestCheckCounterTrend_NoTrade(t *testing.T) {
 func TestCheckCounterTrend_AlignedTrade(t *testing.T) {
 	processor := &models.ProcessorOutput{TradeValid: true, Direction: "LONG"}
 	ta := &models.TASymbolResult{Symbol: "EURUSD", OverallTrend: "BULLISH"}
-	result := checkCounterTrend(processor, ta)
+	result := newTestEval().checkCounterTrend(processor, ta)
 
 	if result.Verdict != constants.VerdictPass {
 		t.Fatalf("expected PASS for aligned LONG + BULLISH, got %s: %s", result.Verdict, result.Reason)
@@ -117,7 +129,7 @@ func TestCheckCounterTrend_CounterWithoutChoch_Reject(t *testing.T) {
 		OverallTrend: "BULLISH",
 		Snapshots:    map[string]map[string]interface{}{},
 	}
-	result := checkCounterTrend(processor, ta)
+	result := newTestEval().checkCounterTrend(processor, ta)
 
 	if result.Verdict != constants.VerdictReject {
 		t.Fatalf("expected REJECT for counter-trend SHORT vs BULLISH without CHoCH, got %s: %s", result.Verdict, result.Reason)
@@ -133,7 +145,7 @@ func TestCheckCounterTrend_CounterWithChoch_Warn(t *testing.T) {
 			"4H": {"choch_events": []interface{}{"choch1", "choch2"}},
 		},
 	}
-	result := checkCounterTrend(processor, ta)
+	result := newTestEval().checkCounterTrend(processor, ta)
 
 	if result.Verdict != constants.VerdictWarn {
 		t.Fatalf("expected WARN for counter-trend with CHoCH, got %s: %s", result.Verdict, result.Reason)
@@ -147,7 +159,7 @@ func TestCheckCounterTrend_BearishTrendLongDirection_Reject(t *testing.T) {
 		OverallTrend: "BEARISH",
 		Snapshots:    map[string]map[string]interface{}{},
 	}
-	result := checkCounterTrend(processor, ta)
+	result := newTestEval().checkCounterTrend(processor, ta)
 
 	if result.Verdict != constants.VerdictReject {
 		t.Fatalf("expected REJECT for LONG trade against BEARISH trend without CHoCH, got %s", result.Verdict)
@@ -161,7 +173,7 @@ func TestCheckCounterTrend_BearishTrendLongDirection_Reject(t *testing.T) {
 
 func TestCheckWeekendGapRisk_Weekday(t *testing.T) {
 	ta := &models.TASymbolResult{Symbol: "EURUSD"}
-	result := checkWeekendGapRisk(ta)
+	result := newTestEval().checkWeekendGapRisk(ta)
 	now := time.Now().UTC()
 
 	if now.Weekday() >= time.Monday && now.Weekday() <= time.Thursday {
@@ -180,7 +192,7 @@ func TestCheckWeekendGapRisk_Weekday(t *testing.T) {
 
 func TestCheckLowLiquidityHours(t *testing.T) {
 	ta := &models.TASymbolResult{Symbol: "EURUSD"}
-	result := checkLowLiquidityHours(ta)
+	result := newTestEval().checkLowLiquidityHours(ta)
 	hour := time.Now().UTC().Hour()
 
 	if hour >= 21 || hour < 1 {

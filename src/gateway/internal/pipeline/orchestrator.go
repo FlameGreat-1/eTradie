@@ -971,6 +971,13 @@ func getBoolField(m map[string]interface{}, key string) bool {
 	if f, ok := v.(float64); ok {
 		return f != 0
 	}
+	// Nested object form: the TA engine emits ltf_confirmation as
+	// {"confirmed": true, "timeframe": "M5", "pattern": "ENGULFING"}
+	// for some setup families. Unwrap one level so the same caller
+	// works for both the flat bool and the nested-dict shapes.
+	if nested, ok := v.(map[string]interface{}); ok {
+		return getBoolField(nested, "confirmed")
+	}
 	return false
 }
 

@@ -193,9 +193,9 @@ func NewHarness(t *testing.T) *Harness {
 	assembler := ctxpkg.NewAssembler()
 	
 	// Use a fixed Wednesday 14:00 UTC to safely bypass all time-based guards (weekend, asian session, low liquidity).
-	guards := routing.NewGuardEvaluator().WithNowFunc(func() time.Time {
-		return time.Date(2023, time.October, 11, 14, 0, 0, 0, time.UTC)
-	})
+	// HarnessFrozenNow is the single source of truth shared with fixtures.go,
+	// so news-event timestamps in fixtures stay consistent with the guard clock.
+	guards := routing.NewGuardEvaluator().WithNowFunc(HarnessFrozenNow)
 
 	// Mock execution port.
 	execPort := &MockExecutionPort{}

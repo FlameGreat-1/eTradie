@@ -163,9 +163,8 @@ func NewHarness(t *testing.T) *Harness {
 	assembler := ctxpkg.NewAssembler()
 	
 	// Use a fixed Wednesday 14:00 UTC to safely bypass all time-based guards (weekend, asian session, low liquidity).
-	guards := routing.NewGuardEvaluator().WithNowFunc(func() time.Time {
-		return time.Date(2023, time.October, 11, 14, 0, 0, 0, time.UTC)
-	})
+	// Shared with e2etest.HarnessFrozenNow so fixtures and the guard agree on "now".
+	guards := routing.NewGuardEvaluator().WithNowFunc(e2e.HarnessFrozenNow)
 	execPort := &e2e.MockExecutionPort{}
 	router := routing.NewRouter(guards, execPort, transport, nil)
 	processor := infra.NewHTTPProcessorAdapter(engineHTTP)

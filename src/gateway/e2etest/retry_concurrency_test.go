@@ -41,9 +41,12 @@ func TestRetry_TAFailsThenSucceeds(t *testing.T) {
 
 	successResponse := TAResponseWithCandidates()
 
-	// Start with TA returning 500 errors.
+	// Start with TA returning 503 errors. Production engine_http.go
+	// retries 502/503/504 but NOT 500 (500 is treated as a permanent
+	// application error - retrying wastes LLM quota). 503 exercises
+	// the retry path the test intends to validate.
 	h.Engine.TAResponse = map[string]interface{}{"error": "service temporarily unavailable"}
-	h.Engine.TAStatusCode = 500
+	h.Engine.TAStatusCode = 503
 	h.Engine.MacroResponse = MacroResponseFull()
 	h.Engine.RAGResponse = RAGResponseWithChunks()
 	h.Engine.ProcessorResponse = ProcessorResponseTradeValid()
@@ -118,9 +121,11 @@ func TestRetry_AllAttemptsExhausted(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	// TA permanently returns 500. All HTTP retries and cycle retries fail.
+	// TA permanently returns 503. Production engine_http.go retries
+	// 502/503/504; 500 is intentionally one-shot. Use 503 so all HTTP
+	// retries and cycle retries fire as the test expects.
 	h.Engine.TAResponse = map[string]interface{}{"error": "permanent failure"}
-	h.Engine.TAStatusCode = 500
+	h.Engine.TAStatusCode = 503
 	h.Engine.MacroResponse = MacroResponseFull()
 
 	outputs := h.RunCycle([]string{"EURUSD"}, "trace-e2e-retry-exhausted-001")
