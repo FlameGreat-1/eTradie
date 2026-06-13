@@ -30,9 +30,7 @@ _STREAM_WRITER_PARAM = "stream_writer"
 
 # Only install the shim when the running aiohttp actually requires the
 # kwarg, so the tests keep working unchanged on older/newer aiohttp.
-_REQUIRES_STREAM_WRITER = _STREAM_WRITER_PARAM in inspect.signature(
-    _ORIGINAL_CLIENT_RESPONSE_INIT
-).parameters
+_REQUIRES_STREAM_WRITER = _STREAM_WRITER_PARAM in inspect.signature(_ORIGINAL_CLIENT_RESPONSE_INIT).parameters
 
 
 def _patched_init(self, *args, **kwargs):  # type: ignore[no-untyped-def]
