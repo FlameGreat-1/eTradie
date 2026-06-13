@@ -33,7 +33,9 @@ from __future__ import annotations
 import abc
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
+
+from engine.processor.constants import LLMProvider
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,10 @@ class LLMClient(abc.ABC):
     implements this interface. The processor service and retry
     logic depend only on this abstraction.
     """
+
+    # Every concrete provider sets this to its LLMProvider member; the
+    # service layer reads it for metering/audit metadata.
+    PROVIDER: ClassVar[LLMProvider]
 
     @abc.abstractmethod
     async def call(
