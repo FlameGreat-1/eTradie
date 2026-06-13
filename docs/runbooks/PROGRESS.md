@@ -29,7 +29,7 @@
 |---|---|---|
 | 0 | Prerequisites | ✅ DONE |
 | 1 | VPS host hardening | ✅ DONE |
-| 2 | Install K3s | ⏸ pending |
+| 2 | Install K3s | 🟡 in progress (2.1 + 2.2 done; 2.3 pending) |
 | 2.5 | Build + push mt-node Wine image | ⏸ pending |
 | 3 | Vault + Vault Agent Injector | ⏸ pending |
 | 4 | External Secrets Operator + ClusterSecretStore | ⏸ pending |
@@ -190,3 +190,15 @@ can see WHY the command is what it is, not just that we ran it.
    setting `snapshotter.volumeSnapshotClassName` + `image.repository`.
    No action required at Phase 2 — just don't be surprised when
    `mt-node-staging` renders without the CronJob in Phase 12.
+
+---
+
+## Phase 2 — Install K3s
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 2.1 Install K3s `v1.30.4+k3s1` on the VPS | ✅ | Ran the exact README.md Phase 2.1 installer block as etradie. Installer output: downloaded the v1.30.4+k3s1 binary + verified its hash, installed to `/usr/local/bin/k3s`, created `kubectl` / `crictl` / `ctr` symlinks, wrote `/etc/systemd/system/k3s.service`, enabled the unit (`Created symlink /etc/systemd/system/multi-user.target.wants/k3s.service → /etc/systemd/system/k3s.service`), and ended on `[INFO]  systemd: Starting k3s`. No errors. SELinux RPM skipped (correct on Ubuntu 24.04). |
+| 2.2 Verify cluster healthy | ✅ | At T+11s: `kubectl get nodes` -> `vmi3362776 Ready control-plane,master 11s v1.30.4+k3s1`. `get pods -A` showed `No resources found` (kubelet still bringing up kube-system). At T+~2 min: all 3 kube-system pods Running 1/1 — `coredns-576bfc4dc7-4wzkw`, `local-path-provisioner-6795b5f9d8-49pqs`, `metrics-server-557ff575fb-xbcrz`. No `helm-install-traefik` Jobs ever appeared because `--disable=traefik` + `--disable=servicelb` skipped them at install time. `get nodes -o wide` confirms INTERNAL-IP `13.140.164.173`, OS-IMAGE `Ubuntu 24.04.4 LTS`, KERNEL-VERSION `6.8.0-124-generic` (the kernel from Phase 1 reboot), CONTAINER-RUNTIME `containerd://1.7.20-k3s1`. `systemctl is-active k3s` -> `active`; `is-enabled k3s` -> `enabled`. |
+| 2.2 — K3s ports listening | ✅ | `ss -tlnp` shows `*:6443` (kube-apiserver), `*:10250` (kubelet) bound to all interfaces — ufw STILL blocks them externally (Phase 1.6 verified `:6443` closed/filtered from the workstation's port probe). `127.0.0.1:10256` (kube-proxy healthz) bound loopback-only — K3s default, no operator action. All three are owned by `k3s-server` (pid 2618). |
+| 2.2 — StorageClass present and default | ✅ | `kubectl get storageclass` -> `local-path (default) rancher.io/local-path Delete WaitForFirstConsumer false 8s`. The `(default)` marker is the load-bearing piece: every chart in this repo sets `storageClassName: ""` (= cluster default) in its PVCs, so K3s' `local-path` will be picked up automatically in Phase 12 without any chart override. `WaitForFirstConsumer` means PVCs stay `Pending` until a pod actually mounts them — expected K3s behaviour, not a fault. |
+| 2.3 Export kubeconfig to workstation via SSH local-forward | ⏸ pending | Per the Phase 2 access decision above (Option A): ufw keeps `:6443` closed inbound; `kubectl` from the workstation reaches the API via an SSH local-forward through the existing etradie session, with the workstation kubeconfig's `server:` rewritten to `https://127.0.0.1:6443`. |
