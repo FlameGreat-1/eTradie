@@ -14,7 +14,11 @@ greenlet==3.1.1
 redis[hiredis]==5.2.1
 
 # ── HTTP Client ──────────────────────────────────────────────
-aiohttp==3.14.0
+# Pinned to 3.10.x: aiohttp 3.14 made ClientResponse's stream_writer a
+# required kwarg, which the pinned aioresponses 0.7.8 test mock does not
+# pass. 3.10.11 is the latest 3.10 security patch and is compatible with
+# aiohttp-retry and the OTel aiohttp instrumentation pin below.
+aiohttp==3.10.11
 aiohttp-retry==2.9.1
 
 # ── RSS / Feed Parsing ───────────────────────────────────────
