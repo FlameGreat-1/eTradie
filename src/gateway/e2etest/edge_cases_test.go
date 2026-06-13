@@ -242,6 +242,7 @@ func TestConfirmationPulse_NestedLTFFormat(t *testing.T) {
 		"pattern":   "ENGULFING",
 	}
 	h.Engine.TAResponse = taResp
+	h.Engine.MacroResponse = MacroResponseFull()
 
 	result := h.Orchestrator.RunConfirmationPulse(
 		context.Background(),

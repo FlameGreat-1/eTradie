@@ -23,6 +23,7 @@ func TestConfirmationPulse_LTFConfirmed(t *testing.T) {
 	// TA response with a candidate whose analysis_id matches and
 	// ltf_confirmation is true (set in TAResponseWithCandidates).
 	h.Engine.TAResponse = TAResponseWithCandidates()
+	h.Engine.MacroResponse = MacroResponseFull()
 
 	result := h.Orchestrator.RunConfirmationPulse(
 		context.Background(),
@@ -47,10 +48,10 @@ func TestConfirmationPulse_LTFConfirmed(t *testing.T) {
 	assert.Equal(t, []interface{}{"EURUSD"}, taSymbols)
 
 	// ---------------------------------------------------------------
-	// Assert: Macro, RAG, Processor were NOT called (pulse bypasses them).
+	// Assert: RAG, Processor were NOT called (pulse bypasses them). Macro IS called for news lockout check.
 	// ---------------------------------------------------------------
-	assert.Equal(t, int64(0), h.Engine.MacroCalls.Load(),
-		"Macro should NOT be called during confirmation pulse")
+	assert.Equal(t, int64(1), h.Engine.MacroCalls.Load(),
+		"Macro should be called during confirmation pulse")
 	assert.Equal(t, int64(0), h.Engine.RAGCalls.Load(),
 		"RAG should NOT be called during confirmation pulse")
 	assert.Equal(t, int64(0), h.Engine.ProcessorCalls.Load(),
@@ -80,6 +81,7 @@ func TestConfirmationPulse_LTFNotConfirmed(t *testing.T) {
 	candidate := smcCandidates[0].(map[string]interface{})
 	candidate["ltf_confirmation"] = false
 	h.Engine.TAResponse = taResp
+	h.Engine.MacroResponse = MacroResponseFull()
 
 	result := h.Orchestrator.RunConfirmationPulse(
 		context.Background(),
@@ -102,6 +104,7 @@ func TestConfirmationPulse_CandidateNotFound(t *testing.T) {
 	defer h.Close()
 
 	h.Engine.TAResponse = TAResponseWithCandidates()
+	h.Engine.MacroResponse = MacroResponseFull()
 
 	result := h.Orchestrator.RunConfirmationPulse(
 		context.Background(),
@@ -125,6 +128,7 @@ func TestConfirmationPulse_TAFailure(t *testing.T) {
 
 	h.Engine.TAResponse = map[string]interface{}{"error": "service unavailable"}
 	h.Engine.TAStatusCode = 500
+	h.Engine.MacroResponse = MacroResponseFull()
 
 	result := h.Orchestrator.RunConfirmationPulse(
 		context.Background(),
@@ -145,6 +149,7 @@ func TestConfirmationPulse_NoCandidates(t *testing.T) {
 	defer h.Close()
 
 	h.Engine.TAResponse = TAResponseNoCandidates()
+	h.Engine.MacroResponse = MacroResponseFull()
 
 	result := h.Orchestrator.RunConfirmationPulse(
 		context.Background(),

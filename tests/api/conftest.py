@@ -224,6 +224,20 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
     # Settings validator skips key checks for APP_ENV=testing.
     if "ANTHROPIC_API_KEY" not in env_overrides and "PROCESSOR_ANTHROPIC_API_KEY" not in env_overrides:
         env_overrides["ANTHROPIC_API_KEY"] = "sk-test-placeholder"
+        env_overrides["PROCESSOR_ANTHROPIC_API_KEY"] = "sk-test-placeholder"
+    
+    # Vault setup for HostedRecoveryService
+    if "VAULT_ADDR" not in env_overrides:
+        env_overrides["VAULT_ADDR"] = "http://localhost:8200"
+        env_overrides["VAULT_TOKEN"] = "test-token"
+        env_overrides["VAULT_K8S_AUTH_ROLE"] = "test-role"
+
+    # MT5Config now unconditionally validates that metaapi_token is non-empty
+    # when provider=metaapi. Tests don't have MetaAPI credentials, so switch
+    # to native (ZMQ) mode which requires no cloud secrets.
+    if "MT5_PROVIDER" not in env_overrides and "MT5_METAAPI_TOKEN" not in env_overrides:
+        env_overrides["MT5_PROVIDER"] = "native"
+
 
     from unittest.mock import patch
 
@@ -243,8 +257,10 @@ async def app_client() -> AsyncGenerator[AsyncClient, None]:
             container = app.state.container
 
             # Create processor tables (analysis_outputs, analysis_audit_logs,
-            # llm_connections) if they don't exist.
+            # llm_connections, broker_connections) if they don't exist.
             from engine.processor.storage.schemas.processor_schema import ProcessorBase
+            from engine.processor.storage.schemas.broker_connection_schema import BrokerConnectionRow
+            from engine.processor.storage.schemas.llm_connection_schema import LLMConnectionRow
 
             async with container.db.engine.begin() as conn:
                 await conn.run_sync(ProcessorBase.metadata.create_all)

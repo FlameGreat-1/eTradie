@@ -51,6 +51,7 @@ func testAuthContext(ts *auth.TokenService, userID, username string, role auth.R
 		ID:       userID,
 		Username: username,
 		Role:     role,
+		Status:   "active",
 	}
 	pair, _, _ := ts.IssueTokenPair(user)
 	md := metadata.Pairs("authorization", "Bearer "+pair.AccessToken)
@@ -160,7 +161,11 @@ func NewHarness(t *testing.T) *Harness {
 	// Pipeline components.
 	qb := querybuilder.NewBuilder()
 	assembler := ctxpkg.NewAssembler()
-	guards := routing.NewGuardEvaluator()
+	
+	// Use a fixed Wednesday 14:00 UTC to safely bypass all time-based guards (weekend, asian session, low liquidity).
+	guards := routing.NewGuardEvaluator().WithNowFunc(func() time.Time {
+		return time.Date(2023, time.October, 11, 14, 0, 0, 0, time.UTC)
+	})
 	execPort := &e2e.MockExecutionPort{}
 	router := routing.NewRouter(guards, execPort, transport, nil)
 	processor := infra.NewHTTPProcessorAdapter(engineHTTP)

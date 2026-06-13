@@ -67,6 +67,11 @@ def test_mt_node_chart_renders_memory_leak_rule():
             "mtConnection.userId=u-1",
             "mtConnection.server=Exness-MT5Trial9",
             "mtConnection.sealedSecretName=test-secret",
+            # externalsecret-platform.yaml uses `required` for vaultPath when
+            # externalSecrets.enabled=true (the default). Provide a dummy path
+            # that satisfies the guard so the full chart renders in CI. Real
+            # values come from values-{staging,production}.yaml overlays.
+            "externalSecrets.platform.vaultPath=etradie/services/mt-node/test",
         ],
     )
     assert "MTNodePodPending" in rendered

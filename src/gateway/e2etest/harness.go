@@ -191,7 +191,11 @@ func NewHarness(t *testing.T) *Harness {
 	// Real query builder, assembler, guards.
 	qb := querybuilder.NewBuilder()
 	assembler := ctxpkg.NewAssembler()
-	guards := routing.NewGuardEvaluator()
+	
+	// Use a fixed Wednesday 14:00 UTC to safely bypass all time-based guards (weekend, asian session, low liquidity).
+	guards := routing.NewGuardEvaluator().WithNowFunc(func() time.Time {
+		return time.Date(2023, time.October, 11, 14, 0, 0, 0, time.UTC)
+	})
 
 	// Mock execution port.
 	execPort := &MockExecutionPort{}

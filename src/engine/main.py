@@ -205,86 +205,95 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             extra={"error": str(exc), "error_type": type(exc).__name__},
         )
 
-    await container.build_processor()
-    logger.info(
-        "processor_built",
-        provider=container.processor_config.llm_provider,
-        model=container.processor_config.model_name,
-    )
-
-    # The Go gateway owns the symbol selection via Redis.
-    # RedisSymbolReader reads from the same Redis key the Go gateway writes to.
-    symbol_reader = RedisSymbolReader(cache=container.cache)
-    app.state.symbol_reader = symbol_reader
-
-    # Warm the macro cache asynchronously, NOT inline before yield.
-    async def _macro_cache_warmup() -> None:
-        macro_warmup_targets = {
-            "central_bank": container.cb_collector,
-            "cot": container.cot_collector,
-            "economic": container.economic_collector,
-            "calendar": container.calendar_collector,
-            "dxy": container.dxy_collector,
-            "intermarket": container.intermarket_collector,
-            "sentiment": container.sentiment_collector,
-        }
+    try:
+        await container.build_processor()
         logger.info(
-            "macro_cache_warmup_started",
-            extra={
-                "namespaces": list(macro_warmup_targets.keys()),
-                "mode": "background",
-            },
-        )
-        warmup_start = asyncio.get_event_loop().time()
-        # Use refresh() (force fetch + persist durable snapshot), NOT
-        # collect(). On a cold start there is no Redis cache and no
-        # persisted snapshot yet, so collect() would fall through to an
-        # empty dataset and warm nothing real; the first true fetch
-        # would then wait for the scheduler interval (up to 7 days for
-        # COT/sentiment). refresh() fetches once at boot, repopulates
-        # Redis, and writes the last-good snapshot so every subsequent
-        # request-path cache miss serves real data with no API call.
-        warmup_results = await asyncio.gather(
-            *(c.refresh() for c in macro_warmup_targets.values()),
-            return_exceptions=True,
-        )
-        warmup_duration_s = asyncio.get_event_loop().time() - warmup_start
-        warmup_summary: dict[str, str] = {}
-        for name, result in zip(macro_warmup_targets.keys(), warmup_results):
-            if isinstance(result, Exception):
-                warmup_summary[name] = f"failed: {type(result).__name__}: {result}"
-                logger.warning(
-                    "macro_cache_warmup_namespace_failed",
-                    extra={
-                        "namespace": name,
-                        "error": str(result),
-                        "error_type": type(result).__name__,
-                    },
-                )
-            else:
-                warmup_summary[name] = "ok"
-        logger.info(
-            "macro_cache_warmup_completed",
-            extra={
-                "duration_seconds": round(warmup_duration_s, 2),
-                "results": warmup_summary,
-            },
+            "processor_built",
+            provider=container.processor_config.llm_provider,
+            model=container.processor_config.model_name,
         )
 
-    await container.background_tasks.schedule_once(
-        "lifespan:macro_warmup",
-        _macro_cache_warmup,
-        cooldown_s=3600,
-        timeout_s=300,
-    )
+        # The Go gateway owns the symbol selection via Redis.
+        # RedisSymbolReader reads from the same Redis key the Go gateway writes to.
+        symbol_reader = RedisSymbolReader(cache=container.cache)
+        app.state.symbol_reader = symbol_reader
 
-    container.scheduler.start()
-    logger.info("application_started", env=settings.app_env.value)
+        # Warm the macro cache asynchronously, NOT inline before yield.
+        async def _macro_cache_warmup() -> None:
+            macro_warmup_targets = {
+                "central_bank": container.cb_collector,
+                "cot": container.cot_collector,
+                "economic": container.economic_collector,
+                "calendar": container.calendar_collector,
+                "dxy": container.dxy_collector,
+                "intermarket": container.intermarket_collector,
+                "sentiment": container.sentiment_collector,
+            }
+            logger.info(
+                "macro_cache_warmup_started",
+                extra={
+                    "namespaces": list(macro_warmup_targets.keys()),
+                    "mode": "background",
+                },
+            )
+            warmup_start = asyncio.get_event_loop().time()
+            # Use refresh() (force fetch + persist durable snapshot), NOT
+            # collect(). On a cold start there is no Redis cache and no
+            # persisted snapshot yet, so collect() would fall through to an
+            # empty dataset and warm nothing real; the first true fetch
+            # would then wait for the scheduler interval (up to 7 days for
+            # COT/sentiment). refresh() fetches once at boot, repopulates
+            # Redis, and writes the last-good snapshot so every subsequent
+            # request-path cache miss serves real data with no API call.
+            warmup_results = await asyncio.gather(
+                *(c.refresh() for c in macro_warmup_targets.values()),
+                return_exceptions=True,
+            )
+            warmup_duration_s = asyncio.get_event_loop().time() - warmup_start
+            warmup_summary: dict[str, str] = {}
+            for name, result in zip(macro_warmup_targets.keys(), warmup_results):
+                if isinstance(result, Exception):
+                    warmup_summary[name] = f"failed: {type(result).__name__}: {result}"
+                    logger.warning(
+                        "macro_cache_warmup_namespace_failed",
+                        extra={
+                            "namespace": name,
+                            "error": str(result),
+                            "error_type": type(result).__name__,
+                        },
+                    )
+                else:
+                    warmup_summary[name] = "ok"
+            logger.info(
+                "macro_cache_warmup_completed",
+                extra={
+                    "duration_seconds": round(warmup_duration_s, 2),
+                    "results": warmup_summary,
+                },
+            )
 
-    yield
+        await container.background_tasks.schedule_once(
+            "lifespan:macro_warmup",
+            _macro_cache_warmup,
+            cooldown_s=3600,
+            timeout_s=300,
+        )
 
-    await container.shutdown()
-    logger.info("application_stopped")
+        container.scheduler.start()
+        logger.info("application_started", env=settings.app_env.value)
+
+        yield
+
+    except Exception:
+        # Startup failed after background tasks were already registered.
+        # Ensure every task and resource is cleaned up so tests do not see
+        # 'Exception ignored in: <coroutine object ...>' warnings from
+        # orphaned asyncio tasks that were never awaited.
+        logger.error("lifespan_startup_failed", exc_info=True)
+        raise
+    finally:
+        await container.shutdown()
+        logger.info("application_stopped")
 
 
 def _validate_cors_origins(origins) -> list[str]:

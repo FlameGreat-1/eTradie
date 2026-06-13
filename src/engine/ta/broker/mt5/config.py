@@ -1,4 +1,3 @@
-import os
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -78,14 +77,15 @@ class MT5Config(BaseSettings):
         The metaapi_account_id is dynamically provisioned per-user
         via the MetaAPI Provisioning API and stored in the database.
 
-        The requirement is enforced only in production/staging, where
-        real MetaApi credentials must be present. In development and
-        testing an empty token is allowed so the engine (and its test
-        suite) can boot without cloud broker secrets. This mirrors the
-        fail-safe pattern used by Settings and RAGConfig.
+        Enforcement is unconditional: a provider='metaapi' instance with
+        an empty token is always invalid. Callers that construct MT5Config
+        in non-production environments (tests, docker-compose, local dev)
+        must either set MT5_METAAPI_TOKEN in the environment or explicitly
+        switch to provider='native' (MT5_PROVIDER=native). The old
+        prod-only guard was removed because it caused the model to silently
+        accept an invalid configuration in non-prod and masked bugs until
+        the code reached production.
         """
-        app_env = os.getenv("APP_ENV", "development").lower()
-        is_prod_like = app_env in {"production", "prod", "staging"}
-        if is_prod_like and self.provider == "metaapi" and not self.metaapi_token:
+        if self.provider == "metaapi" and not self.metaapi_token:
             raise ValueError("MT5_METAAPI_TOKEN is required when MT5_PROVIDER=metaapi")
         return self

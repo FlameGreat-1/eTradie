@@ -29,12 +29,22 @@ import (
 // Each guard still runs exactly once per cycle; the split is a
 // scheduling change, not a duplication.
 type GuardEvaluator struct {
-	log zerolog.Logger
+	log     zerolog.Logger
+	nowFunc func() time.Time
 }
 
 // NewGuardEvaluator creates a GuardEvaluator.
 func NewGuardEvaluator() *GuardEvaluator {
-	return &GuardEvaluator{log: observability.Logger("guard_evaluator")}
+	return &GuardEvaluator{
+		log:     observability.Logger("guard_evaluator"),
+		nowFunc: time.Now,
+	}
+}
+
+// WithNowFunc sets the time function for testing.
+func (g *GuardEvaluator) WithNowFunc(f func() time.Time) *GuardEvaluator {
+	g.nowFunc = f
+	return g
 }
 
 // EvaluatePreLLM runs the 4 deterministic guards that do not need
@@ -53,10 +63,10 @@ func (g *GuardEvaluator) EvaluatePreLLM(
 	start := time.Now()
 
 	checks := []models.GuardCheckResult{
-		checkHighImpactEventProximity(taResult, macroResult),
-		checkSessionRestriction(taResult),
-		checkWeekendGapRisk(taResult),
-		checkLowLiquidityHours(taResult),
+		g.checkHighImpactEventProximity(taResult, macroResult),
+		g.checkSessionRestriction(taResult),
+		g.checkWeekendGapRisk(taResult),
+		g.checkLowLiquidityHours(taResult),
 	}
 
 	result := aggregate(checks)
@@ -87,7 +97,7 @@ func (g *GuardEvaluator) EvaluatePostLLM(
 	start := time.Now()
 
 	checks := []models.GuardCheckResult{
-		checkCounterTrend(processorOutput, taResult),
+		g.checkCounterTrend(processorOutput, taResult),
 	}
 
 	result := aggregate(checks)
@@ -230,7 +240,7 @@ func aggregateNoMetrics(checks []models.GuardCheckResult) *models.GuardEvaluatio
 // (CheckNewsWindow RPC). Here the trading style is not yet known
 // (pre-LLM), so the normal lockout window is used; the wider
 // scalping window is enforced later where the style is known.
-func checkHighImpactEventProximity(ta *models.TASymbolResult, macro *models.MacroResult) models.GuardCheckResult {
+func (g *GuardEvaluator) checkHighImpactEventProximity(ta *models.TASymbolResult, macro *models.MacroResult) models.GuardCheckResult {
 	// 24/7 markets have no fiat calendar exposure; the orchestrator
 	// also passes a nil macro for them. EvaluateNewsWindow returns
 	// "no exposure" for such symbols, so they pass without needing a
@@ -247,7 +257,7 @@ func checkHighImpactEventProximity(ta *models.TASymbolResult, macro *models.Macr
 		calendar = macro.Calendar
 	}
 
-	status := EvaluateNewsWindow(calendar, ta.Symbol, time.Now().UTC(), constants.HighImpactEventLockoutMinutes)
+	status := EvaluateNewsWindow(calendar, ta.Symbol, g.nowFunc().UTC(), constants.HighImpactEventLockoutMinutes)
 
 	if !status.DataAvailable {
 		// Fail closed (N3): a non-24/7 symbol with no calendar data
@@ -280,7 +290,7 @@ func checkHighImpactEventProximity(ta *models.TASymbolResult, macro *models.Macr
 }
 
 // MR-REJECT-002: No entries during Asian session for non-Asian pairs.
-func checkSessionRestriction(ta *models.TASymbolResult) models.GuardCheckResult {
+func (g *GuardEvaluator) checkSessionRestriction(ta *models.TASymbolResult) models.GuardCheckResult {
 	if Is247Market(ta.Symbol) {
 		return models.GuardCheckResult{
 			Rule: constants.RuleSessionRestriction, Verdict: constants.VerdictPass,
@@ -288,7 +298,7 @@ func checkSessionRestriction(ta *models.TASymbolResult) models.GuardCheckResult 
 		}
 	}
 
-	now := time.Now().UTC()
+	now := g.nowFunc().UTC()
 	hour := now.Hour()
 	isAsian := hour >= 0 && hour < 7
 
@@ -316,7 +326,7 @@ func checkSessionRestriction(ta *models.TASymbolResult) models.GuardCheckResult 
 }
 
 // MR-REJECT-006: Counter-trend without CHoCH = NO SETUP.
-func checkCounterTrend(processor *models.ProcessorOutput, ta *models.TASymbolResult) models.GuardCheckResult {
+func (g *GuardEvaluator) checkCounterTrend(processor *models.ProcessorOutput, ta *models.TASymbolResult) models.GuardCheckResult {
 	if processor == nil || !processor.TradeValid {
 		return models.GuardCheckResult{
 			Rule: constants.RuleCounterTrendNoChoch, Verdict: constants.VerdictPass,
@@ -398,7 +408,7 @@ func checkCounterTrend(processor *models.ProcessorOutput, ta *models.TASymbolRes
 }
 
 // MR-REJECT-008: No new entries close to market close on Friday.
-func checkWeekendGapRisk(ta *models.TASymbolResult) models.GuardCheckResult {
+func (g *GuardEvaluator) checkWeekendGapRisk(ta *models.TASymbolResult) models.GuardCheckResult {
 	if Is247Market(ta.Symbol) {
 		return models.GuardCheckResult{
 			Rule: constants.RuleWeekendGapRisk, Verdict: constants.VerdictPass,
@@ -406,7 +416,7 @@ func checkWeekendGapRisk(ta *models.TASymbolResult) models.GuardCheckResult {
 		}
 	}
 
-	now := time.Now().UTC()
+	now := g.nowFunc().UTC()
 
 	if now.Weekday() == time.Friday && now.Hour() >= 20 {
 		return models.GuardCheckResult{
@@ -431,7 +441,7 @@ func checkWeekendGapRisk(ta *models.TASymbolResult) models.GuardCheckResult {
 }
 
 // MR-REJECT-009: Warn during known low-liquidity hours.
-func checkLowLiquidityHours(ta *models.TASymbolResult) models.GuardCheckResult {
+func (g *GuardEvaluator) checkLowLiquidityHours(ta *models.TASymbolResult) models.GuardCheckResult {
 	if Is247Market(ta.Symbol) {
 		return models.GuardCheckResult{
 			Rule: constants.RuleLowLiquidityHours, Verdict: constants.VerdictPass,
@@ -439,7 +449,7 @@ func checkLowLiquidityHours(ta *models.TASymbolResult) models.GuardCheckResult {
 		}
 	}
 
-	now := time.Now().UTC()
+	now := g.nowFunc().UTC()
 	hour := now.Hour()
 
 	if hour >= 21 || hour < 1 {
