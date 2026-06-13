@@ -37,6 +37,31 @@ jobs:
           cd infrastructure/cluster/oci
           terraform init -backend=false -input=false
           terraform validate
+  pre-commit:
+    name: Pre-commit hooks (all files)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/dev.txt
+      - name: Install pre-commit
+        run: pip install pre-commit==4.1.0
+      - name: Cache pre-commit hook environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Run pre-commit on all files
+        # Runs the exact hook set (ruff, ruff-format, mypy, bandit,
+        # trailing-whitespace, end-of-file-fixer, check-yaml/toml,
+        # detect-private-key, ...) defined in .pre-commit-config.yaml,
+        # so commits made via the API/web UI or with --no-verify cannot
+        # bypass the same checks developers run locally.
+        run: pre-commit run --all-files --show-diff-on-failure
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -473,7 +498,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [lint, pre-commit]
     services:
       postgres:
         image: postgres:16-alpine
