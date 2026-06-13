@@ -150,7 +150,10 @@ SSH in as `root`. The companion runbook `docs/runbooks/vps-host-hardening.md` co
 > - **sshd drop-in** (`/etc/ssh/sshd_config.d/10-etradie-hardening.conf`) instead of editing `/etc/ssh/sshd_config` directly, so a future `openssh-server` package upgrade cannot silently revert the hardening.
 > - **K8s API stays private via firewall + SSH tunnel.** The Tier 11 runbook's K3s install with `--tls-san <PRIVATE_IP> --advertise-address <PRIVATE_IP> --node-ip <PRIVATE_IP>` does NOT apply to a single-NIC Contabo VPS (there is no private IP to bind to). Instead, Phase 1.6's firewall closes 6443 inbound, and Phase 2.3 reaches the API from the workstation through the existing SSH session (`ssh -L` or by editing the exported kubeconfig).
 
-1.1 **Create non-root sudo user `etradie`, copy your SSH key, reconnect as it.**
+1.1 **Create non-root sudo user `etradie`, install your SSH key, verify before 1.2.**
+
+> **Safety net.** From the moment you start 1.1 until after the 1.2 verification passes, keep at least TWO SSH sessions open: the original `root` (or current-user) session AS A SAFETY NET, and a second session you use for verification. Do not close the safety-net session until 1.2 verification passes — if the new sshd config is broken, that open session is the only way back in without using Contabo's web VNC console. Emergency recovery instructions are at the end of this phase.
+
 ```bash
 adduser --gecos "" --disabled-password etradie
 usermod -aG sudo etradie
@@ -158,9 +161,50 @@ echo "etradie ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-etradie
 chmod 0440 /etc/sudoers.d/90-etradie
 visudo -cf /etc/sudoers.d/90-etradie         # "parsed OK"
 install -d -m 0700 -o etradie -g etradie /home/etradie/.ssh
-install -m 0600 -o etradie -g etradie /root/.ssh/authorized_keys /home/etradie/.ssh/authorized_keys
+
+# Install the operator's workstation SSH key into etradie's authorized_keys.
+#
+# The fresh-Contabo case: /root/.ssh/authorized_keys is shipped as a 0-byte
+# file because Contabo's image enables password root login by default.
+# Copying that empty file to etradie would silently lock you out at 1.2.
+# We therefore validate root's key file first and, if it is empty, prompt
+# the operator to install their workstation public key directly.
+
+if [ -s /root/.ssh/authorized_keys ]; then
+  # root already has at least one key. Mirror it to etradie.
+  install -m 0600 -o etradie -g etradie /root/.ssh/authorized_keys /home/etradie/.ssh/authorized_keys
+  echo "Installed $(wc -l < /home/etradie/.ssh/authorized_keys) key(s) into etradie's authorized_keys from root's."
+else
+  cat >&2 <<'MSG'
+FATAL: /root/.ssh/authorized_keys is empty or missing. This is the
+       default state on a fresh Contabo image where root logs in via
+       password. Cannot derive etradie's key from it.
+
+       Open a SEPARATE terminal on your workstation and run:
+           cat ~/.ssh/id_ed25519.pub   # or id_rsa.pub
+       Copy the entire single-line output.
+
+       Then, back in THIS root session, install it into BOTH
+       /root/.ssh/authorized_keys (so root's escape hatch keeps working
+       until 1.2 disables root login) AND /home/etradie/.ssh/authorized_keys:
+
+           cat > /home/etradie/.ssh/authorized_keys <<'EOF'
+           ssh-ed25519 AAAA... operator@workstation
+           EOF
+           chown etradie:etradie /home/etradie/.ssh/authorized_keys
+           chmod 0600 /home/etradie/.ssh/authorized_keys
+
+           cat > /root/.ssh/authorized_keys <<'EOF'
+           ssh-ed25519 AAAA... operator@workstation
+           EOF
+           chmod 0600 /root/.ssh/authorized_keys
+
+       Then re-run the verification below.
+MSG
+  exit 1
+fi
 ```
-**Verify from a SECOND terminal** (keep the first session open): `ssh etradie@HOST` succeeds key-only, and `sudo whoami` prints `root`. Only then proceed; if it fails, fix the keys before touching sshd in 1.2.
+**Verify from a SECOND terminal** (do NOT close your current safety-net session): `ssh etradie@HOST` succeeds key-only (no password prompt), and `sudo whoami` prints `root`. Only then proceed; if it fails, fix the keys before touching sshd in 1.2.
 
 1.2 **Harden sshd via a drop-in** (not inline edits).
 ```bash
@@ -216,6 +260,18 @@ sudo tee /etc/security/limits.d/99-etradie.conf >/dev/null <<'EOF'
 EOF
 sudo sysctl --system
 ```
+> **What this does NOT change at runtime.** The sysctl values apply
+> immediately to the running kernel. The `/etc/security/limits.d/`
+> file is evaluated by PAM only at SESSION OPEN — it does not affect
+> processes already running (including your current SSH session) and
+> does not affect anything started by systemd. K3s, Vault, the Vault
+> Agent Injector, and every chart workload use either a systemd unit's
+> `LimitNOFILE=` directive or the container runtime's per-container
+> limits, independent of these PAM limits. The PAM file we just wrote
+> is therefore the floor for interactive shells and non-systemd
+> processes only. To see the new limits in your own shell, log out
+> and back in (a fresh `ssh etradie@HOST` from a second terminal is
+> the simplest way to verify).
 
 1.6 **Firewall — default-deny inbound, allow only SSH.** Cloudflare Tunnel is outbound-only so no application port is opened. K3s 6443 stays closed inbound; operator `kubectl` reaches it through the SSH session set up in Phase 2.3.
 ```bash
@@ -250,7 +306,31 @@ sudo fail2ban-client status sshd                     # jail active
 sudo ufw status verbose | grep -E 'Status|22/tcp'    # Status: active; only 22/tcp inbound
 chronyc tracking | grep Stratum                      # Stratum <= 3
 sudo ss -tlnp | grep ':6443' || echo 'API not yet listening (expected pre-Phase-2)'
+sudo -n whoami                                       # "root"  (deploy user has passwordless sudo)
+sudo ss -tlnp | awk '/LISTEN/ && $4 !~ /127\.0\.|\[::1\]/'  # only sshd on :22 (v4 + v6)
 ```
+
+### Emergency SSH recovery (if you locked yourself out during Phase 1)
+
+If the 1.2 verification refuses your key AND your safety-net session is
+closed, you have not lost the box — Contabo's customer panel provides a
+browser-based VNC console that bypasses sshd entirely. Log in at
+<https://my.contabo.com>, open your VPS, open the **VNC** tab, and you
+get a tty that asks for a password (NOT a key). Enter the root password
+from your Contabo welcome email, then either:
+
+- **Re-add your key to both root and etradie's authorized_keys**
+  (the `cat > ... <<'EOF'` blocks from 1.1) and re-run 1.2 + verify; or
+- **Disable the sshd drop-in** if it's the broken piece:
+  ```bash
+  mv /etc/ssh/sshd_config.d/10-etradie-hardening.conf /root/10-etradie-hardening.conf.broken
+  sshd -t && systemctl restart ssh
+  ```
+  then fix and reapply.
+
+Until 1.2 verification has succeeded ON A FRESH SECOND SESSION, treat
+the VNC console as your guaranteed fallback. After 1.2 is verified, you
+may close the safety-net session.
 
 ---
 
