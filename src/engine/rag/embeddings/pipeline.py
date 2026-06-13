@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from collections.abc import Sequence
 from uuid import UUID
 
 from engine.config import RAGConfig
