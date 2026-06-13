@@ -260,6 +260,17 @@ func (c *Config) validate() error {
 		return fmt.Errorf("LOG_LEVEL must be one of DEBUG/INFO/WARNING/ERROR/CRITICAL, got %q", c.LogLevel)
 	}
 
+	// Symbol bootstrap: the gateway is the authority for the active
+	// symbol set, so refusing to boot without at least one default
+	// symbol prevents a silent no-op cycle loop in production. An
+	// empty or nil slice both indicate a misconfigured deployment
+	// (env var unset, ExternalSecret missing, helm values mis-merge);
+	// failing fast here surfaces the misconfiguration at startup
+	// instead of after the first cycle runs with zero symbols.
+	if len(c.DefaultSymbols) == 0 {
+		return fmt.Errorf("DEFAULT_SYMBOLS must contain at least one symbol; got empty list")
+	}
+
 	// Port bounds.
 	if c.HTTPPort < 1024 || c.HTTPPort > 65535 {
 		return fmt.Errorf("HTTP_PORT must be 1024..65535, got %d", c.HTTPPort)
