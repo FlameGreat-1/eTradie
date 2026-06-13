@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
 from sqlalchemy import event, text
-from sqlalchemy.pool import QueuePool
 from sqlalchemy.exc import (
     DBAPIError,
     IntegrityError,
@@ -21,6 +20,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import QueuePool
 
 from engine.shared.exceptions import (
     DatabaseConnectionError,
