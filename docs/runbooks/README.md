@@ -23,37 +23,119 @@
 
 ## Phase 0 — Prerequisites
 
-0.1 Workstation tools: `ssh`, `kubectl` (>=1.29), `helm` (>=3.14), `terraform` (>=1.7), `vault` CLI (>=1.15), `git`, `jq`, `openssl`, `base64`, `curl`, `rustup` (for the envoy WASM build), `step` (smallstep, for the mesh CA), `argocd` CLI.
+All Phase 0 work runs on the OPERATOR WORKSTATION (your laptop / dev box). The Contabo VPS itself is not touched until Phase 1.
 
-0.2 Accounts/assets ready first: Cloudflare zone `exoper.com` Active; MaxMind GeoLite2 account (`account_id` + `license_key`); engine LLM/data keys (Anthropic + as used OpenAI/Gemini/TwelveData/FRED/CFTC); billing keys (Paddle + Lemon Squeezy) or billing CrashLoops.
+### 0.1 Workstation tools
 
-0.3 Clone:
+Required CLIs and minimum versions (the platform fails closed on older clients): `ssh`, `kubectl` (>=1.29), `helm` (>=3.14), `terraform` (>=1.7), `vault` CLI (>=1.15), `git`, `jq`, `openssl`, `base64`, `curl`, `docker`, `step` (smallstep, for the mesh CA), `argocd` CLI. `rustup` is needed only for Phase 9 (envoy WASM build); install it then.
+
+The block below installs everything from clean Ubuntu 24.04. Other Linux distros: substitute the apt parts; the static binaries (kubectl, helm, argocd, step) install the same way.
+
+```bash
+sudo apt update && sudo apt install -y curl jq git openssl ca-certificates gnupg lsb-release
+
+# kubectl 1.30.4
+curl -LO "https://dl.k8s.io/release/v1.30.4/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm kubectl
+
+# helm 3 (latest stable from the official installer script)
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# HashiCorp APT repo (terraform + vault CLI)
+curl -fsSL https://apt.releases.hashicorp.com/gpg \
+  | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install -y terraform vault
+
+# The `vault` apt package also enables a local `vault.service` systemd
+# unit that binds 8200 on the workstation. The PLATFORM's Vault runs
+# inside K3s on the VPS — the local daemon is unwanted and competes
+# for the port. Disable + mask it (we only need the CLI binary).
+sudo systemctl disable --now vault 2>/dev/null || true
+sudo systemctl mask vault 2>/dev/null || true
+
+# argocd CLI v2.13.3 (matches the ArgoCD server version installed in
+# Phase 10; mismatched CLI/server combos refuse to log in).
+curl -sSL -o argocd \
+  https://github.com/argoproj/argo-cd/releases/download/v2.13.3/argocd-linux-amd64
+sudo install -m 555 argocd /usr/local/bin/argocd && rm argocd
+
+# step CLI (smallstep). The legacy `dl.smallstep.com/...latest/` path
+# is dead; resolve the actual asset URL from the GitHub release API.
+ASSET_URL=$(curl -fsSL https://api.github.com/repos/smallstep/cli/releases/latest \
+  | jq -r '.assets[] | select(.name | test("amd64\\.deb$")) | .browser_download_url' \
+  | head -n1)
+curl -fsSL -o step.deb "$ASSET_URL"
+sudo dpkg -i step.deb && rm step.deb
+```
+
+**Docker** must already be present (Docker Engine CE on Linux or Docker Desktop on macOS / WSL2). Phase 2.5 builds the mt-node Wine image with it; without Docker, Phase 2.5 cannot complete.
+
+**Verify** every required CLI is on the PATH at an acceptable version:
+```bash
+for t in kubectl helm terraform vault step argocd docker git jq curl openssl ssh; do
+  printf '%-12s ' "$t"; command -v "$t" >/dev/null \
+    && "$t" version 2>/dev/null | head -n1 || echo "MISSING"
+done
+```
+All twelve lines must show a version. `MISSING` on any line stops Phase 0 — install it before continuing.
+
+### 0.2 Accounts and assets
+
+Get these in hand BEFORE Phase 1. Any value still missing at the phase that consumes it will hard-block the deployment.
+
+- **Cloudflare** zone for your registrable domain (this runbook uses `exoper.com`), Active in your account. Used in Phase 6 (Tunnel) and Phase 8.5 (AOP CA + Tunnel token in Vault).
+- **MaxMind GeoLite2** account: `account_id` + `license_key`. Free sign-up at <https://www.maxmind.com/en/geolite2/signup>. Phase 8.5.
+- **Engine LLM / data keys**: Anthropic (required), plus any of OpenAI / Gemini / TwelveData / FRED / CFTC you intend to use. Phase 8.7.
+- **Billing provider keys**: Paddle (webhook secret, API key, two price IDs) AND Lemon Squeezy (webhook secret, API key, store ID, two variant IDs). Both required — the billing service fail-closes on startup if any are missing. Phase 8.9.
+- **Contabo VPS** provisioned per BUDGET.md Table 2B (8 vCPU / 24 GB / 200 GB NVMe, Ubuntu 24.04). Phase 1 onward.
+- **GHCR Personal Access Token (classic)** with `write:packages` scope on the account that owns the published images. Fine-grained PATs do NOT work with GHCR. Phase 2.5 uses it to push the mt-node image. Store at `~/.ghcr_pat`, mode 0600.
+
+### 0.3 Clone the repo
+
 ```bash
 git clone https://github.com/FlameGreat-1/eTradie.git
 cd eTradie
+git rev-parse --abbrev-ref HEAD          # main
 ```
 
-0.4 Confirm the CI-built images exist in GHCR (else `ImagePullBackOff`).
-These five app services + edge-ingress are published automatically by the
-CI `build` job on every push to `main`. The mt-node Wine image is NOT in
-this check — it is built by hand in Phase 2.5 (the CI secrets are unset) and
-verified there (2.5.5). Note mt-node also lives under a DIFFERENT path
-(`etradie-mt-node`, hyphen), not `etradie/<svc>` (slash):
+Every `helm`/`terraform`/`kubectl apply -f` invocation later assumes the working directory is the repo root.
+
+### 0.4 Confirm the CI-built images exist in GHCR
+
+The GHCR packages for this project are PRIVATE, so the documented anonymous check returns 401/404 even when every image is present. Use authenticated basic-auth with the PAT from 0.2, exchange for a per-repository bearer token, then fetch the manifest. The mt-node image is intentionally NOT in this check — it is built by hand in Phase 2.5 (its CI guard rejects main-branch builds without `WINEHQ_VERSION`). Note mt-node lives under a DIFFERENT path (`etradie-mt-node`, hyphen), not `etradie/<svc>` (slash); the engine reads the exact path from `MT_NODE_IMAGE`.
+
+Replace `GH_OWNER` with the GitHub login that owns the packages (case-sensitive; here `FlameGreat-1`).
+
 ```bash
+GH_OWNER=FlameGreat-1
+GH_PAT=$(cat ~/.ghcr_pat)
+
+check () {
+  local repo=$1 tag=$2
+  local token
+  token=$(curl -sS -u "$GH_OWNER:$GH_PAT" \
+    "https://ghcr.io/token?service=ghcr.io&scope=repository:${repo}:pull" \
+    | jq -r .token)
+  printf '%-45s -> ' "$repo:$tag"
+  curl -sS -o /dev/null -w '%{http_code}\n' \
+    -H "Authorization: Bearer $token" \
+    -H "Accept: application/vnd.oci.image.manifest.v1+json,application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.v2+json" \
+    "https://ghcr.io/v2/${repo}/manifests/${tag}"
+}
+
+# Pick the tag column that matches the environment you are deploying.
+# Production overlays consume the left column; staging overlays consume
+# the right column (chart-pinned in helm/<svc>/values-{env}.yaml).
 for svc in engine gateway execution management billing; do
-  echo -n "$svc:0.1.0 -> "
-  curl -fsS -o /dev/null -w "%{http_code}\n" \
-    "https://ghcr.io/v2/flamegreat-1/etradie/$svc/manifests/0.1.0" \
-    -H "Authorization: Bearer $(echo -n null | base64)" || echo "check GH Packages UI"
+  check "flamegreat-1/etradie/$svc" "0.1.0"            # production
+  check "flamegreat-1/etradie/$svc" "staging-0.1.0"    # staging
 done
-echo -n "edge-ingress:0.2.0 -> "
-curl -fsS -o /dev/null -w "%{http_code}\n" \
-  "https://ghcr.io/v2/flamegreat-1/etradie/edge-ingress/manifests/0.2.0" \
-  -H "Authorization: Bearer $(echo -n null | base64)" || true
+check "flamegreat-1/etradie/edge-ingress" "0.2.0"        # production
+check "flamegreat-1/etradie/edge-ingress" "staging-v0.1.0"  # staging
 ```
-If any are missing, push to `main` to trigger CI, or build+push manually
-(see `docs/deployment/contabo-k3s.md` section 6.5). The mt-node image is
-built + verified in Phase 2.5 below — do NOT expect it in GHCR yet.
+Every line must end in `200` for the environment you are deploying. Any `404` means CI did not publish that chart-pinned tag — fix the CI job or the chart pin before continuing; do NOT proceed to Phase 1 with a 404.
 
 ---
 
