@@ -202,7 +202,7 @@ async def client(mock_broker):
     """FastAPI test client with mock broker injected into Container."""
     import os
 
-    import engine.shared.internal_auth as internal_auth
+    from engine.shared import internal_auth
 
     env_overrides = {
         "ENGINE_INTERNAL_SHARED_SECRET": _BROKER_TEST_INTERNAL_SECRET,
