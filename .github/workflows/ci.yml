@@ -695,6 +695,12 @@ jobs:
       # ghcr.io/flamegreat-1/etradie/<svc>:<RELEASE_TAG> for every
       # service, and ArgoCD picks the new images up on next sync.
       RELEASE_TAG: "0.1.0"
+      # edge-ingress chart pins image.tag "0.2.0" in
+      # helm/edge-ingress/values.yaml (consumed by the production
+      # overlay). The shared RELEASE_TAG above is "0.1.0", so without
+      # an edge-ingress-specific tag the production chart
+      # ImagePullBackOff's. Bump this in lockstep with the chart pin.
+      EDGE_INGRESS_RELEASE_TAG: "0.2.0"
     steps:
       - uses: actions/checkout@v4
 
@@ -760,9 +766,26 @@ jobs:
           file: ${{ matrix.dockerfile }}
           # Push only on main branch pushes; PRs verify-build only.
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          # Tag list, by service:
+          #   * every service: <sha>, <RELEASE_TAG>, staging-<RELEASE_TAG>
+          #     (helm/gateway/values-staging.yaml and
+          #      helm/billing/values-staging.yaml pin
+          #      staging-<RELEASE_TAG>; other services' staging
+          #      overlays pin <RELEASE_TAG> directly and get it from
+          #      line 2).
+          #   * edge-ingress only: ALSO <EDGE_INGRESS_RELEASE_TAG>
+          #     (helm/edge-ingress/values.yaml pins 0.2.0, consumed by
+          #     production) and staging-v<RELEASE_TAG>
+          #     (helm/edge-ingress/values-staging.yaml pins
+          #     staging-v0.1.0). Both must exist in GHCR or the chart
+          #     ImagePullBackOff's. Empty conditional values collapse
+          #     to blank lines; docker/build-push-action ignores them.
           tags: |
             ${{ env.IMAGE_BASE }}/${{ matrix.service }}:${{ github.sha }}
             ${{ env.IMAGE_BASE }}/${{ matrix.service }}:${{ env.RELEASE_TAG }}
+            ${{ env.IMAGE_BASE }}/${{ matrix.service }}:staging-${{ env.RELEASE_TAG }}
+            ${{ matrix.service == 'edge-ingress' && format('{0}/{1}:{2}', env.IMAGE_BASE, matrix.service, env.EDGE_INGRESS_RELEASE_TAG) || '' }}
+            ${{ matrix.service == 'edge-ingress' && format('{0}/{1}:staging-v{2}', env.IMAGE_BASE, matrix.service, env.RELEASE_TAG) || '' }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           provenance: true
