@@ -109,7 +109,7 @@ async def _resolve_generator(container: Container) -> TradingPlanGenerator | Non
     # check-and-set sequence below is atomic at the bytecode level
     # for a simple attribute write; the worst case is two coroutines
     # creating two locks in the same tick, after which one is GC'd.
-    lock: asyncio.Lock = getattr(container, "_trading_plan_generator_lock", None)
+    lock: asyncio.Lock | None = getattr(container, "_trading_plan_generator_lock", None)
     if lock is None:
         lock = asyncio.Lock()
         container._trading_plan_generator_lock = lock  # type: ignore[attr-defined]
