@@ -21,7 +21,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     -o /bin/gateway ./src/gateway/cmd/gateway
 
 # ── Runtime stage ────────────────────────────────────────────────
-FROM alpine:3.19 AS runtime
+FROM alpine:3.20 AS runtime
 
 # Install CA certificates and timezone data for secure HTTPS and correct logging
 RUN apk --no-cache add ca-certificates tzdata \

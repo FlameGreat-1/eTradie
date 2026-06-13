@@ -19,7 +19,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     -o /bin/management ./src/management/cmd/management
 
 # ── Runtime stage ────────────────────────────────────────────────
-FROM alpine:3.19 AS runtime
+FROM alpine:3.20 AS runtime
 
 RUN apk --no-cache add ca-certificates tzdata \
     && rm -rf /var/cache/apk/*
