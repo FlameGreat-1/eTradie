@@ -314,8 +314,7 @@ BROKER_TICK_STALE_TOTAL = Counter(
 
 BROKER_TICK_FETCH_RECOVERY_TOTAL = Counter(
     "etradie_broker_tick_fetch_recovery_total",
-    "Successful tick fetches within the recovery window after a socket "
-    "reconnect (evidence of clean REQ/REP recovery)",
+    "Successful tick fetches within the recovery window after a socket reconnect (evidence of clean REQ/REP recovery)",
     ["provider", "account_id"],
 )
 
