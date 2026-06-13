@@ -194,16 +194,21 @@ func TestRoutePreLLM_PassesThroughOnAllPass(t *testing.T) {
 	guards := NewGuardEvaluator()
 	router := NewRouter(guards, nil, nil, nil)
 
-	ta := &models.TASymbolResult{Symbol: "USDJPY", OverallTrend: "BULLISH"}
+	// Use a 24/7 market: every pre-LLM guard (news proximity, session,
+	// weekend gap, low liquidity) explicitly skips 24/7 symbols and
+	// returns PASS, so all 4 pass deterministically regardless of the
+	// test clock or whether a calendar is supplied. This exercises the
+	// RoutePreLLM pass-through wiring without depending on time-of-day
+	// or weakening any guard's fiat-symbol logic.
+	ta := &models.TASymbolResult{Symbol: "BTCUSD", OverallTrend: "BULLISH"}
 	macro := &models.MacroResult{}
 
-	result := router.RoutePreLLM(context.Background(), "USDJPY", ta, macro, "trace-pre-001")
+	result := router.RoutePreLLM(context.Background(), "BTCUSD", ta, macro, "trace-pre-001")
 
-	// USDJPY is allowed in Asian session, so pre-LLM should not reject
-	// regardless of the test clock. When all 4 checks pass/warn the
-	// outcome is empty (not OutcomeRejectedByGuard).
+	// BTCUSD is a 24/7 market, so pre-LLM never rejects. When all 4
+	// checks pass/warn the outcome is empty (not OutcomeRejectedByGuard).
 	if result.Outcome == constants.OutcomeRejectedByGuard {
-		t.Fatalf("expected non-rejection for USDJPY, got %s (blocking=%v)", result.Outcome, result.GuardResult.BlockingRules)
+		t.Fatalf("expected non-rejection for BTCUSD, got %s (blocking=%v)", result.Outcome, result.GuardResult.BlockingRules)
 	}
 	if result.GuardResult == nil {
 		t.Fatal("GuardResult must always be returned, got nil")

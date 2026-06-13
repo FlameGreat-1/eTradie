@@ -231,17 +231,6 @@ func aggregateNoMetrics(checks []models.GuardCheckResult) *models.GuardEvaluatio
 // (pre-LLM), so the normal lockout window is used; the wider
 // scalping window is enforced later where the style is known.
 func checkHighImpactEventProximity(ta *models.TASymbolResult, macro *models.MacroResult) models.GuardCheckResult {
-	// No TA symbol context => nothing for this guard to assess. This is
-	// distinct from "a real symbol whose calendar data is missing"
-	// (handled below as fail-closed); a nil ta means no symbol at all,
-	// so the proximity guard does not apply and passes.
-	if ta == nil {
-		return models.GuardCheckResult{
-			Rule: constants.RuleHighImpactEventProximity, Verdict: constants.VerdictPass,
-			Reason: "No symbol context; news proximity guard does not apply",
-		}
-	}
-
 	// 24/7 markets have no fiat calendar exposure; the orchestrator
 	// also passes a nil macro for them. EvaluateNewsWindow returns
 	// "no exposure" for such symbols, so they pass without needing a

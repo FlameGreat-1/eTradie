@@ -11,11 +11,14 @@ import (
 // ── High-Impact Event Proximity Guard ───────────────────────────────────────
 
 func TestCheckHighImpactEventProximity_NoCalendar(t *testing.T) {
+	ta := &models.TASymbolResult{Symbol: "EURUSD"}
 	macro := &models.MacroResult{}
-	result := checkHighImpactEventProximity(nil, macro)
+	result := checkHighImpactEventProximity(ta, macro)
 
-	if result.Verdict != constants.VerdictPass {
-		t.Fatalf("expected PASS when calendar is nil, got %s", result.Verdict)
+	// A fiat symbol with no calendar data fails closed (N3): trading
+	// blind into a possible high-impact event is the unsafe outcome.
+	if result.Verdict != constants.VerdictReject {
+		t.Fatalf("expected REJECT (fail-closed) when calendar is nil, got %s", result.Verdict)
 	}
 }
 
@@ -27,7 +30,8 @@ func TestCheckHighImpactEventProximity_NoHighImpactEvents(t *testing.T) {
 			},
 		},
 	}
-	result := checkHighImpactEventProximity(nil, macro)
+	ta := &models.TASymbolResult{Symbol: "EURUSD"}
+	result := checkHighImpactEventProximity(ta, macro)
 
 	if result.Verdict != constants.VerdictPass {
 		t.Fatalf("expected PASS for LOW impact events, got %s: %s", result.Verdict, result.Reason)
@@ -43,11 +47,13 @@ func TestCheckHighImpactEventProximity_HighImpactWithinLockout(t *testing.T) {
 					"impact":     "HIGH",
 					"event_name": "Non-Farm Payrolls",
 					"event_time": futureTime,
+					"currency":   "USD",
 				},
 			},
 		},
 	}
-	result := checkHighImpactEventProximity(nil, macro)
+	ta := &models.TASymbolResult{Symbol: "EURUSD"}
+	result := checkHighImpactEventProximity(ta, macro)
 
 	if result.Verdict != constants.VerdictReject {
 		t.Fatalf("expected REJECT for HIGH impact within lockout, got %s: %s", result.Verdict, result.Reason)
@@ -69,11 +75,13 @@ func TestCheckHighImpactEventProximity_HighImpactOutsideLockout(t *testing.T) {
 					"impact":     "HIGH",
 					"event_name": "FOMC Rate Decision",
 					"event_time": futureTime,
+					"currency":   "USD",
 				},
 			},
 		},
 	}
-	result := checkHighImpactEventProximity(nil, macro)
+	ta := &models.TASymbolResult{Symbol: "EURUSD"}
+	result := checkHighImpactEventProximity(ta, macro)
 
 	if result.Verdict != constants.VerdictPass {
 		t.Fatalf("expected PASS for HIGH impact outside lockout, got %s: %s", result.Verdict, result.Reason)
