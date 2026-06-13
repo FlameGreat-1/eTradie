@@ -54,6 +54,13 @@ def _make_test_jwt(
         "sub": user_id,
         "username": username,
         "role": role,
+        # `status` and `tier` are required by the engine's JWT verifier
+        # (src/engine/shared/auth.py::_verify_token). `status` is a hard
+        # security gate (active / past_due / canceled); `tier`
+        # defaults to 'free' on the verifier side but the gateway
+        # always emits it, so we mirror that shape here.
+        "status": "active",
+        "tier": "free",
         "iss": TEST_JWT_ISSUER,
         "iat": now,
         "exp": now + expires_in,

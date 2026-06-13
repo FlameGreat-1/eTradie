@@ -190,6 +190,39 @@ class BackgroundTaskCoordinator:
                 # Bookkeeping must never propagate.
                 pass
 
+    def create_task(
+        self,
+        coro: Awaitable[None],
+        *,
+        name: str | None = None,
+    ) -> asyncio.Task:
+        """Schedule ``coro`` as a managed background task.
+
+        Unlike ``schedule_once`` this is an unconditional spawn — used
+        by long-running daemon loops (e.g. HostedRecoveryService._loop)
+        that own their own internal cooldown / cancel handling and only
+        need the coordinator for lifecycle ownership.
+
+        The created asyncio.Task is registered in ``_tasks`` so
+        ``shutdown()`` cancels it cleanly on engine lifespan teardown,
+        matching the documented design invariant.
+
+        Refuses to schedule once shutdown has started so a late caller
+        cannot strand a task past the drain window.
+
+        Raises:
+            RuntimeError: if called after ``shutdown()``.
+        """
+        if self._shutdown:
+            # Close the orphan coroutine to avoid the
+            # 'coroutine was never awaited' RuntimeWarning at GC time.
+            if hasattr(coro, "close"):
+                coro.close()
+            raise RuntimeError("BackgroundTaskCoordinator is shut down")
+        task = asyncio.create_task(coro, name=name)
+        self._tasks.add(task)
+        return task
+
     async def shutdown(self, *, drain_timeout_s: float = 2.0) -> None:
         """Cancel every in-flight task and wait briefly for them to unwind.
 

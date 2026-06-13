@@ -58,15 +58,18 @@ def test_execution_chart_renders_prometheusrule():
 
 
 def test_mt_node_chart_renders_memory_leak_rule():
+    # PrometheusRule renders on the PLATFORM path (mtConnection.enabled=false),
+    # NOT per-tenant. One namespace-scoped rule with kube_pod_labels selectors
+    # covers every tenant Pod, matching the platform ServiceMonitor that scrapes
+    # the same fleet. See helm/mt-node/templates/prometheusrule.yaml top comment
+    # and the platform ArgoCD Application
+    # (deployments/argocd/children/mt-node-{staging,production}.yaml) which sets
+    # mtConnection.enabled=false.
     rendered = _helm_template(
         "mt-node",
         set_args=[
             "image.repository=ghcr.io/ci-stub/etradie-mt-node",
-            "mtConnection.enabled=true",
-            "mtConnection.connectionId=test-1234567890",
-            "mtConnection.userId=u-1",
-            "mtConnection.server=Exness-MT5Trial9",
-            "mtConnection.sealedSecretName=test-secret",
+            "mtConnection.enabled=false",
             # externalsecret-platform.yaml uses `required` for vaultPath when
             # externalSecrets.enabled=true (the default). Provide a dummy path
             # that satisfies the guard so the full chart renders in CI. Real

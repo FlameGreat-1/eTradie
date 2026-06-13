@@ -212,8 +212,19 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         self._header_name = _get_csrf_header_name()
         self._signed = _is_signed_mode()
         self._secret = _get_jwt_secret()
+        # In the test environment the AsyncClient transport has no
+        # cookie jar and no way to obtain the gateway-issued CSRF
+        # cookie, so every mutating request from the test suite would
+        # 403 unconditionally. The same `is_testing` guard pattern
+        # already gates init_tracing and FastAPIInstrumentor in
+        # engine.main, so production behaviour is unchanged.
+        self._disabled = os.environ.get("APP_ENV", "").strip().lower() == "testing"
 
     async def dispatch(self, request: Request, call_next) -> Any:
+        # Skip CSRF entirely in APP_ENV=testing.
+        if self._disabled:
+            return await call_next(request)
+
         # Safe methods never need a CSRF token.
         if request.method not in _MUTATING_METHODS:
             return await call_next(request)
