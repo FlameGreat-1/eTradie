@@ -17,13 +17,22 @@ from engine.processor.config import get_processor_config
 # implements TIER 4 "Reject unknown fields": a body carrying any field
 # not declared on the model is a 422, not silently ignored (Pydantic
 # v2's default is extra="ignore"). Response models do not use this.
-_STRICT_REQUEST_CONFIG = ConfigDict(extra="forbid")
+# protected_namespaces=() disables Pydantic v2's `model_` reserved-prefix
+# guard: several request models carry a legitimate domain field named
+# `model_name` (the LLM model identifier). Without this, Pydantic emits a
+# UserWarning at class-definition time which pytest (filterwarnings=error)
+# turns into a hard import error.
+_STRICT_REQUEST_CONFIG = ConfigDict(extra="forbid", protected_namespaces=())
 
 
 # -- Request/Response schemas for dashboard API ------------------------------
 
 
 class ProcessorConfigResponse(BaseModel):
+    # `model_name` is a domain field, not a Pydantic-managed attribute;
+    # opt out of the protected `model_` namespace (see _STRICT_REQUEST_CONFIG).
+    model_config = ConfigDict(protected_namespaces=())
+
     llm_provider: str
     model_name: str
     temperature: float

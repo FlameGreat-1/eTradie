@@ -94,8 +94,10 @@ class HostedRecoveryConfig:
     reprovision_cooldown_secs: float
     # Caps concurrent reprovision calls inside one sweep so a cluster-
     # wide outage does not issue N parallel readiness gates against the
-    # kube-apiserver. Status checks remain unbounded.
-    max_concurrent_reprovisions: int
+    # kube-apiserver. Status checks remain unbounded. Defaults to 4 to
+    # match from_env()'s ENGINE_HOSTED_RECOVERY_MAX_CONCURRENT fallback
+    # so direct constructors stay backward-compatible.
+    max_concurrent_reprovisions: int = 4
 
     @classmethod
     def from_env(cls) -> HostedRecoveryConfig:
