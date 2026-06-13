@@ -19,12 +19,14 @@ class TestSettings:
             Settings(database_url=None)
 
     def test_valid_settings(self, monkeypatch):
+        monkeypatch.delenv("APP_ENV", raising=False)
         monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
         s = Settings()
         assert str(s.database_url).startswith("postgresql")
         assert s.app_env.value == "development"
 
     def test_app_env_default(self, monkeypatch):
+        monkeypatch.delenv("APP_ENV", raising=False)
         monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
         s = Settings()
         assert s.is_production is False
