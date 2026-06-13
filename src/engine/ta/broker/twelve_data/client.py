@@ -72,6 +72,19 @@ class TwelveDataClient(BrokerBase):
         self.validator = BrokerDataValidator()
         self._rate_limiter = asyncio.Semaphore(self.config.rate_limit_per_minute)
 
+    # -- Identity --------------------------------------------------------------
+
+    @property
+    def provider_name(self) -> str:
+        return "twelve_data"
+
+    @property
+    def account_id(self) -> str:
+        # Twelve Data is a keyed reference-data service with no per-account
+        # concept; the broker_id is the stable identifier used for metrics
+        # and logging labels.
+        return self.broker_id
+
     # -- BrokerBase abstract methods -------------------------------------------
 
     async def get_capabilities(self) -> BrokerCapabilities:
@@ -331,6 +344,31 @@ class TwelveDataClient(BrokerBase):
     async def shutdown(self) -> None:
         logger.info("twelve_data_shutdown_complete")
 
+    # -- Symbol catalog (not provided by Twelve Data) --------------------------
+    #
+    # Twelve Data is used only as a candle-data fallback. It is not the
+    # symbol catalog source of truth (that is the active MT5 broker), so
+    # the catalog operations fail loudly rather than returning empty data
+    # that would mislead the SymbolResolver / BrokerSyncService.
+    # --------------------------------------------------------------------------
+
+    _CATALOG_NOT_SUPPORTED = (
+        "Twelve Data is a candle-data fallback provider and does not expose a "
+        "symbol catalog. Use the active MT5 broker for symbol enumeration."
+    )
+
+    async def get_all_symbol_names(self) -> list[str]:
+        raise ProviderError(
+            self._CATALOG_NOT_SUPPORTED,
+            details={"provider": "twelve_data", "operation": "get_all_symbol_names"},
+        )
+
+    async def get_all_symbols(self) -> list[dict[str, Any]]:
+        raise ProviderError(
+            self._CATALOG_NOT_SUPPORTED,
+            details={"provider": "twelve_data", "operation": "get_all_symbols"},
+        )
+
     # -- Trading methods (not supported by Twelve Data) ------------------------
     #
     # Twelve Data is a market-data-only REST API.  It does not provide
@@ -353,6 +391,12 @@ class TwelveDataClient(BrokerBase):
         raise ProviderError(
             self._TRADING_NOT_SUPPORTED,
             details={"provider": "twelve_data", "operation": "get_positions"},
+        )
+
+    async def get_history(self, days: int = 30) -> list[HistoryDealInfo]:
+        raise ProviderError(
+            self._TRADING_NOT_SUPPORTED,
+            details={"provider": "twelve_data", "operation": "get_history", "days": days},
         )
 
     async def get_position(self, ticket: str) -> PositionInfo:
