@@ -6,15 +6,23 @@ WORKDIR /build
 # Copy dependency files first for layer caching. requirements/test.txt
 # is intentionally NOT installed - test deps must not ship in the
 # runtime image. Audit ref: RD-H1.
-COPY torch/ /torch_offline/
 COPY requirements/base.txt requirements/base.txt
 
-# Install PyTorch from local wheel + all pip dependencies first!
-# We do this BEFORE copying src/, so that this heavy installation
-# step is fully cached by Docker even if your source code changes.
+# Install all pip dependencies first. We do this BEFORE copying src/
+# so that this heavy installation step is fully cached by Docker even
+# when source code changes.
+#
+# torch is pinned in requirements/base.txt (security override:
+# torch>=2.12.0). We resolve it from the PyTorch CPU index so pip
+# picks the CPU-only wheel (~200 MB) rather than the CUDA-bundled
+# default from PyPI (~800 MB+). The engine has no GPU code path.
+# The previous offline-wheel layer (COPY torch/ /torch_offline/ +
+# install /torch_offline/*.whl) is removed because the torch/
+# directory is .gitignore'd, never committed, and not provisioned by
+# CI, so the COPY broke every build in the workflow build matrix.
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --default-timeout=1000 --retries=10 --prefix=/install \
-        /torch_offline/*.whl \
+        --extra-index-url https://download.pytorch.org/whl/cpu \
         -r requirements/base.txt
 
 # Now copy project files for the package installation
