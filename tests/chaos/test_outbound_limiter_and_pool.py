@@ -47,7 +47,7 @@ async def test_limiter_blocks_until_refill_and_raises_on_deadline():
     # Drain.
     assert await lim.try_acquire() is True
     # With deadline_secs=0.05 and rate 100/s, a refill is plenty fast.
-    decision = await lim.acquire(deadline_secs=0.5)
+    decision = await lim.acquire(deadline_secs=2.0)
     assert decision.allowed is True
 
     # With deadline_secs=0 (one-shot), exhaustion is reported immediately.

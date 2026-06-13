@@ -41,7 +41,7 @@ pytestmark = pytest.mark.skipif(not _helm_available(), reason="helm binary not o
 
 
 def test_engine_chart_renders_prometheusrule():
-    rendered = _helm_template("engine")
+    rendered = _helm_template("engine", set_args=["config.mtNode.image=ghcr.io/ci-stub/etradie-mt-node"])
     # The rule we just added.
     assert "EngineBrokerInflightGateP95High" in rendered
     assert "EngineBrokerRequestDeadlineSpike" in rendered
@@ -64,6 +64,7 @@ def test_mt_node_chart_renders_memory_leak_rule():
             "mtConnection.enabled=true",
             "mtConnection.connectionId=test-1234567890",
             "mtConnection.userId=u-1",
+            "mtConnection.server=Exness-MT5Trial9",
             "mtConnection.sealedSecretName=test-secret",
         ],
     )
