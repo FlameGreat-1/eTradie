@@ -10,8 +10,10 @@ metadata:
   name: {{ include "postgres.backupName" . }}-restore-drill
   namespace: {{ include "data-layer.namespace" . }}
   labels:
-    {{- include "postgres.labels" . | nindent 4 }}
+    {{- include "data-layer.commonLabels" . | nindent 4 }}
     app.kubernetes.io/name: postgres-restore-drill
+    app.kubernetes.io/component: postgres-restore-drill
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   schedule: {{ .Values.postgres.restoreDrill.schedule | quote }}
   concurrencyPolicy: Forbid
@@ -28,6 +30,8 @@ spec:
           labels:
             {{- include "data-layer.commonLabels" . | nindent 12 }}
             app.kubernetes.io/name: postgres-restore-drill
+            app.kubernetes.io/component: postgres-restore-drill
+            app.kubernetes.io/instance: {{ .Release.Name }}
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false

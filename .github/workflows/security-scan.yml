@@ -24,7 +24,10 @@ jobs:
       - name: Bandit — report
         run: bandit -r src/ -c pyproject.toml
       - name: pip-audit — dependency vulnerabilities
-        run: pip-audit -r requirements/base.txt --strict
+        # GHSA-rrmf-rvhw-rf47: torch 2.12.0 — no fix released yet
+        # (latest on PyPI is 2.12.0). Remove this ignore once a
+        # patched torch version is published.
+        run: pip-audit -r requirements/base.txt --strict --ignore-vuln GHSA-rrmf-rvhw-rf47
       - name: Set up Go (for gosec)
         uses: actions/setup-go@v5
         with:
