@@ -309,8 +309,8 @@ class Container:
             h,
             base_url=s.oecd_api_base_url,
         )
-        for p in (self.fred_provider, self.oecd_provider):
-            self.registry.register(p)
+        for econ_provider in (self.fred_provider, self.oecd_provider):
+            self.registry.register(econ_provider)
 
         self.fred_intermarket_provider = FREDIntermarketProvider(
             h,
