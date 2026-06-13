@@ -237,7 +237,12 @@ class HostedRecoveryService:
             return
         if self._task is not None and not self._task.done():
             return
-        self._task = asyncio.create_task(
+        # Register the sweep with the BackgroundTaskCoordinator so engine
+        # shutdown drains it cleanly (the documented design invariant) and
+        # the coordinator owns task lifecycle/error tracking. The
+        # coordinator returns the created asyncio.Task; we retain it so the
+        # idempotency guard above and stop() can observe its state.
+        self._task = coordinator.create_task(
             self._loop(),
             name="hosted-recovery-sweep",
         )
