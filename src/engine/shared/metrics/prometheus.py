@@ -312,6 +312,13 @@ BROKER_TICK_STALE_TOTAL = Counter(
     ["provider", "account_id", "symbol"],
 )
 
+BROKER_TICK_FETCH_RECOVERY_TOTAL = Counter(
+    "etradie_broker_tick_fetch_recovery_total",
+    "Successful tick fetches within the recovery window after a socket "
+    "reconnect (evidence of clean REQ/REP recovery)",
+    ["provider", "account_id"],
+)
+
 BROKER_SYMBOL_RESOLVE_TOTAL = Counter(
     "etradie_broker_symbol_resolve_total",
     "SymbolResolver invocations",

@@ -30,6 +30,7 @@ def create_llm_client(config: ProcessorConfig) -> LLMClient:
         ConfigurationError: On unrecognized provider.
     """
     provider = config.llm_provider
+    client: LLMClient
 
     if provider == LLMProvider.ANTHROPIC:
         from engine.processor.llm.providers.anthropic import AnthropicClient
