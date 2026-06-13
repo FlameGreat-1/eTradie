@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/flamegreat-1/etradie/src/alert"
+	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/broker"
 	mockbroker "github.com/flamegreat-1/etradie/src/management/internal/broker/mock"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
@@ -18,6 +19,17 @@ import (
 	"github.com/flamegreat-1/etradie/src/management/internal/takeprofit"
 	"github.com/flamegreat-1/etradie/src/management/pkg/types"
 )
+
+// testCtx returns a context populated with the canonical test identity.
+// Manager.GetPriceForSymbol resolves the per-(user, symbol) tick cache
+// off auth.UserIDFromContext(ctx); a context with no identity is
+// (correctly) rejected with ErrNoIdentityInCtx.
+func testCtx() context.Context {
+	return auth.InjectIdentity(
+		context.Background(),
+		"u-test", "test-user", auth.RoleEtradie, "free", "active",
+	)
+}
 
 // noopTransport satisfies AlertTransport without doing anything.
 type noopTransport struct{}
@@ -260,7 +272,7 @@ func TestGetPriceForSymbol_ReturnsMidpoint(t *testing.T) {
 	mgr, mb := newTestManager(t)
 	mb.SetTickPrice("XAUUSD", 2350.50, 2351.50)
 
-	price, err := mgr.GetPriceForSymbol(context.Background(), "XAUUSD")
+	price, err := mgr.GetPriceForSymbol(testCtx(), "XAUUSD")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -275,7 +287,7 @@ func TestGetPriceForSymbol_DefaultPrice(t *testing.T) {
 	mgr, _ := newTestManager(t)
 
 	// Mock broker returns default 1.08000/1.08020 for unknown symbols.
-	price, err := mgr.GetPriceForSymbol(context.Background(), "USDJPY")
+	price, err := mgr.GetPriceForSymbol(testCtx(), "USDJPY")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

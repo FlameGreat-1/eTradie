@@ -156,12 +156,21 @@ func TestManagementServer_RegisterFilledTrade_NoAuth(t *testing.T) {
 	}
 
 	// Call without auth context - should fail with Unauthenticated.
+	// The server enforces claims-presence BEFORE user_id-extraction
+	// (grpc_server.go::RegisterFilledTrade), so a context with no
+	// claims at all short-circuits at the first guard with
+	// "missing claims in context". A separate test exercising the
+	// "claims present but UserID empty" branch belongs in a future
+	// integration test that mounts the auth interceptor.
 	_, err := srv.RegisterFilledTrade(context.Background(), req)
 	if err == nil {
 		t.Fatalf("expected Unauthenticated error, got success")
 	}
-	if !strings.Contains(err.Error(), "user_id not found") {
-		t.Errorf("expected 'user_id not found' error, got: %v", err)
+	if !strings.Contains(err.Error(), "missing claims in context") {
+		t.Errorf("expected 'missing claims in context' error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "Unauthenticated") {
+		t.Errorf("expected Unauthenticated status code in error, got: %v", err)
 	}
 }
 
@@ -187,9 +196,12 @@ func TestManagementServer_RegisterFilledTrade_Validation(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error, got success")
 	}
-	// Will fail on auth first since no user in context.
-	if !strings.Contains(err.Error(), "user_id not found") {
+	// Will fail on auth first since no claims in context.
+	if !strings.Contains(err.Error(), "missing claims in context") {
 		t.Errorf("expected auth error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "Unauthenticated") {
+		t.Errorf("expected Unauthenticated status code in error, got: %v", err)
 	}
 }
 

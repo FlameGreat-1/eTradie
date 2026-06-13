@@ -339,9 +339,14 @@ func TestEvaluate_BrokerError_Propagated(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected broker error to propagate")
 	}
-	expectedMsg := "TP1 partial close"
+	// executor.go wraps every TP error with "%s close: %w" where the
+	// label is TP1/TP2/TP3. The wording was tightened from the old
+	// "partial close" / "full close" split when the branch was
+	// unified to handle both. The contract we still want to verify
+	// is: the broker error surfaces with the TP label attached.
+	expectedMsg := "TP1 close"
 	if !contains(err.Error(), expectedMsg) {
-		t.Fatalf("error should mention TP1 partial close, got: %v", err)
+		t.Fatalf("error should mention TP1 close, got: %v", err)
 	}
 }
 
