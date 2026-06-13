@@ -61,6 +61,7 @@ def test_mt_node_chart_renders_memory_leak_rule():
     rendered = _helm_template(
         "mt-node",
         set_args=[
+            "image.repository=ghcr.io/ci-stub/etradie-mt-node",
             "mtConnection.enabled=true",
             "mtConnection.connectionId=test-1234567890",
             "mtConnection.userId=u-1",
