@@ -32,7 +32,7 @@
 | 2 | Install K3s | ✅ DONE |
 | 2.5 | Build + push mt-node Wine image | ✅ DONE |
 | 3 | Vault + Vault Agent Injector | ✅ DONE |
-| 4 | External Secrets Operator + ClusterSecretStore | ⏸ pending |
+| 4 | External Secrets Operator + ClusterSecretStore | ✅ DONE |
 | 5 | Stakater Reloader | ⏸ pending |
 | 6 | Cloudflare Tunnel | ⏸ pending |
 | 7 | Generate Linkerd mesh CA | ⏸ pending |
@@ -366,3 +366,18 @@ key/token extraction. Also note: Vault 1.17 root tokens are `hvs.` +
 Vault releases). The README's verification line `${#ROOT_TOKEN} chars`
 should print exactly `28`; a different number means the extraction
 picked up bytes adjacent to the token.
+
+---
+
+## Phase 4 — External Secrets Operator + ClusterSecretStore ✅
+
+Executed the README block verbatim. No deviation, no gotcha.
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 4.1 Install ESO chart 0.10.4 with `installCRDs=true` | ✅ | All three deployments scheduled within ~80s and Available: `external-secrets-747cb48d85-z2gnj` (controller), `external-secrets-cert-controller-694f9c5b84-hd7rc`, `external-secrets-webhook-7cc8d8ddb4-fj4pl`. All Running 1/1. `kubectl -n external-secrets wait --for=condition=Available` reported `deployment.apps/external-secrets condition met`. The 6 CRDs the platform consumes are present: `clusterexternalsecrets`, `clustersecretstores`, `externalsecrets`, `pushsecrets`, `secretstores`, `vaultdynamicsecrets`. Chart 0.10.4 also installs the `generators.external-secrets.io` family (`acraccesstokens`, `ecrauthorizationtokens`, `fakes`, `gcraccesstokens`, `githubaccesstokens`, `passwords`, `uuids`, `webhooks`) which the platform does not currently use — harmless. |
+| 4.2 Apply `ClusterSecretStore vault-backend` | ✅ | Applied via heredoc per README. `kubectl get clustersecretstore vault-backend` returned `STATUS: Valid / CAPABILITIES: ReadWrite / READY: True` on first reconciliation (< 1s). Status conditions: `reason=Valid`, `message=store validated`. This is the load-bearing confirmation that ESO can (a) reach `http://vault.vault.svc.cluster.local:8200` via in-cluster DNS, (b) authenticate as `external-secrets/external-secrets` SA against the `etradie-eso` Vault Kubernetes auth role from Phase 3.4, and (c) read+write on the `secret/` KV-v2 mount. Every chart's `ExternalSecret` in Phases 12+ references `secretStoreRef: { name: vault-backend, kind: ClusterSecretStore }` and will resolve through this object. |
+
+No Phase 4 operator gotchas. The README block is correct as-shipped
+(post Phase 3 fixes; Phase 3.4 had to be in-pod for Phase 4.2 to
+resolve, and that is now the canonical path).
