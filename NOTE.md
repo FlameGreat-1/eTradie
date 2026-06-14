@@ -34,3 +34,4 @@ SO YOU EXAMINE BOTH FILES THOROUGHLY FROM THE BEGINNING TO THE END.
 
 
 
+grep -E '^[A-Z][A-Z0-9_]*=' ~/eTradie/.env | cut -d= -f1 | sort -u
