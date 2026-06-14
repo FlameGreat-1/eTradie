@@ -1851,6 +1851,8 @@ BILLING_SHARED=${BILLING_SHARED}
 EOF
 ```
 
+END_REMOVED_SUPERSEDED_PHASE_8 -->
+
 ---
 
 ## Phase 9 — Build + inject the envoy WASM filter
