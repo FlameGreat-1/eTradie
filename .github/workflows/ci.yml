@@ -705,7 +705,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # Login is only needed when we actually push (push event on main).
       # Pull-request runs build-only to keep the registry clean.
