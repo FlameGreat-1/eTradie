@@ -23,6 +23,7 @@ spec:
       valueFiles:
         - values.yaml
         - values-staging.yaml
+        - values-staging-wasm.yaml
       # CI must inject the WASM bytes at promotion time:
       #   argocd app set envoy-staging \
       #     --helm-set-file wasm.base64=src/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm \
