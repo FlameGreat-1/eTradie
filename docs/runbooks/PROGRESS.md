@@ -29,7 +29,7 @@
 |---|---|---|
 | 0 | Prerequisites | ✅ DONE |
 | 1 | VPS host hardening | ✅ DONE |
-| 2 | Install K3s | ⏸ pending |
+| 2 | Install K3s | ✅ DONE |
 | 2.5 | Build + push mt-node Wine image | ⏸ pending |
 | 3 | Vault + Vault Agent Injector | ⏸ pending |
 | 4 | External Secrets Operator + ClusterSecretStore | ⏸ pending |
@@ -131,3 +131,114 @@ fallback.
    blocked from SSH by `PermitRootLogin no`, NOT blocked from the VNC
    console. Keep that email safe; the VNC password is your emergency
    recovery credential.
+
+### Security-measure execution status (this deploy)
+
+| Measure | Status | Notes |
+|---|---|---|
+| 1. Private key mode 0600 | ✅ | `ls -la ~/.ssh/id_ed25519` -> `-rw------- softverse softverse` on the workstation. |
+| 2. Passphrase on private key + ssh-agent | ✅ | `ssh-keygen -p -f ~/.ssh/id_ed25519` succeeded; `ssh-keygen -y -f` re-derived the public key only after passphrase entry, confirming encryption. Unencrypted `.bak.*` copies created during the rekey were deleted (`shred`/`rm`). `ssh-agent` started in WSL (pid 446646), key loaded (`ssh-add -l` shows `SHA256:E9D76I53+6XjzKieAFTKSSWyFDhFxOSNc392nhsS04U`). Persistence snippet added to `~/.bashrc` + `~/.ssh/agent.env` (mode 0600) so new terminals reuse the same agent. End-to-end verified: `ssh etradie@13.140.164.173 'echo OK; hostname; whoami; uname -r'` returns `OK / vmi3362776 / etradie / 6.8.0-124-generic` with no passphrase prompt. Re-enter passphrase once per WSL boot (after `wsl --shutdown` or workstation reboot). |
+| 3. etradie passwordless sudo, do not share key | 🟡 acknowledged | Standing operator constraint; no action item. |
+| 4. fail2ban lockout awareness | 🟡 acknowledged | Recovery path: Contabo VNC + `fail2ban-client set sshd unbanip <IP>`. |
+| 5. ufw is the only inbound filter | 🟡 acknowledged | Never `ufw disable`; temp rules by source IP only. |
+| 6. No casual `apt upgrade` mid-deploy | 🟡 acknowledged | Next upgrade window: post-Phase-15. |
+| 7. No backups yet | 🟡 acknowledged | Phase 15 sets up Postgres B2 + Vault Raft snapshots. |
+| 8. Contabo root password still valid for VNC | 🟡 acknowledged | Welcome email retained as emergency recovery credential. |
+
+---
+
+## Phase 2 pre-flight: codebase verification (before running the K3s installer)
+
+The README.md Phase 2.1 install command was cross-checked against the
+repo before execution to make sure every flag it sets is one the
+charts/Terraform/ArgoCD configs actually rely on, and that nothing the
+codebase needs is missing from it. Recorded here so a future operator
+can see WHY the command is what it is, not just that we ran it.
+
+| README.md Phase 2.1 flag / setting | Why the code requires it | Source of truth in repo |
+|---|---|---|
+| `INSTALL_K3S_VERSION=v1.30.4+k3s1` | Linkerd uses native sidecars (`config.linkerd.io/proxy-enable-native-sidecar: "true"`), which is GA only from K8s 1.29. On older K8s the annotation is silently ignored, the proxy starts AFTER init containers, and meshed init-container hops (engine alembic migrate, mt-node Vault Agent init) are refused by the meshed datastores → pods never become Ready. | `infrastructure/cluster/bootstrap/README.md` step 0; `helm/data-layer/values.yaml` (postgres/redis/chromadb podAnnotations); `helm/mt-node/values.yaml` (vault + podAnnotations). |
+| `--disable=traefik` | The platform ships its own `edge-ingress` chart (Cloudflare Tunnel + envoy). A second ingress controller would race for `:80`/`:443`. | `helm/edge-ingress/` chart. |
+| `--disable=servicelb` | Cloudflare Tunnel is outbound-only — no LoadBalancer is ever needed. The data-layer namespace's ResourceQuota hard-caps `services.loadbalancers: 0`, so any LB attempt would be rejected at admission anyway. | `helm/data-layer/values.yaml::resourceQuota.hard.servicesLoadbalancers=0`; `helm/data-layer/templates/namespace.yaml`. |
+| `--kube-apiserver-arg=enable-admission-plugins=NodeRestriction,PodSecurity` | The data-layer chart owns the `etradie-system` namespace and labels it `pod-security.kubernetes.io/warn=restricted` + `audit=restricted` (PSS observe-only mode). The PodSecurity admission plugin must be enabled at the apiserver for those labels to take effect. NodeRestriction limits the kubelet to mutating only its own Node + Pods (CIS K8s Benchmark 1.2.x). | `helm/data-layer/templates/namespace.yaml`. |
+| `--kubelet-arg=eviction-hard=memory.available<200Mi` | Single-node 24 GB box (BUDGET.md Table 2B). The default eviction threshold of 100Mi is too tight — a Wine + MT5 recalc spike or a postgres autovacuum can push the node past it and kubelet starts killing healthy pods. 200Mi is the safe floor for this profile. | `BUDGET.md` Table 2B; `helm/mt-node/values.yaml` resource ceilings. |
+| `K3S_KUBECONFIG_MODE=644` | Phase 2.3 copies `/etc/rancher/k3s/k3s.yaml` from the VPS to the workstation. Default mode 600 (owned by root) would force every copy to go through sudo and a chown. 644 is safe because the file stays on the VPS root filesystem behind ufw — the operator's etradie account is already root-equivalent via passwordless sudo (Phase 1 measure 3). | README.md Phase 2.3 (Option A SSH local-forward). |
+| StorageClass: no `--default-local-storage-class=...` override | K3s ships `local-path-provisioner` as the cluster default StorageClass. The data-layer + mt-node charts BOTH set `storageClassName: ""` (= use cluster default) in every PVC, so the K3s default resolves correctly without further configuration. | `helm/data-layer/values.yaml::postgres.storage.storageClassName=""`, same for redis/chromadb/backup; `helm/mt-node/values.yaml::persistence.storageClass=""`. |
+
+### Two staging-specific consequences operators must keep in mind
+
+1. **PSS is `warn` + `audit` only, NOT `enforce`.** The namespace template
+   (`helm/data-layer/templates/namespace.yaml`) deliberately omits
+   `pod-security.kubernetes.io/enforce` (its comment: *"The enforce
+   cutover is a deliberate, reviewed follow-up MR after one full deploy
+   cycle of audit-log events shows no violations."*). Phase 2.1's
+   apiserver flag turns the PodSecurity ADMISSION PLUGIN on at the
+   cluster, but the namespace itself is in observe-only mode. Phase 14
+   verification should grep `kube-apiserver` audit events for
+   `pod-security` violations before any future enforce cutover. Do NOT
+   add the enforce label inline during this deploy.
+2. **PSS rule version is pinned to `v1.30`.** The namespace labels
+   `pod-security.kubernetes.io/warn-version: v1.30` (and same for
+   `audit-version`). K3s `v1.30.4+k3s1` matches. **If a future operator
+   upgrades K3s, they MUST bump this pin in lockstep** — otherwise PSS
+   will silently re-evaluate against a different rule version and the
+   warn/audit results will change without anyone touching the chart.
+3. **Snapshotter is OFF in staging** (`helm/mt-node/values-staging.yaml::snapshotter.enabled=false`).
+   K3s `local-path-provisioner` has no CSI VolumeSnapshot support, so
+   the Wine-prefix snapshot CronJob cannot run on this box. Re-enable
+   only after installing Longhorn (or another snapshot-capable CSI) and
+   setting `snapshotter.volumeSnapshotClassName` + `image.repository`.
+   No action required at Phase 2 — just don't be surprised when
+   `mt-node-staging` renders without the CronJob in Phase 12.
+
+---
+
+## Phase 2 — Install K3s
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 2.1 Install K3s `v1.30.4+k3s1` on the VPS | ✅ | Ran the exact README.md Phase 2.1 installer block as etradie. Installer output: downloaded the v1.30.4+k3s1 binary + verified its hash, installed to `/usr/local/bin/k3s`, created `kubectl` / `crictl` / `ctr` symlinks, wrote `/etc/systemd/system/k3s.service`, enabled the unit (`Created symlink /etc/systemd/system/multi-user.target.wants/k3s.service → /etc/systemd/system/k3s.service`), and ended on `[INFO]  systemd: Starting k3s`. No errors. SELinux RPM skipped (correct on Ubuntu 24.04). |
+| 2.2 Verify cluster healthy | ✅ | At T+11s: `kubectl get nodes` -> `vmi3362776 Ready control-plane,master 11s v1.30.4+k3s1`. `get pods -A` showed `No resources found` (kubelet still bringing up kube-system). At T+~2 min: all 3 kube-system pods Running 1/1 — `coredns-576bfc4dc7-4wzkw`, `local-path-provisioner-6795b5f9d8-49pqs`, `metrics-server-557ff575fb-xbcrz`. No `helm-install-traefik` Jobs ever appeared because `--disable=traefik` + `--disable=servicelb` skipped them at install time. `get nodes -o wide` confirms INTERNAL-IP `13.140.164.173`, OS-IMAGE `Ubuntu 24.04.4 LTS`, KERNEL-VERSION `6.8.0-124-generic` (the kernel from Phase 1 reboot), CONTAINER-RUNTIME `containerd://1.7.20-k3s1`. `systemctl is-active k3s` -> `active`; `is-enabled k3s` -> `enabled`. |
+| 2.2 — K3s ports listening | ✅ | `ss -tlnp` shows `*:6443` (kube-apiserver), `*:10250` (kubelet) bound to all interfaces — ufw STILL blocks them externally (Phase 1.6 verified `:6443` closed/filtered from the workstation's port probe). `127.0.0.1:10256` (kube-proxy healthz) bound loopback-only — K3s default, no operator action. All three are owned by `k3s-server` (pid 2618). |
+| 2.2 — StorageClass present and default | ✅ | `kubectl get storageclass` -> `local-path (default) rancher.io/local-path Delete WaitForFirstConsumer false 8s`. The `(default)` marker is the load-bearing piece: every chart in this repo sets `storageClassName: ""` (= cluster default) in its PVCs, so K3s' `local-path` will be picked up automatically in Phase 12 without any chart override. `WaitForFirstConsumer` means PVCs stay `Pending` until a pod actually mounts them — expected K3s behaviour, not a fault. |
+| 2.3 Export kubeconfig to workstation via SSH local-forward (Option A) | ✅ | Kubeconfig on the VPS at `/etc/rancher/k3s/k3s.yaml`, mode `-rw-r--r--` (644 from `K3S_KUBECONFIG_MODE=644`), `server: https://127.0.0.1:6443` (loopback URL kept as-is so the workstation tunnel terminates onto the same address). Copied to workstation via `scp etradie@13.140.164.173:/etc/rancher/k3s/k3s.yaml ~/.kube/etradie-contabo.yaml` (~2957 bytes, no passphrase prompt because the WSL ssh-agent had the key cached); workstation file permissions tightened to `-rw------- softverse softverse 2957` (mode 0600 — owner-only; the file embeds a client cert + private key with cluster-admin rights, same posture as the SSH private key). Tunnel opened with `ssh -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173` in a dedicated workstation terminal (pid 452297). End-to-end verified: `kubectl get nodes` through the tunnel returned `vmi3362776 Ready control-plane,master 15m v1.30.4+k3s1`; `Server Version: v1.30.4+k3s1` matches the installed K3s. Tunnel bound LOOPBACK-ONLY on the workstation (`127.0.0.1:6443` v4 + `[::1]:6443` v6, owned by the ssh process — NOT `0.0.0.0:6443`, so the workstation cannot be pivoted via LAN). PUBLIC-side verification: `timeout 5 bash -c '</dev/tcp/13.140.164.173/6443'` -> `PUBLIC 6443 filtered -- good` (ufw still blocks the K3s API on the public IP; the encrypted SSH tunnel is the only path in). `KUBECONFIG=~/.kube/etradie-contabo.yaml` appended to `~/.bashrc` (verified post-hoc — first `grep KUBECONFIG ~/.bashrc` returned empty in a fresh terminal, so an explicit `echo 'export KUBECONFIG=~/.kube/etradie-contabo.yaml' >> ~/.bashrc` was required; subsequent grep confirms the line is now persisted) so every new workstation terminal auto-targets the cluster (and `kubectl` hangs gracefully if the tunnel terminal is closed — the canary that says "reopen the tunnel"). |
+
+### Phase 2 operator gotchas (record so the next operator doesn't trip on them)
+
+**1. `ssh-add` is required once per WSL boot.** The `~/.bashrc` agent
+persistence snippet (added at Phase 1 measure 2) correctly reuses the
+existing `ssh-agent` across new terminals WITHIN one WSL session.
+However, when WSL is fully shut down (`wsl --shutdown` on Windows,
+workstation reboot, or the last WSL window closing), every process
+inside WSL dies including `ssh-agent`. On the next WSL boot, the
+snippet detects the dead agent and spawns a fresh one — but the new
+agent has no key loaded yet, so the first `ssh` or `scp` command that
+run WILL prompt for the passphrase. The fix is one-time per WSL boot:
+```bash
+ssh-add ~/.ssh/id_ed25519     # type passphrase once
+ssh-add -l                    # confirm key loaded
+```
+After that, all SSH (including the `ssh -L` tunnel) is passphrase-free
+for the rest of the WSL session. This is normal behaviour, not a bug;
+agents store decrypted keys in memory only.
+
+**2. The tunnel terminal is load-bearing.** `ssh -N -L 6443:127.0.0.1:6443
+etradie@13.140.164.173` is a FOREGROUND process. Closing the terminal
+(Ctrl+C, `exit`, or closing the window) tears the tunnel down
+immediately. `kubectl` calls after that point will hang for ~30s and
+fail with `dial tcp 127.0.0.1:6443: connect: connection refused`. That
+hang is the canary that says "reopen the tunnel". For longer-running
+work an operator may install `autossh` (`sudo apt install autossh`)
+and use `autossh -M 0 -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173 &`
+for a self-healing tunnel that reconnects automatically over network
+blips. Not done in this deploy; the dedicated-terminal pattern was
+sufficient for Phase 2.3.
+
+**3. No public 6443 binding.** The ufw rule from Phase 1.6 (default
+deny incoming, only 22/tcp LIMIT) is what keeps the K3s API off the
+public internet — NOT any K3s configuration. The kube-apiserver listens
+on `*:6443` inside the VPS (all interfaces), and only ufw stops public
+reachability. If an operator ever runs `sudo ufw disable` for any
+reason, the K3s API becomes publicly reachable in seconds. Never
+disable ufw; for temporary debug access use a source-IP-restricted
+rule (Phase 1 security measure 5).
