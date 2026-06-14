@@ -41,7 +41,7 @@ jobs:
         run: echo "Cloudflare ranges unchanged."
       - name: Open PR when ranges changed
         if: steps.refresh.outputs.exit_code == '2'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: "chore(cloudflare): refresh published IP ranges"
           title: "chore(cloudflare): refresh published IP ranges"
