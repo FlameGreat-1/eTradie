@@ -687,9 +687,410 @@ kubectl -n reloader rollout status deployment/reloader-reloader --timeout=120s
 
 ## Phase 6 — Cloudflare Tunnel
 
-6.1 Zero Trust UI -> Networks -> Tunnels -> Create a tunnel -> Cloudflared -> name `etradie-production`. Copy the token (`eyJ...`) — unrecoverable later.
-6.2 Public Hostnames tab -> add `api.exoper.com`, Type HTTPS, URL `edge-ingress.edge-ingress-system.svc.cluster.local:443`, leave No TLS Verify UNCHECKED. Repeat for other hosts (e.g. `app`). Cloudflare auto-creates the CNAMEs.
-6.3 Note the Tunnel UUID + token.
+Cloudflare control-plane work — no `kubectl`, no VPS access. By the end
+of this phase you have:
+
+- a cloudflared tunnel named `etradie-<env>` registered with Cloudflare,
+- its single-use connector token saved to a `0600` file on the
+  workstation (to be written into Vault in Phase 8.5),
+- a tunnel ingress rule pointing the public hostname at the in-cluster
+  `edge-ingress` Service,
+- a proxied CNAME for that hostname in the `exoper.com` zone,
+- and the Tunnel UUID recorded for the Phase 8.5 / 11 / 12 entries
+  that consume it.
+
+The tunnel will display `Inactive` in the Cloudflare dashboard at the
+end of this phase. That is correct — see 6.3 below for the full
+explanation. Do NOT try to bring it Active here.
+
+> **Why this phase uses the Cloudflare REST API for the ingress
+> + DNS, not the dashboard UI.** The original runbook (pre staging
+> deploy 2026-06-14) said "Public Hostnames tab → add `api.<domain>`".
+> Cloudflare has since migrated accounts to the new "Networks"
+> Cloudflare One UI, which removed the classic per-tunnel **Public
+> Hostname** tab entirely. The surviving in-UI "Hostname routes"
+> tab only offers the **private** hostname flow (requires Cloudflare
+> One Client on every end-user device — wrong for our public-facing
+> `<env>-api.exoper.com`). Direct legacy URLs
+> `/<account-id>/access/tunnels/<uuid>` and
+> `/<account-id>/networks/tunnels/cfd_tunnel/<uuid>/edit` return
+> `We could not find that page.` Drive the configuration via the
+> REST API instead. The end-state on Cloudflare's edge is identical
+> to what the old UI produced.
+
+> **Production vs staging conventions used below.** This phase is
+> environment-aware in TWO places:
+> - **Tunnel name**: `etradie-staging` on the staging box, `etradie-production` on the production box. They are independent tunnels with independent UUIDs and independent tokens.
+> - **Public hostname**: `staging-api.exoper.com` for staging, `api.exoper.com` for production. The repo's chart values (`helm/edge-ingress/values-staging.yaml` / `values-production.yaml`) already align with these names; do not invent a third pattern.
+>
+> All commands below use a single `ENV` variable so the same block
+> works on either box. Set it ONCE at the top of the phase and leave
+> it alone for the rest:
+> ```bash
+> ENV=staging       # or 'production' for the production deploy
+> ```
+
+### 6.1 — Create the tunnel in the Cloudflare dashboard, capture the token
+
+This step is the one part of Phase 6 the UI still handles correctly.
+
+1. Open <https://one.dash.cloudflare.com/>.
+2. Left sidebar: **Networks → Tunnels** (the new UI may also expose a
+   top-level **Tunnels** entry; either lands on the same page).
+3. Click **Create a tunnel**.
+4. Tunnel type: **Cloudflared**. Click **Next**.
+5. Name: `etradie-<env>` exactly (`etradie-staging` or `etradie-production`).
+   The two names must NOT be reused across environments — each tunnel
+   has its own UUID + token and points at a different in-cluster
+   `edge-ingress` Service in a different namespace.
+6. Click **Save tunnel**.
+7. The next screen shows installation commands for various OSes.
+   **IGNORE the install commands.** `cloudflared` will run as a
+   Deployment inside the K3s cluster, shipped by the `edge-ingress`
+   Helm chart in Phase 12. Running the install command on the
+   workstation would register the workstation itself as the connector,
+   which would expose the public hostname from your laptop — the
+   opposite of the intended architecture.
+8. Scroll down on that screen until you see the token field. The token
+   is a single long string starting with `eyJ` (a JWT-style base64
+   payload, typically ~180–220 chars). Select **only** the token,
+   copy it.
+
+**You only ever see this token once.** Capture it on the workstation
+NOW, before clicking Next, into a `0600` file that Phase 8.5 will
+read:
+
+```bash
+umask 077
+cat > ~/cloudflare-${ENV}-tunnel-token.txt
+# right-click / Ctrl-Shift-V to paste the eyJ... token
+# press Enter once
+# press Ctrl-D to close stdin
+chmod 600 ~/cloudflare-${ENV}-tunnel-token.txt
+```
+
+Verify the file looks sane WITHOUT echoing its content:
+
+```bash
+ls -la ~/cloudflare-${ENV}-tunnel-token.txt    # mode 0600, owner-only
+wc -c ~/cloudflare-${ENV}-tunnel-token.txt     # expect ~180–230 bytes
+head -c 4 ~/cloudflare-${ENV}-tunnel-token.txt; echo  # MUST print: eyJh
+tail -c 2 ~/cloudflare-${ENV}-tunnel-token.txt | od -c | head -1
+# expect: "  9  \n" or similar — exactly one trailing newline, no stray bytes
+```
+
+If `head -c 4` prints anything other than `eyJh`, the paste captured
+leading whitespace or part of the surrounding install command — wipe
+and retry:
+
+```bash
+rm -f ~/cloudflare-${ENV}-tunnel-token.txt
+umask 077
+cat > ~/cloudflare-${ENV}-tunnel-token.txt
+# re-paste, more carefully selecting only the eyJ... bytes
+```
+
+The token is still on the Cloudflare screen until you click Next —
+re-copying is fine.
+
+Once the file is verified, you may click **Next** in the Cloudflare
+UI to leave the install screen. The next page ("Route tunnel") will
+offer only the wrong (private-hostname) flow. **Do not configure
+anything on that page; just leave it.** Step 6.2 below does that part
+via API.
+
+Also copy the **Tunnel UUID** off the dashboard URL while you're on
+the tunnel detail page — you need it for 6.2:
+
+```
+https://one.dash.cloudflare.com/<account-id>/networks/tunnels/cfd_tunnel/<TUNNEL-UUID>
+                                                                          ^^^^^^^^^^^^
+                                          36-char string, e.g. 6d46295b-488e-49d6-9b7e-b699b310a1ec
+```
+
+It is not a secret. Record it in your scratch notes.
+
+### 6.2 — Wire the public hostname + DNS via the Cloudflare REST API
+
+This step has three parts: mint a scoped bootstrap API token, write
+the tunnel ingress, and verify the auto-created CNAME. The token is
+short-lived (48h is plenty); shred it from the workstation when
+Phase 6 is done.
+
+**6.2.1 — Mint a scoped API token.**
+
+1. Open <https://dash.cloudflare.com/profile/api-tokens>.
+2. Click **Create Token** → scroll to **Custom token** → **Get started**.
+3. Fill in:
+   - **Token name**: `etradie-<env>-tunnel-bootstrap`
+   - **Permissions** (three rows; click "+ Add more" between them):
+     - `Account` | `Cloudflare Tunnel` | **Edit**
+     - `Account` | `Account Settings` | **Read**
+     - `Zone` | `DNS` | **Edit**
+   - **Account Resources**: `Include` → the account that owns this tunnel.
+   - **Zone Resources**: `Include` → `Specific zone` → `exoper.com`.
+   - **Client IP Address Filtering**: **leave blank**. Your workstation NAT
+     exit IP may change between commands; pinning to today's IP risks
+     401-ing the API mid-phase for zero security gain on a 48h credential.
+   - **TTL**: Start = today, End = day-after-today (~48h).
+4. **Continue to summary** → **Create Token**.
+5. Cloudflare displays the token **once** in a green box. Copy it.
+6. Capture it on the workstation:
+   ```bash
+   umask 077
+   cat > ~/.cloudflare-${ENV}-api-token.txt
+   # paste the token → Enter → Ctrl-D
+   chmod 600 ~/.cloudflare-${ENV}-api-token.txt
+   ```
+7. Verify it works (the verify endpoint exists for exactly this):
+   ```bash
+   curl -fsS -X GET "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+     -H "Authorization: Bearer $(cat ~/.cloudflare-${ENV}-api-token.txt)" \
+     -H "Content-Type: application/json" | jq .
+   ```
+   Expect `"status": "active"` and `"success": true`.
+
+**6.2.2 — Set the shell variables the curl calls reference.**
+
+Gather the four identifiers up front so the rest of 6.2 is a clean
+copy-paste. The two `*_ID` values come from your dashboard URL
+(account ID is the 32-hex string in `dash.cloudflare.com/<id>/...`)
+and from a one-shot API query (zone ID); the tunnel ID is the UUID
+you recorded at the end of 6.1; the hostname is the env-specific
+name.
+
+```bash
+CF_TOKEN=$(cat ~/.cloudflare-${ENV}-api-token.txt)
+
+ACCOUNT_ID="<paste the 32-hex account ID from your dashboard URL>"
+TUNNEL_ID="<paste the tunnel UUID from 6.1>"
+HOSTNAME="${ENV}-api.exoper.com"        # staging-api.exoper.com or production-api.exoper.com? See note.
+ORIGIN_URL="https://edge-ingress.edge-ingress-system.svc.cluster.local:443"
+
+# Look up the zone ID for exoper.com via the API (one less thing to mis-copy)
+ZONE_ID=$(curl -fsS -X GET "https://api.cloudflare.com/client/v4/zones?name=exoper.com" \
+  -H "Authorization: Bearer $CF_TOKEN" \
+  -H "Content-Type: application/json" | jq -r '.result[0].id')
+
+echo "ACCOUNT_ID=$ACCOUNT_ID"
+echo "TUNNEL_ID=$TUNNEL_ID"
+echo "ZONE_ID=$ZONE_ID"
+echo "HOSTNAME=$HOSTNAME"
+echo "ORIGIN_URL=$ORIGIN_URL"
+```
+
+> **Hostname naming — read this before pasting.** The chart values in
+> `helm/edge-ingress/values-staging.yaml` and
+> `helm/edge-ingress/values-production.yaml` are the source of truth.
+> The staging hostname is `staging-api.exoper.com` (NO `production-api`
+> equivalent; production uses the shorter `api.exoper.com`). Set
+> `HOSTNAME` accordingly:
+>
+> | Environment | `HOSTNAME` value |
+> |---|---|
+> | `staging` | `staging-api.exoper.com` |
+> | `production` | `api.exoper.com` |
+>
+> If you change this, also align `helm/edge-ingress/values-<env>.yaml`
+> and the gateway's `allowedOrigins` — a mismatch will surface in
+> Phase 14.5 as 4xx CORS rejections, not as anything obvious from
+> the tunnel layer.
+
+If `ZONE_ID` is empty or `null`, the token does not have visibility
+into the zone. Re-check the token's "Zone Resources" include rule
+and redo 6.2.1 before continuing.
+
+**6.2.3 — Write the tunnel ingress configuration (the load-bearing step).**
+
+This is the call that wires `<env>-api.exoper.com` to the in-cluster
+edge-ingress Service. Cloudflare's `configurations` endpoint also
+auto-creates the matching CNAME in the `exoper.com` zone on first
+write, so a separate DNS POST is NOT required.
+
+```bash
+curl -fsS -X PUT \
+  "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/cfd_tunnel/${TUNNEL_ID}/configurations" \
+  -H "Authorization: Bearer $CF_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data @- <<JSON | jq .
+{
+  "config": {
+    "ingress": [
+      {
+        "hostname": "${HOSTNAME}",
+        "service": "${ORIGIN_URL}",
+        "originRequest": {
+          "noTLSVerify": false,
+          "http2Origin": false,
+          "connectTimeout": 30,
+          "tlsTimeout": 10,
+          "tcpKeepAlive": 30,
+          "keepAliveConnections": 100,
+          "keepAliveTimeout": 90
+        }
+      },
+      {
+        "service": "http_status:404"
+      }
+    ]
+  }
+}
+JSON
+```
+
+Expected response ends with `"success": true` and a `result.config`
+block that echoes the ingress you sent, `result.version: 1` on the
+first write (incremented on every subsequent PUT to this tunnel),
+and `result.config.warp-routing.enabled: false`.
+
+The trailing `{"service": "http_status:404"}` rule is **mandatory**.
+Cloudflare rejects the PUT with `1003 invalid ingress: no catch-all
+rule` if the array does not END with a rule that has no `hostname`
+field and a `service` value of `http_status:<code>`.
+
+`noTLSVerify: false` is also **mandatory** for Tier 11. The
+Authenticated Origin Pull CA bytes (`aop_ca`) written into Vault in
+Phase 8.5 only get enforced when this flag is `false`. Setting it
+`true` appears to work because Cloudflare still establishes TLS to
+edge-ingress — but the cert is never verified, which means anything
+that lands on the host network can impersonate edge-ingress and the
+tunnel will route traffic to it.
+
+**6.2.4 — Verify the CNAME Cloudflare auto-created.**
+
+```bash
+curl -fsS -X GET \
+  "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${HOSTNAME}&type=CNAME" \
+  -H "Authorization: Bearer $CF_TOKEN" | jq '.result[] | {id, name, type, content, proxied, ttl, comment}'
+```
+
+Expected output (UUID in `content` MUST equal your `TUNNEL_ID`):
+
+```json
+{
+  "id": "<dns-record-id>",
+  "name": "<env>-api.exoper.com",
+  "type": "CNAME",
+  "content": "<TUNNEL_ID>.cfargotunnel.com",
+  "proxied": true,
+  "ttl": 1,
+  "comment": null
+}
+```
+
+If you ran an explicit `POST /zones/.../dns_records` against the same
+name (e.g. following an older runbook), Cloudflare returns
+`81053 An A, AAAA, or CNAME record with that host already exists.`
+That error is **harmless** — the auto-created CNAME is already correct
+and matches the tunnel. Skip the POST and rely on the GET above to
+verify state.
+
+If the UUID in `content` does NOT equal `TUNNEL_ID` (e.g. a stale
+CNAME from a deleted tunnel), patch the existing record in place:
+
+```bash
+RECORD_ID=$(curl -fsS -X GET \
+  "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${HOSTNAME}&type=CNAME" \
+  -H "Authorization: Bearer $CF_TOKEN" | jq -r '.result[0].id')
+curl -fsS -X PATCH \
+  "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${RECORD_ID}" \
+  -H "Authorization: Bearer $CF_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data "{\"content\":\"${TUNNEL_ID}.cfargotunnel.com\",\"proxied\":true,\"ttl\":1}" | jq .
+```
+
+**6.2.5 — Verify public DNS resolves to Cloudflare anycast.**
+
+DNS propagation for a brand-new proxied record is usually a few
+seconds. Use whatever resolver the workstation has on the PATH:
+
+```bash
+# Prefer dig if installed; fall back to getent (always present on Linux).
+dig +short "${HOSTNAME}" 2>/dev/null || getent hosts "${HOSTNAME}"
+```
+
+Expected result: one or more Cloudflare anycast IPs — IPv4 in
+`104.21.0.0/16` or `172.67.0.0/16`, IPv6 in `2606:4700::/32`. NOT the
+`*.cfargotunnel.com` target. Cloudflare's proxy is intercepting the
+name and answering with its own edge IPs; that is the correct
+resolved view from the public internet.
+
+Then confirm reachability with `curl`:
+
+```bash
+curl -sS -o /dev/null -w 'http_code=%{http_code} resolved=%{remote_ip}\n' \
+  "https://${HOSTNAME}/"
+```
+
+**Expected: `http_code=530 resolved=<cloudflare anycast IP>`.** HTTP
+530 (or HTML error 1033) is Cloudflare's "origin is unreachable" code,
+returned because the in-cluster `cloudflared` Deployment does not yet
+exist (Phase 12 is what creates it). The 530 here is the *correct
+intermediate state*, not a fault. It proves the entire public path is
+wired: DNS → Cloudflare edge → tunnel → (no connector yet) → 530.
+
+**6.2.6 — Shred the bootstrap API token.**
+
+The token's job is done; it is not used anywhere else in the deploy.
+
+```bash
+shred -u ~/.cloudflare-${ENV}-api-token.txt
+```
+
+The server-side credential still exists at Cloudflare and will
+auto-expire on its TTL (the 48h window from 6.2.1). The `shred` step
+just ensures it cannot be re-used from this workstation.
+
+### 6.3 — Record the Tunnel UUID + token file location, leave the tunnel Inactive
+
+Write the values into your deploy notes (and, for the staging deploy
+that produced this runbook revision, into `docs/runbooks/PROGRESS.md`
+under Phase 6):
+
+| Value | Source | Used in |
+|---|---|---|
+| Tunnel name | Cloudflare dashboard | Phase 14.4 (`cloudflared` log grep) |
+| Tunnel UUID (36-char) | dashboard URL `/cfd_tunnel/<UUID>` | (notebook only — the token holds the binding at runtime) |
+| Public hostname | the `HOSTNAME` variable above | Phase 14.5 (`curl https://${HOSTNAME}/healthz`) |
+| Tunnel token file (0600) | written in 6.1 | Phase 8.5 (`vault kv put .../cloudflare/tunnel tunnel_token=@~/cloudflare-${ENV}-tunnel-token.txt`) |
+| Cloudflare account ID + zone ID | from 6.2.2 | (notebook only; not consumed elsewhere) |
+
+**The tunnel will display `Inactive` in the Cloudflare dashboard, with
+zero connectors registered and `Uptime: --`, for the entire window
+between end-of-Phase-6 and the `edge-ingress-<env>` sync in Phase 12.
+That is correct and required.** The architecture is:
+
+1. Phase 6 (now): tunnel object exists, ingress points at
+   `edge-ingress.edge-ingress-system.svc.cluster.local:443`, DNS points
+   the public hostname at Cloudflare's edge, token is sitting in a 0600
+   file on the workstation.
+2. Phase 8.5: token bytes get written into Vault at
+   `secret/etradie/services/edge-ingress/<env>/cloudflare/tunnel`
+   (key `tunnel_token`).
+3. Phase 12: ArgoCD syncs `edge-ingress-<env>`, which spins up a
+   `cloudflared` Deployment in the `edge-ingress-system` namespace.
+   The Deployment reads the token (via ESO → K8s Secret → env var or
+   mounted file, per chart), dials Cloudflare's edge over outbound
+   :443, registers as the tunnel's connector, and the dashboard
+   flips to **Healthy** with Uptime ticking.
+
+**Do NOT try to bring the tunnel Active before Phase 12** by running
+`cloudflared service install <token>` on the workstation or anywhere
+else. That command registers whichever machine it runs on as the
+connector for the tunnel — i.e. it would expose
+`<env>-api.exoper.com` from your laptop instead of from the cluster.
+Undoing that requires deleting the rogue connector via the
+dashboard's Connectors tab; the time cost is minutes, but the
+security posture has been broken in the meantime (your home network
+was a public origin for a few minutes).
+
+Similarly, the `curl` 530 from 6.2.5 is NOT a Phase 6 failure to
+chase. If it returns anything other than 530 / 1033 / a Cloudflare
+error page at this point — e.g. a real `2xx` or a non-Cloudflare 5xx
+— something is wired wrong (most likely an attacker-controlled
+origin has been pointed at the same hostname, or you accidentally ran
+cloudflared on the workstation). Stop and debug; do NOT proceed to
+Phase 7 with a Cloudflare-side anomaly unresolved.
 
 ---
 
