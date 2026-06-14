@@ -2227,31 +2227,156 @@ END_REMOVED_SUPERSEDED_PHASE_8 -->
 
 ## Phase 9 — Build + inject the envoy WASM filter
 
-`helm/envoy/values.yaml` ships `wasm.base64: ""`; the chart fails to render until real bytes are supplied, and ArgoCD cannot `--set-file` at sync time, so the bytes must live in a values file the app reads.
+`helm/envoy/values.yaml` ships `wasm.base64: ""`; the chart fails to
+render until real bytes are supplied (`templates/configmap-wasm.yaml`
+does `{{- if not .Values.wasm.base64 }}{{- fail "..." -}}{{- end -}}`).
+ArgoCD cannot `--set-file` cleanly at sync time on a multi-source or
+self-healing Application without creating drift, so the bytes live in
+a committed values overlay file the chart `valueFiles` reads.
+
+> **Workstation-only phase. No `kubectl`, no Vault, no VPS access.**
+> The VPS will only see this change at Phase 12 when ArgoCD's
+> repo-server pod pulls the updated repo from GitHub.
+
+> **Single `ENV` variable for the whole phase.** Set it ONCE at the
+> top and leave it for the rest of the phase:
+> ```bash
+> ENV=staging       # or 'production' for the production deploy
+> ```
+> Every command below references `${ENV}`; this keeps the procedure
+> environment-symmetric (staging and production wire their WASM bytes
+> through analogous `values-${ENV}-wasm.yaml` files into analogous
+> `envoy-${ENV}.yaml` Applications).
+
+### 9.0 — Pre-flight (reuse existing artefact if valid; rebuild only if needed)
+
+A fresh release build of this workspace takes ~5–10 minutes on a
+cold cache. If a `.wasm` from a previous local build is on disk,
+verify it and skip `cargo build` entirely — the release profile
+(`opt-level="z"`, `lto=true`, `codegen-units=1`, `panic="abort"`,
+`strip=true` in `src/envoy/Cargo.toml`) is deterministic, so the
+same source produces the same binary.
+
 ```bash
-cd src/envoy
-rustup target add wasm32-wasi
+cd ~/eTradie
+WASM=src/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm
+
+if [ -s "$WASM" ]; then
+  echo "=== artefact present — verifying validity ==="
+  head -c 4 "$WASM" | xxd | grep -q '0061 736d' && echo "  OK magic bytes (\\0asm)"
+  file "$WASM" | grep -q 'WebAssembly' && echo "  OK file type"
+  echo "  sha256: $(sha256sum "$WASM" | awk '{print $1}')"
+  echo "  size:   $(wc -c < "$WASM") bytes"
+  echo "  → SKIP cargo build; go straight to §9.2"
+else
+  echo "=== no artefact — will rebuild in §9.1 ==="
+fi
+```
+
+### 9.1 — Build (skip if §9.0 verified an existing artefact)
+
+The `rust-toolchain.toml` at `src/envoy/rust-toolchain.toml` pins the
+workspace to `channel = "1.75.0"` with `targets = ["wasm32-wasi",
+"wasm32-unknown-unknown"]` and triggers automatic toolchain +
+target install on first `cd` and `cargo` invocation. No explicit
+`rustup target add wasm32-wasi` is needed.
+
+```bash
+cd ~/eTradie/src/envoy
 cargo build --release --target wasm32-wasi
-WASM=target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm
-cat > ../../helm/envoy/values-production-wasm.yaml <<EOF
+cd ~/eTradie
+WASM=src/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm
+test -s "$WASM" && echo "OK build complete ($(wc -c < "$WASM") bytes)" || echo "FAIL build"
+```
+
+### 9.2 — Encode + write `helm/envoy/values-${ENV}-wasm.yaml`
+
+```bash
+cd ~/eTradie
+WASM=src/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm
+WASM_SHA256=$(sha256sum "$WASM" | awk '{print $1}')
+WASM_BUILT_AT=$(date -u +%FT%TZ)
+
+cat > helm/envoy/values-${ENV}-wasm.yaml <<EOF
+# Staging or production WASM filter bytes — Phase 9.
+# Source: src/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm
+#
+# To rotate:
+#   cd src/envoy && cargo build --release --target wasm32-wasi && cd ../..
+#   WASM=src/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm
+#   sed -i "s|^  base64: .*|  base64: \"\$(base64 -w0 \$WASM)\"|" helm/envoy/values-${ENV}-wasm.yaml
+#   sed -i "s|^  sha256: .*|  sha256: \"\$(sha256sum \$WASM | awk '{print \$1}')\"|" helm/envoy/values-${ENV}-wasm.yaml
+#   sed -i "s|^  builtAt: .*|  builtAt: \"\$(date -u +%FT%TZ)\"|" helm/envoy/values-${ENV}-wasm.yaml
+#   git add helm/envoy/values-${ENV}-wasm.yaml && git commit -m "envoy: rotate ${ENV} WASM filter"
+#
+# The chart's deployment.yaml carries
+#   checksum/wasm: {{ .Values.wasm.base64 | sha256sum }}
+# as a pod-template annotation, so a new base64 above rolls the pods
+# automatically on the next ArgoCD reconcile.
 wasm:
   base64: "$(base64 -w0 "$WASM")"
-  sha256: "$(sha256sum "$WASM" | awk '{print $1}')"
-  builtAt: "$(date -u +%FT%TZ)"
+  sha256: "$WASM_SHA256"
+  builtAt: "$WASM_BUILT_AT"
 EOF
-cd ../..
+
+ls -la helm/envoy/values-${ENV}-wasm.yaml
 ```
-Reference the overlay from the envoy production app and push to `main`:
+
+### 9.3 — Wire the overlay into the ArgoCD Application
+
+Add `values-${ENV}-wasm.yaml` to `valueFiles` right after
+`values-${ENV}.yaml`. Idempotent: skip if already present.
+
 ```bash
-# Edit deployments/argocd/children/envoy-production.yaml -> source.helm.valueFiles:
-#   - values.yaml
-#   - values-production.yaml
-#   - values-production-wasm.yaml
-git add helm/envoy/values-production-wasm.yaml deployments/argocd/children/envoy-production.yaml
-git commit -m "deploy: inject production envoy WASM bytes"
-git push origin main
+APP=deployments/argocd/children/envoy-${ENV}.yaml
+if grep -q "values-${ENV}-wasm.yaml" "$APP"; then
+  echo "already wired — no change needed"
+else
+  awk -v ENV="$ENV" '
+    $0 ~ "- values-" ENV ".yaml" && !done {
+      print
+      match($0, /^[[:space:]]*/)
+      print substr($0, 1, RLENGTH) "- values-" ENV "-wasm.yaml"
+      done=1; next
+    }
+    { print }
+  ' "$APP" > "${APP}.new"
+  mv "${APP}.new" "$APP"
+fi
+
+grep -A3 'valueFiles:' "$APP"
+# expect 3 entries: values.yaml, values-${ENV}.yaml, values-${ENV}-wasm.yaml
 ```
-> The WASM overlay holds compiled filter bytes, no secrets. Prefer a private release branch + `targetRevision` if you do not want it on `main`.
+
+### 9.4 — Commit + push (GitHub is the load-bearing push)
+
+**ArgoCD reads ONLY from GitHub.** Every Application's `repoURL` is
+`https://github.com/FlameGreat-1/eTradie.git`. Pushing only to GitLab
+(or another mirror) silently leaves the platform on the old code.
+
+```bash
+git add helm/envoy/values-${ENV}-wasm.yaml deployments/argocd/children/envoy-${ENV}.yaml
+git commit -m "envoy(${ENV}): inject WASM filter bytes via values-${ENV}-wasm.yaml overlay (Phase 9)"
+
+# If you have a `gitlab` remote that the MCP integration writes to,
+# pull any docs commits from there first so local main is current:
+git pull --rebase gitlab main 2>/dev/null || true
+
+# THE LOAD-BEARING PUSH. ArgoCD pulls from here at Phase 12.
+git push origin main
+
+# Mirror to GitLab (optional, only if you maintain that remote).
+git push gitlab main 2>/dev/null || true
+
+git log --oneline -5
+```
+
+> The WASM overlay holds compiled filter bytes, no secrets. The
+> filter source itself is committed in `src/envoy/`; committing the
+> encoded bytes is equivalent to committing the source.
+
+> Prefer a private release branch + `targetRevision` if you do not
+> want it on `main`.
 
 ---
 
