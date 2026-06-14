@@ -357,6 +357,61 @@ Everything below runs from your workstation.
 
 ---
 
+## Daily operator routine (every Phase 3+ command depends on this)
+
+From this point onward, every `kubectl`, `helm`, `argocd`, and `terraform` command in this runbook runs ON YOUR WORKSTATION and reaches the K3s API server on the VPS through an SSH local-forward. The K3s API is firewalled off the public internet by the ufw rules set in Phase 1.6; the SSH tunnel is the only authorized path in.
+
+You must have TWO terminals open at the same time before running any command in Phases 3 onward:
+
+**Terminal 1 — the tunnel terminal.** Opens the encrypted SSH local-forward that carries every `kubectl` / `helm` / `argocd` packet to the K3s API. It is a foreground process and looks frozen (no shell prompt) by design — that is correct. Leave it alone for the entire work session. Closing it (Ctrl+C, `exit`, closing the window) tears the tunnel down immediately and the next `kubectl` call hangs for ~30s and fails with `dial tcp 127.0.0.1:6443: connect: connection refused`.
+
+**Terminal 2 — the working terminal.** This is where every subsequent command in this runbook is typed. You may open additional working terminals (Terminal 3, 4, ...) as needed; they all share the single tunnel from Terminal 1.
+
+Run these once per WSL boot, in this order:
+
+```bash
+# 1. Unlock the SSH private key into ssh-agent (once per WSL boot).
+#    Without this, every ssh / scp / tunnel command prompts for the
+#    passphrase. The agent persists across new terminals WITHIN one
+#    WSL session (see Phase 1 measure 2 for the ~/.bashrc snippet);
+#    a wsl --shutdown / workstation reboot / last-window-closed event
+#    kills the agent and you must re-run this on the next WSL boot.
+ssh-add ~/.ssh/id_ed25519
+ssh-add -l                                              # confirm the key is loaded
+
+# 2. Open the tunnel IN A DEDICATED TERMINAL (Terminal 1).
+#    -N: do not run a remote command; just forward.
+#    -L 6443:127.0.0.1:6443: forward local 6443 -> VPS 127.0.0.1:6443
+#    (the K3s API binds loopback inside the VPS; ufw blocks the
+#    public interface; the tunnel terminates onto the loopback that
+#    K3s already trusts).
+#    Replace 13.140.164.173 with the actual VPS public IP.
+ssh -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173
+#    ^ no prompt returns. Leave this terminal open. Do not Ctrl+C.
+```
+
+In a SEPARATE terminal (Terminal 2), verify the tunnel is live before running ANY runbook command:
+
+```bash
+kubectl get nodes
+# expect: vmi3362776   Ready   control-plane,master   ...   v1.30.4+k3s1
+```
+
+If `kubectl get nodes` hangs for ~30s and then fails, the tunnel is down. Re-run the Terminal 1 command. Common causes: Terminal 1 was closed, WSL was shut down, the workstation was rebooted, the network changed (laptop sleep / wifi switch). Reopening the tunnel is always safe.
+
+**Optional — self-healing tunnel.** For long work sessions (a full deploy day) operators may install `autossh` and replace the Terminal 1 command with:
+
+```bash
+sudo apt install -y autossh
+autossh -M 0 -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173
+```
+
+`autossh` watches the tunnel and reconnects automatically over network blips (laptop suspend, wifi switch, NAT timeout). The dedicated-terminal pattern with plain `ssh` works fine for shorter sessions and was used for the staging deploy.
+
+**Safety — do NOT run runbook commands as `root` over a plain `ssh etradie@<host>` shell.** A plain shell on the VPS lacks the workstation tooling (helm, terraform, argocd CLI, the cloned repo) and bypasses the kubeconfig-based RBAC posture this runbook depends on. The tunnel-from-workstation pattern is the canonical operator topology for every phase below.
+
+---
+
 ## Phase 2.5 — Build + push the mt-node Wine image (do this BEFORE you rely on Phase 0.4)
 
 The app images (engine/gateway/execution/management/billing/edge-ingress)
