@@ -35,7 +35,7 @@
 | 4 | External Secrets Operator + ClusterSecretStore | ✅ DONE |
 | 5 | Stakater Reloader | ✅ DONE |
 | 6 | Cloudflare Tunnel | ✅ DONE |
-| 7 | Generate Linkerd mesh CA | ⏸ pending |
+| 7 | Generate Linkerd mesh CA | ✅ DONE |
 | 8 | Bootstrap Vault paths + populate every secret | ⏸ pending |
 | 9 | Build + inject envoy WASM filter | ⏸ pending |
 | 10 | ArgoCD + AppProjects + root app | ⏸ pending |
@@ -493,3 +493,129 @@ TTL: 48h is generous; the actual API surface usage took ~3 minutes.
 Client-IP filtering should be left blank — pinning to today's NAT
 exit IP adds nothing on a 48h credential and risks bricking the
 session if the ISP rotates the lease.
+
+---
+
+## Phase 7 — Linkerd mesh CA ✅
+
+Workstation-only step. No `kubectl`, no VPS access, no Cloudflare.
+Ran `step certificate create` twice (root + intermediate) at the repo
+root (`~/eTradie`) so the four output files land where Phase 8.4
+(`@ca.crt`, `@issuer.crt`, `@issuer.key`) and Phase 10.4
+(`--helm-set-file identityTrustAnchorsPEM=ca.crt`) expect them.
+
+### Deploy-specific values captured (NOT secrets — fingerprints only)
+
+These fingerprints are public-info digests of the certificates, NOT
+the private keys. They exist so Phase 8.4 can verify Vault holds the
+exact bytes generated here. After Phase 8.4 writes the PEMs into
+Vault and the on-disk files are shredded, regenerating the CA bundle
+is the only way to recompute these — so capturing them here while
+the files still exist is cheap insurance against the trailing-newline
+class of Vault round-trip corruption.
+
+| Value | Source | Value |
+|---|---|---|
+| `step` CLI version used | `step version` | `Smallstep CLI/0.30.6 (linux/amd64)` |
+| Root CA Subject | `step certificate inspect ca.crt --short` | `root.linkerd.cluster.local` |
+| Root CA Issuer | same | `root.linkerd.cluster.local` (self-signed) |
+| Root CA validity | same | `2026-06-14T10:43:13Z` → `2036-06-11T10:43:13Z` (10 yr) |
+| Root CA key type | same | ECDSA P-256 |
+| Root CA SHA-256 cert fingerprint | `step certificate fingerprint ca.crt` | `dedfbeff9e57759d58834cfc528f5aa937d24ecbe7b1c9929c084d7d4e5e7fff` |
+| Root CA SPKI SHA-256 (public-key fingerprint) | `openssl x509 -in ca.crt -noout -pubkey \| openssl pkey -pubin -outform DER \| sha256sum` | `863a54a3b10a4504513d9db02cfa980dee6bd5335e963fb7f10e2cd385662537` |
+| Issuer Subject | `step certificate inspect issuer.crt --short` | `identity.linkerd.cluster.local` |
+| Issuer signed by | same | `root.linkerd.cluster.local` (via `ca.crt`/`ca.key`) |
+| Issuer validity | same | `2026-06-14T10:43:28Z` → `2027-06-14T10:43:28Z` (1 yr = 8760h) |
+| Issuer key type | same | ECDSA P-256 |
+| Issuer SHA-256 cert fingerprint | `step certificate fingerprint issuer.crt` | `69e886e01bbc0a274e7ea24c5685c7e9e5de3709694c13102b89e32b1b9af943` |
+| Issuer SPKI SHA-256 | `openssl x509 -in issuer.crt -noout -pubkey \| openssl pkey -pubin -outform DER \| sha256sum` | `24b594a816f797a6c8f0b69b4d85ad1249e0343a2f0c17d0164240327103abf4` |
+| On-disk file inventory (mode 0600 on `.key` files) | `ls -la` + `stat -c '%a %n'` | `-rw------- ca.crt 599b` · `-rw------- ca.key 227b` · `-rw------- issuer.crt 648b` · `-rw------- issuer.key 227b` |
+
+### Sub-step status
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 7.1 `step certificate create root.linkerd.cluster.local ca.crt ca.key --profile root-ca --no-password --insecure` | ✅ | Output: `Your certificate has been saved in ca.crt. / Your private key has been saved in ca.key.` Both files at mode 0600 immediately on creation (`step` default for `--no-password` output). `--insecure` here is `step`'s required ack that `--no-password` produces an unencrypted PEM; not actually insecure given Phase 8.4 moves the security boundary to Vault and the on-disk PEMs are shredded right after. |
+| 7.2 `step certificate create identity.linkerd.cluster.local issuer.crt issuer.key --profile intermediate-ca --not-after 8760h --no-password --insecure --ca ca.crt --ca-key ca.key` | ✅ | Output: `Your certificate has been saved in issuer.crt. / Your private key has been saved in issuer.key.` `--not-after 8760h` = 1 year, matching the README and Linkerd's recommended issuer TTL. The intermediate carries `pathlen 0` from the `intermediate-ca` profile — it can issue end-entity certs (the per-workload Linkerd identity certs that `linkerd-identity` mints at runtime, ~24h TTL each, auto-rotated) but not further CAs. |
+| Verify the signing chain | ✅ | `step certificate verify issuer.crt --roots ca.crt` produced no output and returned exit code 0 (silence = success). This is the load-bearing check that the root signed the issuer correctly. If this had failed, Phase 12 would have failed in `linkerd-control-plane-staging` sync with a confusing "invalid issuer cert chain" error and the operator would be debugging the wrong layer. |
+| Verify `.gitignore` covers the four files | ✅ (after ↑ gap closed) | Commit `a24fefac` added the safety-net block. Verified post-commit: `git check-ignore -v ca.crt ca.key issuer.crt issuer.key` returned 4 matching rules (`.gitignore:89:/ca.crt   ca.crt`, etc.), `git status` reports `nothing to commit, working tree clean`. The 4 files still exist on disk for Phase 8.4 to consume but are no longer in git's untracked list, so an accidental `git add .` cannot stage them. See operator gotcha #1 below. |
+
+### Phase 7 operator gotchas recorded for the next deploy
+
+**1. The repo's `.gitignore` did NOT cover the four mesh CA files
+out of the box.** Running Phase 7 verbatim leaves `ca.crt`, `ca.key`,
+`issuer.crt`, `issuer.key` as Untracked at the repo root — one
+accidental `git add .` away from staging both Linkerd private keys.
+`git check-ignore -v ca.crt ca.key issuer.crt issuer.key` returned
+no matches (exit 1 per file) before commit `a24fefac` added the
+safety-net block. The block is repo-root-anchored (leading `/`) so
+legitimate certificate fixtures under `helm/*/templates/` or
+`tests/*` are unaffected. Commit `a24fefac` also added safety-net
+rules for `vault-init.txt`, `etradie-<env>-creds.txt`, the
+cloudflared tunnel token, and the short-lived Cloudflare API
+bootstrap token — same posture (kept at `$HOME` per the runbook,
+rule catches the case where an operator runs the command from
+inside the repo).
+
+**2. Capture the fingerprints BEFORE shredding the on-disk files in
+Phase 8.4.** The fingerprints recorded in the table above are the
+only way to verify, in Phase 8.4 and again in Phase 12, that Vault
+holds the exact PEM bytes generated by `step`. Skipping the capture
+is silently dangerous: a trailing-newline-stripped or whitespace-
+truncated copy of the cert in Vault still decodes as a valid X.509
+object but produces a *different* SHA-256 fingerprint, and surfaces
+in Phase 12 as `linkerd-identity` failing to start with a confusing
+"invalid issuer cert chain" error that points at the cert layer
+rather than the storage layer. The Phase 8.4 verification pattern:
+```bash
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -field=trust_anchor_pem secret/etradie/platform/linkerd/staging \
+  | step certificate fingerprint /dev/stdin
+# MUST equal: dedfbeff9e57759d58834cfc528f5aa937d24ecbe7b1c9929c084d7d4e5e7fff
+```
+Same pattern for `issuer_tls_crt` (must equal
+`69e886e01bbc0a274e7ea24c5685c7e9e5de3709694c13102b89e32b1b9af943`).
+The `issuer_tls_key` cannot be fingerprint-verified the same way
+(it's a private key, not a cert), but the issuer-cert match is
+sufficient: Linkerd refuses to start if the issuer key does not
+match the issuer cert's public key, so any key corruption surfaces
+the same way.
+
+**3. `--no-password --insecure` is the correct flag combination
+here, not a security compromise.** `step` requires `--insecure` as a
+run-time acknowledgement that `--no-password` produces an
+unencrypted PEM private key on disk. That is what we want: Phase 8.4
+reads the key with `@issuer.key` (Vault's flat-PEM file-load syntax)
+and an encrypted PEM would force interactive password entry in the
+middle of `vault kv put`. The security boundary is moved to Vault
+immediately after the write, and the on-disk PEMs are
+`shred -u`'d. If the flag is dropped, `step` prompts for a
+passphrase, the operator types one to make the command proceed,
+and the same passphrase becomes a new secret to track that nothing
+in the runbook actually consumes — worse posture, not better.
+
+**4. ECDSA P-256 is what the chart and Linkerd both expect; do not
+switch to RSA "because it's the default elsewhere".** The Linkerd
+2.x control plane assumes ECDSA P-256 issuer keys; the
+`linkerd-control-plane` Helm chart's `identity.issuer.scheme:
+kubernetes.io/tls` consumes whatever PEM you give it, but a
+workload-cert signing path that uses RSA-2048 produces ~5x larger
+proxy-to-proxy handshake payloads and Linkerd's docs explicitly
+recommend ECDSA P-256 for this reason. `step` defaults `root-ca`
+and `intermediate-ca` profiles to ECDSA P-256, which is correct;
+overriding with `--kty RSA --size 2048` is a foot-gun that surfaces
+only as mesh latency regressions in Phase 14.5 load testing, not
+as an obvious error.
+
+### Expected end state at end of Phase 7
+
+- Four files at the repo root (`~/eTradie`): `ca.crt` (599b),
+  `ca.key` (227b, mode 0600), `issuer.crt` (648b),
+  `issuer.key` (227b, mode 0600).
+- `.gitignore` covers all four; `git status` reports
+  `working tree clean`.
+- Fingerprints captured in this PROGRESS entry above.
+- Phase 8 has not started yet — the SSH tunnel terminal from
+  Phase 2.3 will be needed again for Phase 8.1 (`terraform apply`
+  needs `kubectl` reachability to the K3s API), so the operator
+  should keep that tunnel open.
