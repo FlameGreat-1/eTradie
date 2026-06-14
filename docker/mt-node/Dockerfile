@@ -140,11 +140,12 @@ RUN set -eux; \
 # ── tini as PID 1 ───────────────────────────────────────────────────────────────────
 RUN set -eux; \
     arch="$(dpkg --print-architecture)"; \
-    wget -qO /usr/bin/tini "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${arch}"; \
-    wget -qO /tmp/tini.sha256 "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${arch}.sha256sum"; \
-    cd /tmp && sha256sum -c tini.sha256; \
-    chmod +x /usr/bin/tini; \
-    rm -f /tmp/tini.sha256
+    cd /tmp; \
+    wget -qO "tini-${arch}" "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${arch}"; \
+    wget -qO tini.sha256 "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${arch}.sha256sum"; \
+    sha256sum -c tini.sha256; \
+    install -m 0755 "tini-${arch}" /usr/bin/tini; \
+    rm -f "tini-${arch}" tini.sha256
 
 # ── Non-root user (matches helm/mt-node runAsUser=1000) ──────────
 RUN set -eux; \
