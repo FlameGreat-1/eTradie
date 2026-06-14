@@ -684,7 +684,7 @@ marked pending below.
 | Sub-step | Status | Notes |
 |---|---|---|
 | 8.0 Pre-flight (7 checks per README §8.0) | ✅ | All 20 OK lines printed: K3s reachable, vault-0 Running, vault-init.txt present, root token captured (28 chars), 4 mesh CA files + chain verified, tunnel token present, 4 Cloudflare Origin Certs present, .env present, 5 CLIs on PATH (terraform/helm/jq/openssl/step). `ROOT_TOKEN` exported in the working terminal shell. See operator gotcha #1 below — the script had a silent-failure bug that this deploy surfaced; commit fixed the bug in README §8.0 in lockstep with closing this checkpoint. |
-| 8.1 Terraform apply (env-segmented Vault path schema) | ⏸ pending | Next sub-step. |
+| 8.1 Terraform apply (env-segmented Vault path schema + mt-node tenant auth infrastructure) | ✅ | Final `Apply complete! Resources: 18 added, 1 changed, 0 destroyed.` Took 4 attempts to land cleanly — every failure mode captured in the operator gotchas below. **End state in Vault** (read via `vault kv list -mount=etradie etradie/`): 3 top-level prefixes (`data-layer/`, `platform/`, `services/`) plus the `tenants/` prefix from `mt_node_tenant_secrets.tf`. 13 KV paths total, each holding the terraform `bootstrap: placeholder` value (§8.4–8.10 will overwrite). The Kubernetes auth backend's `tune` block was modified from Phase 3.4 defaults to terraform's declared 15m/1h/unauth values (1 changed); the auth backend itself was IMPORTED from Phase 3.4's `vault auth enable kubernetes` (operator gotcha #4). **Phase 11 effectively done**: the same terraform module creates both the KV schema AND the mt-node tenant auth roles + policies, so when we reach Phase 11 a re-apply will report `0 added, 0 changed, 0 destroyed`. |
 | 8.2 Generate shared secrets ONCE | ⏸ pending | — |
 | 8.3 Persist generated secrets to `~/etradie-staging-creds.txt` (mode 0600) | ⏸ pending | — |
 | 8.4 Data-layer paths (postgres + redis + chromadb) | ⏸ pending | — |
@@ -746,3 +746,45 @@ LISTEN 0  128      [::1]:6443    [::]:*
 If this returns no lines, the tunnel terminal was closed. Reopen
 it in a dedicated terminal (`ssh -N -L 6443:127.0.0.1:6443
 etradie@<IP>`); do NOT try to fix kubectl by changing kubeconfig.
+
+**5. The terraform vault provider needs `VAULT_TOKEN` exported in
+the apply shell.** ROOT_TOKEN alone is not enough — the terraform
+vault provider reads from `VAULT_TOKEN` specifically. On the staging
+deploy the apply failed on every resource with `Error: no vault
+token set on Client` until we ran `export VAULT_TOKEN="$ROOT_TOKEN"`
+before the apply. The fix is in the operator's shell, not the
+terraform code; the README §8.1.A block now exports VAULT_TOKEN
+as part of opening the port-forward and continues to keep it in
+the same shell through §8.1.B.
+
+**6. The 'etradie/' KV-v2 mount must be enabled BEFORE terraform
+apply.** The terraform module's `variables.tf` defaults
+`vault_mount = "etradie"`, but Phase 3.4 (pre-this-revision) only
+enabled `secret/`. Apply failed with `Code 404: no handler for
+route "etradie/data/etradie/..."` until we ran
+`vault secrets enable -version=2 -path=etradie kv` against vault-0.
+Fix in README §3.4.1b (sibling commit): enable BOTH mounts at
+Phase 3.4 (secret/ for dev/test, etradie/ for the canonical
+platform writes). Both `enable` calls now `|| echo idempotent`
+so re-running is safe.
+
+**7. The 'kubernetes/' auth backend already exists from Phase 3.4.**
+Terraform's `vault_auth_backend.kubernetes` resource tries to
+re-enable it and Vault rejects with `Code 400: path is already in
+use at kubernetes/`. The fix is `terraform import
+vault_auth_backend.kubernetes kubernetes` BEFORE re-applying.
+The staging deploy did this once; subsequent re-applies (and
+production's first apply on an already-Phase-3.4'd Vault) need
+the same import. The README's Phase 11 section will be amended
+to include the import as a pre-apply step on environments where
+Phase 3.4 has already run.
+
+**8. ClusterSecretStore mount mismatch (pre-this-revision).** The
+ReadME §4.2 (pre-this-revision) created the ClusterSecretStore
+with `path: "secret"`. Combined with gotcha #6, that meant chart
+ExternalSecrets would have looked at the WRONG mount. Fixed in
+§4.2 (sibling commit) by changing the default to `path: "etradie"`
+and adding an inline `kubectl patch` recipe for in-place fixup on
+an already-deployed cluster (the staging deploy needs that
+patch executed before §8.4 onwards). Audit trail: the deploy
+that surfaced this is logged in this checkpoint.
