@@ -31,9 +31,9 @@
 | 1 | VPS host hardening | ✅ DONE |
 | 2 | Install K3s | ✅ DONE |
 | 2.5 | Build + push mt-node Wine image | ✅ DONE |
-| 3 | Vault + Vault Agent Injector | ⏸ pending |
-| 4 | External Secrets Operator + ClusterSecretStore | ⏸ pending |
-| 5 | Stakater Reloader | ⏸ pending |
+| 3 | Vault + Vault Agent Injector | ✅ DONE |
+| 4 | External Secrets Operator + ClusterSecretStore | ✅ DONE |
+| 5 | Stakater Reloader | ✅ DONE |
 | 6 | Cloudflare Tunnel | ⏸ pending |
 | 7 | Generate Linkerd mesh CA | ⏸ pending |
 | 8 | Bootstrap Vault paths + populate every secret | ⏸ pending |
@@ -278,3 +278,118 @@ workstation build to also enforce supply-chain pinning in CI.
 ### Operator gotcha recorded for the next deploy
 
 **Default `docker push` parallelism saturates home upload bandwidth on multi-GB images.** With three concurrent layer uploads each carrying 1.5–2.8 GB, the workstation's upstream is divided three ways and individual layer progress appears stalled even when the connection is alive. After ~15 minutes of apparent stall, `ss -tn | grep -E ':443.*ESTAB'` showed NO active TCP connections to GHCR — the parallel push had silently died (likely NAT-side connection-track timeout on the long-running upload). Solution: set `"max-concurrent-uploads": 1` in `~/.docker/config.json` (one layer at a time, each getting full upload bandwidth) and re-run `docker push <tag>`. Docker queries GHCR for layer existence first, so already-pushed layers show `Layer already exists` and only the truly unfinished ones re-upload. No `make build-mt-node` rebuild required — just `docker push <tag>` directly. Future deploys with large images (mt-node, future Linkerd-viz / Prometheus stacks) should pre-emptively set this config before the first push.
+
+---
+
+## Phase 3 — Vault + Vault Agent Injector ✅
+
+Executed against the staging cluster (single-node K3s on the Contabo
+VPS) via `kubectl` through the Phase 2.3 SSH local-forward. Every
+command ran on the workstation; the SSH tunnel terminal stayed
+untouched the whole phase. The CI failure surfaced just before this
+phase (`Production build guard - mt-node`) was resolved by setting
+the `ETRADIE_ALLOW_PUBLIC_INSTALLER_CDN=true` GitHub Actions repo
+secret as a staging-only opt-in; a Cloudflare R2 mirror is deferred
+until pre-production cutover.
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 3.1 Install Vault chart 0.28.1 (standalone, dataStorage 10Gi `local-path`, injector + ui on) | ✅ | `helm install` succeeded first try. Pods scheduled within ~30s: `vault-0` Running **0/1** (sealed, readiness gates on `Sealed=false`), `vault-agent-injector-7bcc447788-xv7p4` Running **1/1**. PVC `data-vault-0` Bound 10Gi RWO `local-path`. Took the 0/1 on `vault-0` as the expected pre-unseal state and moved to 3.2 immediately. |
+| 3.2 Init + unseal | ✅ (after README hardening) | **Hit twice in succession**: (a) original README used `kubectl exec -ti vault-0 -- vault operator init > vault-init.txt` — captured CRLF line endings (`^M$` in `cat -A`); (b) even after `tr -d '\r'` cleanup, every key/line was framed by ANSI color escapes (`^[[0m...^[[0m`) that Vault writes when stdout is a TTY. Both `awk '{print $4}'` and `awk '{print $NF}'` then extracted strings containing embedded escape bytes; `vault operator unseal` returned `400 Bad Request: 'key' must be a valid hex or base64 string` three times in a row, once per attempted unseal. Diagnosed via `sed -n '1p' ~/vault-init.txt \| cat -A`. Fix: replaced the init line with a piped capture `kubectl -n vault exec -i vault-0 -- vault operator init ... \| tr -d '\r' \| sed 's/\\x1b\\[[0-9;]*m//g' > vault-init.txt` (drop `-t`, strip CR + ANSI codes at capture time). Unseal loop similarly switched from `exec -ti` to `exec -i` and from `awk '{print $4}'` to `awk -v n="$i" '$0 ~ "Unseal Key " n ":" {print $NF}'`. After fix: 3 unseals reported progress `1/3 -> 2/3 -> 0/3 + Sealed false`, `vault status` showed `Initialized true / Sealed false / Total Shares 5 / Threshold 3`, `vault-0` flipped to Running **1/1**. README §3.2 patched in lockstep so a future operator never re-encounters this. |
+| 3.3 Verify injector | ✅ | Already covered by 3.1's `get pods`: `vault-agent-injector-7bcc447788-xv7p4` Running 1/1 throughout. |
+| 3.4 Auth + KV mount + ESO policy + role | ✅ (in-pod pattern, README hardened) | Original README used `kubectl -n vault port-forward svc/vault 8200:8200 &` + workstation `vault` CLI. The workstation has no `vault` CLI (it was masked in Phase 0.1 step 2). Switched to the in-pod pattern: `kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" vault ...`. All five `Success!` confirmations returned cleanly: `Enabled the kv secrets engine at: secret/`, `Enabled kubernetes auth method at: kubernetes/`, `Data written to: auth/kubernetes/config`, `Uploaded policy: etradie-eso`, `Data written to: auth/kubernetes/role/etradie-eso`. Policy write used heredoc-to-`/tmp/eso.hcl` inside the pod (the original `vault policy write etradie-eso - <<EOF` is brittle through stdin-piping). Verification: `vault secrets list` shows `secret/ kv`, `vault auth list` shows `kubernetes/`, `vault policy read etradie-eso` returns the two path stanzas verbatim, `vault read auth/kubernetes/role/etradie-eso` confirms `bound_service_account_names=[external-secrets]`, `bound_service_account_namespaces=[external-secrets]`, `policies=[etradie-eso]`, `token_ttl=1h`. README §3.4 patched: replaced the port-forward block with the in-pod pattern (the alternate path is mentioned but discouraged). |
+| 3.5 Token-review SA `vault-auth` + ClusterRoleBinding `vault-auth-delegator` | ✅ | Both objects created cleanly (`serviceaccount/vault-auth created`, `clusterrolebinding.rbac.authorization.k8s.io/vault-auth-delegator created`). The `\|\| true` on each line is precautionary; the Vault chart did NOT pre-create the SA on this deploy (the chart auto-creates it only when `injector.enabled=true` AND no `vault-auth` exists; chart version 0.28.1 may have changed this contract). Phase 11 Terraform's `-var k8s_reviewer_jwt=$(kubectl create token -n vault vault-auth)` will now succeed. |
+
+### Phase 3 open security debt for this deploy
+
+During the 3.2 ANSI-corruption diagnostic, the following Vault secrets
+were copied into the assistant chat session:
+
+- **Unseal Key 1** (one of five Shamir shares; threshold 3 of 5)
+- **Initial Root Token** (Vault 1.17 root token, 28 chars)
+
+For STAGING this is accepted: no real user data is in Vault yet, no
+production credentials are stored, the platform charts are not yet
+wired to this Vault, and the threshold of 3 of 5 means a single leaked
+share is not sufficient to unseal. The remaining four Unseal Keys are
+uncompromised.
+
+**Rotation MUST run before any production cutover** (and before any
+production-grade secret is written to Vault). Procedure (record exact
+commands in a pre-production runbook entry):
+
+  1. `vault operator generate-root -init` then complete the OTP flow
+     to mint a fresh root token (HashiCorp docs:
+     https://developer.hashicorp.com/vault/docs/commands/operator/generate-root).
+  2. `vault operator rekey -init -key-shares=5 -key-threshold=3` to
+     re-Shamir-split with new shares, invalidating the disclosed
+     Unseal Key 1.
+  3. `vault token revoke <old-root-token>` to revoke the exposed root.
+  4. Replace `~/vault-init.txt` with the new bundle, `chmod 600`, move
+     offline.
+
+Tracked here so a future operator picking up this PROGRESS.md sees the
+debt before treating staging-Vault credentials as production-grade.
+
+### Phase 3 operator gotchas recorded for the next deploy
+
+**1. `kubectl exec -ti` corrupts captured Vault output.** Any command
+that writes Vault state to stdout (notably `vault operator init`)
+emits ANSI color codes when stdout is a TTY. Capturing those bytes
+into a file produces strings that `vault operator unseal` rejects
+with `400 'key' must be a valid hex or base64 string`. Diagnosis is
+non-obvious from the error alone; the only visible clue is `cat -A`
+on the saved file showing `^[[0m...^[[0m^M$` framing around each
+key/token. The README §3.2 fix is to drop `-t` and pipe the stream
+through `tr -d '\r' | sed 's/\\x1b\\[[0-9;]*m//g'` at capture time.
+Apply the same `-i`-only pattern to any future `exec` that captures
+Vault output to a variable or file.
+
+**2. No `vault` CLI on the workstation; in-pod execution is
+preferred.** Phase 0.1 step 2 explicitly disabled and masked the
+workstation's `vault.service` systemd unit. The apt `vault` package
+ships server+CLI together; the systemd unit was binding 8200 on the
+workstation and competing with the platform port-forward. The
+cleanest workaround is to drop the README's `port-forward + local
+vault` step entirely and use `kubectl -n vault exec -i vault-0 --
+env VAULT_TOKEN=... vault ...` throughout. The in-pod binary is by
+definition compatible with the server and the forward is no longer
+needed.
+
+**3. `awk '{print $4}'` is brittle.** The original README used it to
+extract Unseal Keys and the root token. `awk -v n="$i" '$0 ~ "Unseal
+Key " n ":" {print $NF}'` is robust to trailing whitespace, robust to
+the line containing fewer than four fields, and explicit about which
+line it matches. README §3.2 has been switched to `$NF` for every
+key/token extraction. Also note: Vault 1.17 root tokens are `hvs.` +
+24 chars = **28 chars total** (not the ~95-char shape used by older
+Vault releases). The README's verification line `${#ROOT_TOKEN} chars`
+should print exactly `28`; a different number means the extraction
+picked up bytes adjacent to the token.
+
+---
+
+## Phase 4 — External Secrets Operator + ClusterSecretStore ✅
+
+Executed the README block verbatim. No deviation, no gotcha.
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 4.1 Install ESO chart 0.10.4 with `installCRDs=true` | ✅ | All three deployments scheduled within ~80s and Available: `external-secrets-747cb48d85-z2gnj` (controller), `external-secrets-cert-controller-694f9c5b84-hd7rc`, `external-secrets-webhook-7cc8d8ddb4-fj4pl`. All Running 1/1. `kubectl -n external-secrets wait --for=condition=Available` reported `deployment.apps/external-secrets condition met`. The 6 CRDs the platform consumes are present: `clusterexternalsecrets`, `clustersecretstores`, `externalsecrets`, `pushsecrets`, `secretstores`, `vaultdynamicsecrets`. Chart 0.10.4 also installs the `generators.external-secrets.io` family (`acraccesstokens`, `ecrauthorizationtokens`, `fakes`, `gcraccesstokens`, `githubaccesstokens`, `passwords`, `uuids`, `webhooks`) which the platform does not currently use — harmless. |
+| 4.2 Apply `ClusterSecretStore vault-backend` | ✅ | Applied via heredoc per README. `kubectl get clustersecretstore vault-backend` returned `STATUS: Valid / CAPABILITIES: ReadWrite / READY: True` on first reconciliation (< 1s). Status conditions: `reason=Valid`, `message=store validated`. This is the load-bearing confirmation that ESO can (a) reach `http://vault.vault.svc.cluster.local:8200` via in-cluster DNS, (b) authenticate as `external-secrets/external-secrets` SA against the `etradie-eso` Vault Kubernetes auth role from Phase 3.4, and (c) read+write on the `secret/` KV-v2 mount. Every chart's `ExternalSecret` in Phases 12+ references `secretStoreRef: { name: vault-backend, kind: ClusterSecretStore }` and will resolve through this object. |
+
+No Phase 4 operator gotchas. The README block is correct as-shipped
+(post Phase 3 fixes; Phase 3.4 had to be in-pod for Phase 4.2 to
+resolve, and that is now the canonical path).
+
+---
+
+## Phase 5 — Stakater Reloader ✅
+
+Executed the README block verbatim. No deviation, no gotcha.
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 5.1 Install Reloader chart | ✅ | `helm repo add stakater + helm install reloader stakater/reloader -n reloader --create-namespace` succeeded first try. `kubectl -n reloader rollout status deployment/reloader-reloader --timeout=120s` returned `successfully rolled out` in ~24s. Single pod `reloader-reloader-c7d8d988-hpj92` Running 1/1, deployment `reloader-reloader   1/1   1   1`. Reloader will watch every Secret carrying `secret.reloader.stakater.com/reload: <secret-name>` (notably the mt-node platform Secret that holds `DEFAULT_ZMQ_AUTH_TOKEN`) and roll the dependent workloads on rotation. |
+
+No Phase 5 operator gotchas. The README block is correct as-shipped.

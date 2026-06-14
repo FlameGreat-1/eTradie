@@ -357,6 +357,61 @@ Everything below runs from your workstation.
 
 ---
 
+## Daily operator routine (every Phase 3+ command depends on this)
+
+From this point onward, every `kubectl`, `helm`, `argocd`, and `terraform` command in this runbook runs ON YOUR WORKSTATION and reaches the K3s API server on the VPS through an SSH local-forward. The K3s API is firewalled off the public internet by the ufw rules set in Phase 1.6; the SSH tunnel is the only authorized path in.
+
+You must have TWO terminals open at the same time before running any command in Phases 3 onward:
+
+**Terminal 1 — the tunnel terminal.** Opens the encrypted SSH local-forward that carries every `kubectl` / `helm` / `argocd` packet to the K3s API. It is a foreground process and looks frozen (no shell prompt) by design — that is correct. Leave it alone for the entire work session. Closing it (Ctrl+C, `exit`, closing the window) tears the tunnel down immediately and the next `kubectl` call hangs for ~30s and fails with `dial tcp 127.0.0.1:6443: connect: connection refused`.
+
+**Terminal 2 — the working terminal.** This is where every subsequent command in this runbook is typed. You may open additional working terminals (Terminal 3, 4, ...) as needed; they all share the single tunnel from Terminal 1.
+
+Run these once per WSL boot, in this order:
+
+```bash
+# 1. Unlock the SSH private key into ssh-agent (once per WSL boot).
+#    Without this, every ssh / scp / tunnel command prompts for the
+#    passphrase. The agent persists across new terminals WITHIN one
+#    WSL session (see Phase 1 measure 2 for the ~/.bashrc snippet);
+#    a wsl --shutdown / workstation reboot / last-window-closed event
+#    kills the agent and you must re-run this on the next WSL boot.
+ssh-add ~/.ssh/id_ed25519
+ssh-add -l                                              # confirm the key is loaded
+
+# 2. Open the tunnel IN A DEDICATED TERMINAL (Terminal 1).
+#    -N: do not run a remote command; just forward.
+#    -L 6443:127.0.0.1:6443: forward local 6443 -> VPS 127.0.0.1:6443
+#    (the K3s API binds loopback inside the VPS; ufw blocks the
+#    public interface; the tunnel terminates onto the loopback that
+#    K3s already trusts).
+#    Replace 13.140.164.173 with the actual VPS public IP.
+ssh -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173
+#    ^ no prompt returns. Leave this terminal open. Do not Ctrl+C.
+```
+
+In a SEPARATE terminal (Terminal 2), verify the tunnel is live before running ANY runbook command:
+
+```bash
+kubectl get nodes
+# expect: vmi3362776   Ready   control-plane,master   ...   v1.30.4+k3s1
+```
+
+If `kubectl get nodes` hangs for ~30s and then fails, the tunnel is down. Re-run the Terminal 1 command. Common causes: Terminal 1 was closed, WSL was shut down, the workstation was rebooted, the network changed (laptop sleep / wifi switch). Reopening the tunnel is always safe.
+
+**Optional — self-healing tunnel.** For long work sessions (a full deploy day) operators may install `autossh` and replace the Terminal 1 command with:
+
+```bash
+sudo apt install -y autossh
+autossh -M 0 -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173
+```
+
+`autossh` watches the tunnel and reconnects automatically over network blips (laptop suspend, wifi switch, NAT timeout). The dedicated-terminal pattern with plain `ssh` works fine for shorter sessions and was used for the staging deploy.
+
+**Safety — do NOT run runbook commands as `root` over a plain `ssh etradie@<host>` shell.** A plain shell on the VPS lacks the workstation tooling (helm, terraform, argocd CLI, the cloned repo) and bypasses the kubeconfig-based RBAC posture this runbook depends on. The tunnel-from-workstation pattern is the canonical operator topology for every phase below.
+
+---
+
 ## Phase 2.5 — Build + push the mt-node Wine image (do this BEFORE you rely on Phase 0.4)
 
 The app images (engine/gateway/execution/management/billing/edge-ingress)
@@ -436,6 +491,28 @@ docker manifest inspect ghcr.io/flamegreat-1/etradie-mt-node:0.1.0 >/dev/null \
 
 Injector is MANDATORY (per-tenant mt-node credentials are rendered to tmpfs, never a plaintext Secret).
 
+> This phase is environment-independent: the same commands run for
+> staging and production. Where the original README used a workstation
+> `vault` CLI through `kubectl port-forward`, this revision uses
+> `kubectl exec -i vault-0 -- env VAULT_TOKEN=... vault ...` instead.
+> The in-pod pattern uses the exact Vault binary the server ships,
+> needs no local CLI, and avoids the port-forward staying bound to a
+> shell PID. Two reasons matter:
+>
+> - **No `vault` CLI on the workstation by design.** Phase 0.1 step 2
+>   disabled and masked the workstation `vault.service` unit (apt
+>   ships server+CLI together; the unit competes with the platform
+>   forward on port 8200). The in-pod pattern sidesteps the whole
+>   class of CLI-version / port-collision issues.
+> - **`kubectl exec -ti` corrupts captured Vault output.** Vault
+>   writes ANSI color escapes when stdout is a TTY. Capturing
+>   `vault operator init` to a file produces `\x1b[0m...\x1b[0m`
+>   framing around each Unseal Key + the root token; `vault operator
+>   unseal` then rejects extracted strings with `400 'key' must be a
+>   valid hex or base64 string`. This revision drops `-t` from every
+>   `exec` and pipes init output through `tr -d '\r' | sed
+>   's/\x1b\[[0-9;]*m//g'` at capture time.
+
 3.1 Install:
 ```bash
 helm repo add hashicorp https://helm.releases.hashicorp.com
@@ -451,40 +528,89 @@ helm install vault hashicorp/vault \
   --set 'ui.enabled=true'
 ```
 
+**Verify before continuing:**
+```bash
+kubectl -n vault get pods
+kubectl -n vault get pvc
+```
+Expect: `vault-0` Running **0/1** (sealed — readiness gates on `Sealed=false`, this is normal), `vault-agent-injector-...` Running **1/1**, PVC `data-vault-0` Bound 10Gi `local-path`.
+
 3.2 Init + unseal (STORE `vault-init.txt` OFFLINE — losing it = total data loss):
 ```bash
-kubectl -n vault wait --for=condition=Ready pod/vault-0 --timeout=120s
-kubectl -n vault exec -ti vault-0 -- vault operator init -key-shares=5 -key-threshold=3 > vault-init.txt
-for i in 1 2 3; do
-  KEY=$(grep "Unseal Key $i:" vault-init.txt | awk '{print $4}')
-  kubectl -n vault exec -ti vault-0 -- vault operator unseal "$KEY"
-done
-kubectl -n vault exec -ti vault-0 -- vault status   # Sealed: false
+cd ~
+umask 077
+# Capture init output with TTY artefacts stripped at write time.
+# Dropping -t prevents the ANSI escapes; tr+sed scrub anything that
+# slips through. The 'wait' may report timeout because vault-0 is
+# sealed (0/1) — that is expected; kubectl exec works on a sealed Vault.
+kubectl -n vault wait --for=condition=Ready pod/vault-0 --timeout=120s 2>&1 || true
+kubectl -n vault exec -i vault-0 -- vault operator init -key-shares=5 -key-threshold=3 \
+  | tr -d '\r' | sed 's/\x1b\[[0-9;]*m//g' > vault-init.txt
+chmod 600 vault-init.txt
+ls -la ~/vault-init.txt
+wc -l ~/vault-init.txt   # 11 lines: 5 unseal keys + blank + root token + blank + 3-line preamble
 ```
 
-3.3 Verify injector:
+Unseal with the first three Shamir shares (threshold is 3 of 5):
+```bash
+for i in 1 2 3; do
+  KEY=$(awk -v n="$i" '$0 ~ "Unseal Key " n ":" {print $NF}' ~/vault-init.txt)
+  kubectl -n vault exec -i vault-0 -- vault operator unseal "$KEY"
+done
+kubectl -n vault exec -i vault-0 -- vault status   # Initialized true / Sealed false
+kubectl -n vault get pods                          # vault-0 now Running 1/1
+```
+
+3.3 Verify injector (already covered by 3.1's `get pods`, included for completeness):
 ```bash
 kubectl -n vault get pods -l app.kubernetes.io/name=vault-agent-injector   # Running 1/1
 ```
 
-3.4 Auth + KV mount + ESO policy:
+3.4 Auth + KV mount + ESO policy + role (all in-pod, no port-forward, no local `vault` CLI):
 ```bash
-ROOT_TOKEN=$(grep 'Initial Root Token:' vault-init.txt | awk '{print $4}')
-kubectl -n vault port-forward svc/vault 8200:8200 &
-export VAULT_ADDR=http://127.0.0.1:8200
-export VAULT_TOKEN=$ROOT_TOKEN
-vault status
-vault secrets enable -version=2 -path=secret kv
-vault auth enable kubernetes
-vault write auth/kubernetes/config kubernetes_host=https://kubernetes.default.svc.cluster.local
-vault policy write etradie-eso - <<'EOF'
+ROOT_TOKEN=$(awk '/Initial Root Token:/ {print $NF}' ~/vault-init.txt)
+test -n "$ROOT_TOKEN" && echo "root token captured: ${#ROOT_TOKEN} chars" || { echo "FAILED to capture root token"; exit 1; }
+# Vault 1.17 root tokens are 'hvs.' + 24 chars = 28 chars total.
+
+# 3.4.1 — Enable KV-v2 at path 'secret'.
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault secrets enable -version=2 -path=secret kv
+
+# 3.4.2 — Enable Kubernetes auth backend.
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault auth enable kubernetes
+
+# 3.4.3 — Configure Kubernetes auth backend.
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault write auth/kubernetes/config kubernetes_host=https://kubernetes.default.svc.cluster.local
+
+# 3.4.4 — Write the etradie-eso policy via heredoc-to-/tmp/eso.hcl inside the pod
+#         (the original `vault policy write etradie-eso - <<EOF` pipes stdin
+#         through kubectl exec, which is brittle for multi-line input).
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" sh -c 'cat > /tmp/eso.hcl <<EOF
 path "secret/data/etradie/*"     { capabilities = ["read","list"] }
 path "secret/metadata/etradie/*" { capabilities = ["read","list"] }
 EOF
-vault write auth/kubernetes/role/etradie-eso \
+vault policy write etradie-eso /tmp/eso.hcl
+rm -f /tmp/eso.hcl'
+
+# 3.4.5 — Create the Kubernetes auth role bound to the ESO ServiceAccount.
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault write auth/kubernetes/role/etradie-eso \
   bound_service_account_names=external-secrets \
   bound_service_account_namespaces=external-secrets \
   policies=etradie-eso ttl=1h
+```
+
+**Verify 3.4 stuck:**
+```bash
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" vault secrets list                     # secret/ kv present
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" vault auth list                        # kubernetes/ present
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" vault policy read etradie-eso          # 2 path stanzas
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" vault read auth/kubernetes/role/etradie-eso
+# expect: bound_service_account_names=[external-secrets],
+#         bound_service_account_namespaces=[external-secrets],
+#         policies=[etradie-eso], token_ttl=1h
 ```
 
 3.5 Token-review SA for the mt-node tenant infra (Phase 11):
@@ -492,7 +618,20 @@ vault write auth/kubernetes/role/etradie-eso \
 kubectl create serviceaccount -n vault vault-auth 2>/dev/null || true
 kubectl create clusterrolebinding vault-auth-delegator \
   --clusterrole=system:auth-delegator --serviceaccount=vault:vault-auth 2>/dev/null || true
+kubectl -n vault get sa vault-auth
+kubectl get clusterrolebinding vault-auth-delegator
 ```
+The `|| true` is precautionary — the Vault chart MAY auto-create the SA when `injector.enabled=true`, depending on chart version. Whether the chart pre-created it or not, both objects must exist before Phase 11's Terraform runs `kubectl create token -n vault vault-auth`.
+
+> **Alternate path (port-forward + workstation `vault` CLI)** — preserved for operators who already have a properly-installed local Vault CLI and prefer it. NOT the recommended path: it adds a port-forward you must keep alive in a background shell and requires the local binary's version to be compatible with the server. If you take this path, the commands above remain valid up to and including 3.2's unseal; from 3.4 you would run instead:
+> ```bash
+> ROOT_TOKEN=$(awk '/Initial Root Token:/ {print $NF}' ~/vault-init.txt)
+> kubectl -n vault port-forward svc/vault 8200:8200 &
+> export VAULT_ADDR=http://127.0.0.1:8200
+> export VAULT_TOKEN=$ROOT_TOKEN
+> vault status
+> # then the original `vault secrets enable / auth enable / write / policy / write role` commands.
+> ```
 
 ---
 
