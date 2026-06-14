@@ -103,3 +103,10 @@ resourceQuota:
 nodeSelector: {}
 
 tolerations: []
+
+# GHCR pull credentials. Packages are PRIVATE on GHCR (push posture);
+# K8s containerd needs a docker-registry Secret to pull. The `ghcr-pull`
+# Secret is created per-namespace at Phase 10.0 BEFORE this chart syncs.
+# Future hardening: source this Secret from Vault via ESO (PROGRESS TODO).
+imagePullSecrets:
+  - name: ghcr-pull
