@@ -33,7 +33,7 @@
 | 2.5 | Build + push mt-node Wine image | ✅ DONE |
 | 3 | Vault + Vault Agent Injector | ✅ DONE |
 | 4 | External Secrets Operator + ClusterSecretStore | ✅ DONE |
-| 5 | Stakater Reloader | ⏸ pending |
+| 5 | Stakater Reloader | ✅ DONE |
 | 6 | Cloudflare Tunnel | ⏸ pending |
 | 7 | Generate Linkerd mesh CA | ⏸ pending |
 | 8 | Bootstrap Vault paths + populate every secret | ⏸ pending |
@@ -381,3 +381,15 @@ Executed the README block verbatim. No deviation, no gotcha.
 No Phase 4 operator gotchas. The README block is correct as-shipped
 (post Phase 3 fixes; Phase 3.4 had to be in-pod for Phase 4.2 to
 resolve, and that is now the canonical path).
+
+---
+
+## Phase 5 — Stakater Reloader ✅
+
+Executed the README block verbatim. No deviation, no gotcha.
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 5.1 Install Reloader chart | ✅ | `helm repo add stakater + helm install reloader stakater/reloader -n reloader --create-namespace` succeeded first try. `kubectl -n reloader rollout status deployment/reloader-reloader --timeout=120s` returned `successfully rolled out` in ~24s. Single pod `reloader-reloader-c7d8d988-hpj92` Running 1/1, deployment `reloader-reloader   1/1   1   1`. Reloader will watch every Secret carrying `secret.reloader.stakater.com/reload: <secret-name>` (notably the mt-node platform Secret that holds `DEFAULT_ZMQ_AUTH_TOKEN`) and roll the dependent workloads on rotation. |
+
+No Phase 5 operator gotchas. The README block is correct as-shipped.
