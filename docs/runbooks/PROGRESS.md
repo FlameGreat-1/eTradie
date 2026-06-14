@@ -38,7 +38,7 @@
 | 7 | Generate Linkerd mesh CA | ✅ DONE |
 | 8 | Bootstrap Vault paths + populate every secret | ✅ DONE |
 | 9 | Build + inject envoy WASM filter | ✅ DONE |
-| 10 | ArgoCD + AppProjects + root app | ⏸ pending |
+| 10 | ArgoCD + AppProjects + root app | 🟡 in progress (pre-flight + §10.0 + §10.1 done; §10.2–10.5 pending) |
 | 11 | Provision mt-node tenant Vault infrastructure | ⏸ pending |
 | 12 | Sync the platform in dependency order | ⏸ pending |
 | 13 | Database migrations (auto via engine init) | ⏸ pending |
@@ -1005,6 +1005,112 @@ so the commit reflects the workstation operator. MCP-driven
 follow-up docs commits (this PROGRESS entry + the README sibling
 commit) author as `Nwudele Kendo` because the MCP integration's
 access token is tied to that GitLab user.
+
+---
+
+## Phase 10 — ArgoCD + both AppProjects + root app 🟡 in progress
+
+In-progress checkpoint. Pre-flight + §10.0 + §10.1 complete; §10.2–1§0.5
+pending. The cluster runs ArgoCD v2.13.3; the staging children
+Applications have NOT yet been created (root-app not yet applied).
+Vault state from Phase 8 unchanged; the 14 KV paths remain canonical.
+
+### Phase 10 pre-flight (commit `fc9e0042`)
+
+Two prior decisions baked into git BEFORE §10.0:
+
+| Decision point | Choice | Why | Where it landed |
+|---|---|---|---|
+| GHCR pull credentials | Option B: keep packages PRIVATE; per-namespace `ghcr-pull` Secret | Supply-chain hygiene; aligns with Tier 11 + ufw posture. `write:packages`-scoped PATs are not used in-cluster (least privilege). | 6 chart `values-staging.yaml` files: engine, gateway, execution, management, billing, edge-ingress. mt-node skipped (`mtConnection.enabled=false` in staging Application; chart's StatefulSet does not render at Phase 12). |
+| Linkerd trust anchor delivery | Option A: commit PUBLIC `ca.crt` PEM to chart values | GitOps-pure; the trust anchor is public (no private key); avoids `argocd app set --helm-set-file` drift that root-app's `selfHeal` would otherwise fight. | `deployments/linkerd/control-plane-values.yaml::identityTrustAnchorsPEM` as YAML block scalar. Chart's pre-existing sentinel parameter in `linkerd-control-plane-production.yaml` is now inert. Private issuer cert/key stay in Vault. |
+
+### §10.0 — Pre-flight on the cluster (namespaces + `ghcr-pull` Secret) ✅
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 10.0.1 Tunnel + KUBECONFIG sanity | ✅ | Tunnel terminal reopened (pid 595974, `ssh -N -L 6443 etradie@13.140.164.173`). `kubectl get nodes` returns `vmi3362776 Ready control-plane,master 16h v1.30.4+k3s1`. The `ssh-add` snippet in `~/.bashrc` did NOT pre-load the key in this fresh WSL session — the operator typed the passphrase once at tunnel reopen. For next deploy, the README's daily-operator-routine step (`ssh-add ~/.ssh/id_ed25519` once per WSL boot) keeps subsequent tunnels passphrase-free. |
+| 10.0.2 Create namespaces `etradie-system` + `edge-ingress-system` | ✅ | Both created idempotently (`kubectl create namespace`). The data-layer chart re-creates `etradie-system` at Phase 12, but `CreateNamespace=true` syncOption is a no-op on existing namespace, so this pre-create is safe. |
+| 10.0.3 Create read-only GHCR PAT | ✅ | New classic PAT on `flamegreat-1` with **`read:packages` scope ONLY** (separation of duties from the existing `write:packages`-scoped `~/.ghcr_pat` used for Phase 2.5 push). Saved to `~/.ghcr_pull_pat` (mode 0600, 41 bytes, `ghp_` prefix). `curl /user X-OAuth-Scopes` confirms exactly `read:packages`. **Future hardening (Phase 15.x TODO)**: move the PAT into Vault at `etradie/platform/ghcr-pull:pat`, render via ESO `ExternalSecret` into the K8s `ghcr-pull` Secret per namespace. Same chart-side reference (`imagePullSecrets: [{name: ghcr-pull}]`); only the Secret's provenance changes. |
+| 10.0.4 Create `ghcr-pull` Secret in both namespaces | ✅ | `kubectl create secret docker-registry ghcr-pull --docker-server=ghcr.io --docker-username=flamegreat-1 --docker-password=$(cat ~/.ghcr_pull_pat) --docker-email=not-needed@github.com` in each. Idempotent (delete-if-exists then create). Both verified type `kubernetes.io/dockerconfigjson`; dockerconfigjson decoded to confirm server, username, 40-char password, email all correct. |
+
+### §10.1 — Install ArgoCD v2.13.3 ✅
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 10.1.1 Create `argocd` namespace | ✅ | `kubectl create namespace argocd`. |
+| 10.1.2 Apply ArgoCD v2.13.3 install manifest | ✅ | `kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.13.3/manifests/install.yaml`. Yielded: ArgoCD CRDs (Application, ApplicationSet, AppProject), ServiceAccounts, Roles/RoleBindings, ClusterRoles/ClusterRoleBindings, 4 ConfigMaps, 2 Secrets (argocd-secret + argocd-notifications-secret), 6 Services (applicationset-controller, dex-server, metrics, notifications-controller-metrics, redis, repo-server, server, server-metrics), 6 Deployments (applicationset-controller, dex-server, notifications-controller, redis, repo-server, server), 1 StatefulSet (application-controller), and 7 NetworkPolicies (ArgoCD's own zero-trust ingress posture). |
+| 10.1.3 Wait for argocd-server Available | ✅ | `kubectl -n argocd wait --for=condition=Available deployment/argocd-server --timeout=300s` returned `condition met` after ~32 seconds. |
+| 10.1.4 Final state | ✅ | 7 pods all Running 1/1: `argocd-application-controller-0` (StatefulSet), `argocd-applicationset-controller-66db6984c8-rrtj9`, `argocd-dex-server-647484ccbb-fcn7p`, `argocd-notifications-controller-7f955f9677-nvvxf`, `argocd-redis-6f68b7d98f-dkrp4`, `argocd-repo-server-7d677cd7c5-82xtp`, `argocd-server-564b8cdd98-qw5ct`. All 6 Deployments 1/1 Available. |
+
+### Remaining Phase 10 sub-steps (pending)
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 10.2 Admin password + port-forward + argocd CLI login | ⏸ pending | `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' \| base64 -d` to retrieve admin password; `kubectl -n argocd port-forward svc/argocd-server 8080:443 &` in a dedicated terminal; `argocd login 127.0.0.1:8080 --username admin --password "$PWD" --insecure`. |
+| 10.3 Apply both AppProjects + root-app.yaml | ⏸ pending | `kubectl apply -f deployments/argocd/appproject.yaml` (etradie AppProject) + `kubectl apply -f deployments/argocd/linkerd-appproject.yaml` (linkerd AppProject) + `kubectl apply -f deployments/argocd/root-app.yaml`. Root-app then **immediately creates every Application** under `deployments/argocd/children/` (directory.recurse: true). Staging Applications start auto-sync because their `automated.{prune:true, selfHeal:true}` config. **Their pods will fail until §10.5 completes** because the Linkerd proxy injector webhook is not running yet — every meshed pod has `linkerd.io/inject: enabled` and will hang in Pending without it. |
+| 10.4 (formerly `argocd app set --helm-set-file identityTrustAnchorsPEM=ca.crt`) | **REMOVED** | The pre-flight commit `fc9e0042` embedded the PEM directly into `deployments/linkerd/control-plane-values.yaml`. No CLI override needed. |
+| 10.5 (NEW) Manual sync the 3 `linkerd-*` Applications in wave order | ⏸ pending | `argocd app sync linkerd-identity-production` (wave -6, creates linkerd-identity-issuer Secret from Vault) → `argocd app sync linkerd-crds-production` (wave -5) → `argocd app sync linkerd-control-plane-production` (wave -4, brings up proxy injector + identity controller). After this, the staging children's next reconcile (~3 min) finds the mesh up and their proxy sidecars inject cleanly. |
+
+### Pre-Phase-10.2 session-resume recovery (read this if the session ended)
+
+To pick up at §10.2 from a clean workstation session:
+
+1. **Tunnel**: in a dedicated terminal,
+   - `ssh-add ~/.ssh/id_ed25519` (passphrase once per WSL boot)
+   - `ssh -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173`
+2. **KUBECONFIG**: `export KUBECONFIG=~/.kube/etradie-contabo.yaml`
+3. **Cluster sanity**: `kubectl get nodes` returns `vmi3362776 Ready ... v1.30.4+k3s1`
+4. **ArgoCD up**: `kubectl -n argocd get pods` shows 7 pods Running 1/1
+5. **Pre-flight artefacts present on cluster**:
+   - `kubectl get ns etradie-system edge-ingress-system` → both Active
+   - `kubectl -n etradie-system get secret ghcr-pull -o jsonpath='{.type}'` → `kubernetes.io/dockerconfigjson`
+   - `kubectl -n edge-ingress-system get secret ghcr-pull -o jsonpath='{.type}'` → `kubernetes.io/dockerconfigjson`
+6. **Pre-flight artefacts present on workstation**:
+   - `~/.ghcr_pull_pat` — mode 0600, 41 bytes, `ghp_` prefix (read-only GHCR PAT)
+   - `~/eTradie/ca.crt` — Linkerd root CA PEM (also now committed to `deployments/linkerd/control-plane-values.yaml`; workstation copy retained as recovery reference)
+   - `~/etradie-staging-creds.txt` — mode 0600, holds the 8 §8.2 secret values
+   - `~/vault-init.txt` — mode 0600, holds the Vault unseal keys + root token
+7. **Git state**: HEAD on `main` is at this checkpoint commit. Both GitHub (`origin`) and GitLab (`gitlab`) at the same SHA. ArgoCD reads from GitHub at Phase 10.3 onwards.
+8. **Resume**: proceed to Phase 10.2 per the next README §10 entry.
+
+### Phase 10 operator gotchas (so far)
+
+**19. The tunnel terminal needs an active ssh-agent at reopen time.**
+The staging deploy's tunnel terminal closed (likely a WSL sleep). On
+reopen, `ssh -N -L 6443:127.0.0.1:6443 etradie@HOST` prompted for the
+passphrase because the new shell did not have an `ssh-agent`
+running. Quick fix at reopen: `ssh-add ~/.ssh/id_ed25519` first,
+then reopen the tunnel. Or accept the one-time passphrase typing on
+reopen.
+
+**20. GHCR PAT separation of duties — ENTERPRISE PATTERN.** The
+existing `~/.ghcr_pat` has `repo, write:packages` scope (used to
+push the mt-node image at Phase 2.5). Using a `write:packages`-scoped
+PAT as an in-cluster `ghcr-pull` Secret is over-privileged: a Secret
+leak via etcd / pod exfil / `get secrets` RBAC gives the attacker
+PUSH ability to GHCR, not just PULL. The staging deploy created a
+**second** PAT with `read:packages` ONLY, kept in `~/.ghcr_pull_pat`,
+and used THIS one for the in-cluster Secret. Different blast radius
+on compromise; ~90 seconds of one-time setup cost.
+
+**21. Pre-creating `etradie-system` is idempotent.** The data-layer
+chart will re-create it at Phase 12 sync via `CreateNamespace=true`,
+but on an existing namespace this is a no-op. The pre-create here
+is necessary because we need to drop the `ghcr-pull` Secret into
+the namespace BEFORE root-app spins up the data-layer Application
+(if root-app reaches the engine/gateway/etc. Applications and they
+try to pull images before the Secret exists, every pod fails with
+`ErrImagePull` and we'd be debugging the wrong layer).
+
+**22. ArgoCD's own zero-trust posture.** The v2.13.3 install manifest
+ships 7 NetworkPolicies in the `argocd` namespace (one per
+component). These admit only the in-cluster IPs that ArgoCD itself
+needs (controller ↔ repo-server ↔ redis ↔ server). If a chart
+NetworkPolicy ever needs to talk INTO argocd (e.g. a sync-hook), the
+chart-side NetworkPolicy needs explicit egress to the argocd
+namespace. The platform's existing NetworkPolicies do not, so this
+is not currently a problem; flagged in case a future chart adds a
+sync-hook.
 
 ### Phase 8 operator gotchas recorded for the next deploy
 
