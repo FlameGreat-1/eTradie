@@ -30,7 +30,7 @@
 | 0 | Prerequisites | ✅ DONE |
 | 1 | VPS host hardening | ✅ DONE |
 | 2 | Install K3s | ✅ DONE |
-| 2.5 | Build + push mt-node Wine image | 🟡 in progress |
+| 2.5 | Build + push mt-node Wine image | ✅ DONE |
 | 3 | Vault + Vault Agent Injector | ⏸ pending |
 | 4 | External Secrets Operator + ClusterSecretStore | ⏸ pending |
 | 5 | Stakater Reloader | ⏸ pending |
@@ -267,12 +267,14 @@ no longer fails on push to main. The four SHA secrets remain unset for
 now (CI defaults each to `"skip"`); add them as repo secrets after the
 workstation build to also enforce supply-chain pinning in CI.
 
-### Build + push
+### Build + push attempts
 
-- **First attempt** failed at the tini SHA-verification step because
-  the Dockerfile downloaded the binary to `/usr/bin/tini` but verified
-  it via `sha256sum -c` from `/tmp`, where the file it referenced did
-  not exist. **Fixed on `main`** — stage the download at
-  `/tmp/tini-${arch}` (matches the .sha256sum file), verify, then
-  `install -m 0755` to `/usr/bin/tini`. SHA enforcement preserved.
-- **Second attempt** (post-fix) ... pending re-run.
+| Attempt | Outcome | Failed step | Root cause + fix |
+|---|---|---|---|
+| 1 | ❌ | 3/16 (tini) | Dockerfile downloaded tini directly to `/usr/bin/tini` but verified via `sha256sum -c tini.sha256` from `/tmp`. The .sha256sum file references `tini-${arch}` by name, so `sha256sum -c` looked for `/tmp/tini-amd64` which did not exist (`FAILED open or read`). Fixed on `main`: stage the download at `/tmp/tini-${arch}`, verify, then `install -m 0755` into `/usr/bin/tini`. SHA enforcement preserved. Step 2/16 (apt + Wine `11.0.0.0~noble-1` install, ~993s) completed successfully before the failure, proving the `WINEHQ_VERSION` pin works. |
+| 2 | ❌ | 4/16 (non-root user creation) | Ubuntu 24.04 base ships a default `ubuntu` user/group at UID/GID 1000. `groupadd --gid 1000 mt` then fails with `GID '1000' already exists` (exit code 4). UID/GID 1000 contract is load-bearing: `helm/mt-node/values.yaml::podSecurityContext.runAsUser=1000` pins it. Fixed on `main`: `userdel -r ubuntu \|\| true` and `groupdel ubuntu \|\| true` BEFORE `groupadd --gid 1000 mt`. Idempotent for future base images that drop the default account. |
+| 3 | ✅ | — | Build completed end-to-end in 723.8s (~12 min). Image built as `sha256:4354861ed0627451e9295c3f75b7a6f11a0268dfb092ef08204b5a7779cfaf10`, tagged `ghcr.io/flamegreat-1/etradie-mt-node:0.1.0`. Push to GHCR started with default parallel-upload behaviour; three large layers (`32953adcee64` 1.486 GB, `4da240735395` 1.484 GB, `32b5d27e3da8` 2.756 GB) saturated the workstation upload bandwidth and the parallel push appeared to stall for >15 minutes with no `ss` connections active to GHCR. Switched to `max-concurrent-uploads: 1` in `~/.docker/config.json` and re-ran `docker push`; serial upload completed cleanly. **Final state:** manifest digest `sha256:92225a1f561b77b5fdbcd3c85ff6e4808af8911815a198baddeef07d73b5e26d`, manifest size 3676 bytes. Phase 0.4-style pull verification: `curl ... https://ghcr.io/v2/flamegreat-1/etradie-mt-node/manifests/0.1.0` returns `200`. Image is now consumable by `helm/mt-node` at the path pinned in `helm/mt-node/values-image.yaml`. |
+
+### Operator gotcha recorded for the next deploy
+
+**Default `docker push` parallelism saturates home upload bandwidth on multi-GB images.** With three concurrent layer uploads each carrying 1.5–2.8 GB, the workstation's upstream is divided three ways and individual layer progress appears stalled even when the connection is alive. After ~15 minutes of apparent stall, `ss -tn | grep -E ':443.*ESTAB'` showed NO active TCP connections to GHCR — the parallel push had silently died (likely NAT-side connection-track timeout on the long-running upload). Solution: set `"max-concurrent-uploads": 1` in `~/.docker/config.json` (one layer at a time, each getting full upload bandwidth) and re-run `docker push <tag>`. Docker queries GHCR for layer existence first, so already-pushed layers show `Layer already exists` and only the truly unfinished ones re-upload. No `make build-mt-node` rebuild required — just `docker push <tag>` directly. Future deploys with large images (mt-node, future Linkerd-viz / Prometheus stacks) should pre-emptively set this config before the first push.

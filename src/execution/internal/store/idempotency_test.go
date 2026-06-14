@@ -27,8 +27,10 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	require.NoError(t, pool.Ping(ctx))
-	_, err = pool.Exec(ctx, store.SchemaSQL())
-	require.NoError(t, err)
+	// EnsureSchema (not pool.Exec(SchemaSQL())) so the state +
+	// store test packages running in parallel do not deadlock on
+	// the CREATE OR REPLACE TRIGGER statements inside SchemaSQL.
+	require.NoError(t, store.EnsureSchema(ctx, pool))
 	return pool
 }
 

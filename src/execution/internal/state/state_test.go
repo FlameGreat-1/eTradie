@@ -134,8 +134,10 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	}
 
 	// Ensure schema exists.
-	_, err = pool.Exec(context.Background(), store.SchemaSQL())
-	if err != nil {
+	// Uses an advisory lock so concurrent test packages (state +
+	// store run in parallel by default in `go test ./...`) do not
+	// deadlock on CREATE OR REPLACE TRIGGER inside SchemaSQL.
+	if err := store.EnsureSchema(context.Background(), pool); err != nil {
 		pool.Close()
 		t.Fatalf("schema creation failed: %v", err)
 	}
