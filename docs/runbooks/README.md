@@ -1724,11 +1724,11 @@ Proceed to Phase 9.
 <!-- Original Phase 8.1–8.11 retained below for diff archaeology;
      superseded by the staging-canonical procedure above. -->
 
-#### Phase 8 — superseded original (pre 2026-06-14 staging audit) — REMOVED
+<!-- The pre-2026-06-14 §8 procedure (production-flavored, with the
+     defects this rewrite addresses) is preserved in git history.
+     Recover with `git log -p docs/runbooks/README.md`. -->
 
-Recover from git history with `git log -p docs/runbooks/README.md` if needed.
-
-<!-- BEGIN_REMOVED_SUPERSEDED_PHASE_8
+<!-- LEGACY_PHASE_8_REMOVED_BELOW
 
 8.1 Create empty KV paths:
 ```bash
