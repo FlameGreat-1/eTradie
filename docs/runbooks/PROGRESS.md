@@ -36,7 +36,7 @@
 | 5 | Stakater Reloader | ✅ DONE |
 | 6 | Cloudflare Tunnel | ✅ DONE |
 | 7 | Generate Linkerd mesh CA | ✅ DONE |
-| 8 | Bootstrap Vault paths + populate every secret | 🟡 in progress (§8.0 done; §8.1–8.11 pending) |
+| 8 | Bootstrap Vault paths + populate every secret | ✅ DONE |
 | 9 | Build + inject envoy WASM filter | ⏸ pending |
 | 10 | ArgoCD + AppProjects + root app | ⏸ pending |
 | 11 | Provision mt-node tenant Vault infrastructure | ⏸ pending |
@@ -706,16 +706,179 @@ marked pending below.
 |---|---|---|
 | 8.0 Pre-flight (7 checks per README §8.0) | ✅ | All 20 OK lines printed: K3s reachable, vault-0 Running, vault-init.txt present, root token captured (28 chars), 4 mesh CA files + chain verified, tunnel token present, 4 Cloudflare Origin Certs present, .env present, 5 CLIs on PATH (terraform/helm/jq/openssl/step). `ROOT_TOKEN` exported in the working terminal shell. See operator gotcha #1 below — the script had a silent-failure bug that this deploy surfaced; commit fixed the bug in README §8.0 in lockstep with closing this checkpoint. |
 | 8.1 Terraform apply (env-segmented Vault path schema + mt-node tenant auth infrastructure) | ✅ | Final `Apply complete! Resources: 18 added, 1 changed, 0 destroyed.` Took 4 attempts to land cleanly — every failure mode captured in the operator gotchas below. **End state in Vault** (read via `vault kv list -mount=etradie etradie/`): 3 top-level prefixes (`data-layer/`, `platform/`, `services/`) plus the `tenants/` prefix from `mt_node_tenant_secrets.tf`. 13 KV paths total, each holding the terraform `bootstrap: placeholder` value (§8.4–8.10 will overwrite). The Kubernetes auth backend's `tune` block was modified from Phase 3.4 defaults to terraform's declared 15m/1h/unauth values (1 changed); the auth backend itself was IMPORTED from Phase 3.4's `vault auth enable kubernetes` (operator gotcha #4). **Phase 11 effectively done**: the same terraform module creates both the KV schema AND the mt-node tenant auth roles + policies, so when we reach Phase 11 a re-apply will report `0 added, 0 changed, 0 destroyed`. |
-| 8.2 Generate shared secrets ONCE | ⏸ pending | — |
-| 8.3 Persist generated secrets to `~/etradie-staging-creds.txt` (mode 0600) | ⏸ pending | — |
-| 8.4 Data-layer paths (postgres + redis + chromadb) | ⏸ pending | — |
-| 8.5 Linkerd mesh CA → `etradie/platform/linkerd/production` | ⏸ pending | — |
-| 8.6 Edge-ingress (tunnel token + AOP CA + MaxMind + staging TLS) | ⏸ pending | — |
-| 8.7 Gateway | ⏸ pending | — |
-| 8.8 Engine (including all 9 `.env`-sourced operator-supplied keys) | ⏸ pending | — |
-| 8.9 Execution + Management | ⏸ pending | — |
-| 8.10 Billing (staging placeholders for Paddle + LemonSqueezy) | ⏸ pending | — |
-| 8.11 mt-node platform fallback ZMQ token + cross-path equality verification + teardown | ⏸ pending | — |
+| 8.2 Generate shared secrets ONCE | ✅ | 9 random values (DB_PASS=64, REDIS_PASS=64, JWT_SECRET=128, BROKER_KEY=64, CHROMA_TOKEN=64, ADMIN_PASS=48, ENGINE_SHARED=64, BILLING_SHARED=64, MT_DEFAULT_ZMQ=64) + 4 derived URL strings (DB_URL_GO=154, DB_URL_PY=164, REDIS0=119, REDIS1=119) generated ONCE in the working terminal. All 9 length sanity checks printed OK. |
+| 8.3 Persist generated secrets to `~/etradie-staging-creds.txt` (mode 0600) | ✅ | 950 bytes, `-rw-------`. Written BEFORE the first `vault kv put` so a Vault failure mid-phase would not have left values generated-but-unrecoverable. Vault remains canonical; this file is the workstation safety net until Phase 15 Vault Raft snapshots. |
+| 8.4 Data-layer paths (postgres + redis + chromadb) | ✅ (after path-prefix fix) | First attempt wrote to the WRONG path (mount=etradie, key=data-layer/<svc>/staging → API path `etradie/data/data-layer/<svc>/staging`). Terraform names every resource as `etradie/<rest>` so the chart ExternalSecrets read from `etradie/data/etradie/data-layer/<svc>/staging`. **Fix**: switched the write pattern to `kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN=$ROOT_TOKEN vault kv put -mount=etradie etradie/data-layer/<svc>/staging ...` for every subsequent write. The 3 canonical paths now hold real secrets at version 2 (terraform's bootstrap-placeholder version 1 was superseded). Orphan sibling paths from the first attempt destroyed with `vault kv metadata delete -mount=etradie data-layer/<svc>/staging`. DB_PASS shell-vs-vault sha256 = `61f37c14c80f2235a540b73b9c968abf32ec7e5e0b1a468ac44723547b97d5de`, MATCH across data-layer + gateway + engine + billing (verified in §8.11). See operator gotcha #9 below. |
+| 8.5 Linkerd mesh CA → `etradie/platform/linkerd/production` | ✅ | Single write at the canonical /production path (chart hardcodes this regardless of env, per BUDGET.md Table 2B "this box runs ONE environment at a time"). 3 properties: `trust_anchor_pem`, `issuer_tls_crt`, `issuer_tls_key`. Round-trip cert fingerprints both MATCH the PROGRESS §Phase 7 captures (ca=`dedfbeff...`, issuer=`69e886e0...`). Issuer cert/key pairing INSIDE Vault: cert pubkey sha == key pubkey sha == `5539d25a105e1625852b48d609afe10a9484c34f8e1daae0a69f51ad29ca0de4` → Linkerd identity controller will boot cleanly at Phase 12. Path stored at version 1 (first write; no terraform placeholder existed at `/production` — terraform created `/staging` per `-var environment=staging`, see linkerd divergence note in operator gotcha #10 below). |
+| 8.6 Edge-ingress (tunnel token + AOP CA + MaxMind + staging TLS) | ✅ | 4 paths written: cloudflare/tunnel (1 property, JWT-token sha256 MATCH stripped-newline = `df186461bc4a8afe41c6a42944301aaf77b81e659324ac2fcd5f2ee8f8638489`), cloudflare/aop_ca (1 property, 1 cert in bundle, Subject `CN=origin-pull.cloudflare.net` — Cloudflare's canonical Origin Pull CA), maxmind (license_key=40 chars + account_id=7 chars), tls (4 PEM properties). TLS cert fingerprints MATCH on-disk (staging_api=`1d2e9db3...`, staging_wildcard=`9d201828...`). Cert/key PAIRED inside Vault for both pairs (api cert+key pubkey sha=`e6cbad2e368a653f2b06e470c223fe947773a8a8a4d61d2ea77be21684f4d464`, wildcard cert+key=`400e46353bb22e1a696f3df8751430997607d0f5be071c010c848d086c8121b2`) → edge-ingress will TLS-handshake cleanly at Phase 12 when cloudflared dials it. |
+| 8.7 Gateway | ✅ | 12 properties at `etradie/services/gateway/staging`. All 12 read-back lengths correct (auth_database_url=154 = DB_URL_GO, JWT=128, ADMIN=48, ENGINE_SHARED=64, BILLING_SHARED=64). postgres_password 3-way MATCH (shell DB_PASS == data-layer == gateway). 4 shell-vs-vault hash checks OK (JWT_SECRET=`bcf86dd9a95e...`, ENGINE_SHARED=`6037ddef7ab8...`, BILLING_SHARED=`ecc9fd2596cf...`, ADMIN_PASS=`334621330c48...`). |
+| 8.8 Engine (15 properties; 9 from §8.2 + 6 from .env) | ✅ (subshell-isolated .env source) | 15 properties at `etradie/services/engine/staging`. README listed 16 but the 16th (chromadb token) is read from a DIFFERENT path (`etradie/data-layer/chromadb/staging` populated in §8.4) per the engine chart's `chromadbAuthVaultPath` value. **Critical refinement**: naive `set -a; . ~/eTradie/.env; set +a` would clobber §8.2 shell vars (.env defines stale POSTGRES_PASSWORD/AUTH_JWT_SECRET/BROKER_ENCRYPTION_KEY). Switched to subshell-isolated extraction: `eval "$(set -a; . ~/.env 2>/dev/null; for k in TWELVEDATA_API_KEY ...; do printf 'ENV_%s=...\n' "$k" "$VAL"; done)"`. Post-source DB_PASS sha verified == `61f37c14c80f...` (§8.2 vars preserved). 2 required-at-boot keys (twelvedata/fred) present, 5 optional keys (cftc, 3× LLM, mt5_metaapi) populated. postgres_password 3-way MATCH (data-layer + gateway + engine). auth_jwt_secret 2-way MATCH (gateway + engine). engine_internal_shared_secret 2-way MATCH (gateway + engine). See operator gotcha #12. |
+| 8.9 Execution + Management | ✅ | 4 properties each, 8 total. All 4 lengths correct (db_url=154, redis_url=119, jwt=128, engine_shared=64). **4-way cross-path matrix**: auth_jwt_secret IDENTICAL across gateway + engine + execution + management (all `bcf86dd9a95e...`); engine_internal_shared_secret IDENTICAL across the same 4 (all `6037ddef7ab8...`); Go-DSN IDENTICAL across shell + gateway/auth_database_url + execution/execution_database_url + management/management_database_url (all `2ea31dd2...`). |
+| 8.10 Billing (staging placeholders for Paddle + LemonSqueezy) | ✅ (18 properties — README said 14) | Real values for postgres/redis/shared_secret (9 properties from §8.2); plausibly-formatted random placeholders for Paddle (4 properties: webhook_secret=64, api_key=64, 2× pri_placeholder_<12hex>) and LemonSqueezy (5 properties: webhook_secret=64, api_key=64, 5-digit store_id, 2× 7-digit variant IDs). 18 total properties, not the 14 README §8.10 had stated — chart `externalsecret.yaml` lists 18 explicit data entries. **Asymmetric pair MATCH**: shell BILLING_SHARED == gateway:billing_internal_shared_secret == billing:internal_shared_secret (all `ecc9fd2596cf...`) — different KEY names, same VALUE, as designed. postgres_password 4-way MATCH (data-layer + gateway + engine + billing). Real provider credentials to be swapped in later via `vault kv put` + `kubectl rollout restart deployment/etradie-billing -n etradie-system` (Stakater Reloader picks up the K8s Secret refresh). See operator gotcha #13. |
+| 8.11 mt-node platform fallback ZMQ token + cross-path equality verification + teardown | ✅ | Single property write (`default_zmq_auth_token`=`e2ca123e8f9e...`, MT_DEFAULT_ZMQ from §8.2). **FINAL CROSS-PATH IDENTITY MATRIX — all PASS**: (1) auth_jwt_secret IDENTICAL across all 4 services; (2) engine_internal_shared_secret IDENTICAL across all 4 services; (3) billing asymmetric pair (`billing_internal_shared_secret` ↔ `internal_shared_secret`) MATCH; (4) postgres_password IDENTICAL across data-layer + gateway + engine + billing; (5) redis_password IDENTICAL across data-layer + engine; (6) shell-vs-vault byte equality for all 8 §8.2 generated secrets OK; (7) all 14 KV paths present and current. **Teardown**: 9 §8.2 secrets + 4 URL strings unset; `history -c` cleared in-memory bash history; ROOT_TOKEN kept (Phase 10+ still uses it); vkv/vkv_get/vkv_file helpers kept. |
+
+### Phase 8 cross-path identity matrix (final verification surface)
+
+All hashes are sha256 of the value bytes (no value ever appeared in
+scrollback). Captured here so a future operator can reproduce the
+verification against staging Vault without re-deriving from
+`~/etradie-staging-creds.txt`:
+
+| Cross-path value | sha256 | Paths verified identical |
+|---|---|---|
+| auth_jwt_secret | `bcf86dd9a95e7c31db1a0d5517fd9631e51619e591657ebdc27a6ec396f58eaa` | gateway + engine + execution + management |
+| engine_internal_shared_secret | `6037ddef7ab866295145b9aea83ff095fb857e5dff0a5a13f3c9d8e368e7f517` | gateway + engine + execution + management |
+| billing shared secret (asymmetric pair) | `ecc9fd2596cfd767990a0b0a4c95ed329a9f607b691ac2a50adabb75e4001db6` | gateway:billing_internal_shared_secret + billing:internal_shared_secret |
+| postgres_password | `61f37c14c80f2235a540b73b9c968abf32ec7e5e0b1a468ac44723547b97d5de` | data-layer/postgres + gateway + engine + billing |
+| redis_password | `bdb743bf551f1f1c50bfe7d662a537ba963b881a6f9b0ac870c51725dd11458e` | data-layer/redis + engine |
+| chroma auth_token | `e0675e34e492...` (truncated) | data-layer/chromadb (engine reads from this same path) |
+| broker_encryption_key | `881c7e8066b2...` (truncated) | engine ONLY (Tier 3 least-privilege; gateway/execution/management deliberately do NOT hold this) |
+| default_zmq_auth_token | `e2ca123e8f9e...` (truncated) | mt-node platform |
+
+### Vault state at end of Phase 8 — 14 KV paths
+
+| Path | current_version | Source of write |
+|---|---|---|
+| `etradie/data-layer/postgres/staging` | 2 | §8.4 (terraform v=1 placeholder superseded) |
+| `etradie/data-layer/redis/staging` | 2 | §8.4 |
+| `etradie/data-layer/chromadb/staging` | 2 | §8.4 |
+| `etradie/platform/linkerd/production` | 1 | §8.5 (first write; terraform created `/staging` not `/production` — see operator gotcha #10) |
+| `etradie/services/edge-ingress/staging/cloudflare/tunnel` | 2 | §8.6 |
+| `etradie/services/edge-ingress/staging/cloudflare/aop_ca` | 2 | §8.6 |
+| `etradie/services/edge-ingress/staging/maxmind` | 2 | §8.6 |
+| `etradie/services/edge-ingress/staging/tls` | 2 | §8.6 |
+| `etradie/services/gateway/staging` | 2 | §8.7 |
+| `etradie/services/engine/staging` | 2 | §8.8 |
+| `etradie/services/execution/staging` | 2 | §8.9 |
+| `etradie/services/management/staging` | 2 | §8.9 |
+| `etradie/services/billing/staging` | 2 | §8.10 |
+| `etradie/services/mt-node/staging` | 2 | §8.11 |
+
+Plus the terraform-managed `etradie/platform/linkerd/staging` path
+still holding the bootstrap placeholder at v=1 — see operator
+gotcha #10. The orphan sibling paths
+`etradie/data-layer/{postgres,redis,chromadb}/staging` (mount=etradie,
+key=`data-layer/...` without the doubled `etradie/` prefix) from the
+first §8.4 attempt were destroyed with `vault kv metadata delete` —
+`vault kv get` against them now returns `No value found`.
+
+### Phase 8 §8.2–§8.11 operator gotchas recorded for the next deploy
+
+**9. `vkv etradie/X` resolves to the WRONG Vault path.** The `vkv`
+helper README §8.1 defines is:
+```bash
+vkv () { kubectl -n vault exec -i vault-0 -- \
+         env VAULT_TOKEN="$ROOT_TOKEN" vault kv put "$@"; }
+```
+`vault kv put` takes a single positional path argument that it
+parses as `<mount>/<key>`. So `vkv etradie/data-layer/postgres/staging`
+resolves to mount=`etradie`, key=`data-layer/postgres/staging`, which
+Vault writes at the API path `etradie/data/data-layer/postgres/staging`.
+BUT terraform's `infrastructure/cluster/vault-paths/main.tf` names
+every resource as `etradie/<rest>` (mount=etradie, key=etradie/<rest>),
+so the canonical chart-read path is `etradie/data/etradie/<rest>`. The
+first §8.4 attempt wrote to the WRONG location; chart ExternalSecrets
+would have found only terraform's `bootstrap: placeholder`. **The
+canonical write pattern is**:
+```bash
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/<rest> <kv_pairs>
+```
+The explicit `-mount=etradie` flag plus the full `etradie/<rest>`
+KEY (with the doubled `etradie/` prefix, NOT an accident) make the
+path unambiguous and identical to terraform's resource id. §8.4 was
+re-run with this pattern; KV-v2 created version 2 at each canonical
+path, ESO reads only the latest version so the placeholder was
+superseded. Orphan sibling paths from the first attempt were
+destroyed via `vault kv metadata delete -mount=etradie data-layer/<svc>/staging`.
+The README §8.4–§8.11 update lands in a sibling commit replacing
+every `vkv secret/etradie/...` pattern with the explicit
+`kubectl ... -mount=etradie etradie/...` form so the next deploy
+does not re-encounter this.
+
+**10. The Linkerd Vault path is `etradie/platform/linkerd/production`
+EVEN on a staging box, and terraform's env-segmented behaviour
+creates a dead `/staging` path.** Terraform's
+`vault_kv_secret_v2.linkerd_identity` resource names the path
+`etradie/platform/linkerd/${var.environment}`. The staging apply
+(`-var environment=staging`) therefore created a placeholder at
+`/staging` that NO chart will ever read — `deployments/linkerd/values.yaml`
+hardcodes `vaultPath: etradie/platform/linkerd/production`, and only
+a single ArgoCD Application `linkerd-identity-production.yaml` exists
+(no `*-staging` variant). The §8.5 write went to the canonical
+`/production` path which terraform did NOT create (KV-v2 auto-creates
+on first write). End state: `/staging` holds the bootstrap placeholder
+at v=1 (terraform-owned, dead); `/production` holds the real CA at
+v=1 (operator-owned, canonical). Not a blocker; flagged so a future
+operator does not try to "clean up" `/production` thinking it's
+orphaned, or write to `/staging` thinking it's the staging path.
+
+**11. `.env` malformed lines spam "command not found" but are
+otherwise harmless.** The staging deploy's `~/eTradie/.env` had 3
+non-`KEY=value` lines: a GHCR PAT note (`GHCR = ghp_uN...` — invalid
+shape due to spaces around `=`), a Windows cloudflared install
+command (`cloudflared.exe service install eyJh...` — the install
+command Cloudflare's dashboard suggests but which the runbook
+explicitly says to IGNORE), and a stale Cloudflare tunnel token
+(`cfut_...` — old token, the current one is in
+`~/cloudflare-staging-tunnel-token.txt`). When `.env` is sourced
+with `set -a; . ~/.env; set +a`, bash tries to execute these as
+commands and they fail with "command not found". Zero shell
+variables are defined from these lines, and none of the values
+are consumed anywhere in Phase 8+. **The GHCR PAT and the current
+Cloudflare tunnel token both live in dedicated 0600 files** (per
+README §0.2 and §6.1), not in `.env`. Cleanup is purely cosmetic;
+leave the `.env` alone or comment the three lines.
+
+**12. Subshell isolation is REQUIRED when sourcing `.env` for
+§8.8.** The platform's `.env` defines `POSTGRES_PASSWORD`,
+`AUTH_JWT_SECRET`, `BROKER_ENCRYPTION_KEY` with stale/template
+values. Naive `set -a; . ~/.env; set +a` in the working shell
+CLOBBERS the §8.2 generated values — every subsequent `vault kv put`
+would then write the stale `.env` values, breaking the cross-path
+equality matrix that Phase 12 depends on. **The fix is a subshell
+extraction pattern**:
+```bash
+eval "$(
+  set -a
+  . ~/eTradie/.env 2>/dev/null
+  set +a
+  for k in TWELVEDATA_API_KEY FRED_API_KEY CFTC_APP_TOKEN \
+           PROCESSOR_ANTHROPIC_API_KEY PROCESSOR_OPENAI_API_KEY \
+           PROCESSOR_GEMINI_API_KEY MT5_METAAPI_TOKEN; do
+    val=$(eval echo \"\${${k}}\")
+    val_esc=$(printf '%s' "$val" | sed "s/'/'\\\\''/g")
+    printf "ENV_%s='%s'\n" "$k" "$val_esc"
+  done
+)"
+```
+The subshell variables die when `$(...)` closes; only the
+`ENV_*=...` printed assignments come back to the main shell. After
+the §8.8 source we verified `DB_PASS` sha matched the pre-source
+value, confirming the subshell isolation worked. README §8.8 will
+be updated in the sibling commit with this pattern.
+
+**13. Billing chart reads 18 properties, not 14 (README discrepancy).**
+README §8.10 stated "Fourteen properties" but the chart's
+`helm/billing/templates/externalsecret.yaml` template lists 18
+explicit `data:` entries: billing_database_url + 6 POSTGRES_* fields
++ internal_shared_secret + billing_redis_url + 4 Paddle keys + 5
+LemonSqueezy keys = 18. The first 9 carry real values (from §8.2);
+the 9 provider keys carry plausibly-formatted placeholders for
+staging. Real provider credentials to be swapped in later via
+`vault kv put -mount=etradie etradie/services/billing/staging
+paddle_webhook_secret=... ...` + `kubectl rollout restart
+deployment/etradie-billing -n etradie-system`. Stakater Reloader
+(Phase 5) picks up the K8s Secret refresh and rolls the pod
+automatically.
+
+**14. Phase 8 wall time: ~30 minutes including the verification
+block**, matching README §8 header estimate. The path-prefix
+recovery at §8.4 added ~5 minutes; the subshell-isolation
+refinement at §8.8 added ~3 minutes. Both contingencies are now
+baked into the README's sibling commit so the next deploy runs
+first-attempt-clean.
 
 ### Phase 8 operator gotchas recorded for the next deploy
 
