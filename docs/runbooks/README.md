@@ -379,6 +379,12 @@ Run these once per WSL boot, in this order:
 ssh-add ~/.ssh/id_ed25519
 ssh-add -l                                              # confirm the key is loaded
 
+# 1b. Ensure KUBECONFIG is exported in THIS shell. The ~/.bashrc
+#     export added in Phase 2.3 covers new shells, but a Terminal 2
+#     opened BEFORE that change won't have it. Belt-and-braces:
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+kubectl config current-context >/dev/null || echo "WARN kubeconfig issue"
+
 # 2. Open the tunnel IN A DEDICATED TERMINAL (Terminal 1).
 #    -N: do not run a remote command; just forward.
 #    -L 6443:127.0.0.1:6443: forward local 6443 -> VPS 127.0.0.1:6443
@@ -1143,16 +1149,41 @@ offsite credentials, single `api.exoper.com` hostname instead of
 A mid-phase failure on a missing file or a dead tunnel is far more
 painful than a 90-second up-front check.
 
+> **Why each check uses an explicit `|| { echo FAIL; exit 1; }` arm.**
+> The earlier pattern `cmd && echo OK` was unsafe: when `cmd` failed,
+> the `&& echo OK` branch was skipped silently AND `set -e` did NOT
+> exit (because `set -e` ignores failures on the left of `&&` by
+> design). Execution continued and the script eventually printed
+> "=== All pre-flight checks passed ===" even though required checks
+> had failed. Captured as Phase 8 operator gotcha in PROGRESS.md.
+
 ```bash
 set -e
 ENV=staging   # or production
 echo "=== Phase 8 pre-flight for ENV=${ENV} ==="
 
+# 0. KUBECONFIG must point at the workstation copy of the K3s
+#    kubeconfig. The ~/.bashrc export from Phase 2.3 covers new
+#    shells, but a shell opened BEFORE that change never sourced it.
+#    Re-export inline so this script self-heals.
+if [ -z "$KUBECONFIG" ]; then
+  export KUBECONFIG=~/.kube/etradie-contabo.yaml
+  echo "OK KUBECONFIG exported inline (~/.bashrc may pre-date Phase 2.3)"
+else
+  echo "OK KUBECONFIG=$KUBECONFIG"
+fi
+test -s "$KUBECONFIG" || { echo "FAIL kubeconfig file missing"; exit 1; }
+
 # 1. Phase 2.3 SSH local-forward is alive. Phase 8.1 (terraform) needs
 #    kubectl reachability; later sub-steps need kubectl exec into vault-0.
-kubectl get nodes >/dev/null && echo OK "K3s reachable"
-kubectl -n vault get pod vault-0 -o jsonpath='{.status.phase}{"\n"}' \
-  | grep -qx Running && echo OK "vault-0 Running"
+#    EXPLICIT || arms because `&& echo OK` alone is unsafe under set -e.
+kubectl get nodes >/dev/null 2>&1 \
+  && echo OK "K3s reachable" \
+  || { echo "FAIL kubectl get nodes — check tunnel (ss -tln \| grep 6443) and KUBECONFIG"; exit 1; }
+phase=$(kubectl -n vault get pod vault-0 -o jsonpath='{.status.phase}' 2>/dev/null)
+test "$phase" = Running \
+  && echo OK "vault-0 Running" \
+  || { echo "FAIL vault-0 phase='${phase}' (expected Running) — check `kubectl -n vault get pods`"; exit 1; }
 
 # 2. Vault root token from Phase 3.2.
 test -s ~/vault-init.txt && echo OK "vault-init.txt present" || {

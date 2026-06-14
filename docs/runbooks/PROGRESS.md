@@ -36,7 +36,7 @@
 | 5 | Stakater Reloader | ✅ DONE |
 | 6 | Cloudflare Tunnel | ✅ DONE |
 | 7 | Generate Linkerd mesh CA | ✅ DONE |
-| 8 | Bootstrap Vault paths + populate every secret | ⏸ pending |
+| 8 | Bootstrap Vault paths + populate every secret | 🟡 in progress (§8.0 done; §8.1–8.11 pending) |
 | 9 | Build + inject envoy WASM filter | ⏸ pending |
 | 10 | ArgoCD + AppProjects + root app | ⏸ pending |
 | 11 | Provision mt-node tenant Vault infrastructure | ⏸ pending |
@@ -619,3 +619,130 @@ as an obvious error.
   Phase 2.3 will be needed again for Phase 8.1 (`terraform apply`
   needs `kubectl` reachability to the K3s API), so the operator
   should keep that tunnel open.
+
+---
+
+## Phase 8 — Bootstrap Vault paths + populate every secret 🟡 in progress
+
+Largest single phase in the runbook. Eleven sub-steps. The README §8
+rewrite (commits `699b382c` → `fc3086e8`) is the canonical procedure
+this deploy executes; this PROGRESS entry tracks WHICH sub-steps have
+run, what state Vault holds, and what state the workstation files
+are in. A future operator picking this deploy back up should
+**re-read README §8 first**, then resume at whichever sub-step is
+marked pending below.
+
+### Pre-resume checklist (read these 3 things if you are taking over)
+
+1. **README.md §8 is the canonical procedure.** It was rewritten in
+   commit `699b382c` (staging-canonical with inline production
+   deviations) following an end-to-end audit of every ESO template
+   + chart values overlay. The pre-audit procedure carried four
+   real defects (empty-string TLS, wrong Linkerd path on staging,
+   `[REDACTED]` placeholders, no cross-path equality verification);
+   those are all fixed in the new §8.
+2. **The `auth_jwt_secret`, `engine_internal_shared_secret`,
+   `billing_internal_shared_secret`, postgres password, redis
+   password, chromadb token, and mt-node default ZMQ token MUST be
+   generated ONCE per environment.** Do NOT regenerate them mid-phase
+   if you resume — the cross-path equality check in §8.11 will fail
+   and Phase 12 will surface confusing 401s between services. The
+   workstation's `~/etradie-staging-creds.txt` is the recovery
+   reference (created in §8.3 before any `vault kv put` runs).
+3. **The Linkerd mesh CA path is `etradie/platform/linkerd/production`
+   even on a staging box.** This is intentional (single mesh control
+   plane per cluster; `deployments/linkerd/values.yaml` hard-codes
+   the path). Do not "fix" it to `staging`.
+
+### Pre-flight values + decisions captured (this deploy)
+
+| Decision / value | Source | Outcome for this deploy |
+|---|---|---|
+| Environment | per-deploy parameters | `staging` |
+| Linkerd Vault path | `deployments/linkerd/values.yaml` hardcode | `etradie/platform/linkerd/production` (intentional cross-env) |
+| Postgres backup CronJob | BUDGET.md Table 2B | OFF in staging — do NOT write `etradie/data-layer/postgres-backup/staging` |
+| Wine-prefix snapshotter | `helm/mt-node/values-staging.yaml::snapshotter.enabled=false` | OFF in staging |
+| Billing creds | Phase 0 decision | Staging placeholders (real values added later via `vault kv put` + `kubectl rollout restart deployment/etradie-billing`) |
+| Engine LLM keys (Anthropic/OpenAI/Gemini), MetaApi, CFTC | engine `config.py::_validate_production_secrets` requires only TwelveData + FRED at boot | All present in operator `.env`; will be written for system-caller availability (RAG ingest, COT scraper, MetaApi provisioner) |
+| MaxMind GeoLite | edge-ingress geoipupdate sidecar | License + account ID both present in `.env` |
+| Cloudflare Origin Certs (2) | Cloudflare dashboard → SSL/TLS → Origin Server | Generated 2026-06-14: `staging-api.exoper.com` host cert + `staging.exoper.com` apex+wildcard cert (RSA 2048, 15yr) |
+| `.env` variable mapping | grep across `helm/*/templates/*externalsecret*.yaml` `property:` lines | Cross-referenced 1:1; all 9 README-referenced `.env` names exist with correct shape (no naming drift) |
+
+### Workstation files in hand before §8.0
+
+| File | Origin | State |
+|---|---|---|
+| `~/.kube/etradie-contabo.yaml` | Phase 2.3 SSH local-forward kubeconfig copy | 2957 bytes, mode 0600 |
+| `~/vault-init.txt` | Phase 3.2 Vault init output | 901 bytes, mode 0600. Holds 5 unseal keys + Initial Root Token (Vault 1.17 root tokens are 28 chars, `hvs.` + 24 chars). |
+| `~/cloudflare-staging-tunnel-token.txt` | Phase 6.1 capture from Cloudflare UI | 185 bytes, mode 0600. `eyJh...` JWT-style token. |
+| `~/cf-origin-staging-api.crt` / `.key` | Cloudflare Origin Server certificate creation 2026-06-14 | 1664 / 1705 bytes, mode 0600. SAN `staging-api.exoper.com`. |
+| `~/cf-origin-wildcard-staging.crt` / `.key` | Cloudflare Origin Server certificate creation 2026-06-14 | 1689 / 1705 bytes, mode 0600. SAN `staging.exoper.com, *.staging.exoper.com`. |
+| `~/eTradie/ca.crt` / `ca.key` / `issuer.crt` / `issuer.key` | Phase 7 `step certificate create` | 599 / 227 / 648 / 227 bytes, all mode 0600. Mesh chain verified (`step certificate verify issuer.crt --roots ca.crt` exit 0). Fingerprints captured in this PROGRESS entry §Phase 7. |
+
+### Sub-step status
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 8.0 Pre-flight (7 checks per README §8.0) | ✅ | All 20 OK lines printed: K3s reachable, vault-0 Running, vault-init.txt present, root token captured (28 chars), 4 mesh CA files + chain verified, tunnel token present, 4 Cloudflare Origin Certs present, .env present, 5 CLIs on PATH (terraform/helm/jq/openssl/step). `ROOT_TOKEN` exported in the working terminal shell. See operator gotcha #1 below — the script had a silent-failure bug that this deploy surfaced; commit fixed the bug in README §8.0 in lockstep with closing this checkpoint. |
+| 8.1 Terraform apply (env-segmented Vault path schema) | ⏸ pending | Next sub-step. |
+| 8.2 Generate shared secrets ONCE | ⏸ pending | — |
+| 8.3 Persist generated secrets to `~/etradie-staging-creds.txt` (mode 0600) | ⏸ pending | — |
+| 8.4 Data-layer paths (postgres + redis + chromadb) | ⏸ pending | — |
+| 8.5 Linkerd mesh CA → `etradie/platform/linkerd/production` | ⏸ pending | — |
+| 8.6 Edge-ingress (tunnel token + AOP CA + MaxMind + staging TLS) | ⏸ pending | — |
+| 8.7 Gateway | ⏸ pending | — |
+| 8.8 Engine (including all 9 `.env`-sourced operator-supplied keys) | ⏸ pending | — |
+| 8.9 Execution + Management | ⏸ pending | — |
+| 8.10 Billing (staging placeholders for Paddle + LemonSqueezy) | ⏸ pending | — |
+| 8.11 mt-node platform fallback ZMQ token + cross-path equality verification + teardown | ⏸ pending | — |
+
+### Phase 8 operator gotchas recorded for the next deploy
+
+**1. The README §8.0 pre-flight script silently passed two failed
+checks until commit (this checkpoint) fixed it.** The original
+script used the pattern:
+```bash
+kubectl get nodes >/dev/null && echo OK "K3s reachable"
+kubectl -n vault get pod vault-0 ... | grep -qx Running && echo OK "vault-0 Running"
+```
+When `kubectl get nodes` fails (e.g. KUBECONFIG empty), the `&& echo OK`
+branch is skipped without printing OK, AND `set -e` does NOT exit
+because the failed command is the LEFT operand of `&&` — which `set -e`
+explicitly ignores by design (treating `cmd && other` as a conditional
+expression, not an unhandled failure). Execution falls through to
+the next step. The script eventually prints "=== All pre-flight
+checks passed ===" — a lie. The fix is to add an explicit `||
+{ echo FAIL; exit 1; }` arm to each kubectl check. The corrected
+script prints OK on success and FAIL+exit on failure. Patched into
+README §8.0 in the same commit that creates this checkpoint.
+
+**2. KUBECONFIG empty in the working shell was the root cause this
+deploy hit gotcha #1.** The `~/.bashrc` export from Phase 2.3
+(`export KUBECONFIG=~/.kube/etradie-contabo.yaml`) is sourced on new
+shell start, but the operator's already-open Terminal 2 had been
+opened BEFORE the `.bashrc` edit during Phase 2.3. The shell never
+re-sourced the file. Diagnosis: `echo "KUBECONFIG=$KUBECONFIG"`
+printed `KUBECONFIG=` (empty); `grep KUBECONFIG ~/.bashrc` showed the
+export line was present. Fix for this shell: `export KUBECONFIG=~/.kube/etradie-contabo.yaml`.
+The Daily Operator Routine in README has also been amended to
+include this export as the third per-WSL-boot step, belt-and-braces
+with the `.bashrc` persistence.
+
+**3. `kubectl get nodes` failure mode is loud.** A dead tunnel or
+empty KUBECONFIG produces a 10-line burst of
+`E... memcache.go:265 ... connection refused ... localhost:8080`
+errors on stderr before failing. The errors are noisy enough that
+an operator skimming output COULD miss them between OK lines if the
+terminal scrollback is short. The new fail-loud script prints a
+single `FAIL ...` line and exits, leaving the terminal at the prompt
+with a clear cause.
+
+**4. `ss-tln | grep ':6443'` is the canonical "is the tunnel alive"
+check.** Expected output (when alive):
+```
+LISTEN 0  128  127.0.0.1:6443  0.0.0.0:*
+LISTEN 0  128      [::1]:6443    [::]:*
+```
+If this returns no lines, the tunnel terminal was closed. Reopen
+it in a dedicated terminal (`ssh -N -L 6443:127.0.0.1:6443
+etradie@<IP>`); do NOT try to fix kubectl by changing kubeconfig.
