@@ -2382,35 +2382,218 @@ git log --oneline -5
 
 ## Phase 10 — ArgoCD + both AppProjects + root app
 
-10.1 Install:
+> **Pre-flight (Phase 10.0) is REQUIRED before §10.1.** The cluster
+> needs the per-namespace `ghcr-pull` Secret in place BEFORE root-app
+> at §10.3 creates the staging Applications; otherwise every staging
+> pod fails its first image pull. The Linkerd trust anchor must also
+> be committed to `deployments/linkerd/control-plane-values.yaml`
+> BEFORE §10.3 (the previous README pattern of `argocd app set
+> --helm-set-file` is fragile against root-app's `selfHeal` and has
+> been replaced with the values-file commit — see audit ref:
+> PROGRESS.md §Phase 10 pre-flight decision points).
+
+### 10.0 — Pre-flight: namespaces + `ghcr-pull` Secret + Linkerd trust anchor
+
+**GHCR pull credentials (Option B: private packages + per-namespace
+Secret).** Enterprise supply-chain hygiene: packages stay PRIVATE
+on GHCR; K8s `containerd` pulls them with a `docker-registry` Secret.
+
 ```bash
-kubectl create namespace argocd
+# 10.0.1 — Tunnel sanity (must precede every kubectl call).
+[ -z "$KUBECONFIG" ] && export KUBECONFIG=~/.kube/etradie-contabo.yaml
+kubectl get nodes
+# expect: vmi3362776 Ready control-plane,master ... v1.30.4+k3s1
+
+# 10.0.2 — Create the two namespaces that need ghcr-pull. The
+# data-layer chart re-creates etradie-system at Phase 12, but
+# pre-creating is idempotent (CreateNamespace=true syncOption is a
+# no-op on existing namespace).
+for ns in etradie-system edge-ingress-system; do
+  kubectl get ns "$ns" >/dev/null 2>&1 \
+    && echo "  $ns already exists" \
+    || kubectl create namespace "$ns"
+done
+
+# 10.0.3 — Generate a READ-ONLY GHCR PAT for in-cluster pulls.
+# Browser: https://github.com/settings/tokens → Generate new token
+# (classic) → Note: etradie-${ENV}-ghcr-pull, Expiration: 90d,
+# Scopes: ONLY `read:packages` (NOTHING ELSE). Save to a 0600 file:
+umask 077
+cat > ~/.ghcr_pull_pat
+# (paste the ghp_... token, Enter, Ctrl-D)
+chmod 600 ~/.ghcr_pull_pat
+# Confirm the scopes line shows ONLY read:packages.
+curl -sSI -u "<gh-username>:$(cat ~/.ghcr_pull_pat)" https://api.github.com/user \
+  | grep -i 'x-oauth-scopes'
+# expect: x-oauth-scopes: read:packages
+
+# 10.0.4 — Create the docker-registry Secret in each namespace.
+# Idempotent (delete-if-exists then create). The email field is
+# a docker-registry format requirement but not validated by GHCR;
+# use the canonical placeholder.
+GHCR_PAT=$(cat ~/.ghcr_pull_pat)
+for ns in etradie-system edge-ingress-system; do
+  kubectl -n "$ns" delete secret ghcr-pull --ignore-not-found
+  kubectl -n "$ns" create secret docker-registry ghcr-pull \
+    --docker-server=ghcr.io \
+    --docker-username=<gh-username> \
+    --docker-password="$GHCR_PAT" \
+    --docker-email=not-needed@github.com
+done
+unset GHCR_PAT
+
+# Verify (decode the dockerconfigjson).
+for ns in etradie-system edge-ingress-system; do
+  echo "--- $ns ---"
+  kubectl -n "$ns" get secret ghcr-pull -o jsonpath='{.type}{"\n"}'
+  # expect: kubernetes.io/dockerconfigjson
+done
+```
+
+**The 6 charts that need `ghcr-pull` already reference it** in their
+`values-staging.yaml` via:
+```yaml
+imagePullSecrets:
+  - name: ghcr-pull
+```
+Charts: engine, gateway, execution, management, billing, edge-ingress.
+mt-node staging skipped because `mtConnection.enabled=false` in the
+staging Application (chart's StatefulSet does not render at Phase 12;
+per-tenant mt-node pods are created at runtime by the engine's
+`HostedProvisioner` in Phase 14.5 — will need analogous handling).
+
+**Linkerd trust anchor delivery (Option A: commit PUBLIC PEM to chart
+values).** The trust anchor is the PUBLIC half of the mesh root CA
+(no private key); committing it to git is byte-for-byte safe and
+avoids `argocd app set --helm-set-file` drift that root-app's
+`selfHeal` would revert on every reconcile. The PRIVATE issuer
+cert/key stay in Vault at `etradie/platform/linkerd/production` from
+§8.5; only the PUBLIC trust anchor PEM is committed:
+
+```bash
+# Embed the PEM (~/eTradie/ca.crt content) as a YAML block scalar:
+python3 <<'PYEOF'
+with open('deployments/linkerd/control-plane-values.yaml') as f:
+    content = f.read()
+with open('ca.crt') as f:
+    pem = f.read().rstrip('\n')
+pem_indented = '\n'.join('  ' + line for line in pem.split('\n'))
+new = content.replace('identityTrustAnchorsPEM: ""',
+                       f'identityTrustAnchorsPEM: |\n{pem_indented}')
+open('deployments/linkerd/control-plane-values.yaml', 'w').write(new)
+PYEOF
+git add deployments/linkerd/control-plane-values.yaml
+git commit -m "phase10 pre-flight: embed Linkerd trust anchor PEM"
+git push origin main
+```
+
+The chart's `linkerd-control-plane-production.yaml` still carries a
+sentinel `identityTrustAnchorsPEM` parameter in `spec.sources[0].helm.parameters`;
+that parameter is now inert because the values-file value wins. Do
+NOT remove the parameter — it serves as a fail-loud sentinel if the
+values-file commit ever gets reverted.
+
+### 10.1 — Install ArgoCD v2.13.3
+
+```bash
+kubectl create namespace argocd 2>/dev/null || true
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.13.3/manifests/install.yaml
-kubectl -n argocd wait --for=condition=Available deployment/argocd-server --timeout=180s
+kubectl -n argocd wait --for=condition=Available deployment/argocd-server --timeout=300s
+# typically returns `condition met` in ~30–60 seconds on first install.
+
+kubectl -n argocd get pods   # 7 pods, all Running 1/1
 ```
-10.2 Admin password + UI (port-forward only):
+
+Expected pods (1 StatefulSet + 6 Deployments): `argocd-application-controller-0`,
+`argocd-applicationset-controller-*`, `argocd-dex-server-*`,
+`argocd-notifications-controller-*`, `argocd-redis-*`,
+`argocd-repo-server-*`, `argocd-server-*`.
+
+### 10.2 — Admin password + port-forward + argocd CLI login (REQUIRED)
+
+The `argocd login` step is REQUIRED: every `argocd app sync` in
+§10.5 and Phase 12 fails with `not logged in` without it.
+
 ```bash
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
-kubectl -n argocd port-forward svc/argocd-server 8080:443 &   # https://localhost:8080
-```
-10.2.1 **Log in with the ArgoCD CLI (REQUIRED).** The `argocd app set` in
-10.4 and every `argocd app sync` in Phase 12 fail with `not logged in`
-without this. Use the port-forward from 10.2 and the password from it:
-```bash
-ADMIN_ARGO_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
+ADMIN_ARGO_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d)
+echo "admin password length: ${#ADMIN_ARGO_PWD} chars (no value echoed)"
+
+# Port-forward in a dedicated terminal (leave it running):
+kubectl -n argocd port-forward svc/argocd-server 8080:443 &
+sleep 2
+
+# CLI login.
 argocd login 127.0.0.1:8080 --username admin --password "$ADMIN_ARGO_PWD" --insecure
 argocd account list   # confirms the session works
+unset ADMIN_ARGO_PWD
 ```
-10.3 Apply BOTH AppProjects + root app-of-apps:
+
+### 10.3 — Apply both AppProjects + root app-of-apps
+
+**IMPORTANT: `root-app.yaml` cascades immediately.** Once applied,
+ArgoCD reconciles every YAML under `deployments/argocd/children/`
+as its own Application. Staging children have
+`automated.{prune:true, selfHeal:true}` so they start auto-sync at
+once; production children stay `OutOfSync` until manually synced
+inside the AppProject's business-hours window (13:00 UTC Mon-Fri).
+
+**Staging children pods will hang in Pending until §10.5 syncs the
+Linkerd Applications** (their proxy sidecars cannot be injected
+without the Linkerd webhook running).
+
 ```bash
 kubectl apply -f deployments/argocd/appproject.yaml
 kubectl apply -f deployments/argocd/linkerd-appproject.yaml
 kubectl apply -f deployments/argocd/root-app.yaml
+
+# Verify the AppProjects + root-app exist before §10.5.
+argocd proj list
+# expect: etradie + linkerd
+argocd app list | grep -E '(etradie-root|linkerd-)'
 ```
-10.4 Pass the Linkerd trust anchor to the control-plane app (values file leaves it empty by design):
+
+### 10.5 — Manually sync the 3 Linkerd Applications in wave order (REQUIRED)
+
+The 3 `linkerd-*` Applications are `automated.{prune:false,
+selfHeal:false}` (manual sync only) and the staging children's
+meshed pods need the proxy injector webhook running to come up.
+Sync them in wave order — the chart's `argocd.argoproj.io/sync-wave`
+annotations dictate the order:
+
 ```bash
-argocd app set linkerd-control-plane-production --helm-set-file identityTrustAnchorsPEM=ca.crt
+# Wave -6: creates the linkerd-identity-issuer Secret from Vault
+# (etradie/platform/linkerd/production via the chart's ExternalSecret).
+argocd app sync linkerd-identity-production
+argocd app wait linkerd-identity-production --health
+
+# Wave -5: installs Linkerd CRDs.
+argocd app sync linkerd-crds-production
+argocd app wait linkerd-crds-production --health
+
+# Wave -4: installs the control plane (identity controller, destination,
+# proxy injector). identityTrustAnchorsPEM comes from the values-file
+# commit at §10.0; identity issuer cert/key comes from the
+# linkerd-identity-issuer Secret materialised at wave -6.
+argocd app sync linkerd-control-plane-production
+argocd app wait linkerd-control-plane-production --health
+
+# Verify the proxy injector is ready.
+kubectl -n linkerd get pods
+# expect: linkerd-destination-*, linkerd-identity-*, linkerd-proxy-injector-* all Running
+
+# The staging children's NEXT reconcile (default poll = 3 min) finds
+# the mesh up and their proxy sidecars inject cleanly. To force the
+# reconcile sooner:
+argocd app sync data-layer-staging
+# (and so on through the wave order; Phase 12 documents the full set)
 ```
+
+If `linkerd-control-plane-production` ever fails with `invalid
+issuer cert chain`, the byte-level fingerprint MATCH from §8.5
+(PROGRESS.md §Phase 7 captures) is the place to confirm Vault holds
+the right bytes — do NOT regenerate the CA; troubleshoot the
+Vault → ESO → K8s Secret pipeline first.
 
 ---
 
