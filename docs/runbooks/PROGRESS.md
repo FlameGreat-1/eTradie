@@ -267,12 +267,10 @@ no longer fails on push to main. The four SHA secrets remain unset for
 now (CI defaults each to `"skip"`); add them as repo secrets after the
 workstation build to also enforce supply-chain pinning in CI.
 
-### Build + push
+### Build + push attempts
 
-- **First attempt** failed at the tini SHA-verification step because
-  the Dockerfile downloaded the binary to `/usr/bin/tini` but verified
-  it via `sha256sum -c` from `/tmp`, where the file it referenced did
-  not exist. **Fixed on `main`** — stage the download at
-  `/tmp/tini-${arch}` (matches the .sha256sum file), verify, then
-  `install -m 0755` to `/usr/bin/tini`. SHA enforcement preserved.
-- **Second attempt** (post-fix) ... pending re-run.
+| Attempt | Outcome | Failed step | Root cause + fix |
+|---|---|---|---|
+| 1 | ❌ | 3/16 (tini) | Dockerfile downloaded tini directly to `/usr/bin/tini` but verified via `sha256sum -c tini.sha256` from `/tmp`. The .sha256sum file references `tini-${arch}` by name, so `sha256sum -c` looked for `/tmp/tini-amd64` which did not exist (`FAILED open or read`). Fix on `main`: stage the download at `/tmp/tini-${arch}`, verify, then `install -m 0755` into `/usr/bin/tini`. SHA enforcement preserved — a tampered download is rejected BEFORE landing at the ENTRYPOINT path. Step 2/16 (apt + Wine `11.0.0.0~noble-1` install, ~993s) completed successfully before the failure, proving the `WINEHQ_VERSION` pin works. |
+| 2 | ❌ | 4/16 (non-root user creation) | Ubuntu 24.04 base ships a default `ubuntu` user/group at UID/GID 1000. `groupadd --gid 1000 mt` then fails with `GID '1000' already exists` (exit code 4). The UID/GID 1000 contract is load-bearing: `helm/mt-node/values.yaml::podSecurityContext.runAsUser=1000` pins it, and the rest of the Dockerfile chowns the Wine prefix template to `mt:mt`. Fix on `main`: `userdel -r ubuntu \|\| true` and `groupdel ubuntu \|\| true` BEFORE `groupadd --gid 1000 mt`. Idempotent — the `\|\| true` keeps the step green if a future base image drops the default account. |
+| 3 | 🟡 in progress | currently at 6/16 (Wine prefix init) | Past both Ubuntu-24.04-isms. Steps 1–5 cache-reused from attempt 2; step 6 (`wineboot --init` on the template prefix) is the slow phase. Estimated remaining: ~5–10 min for Wine prefix init, then MT5 install (~5–10 min), then MT4 install (~5–10 min), then EA copy + SHA verification (fast), then layer push to GHCR (~10–20 min depending on workstation upload bandwidth). |
