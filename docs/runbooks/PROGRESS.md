@@ -30,7 +30,7 @@
 | 0 | Prerequisites | ✅ DONE |
 | 1 | VPS host hardening | ✅ DONE |
 | 2 | Install K3s | ✅ DONE |
-| 2.5 | Build + push mt-node Wine image | ⏸ pending |
+| 2.5 | Build + push mt-node Wine image | 🟡 in progress |
 | 3 | Vault + Vault Agent Injector | ⏸ pending |
 | 4 | External Secrets Operator + ClusterSecretStore | ⏸ pending |
 | 5 | Stakater Reloader | ⏸ pending |
@@ -242,3 +242,37 @@ reachability. If an operator ever runs `sudo ufw disable` for any
 reason, the K3s API becomes publicly reachable in seconds. Never
 disable ufw; for temporary debug access use a source-IP-restricted
 rule (Phase 1 security measure 5).
+
+---
+
+## Phase 2.5 — Build + push mt-node Wine image (in progress)
+
+### Pre-flight values collected (this deploy)
+
+| Value | Source | Value |
+|---|---|---|
+| `WINEHQ_VERSION` | `apt-cache policy winehq-stable` in fresh ubuntu:24.04 + WineHQ apt source | `11.0.0.0~noble-1` |
+| `MT5_INSTALLER_SHA256` | `sha256sum` of the official MT5 installer | `d437fd760587d24e094864215b86a441cc64ab897cace2b2a21a46614b3f4e36` |
+| `MT4_INSTALLER_SHA256` | `sha256sum` of the official MT4 installer | `944720016fae95eba6b5f6035415ddcaac75be91a23bfeb7712e0b4cebbb0622` |
+| `EA_EX5_SHA256` | `make mt-node-ea-sha` against committed `.ex5` | `e5dd977af6072077bf2db9a8cf5422ec4df77659aa931f28c998fc4f63cc8ed7` |
+| `EA_EX4_SHA256` | `make mt-node-ea-sha` against committed `.ex4` | `6e617cc5e7aa3e9dbd70a66935207dee8132e20992814dd6df79ff2cab9d2129` |
+| `MT_NODE_TAG` | `helm/mt-node/values-image.yaml::image.tag` | `0.1.0` |
+| Image push target | `helm/mt-node/values-image.yaml::image.repository` + tag | `ghcr.io/flamegreat-1/etradie-mt-node:0.1.0` |
+
+### CI secrets set
+
+`WINEHQ_VERSION=11.0.0.0~noble-1` added as a GitHub Actions repo secret
+so the `.github/workflows/ci.yml` production-build guard for mt-node
+no longer fails on push to main. The four SHA secrets remain unset for
+now (CI defaults each to `"skip"`); add them as repo secrets after the
+workstation build to also enforce supply-chain pinning in CI.
+
+### Build + push
+
+- **First attempt** failed at the tini SHA-verification step because
+  the Dockerfile downloaded the binary to `/usr/bin/tini` but verified
+  it via `sha256sum -c` from `/tmp`, where the file it referenced did
+  not exist. **Fixed on `main`** — stage the download at
+  `/tmp/tini-${arch}` (matches the .sha256sum file), verify, then
+  `install -m 0755` to `/usr/bin/tini`. SHA enforcement preserved.
+- **Second attempt** (post-fix) ... pending re-run.
