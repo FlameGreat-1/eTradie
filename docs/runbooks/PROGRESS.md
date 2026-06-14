@@ -624,6 +624,27 @@ as an obvious error.
 
 ## Phase 8 — Bootstrap Vault paths + populate every secret 🟡 in progress
 
+> **⚠️ BLOCKING ACTION before §8.2 onwards on the staging cluster.**
+> The ClusterSecretStore in this deploy was created by Phase 4.2
+> (pre-this-revision) pointing at the `secret/` mount, but Phase 8.1
+> terraform wrote the platform secrets under `etradie/` (the
+> canonical mount per `infrastructure/cluster/vault-paths/variables.tf`).
+> Until the ClusterSecretStore is patched, chart `ExternalSecret`s in
+> Phase 12 will silently fail to find any of the paths we are about
+> to populate.
+>
+> Run ONCE on the staging cluster (already fixed in README §4.2 for
+> future deploys):
+> ```bash
+> kubectl patch clustersecretstore vault-backend --type=merge \
+>   -p '{"spec":{"provider":{"vault":{"path":"etradie"}}}}'
+> kubectl get clustersecretstore vault-backend \
+>   -o jsonpath='{.spec.provider.vault.path} {.status.conditions[0].reason}{"\n"}'
+> # expect: etradie Valid
+> ```
+> Then proceed to §8.2 (generate shared secrets) and onward.
+
+
 Largest single phase in the runbook. Eleven sub-steps. The README §8
 rewrite (commits `699b382c` → `fc3086e8`) is the canonical procedure
 this deploy executes; this PROGRESS entry tracks WHICH sub-steps have
