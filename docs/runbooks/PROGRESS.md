@@ -34,7 +34,7 @@
 | 3 | Vault + Vault Agent Injector | ✅ DONE |
 | 4 | External Secrets Operator + ClusterSecretStore | ✅ DONE |
 | 5 | Stakater Reloader | ✅ DONE |
-| 6 | Cloudflare Tunnel | ⏸ pending |
+| 6 | Cloudflare Tunnel | ✅ DONE |
 | 7 | Generate Linkerd mesh CA | ⏸ pending |
 | 8 | Bootstrap Vault paths + populate every secret | ⏸ pending |
 | 9 | Build + inject envoy WASM filter | ⏸ pending |
@@ -393,3 +393,103 @@ Executed the README block verbatim. No deviation, no gotcha.
 | 5.1 Install Reloader chart | ✅ | `helm repo add stakater + helm install reloader stakater/reloader -n reloader --create-namespace` succeeded first try. `kubectl -n reloader rollout status deployment/reloader-reloader --timeout=120s` returned `successfully rolled out` in ~24s. Single pod `reloader-reloader-c7d8d988-hpj92` Running 1/1, deployment `reloader-reloader   1/1   1   1`. Reloader will watch every Secret carrying `secret.reloader.stakater.com/reload: <secret-name>` (notably the mt-node platform Secret that holds `DEFAULT_ZMQ_AUTH_TOKEN`) and roll the dependent workloads on rotation. |
 
 No Phase 5 operator gotchas. The README block is correct as-shipped.
+
+---
+
+## Phase 6 — Cloudflare Tunnel ✅
+
+Pure Cloudflare control-plane work — no `kubectl`, no VPS access. The
+Cloudflare dashboard's classic **Public Hostname** tab for cloudflared
+tunnels has been removed from this account (and from accounts on the
+new "Networks" Cloudflare One UI generally); the surviving in-UI
+"Hostname routes" tab only offers the **private** hostname flow, which
+requires the Cloudflare One Client on every end user's device — wrong
+for our public-facing `staging-api.exoper.com`. We therefore drove the
+tunnel ingress and DNS through the Cloudflare REST API. End state is
+identical to what the old UI would have produced; the only difference
+is the transport.
+
+### Deploy-specific values captured (NOT secrets — recorded so Phase 8.5 / 11 do not have to rediscover them)
+
+| Value | Source | Value |
+|---|---|---|
+| Cloudflare Account ID | dashboard URL `/<account-id>/...` | `38431fae78ce23adc3b933633a9abdd0` |
+| Cloudflare Zone ID for `exoper.com` | `GET /zones?name=exoper.com` | `0642ff7fa8153bf7dc31b8db692dc79a` |
+| Tunnel name | Cloudflare dashboard | `etradie-staging` |
+| Tunnel UUID | dashboard URL of the tunnel detail page | `6d46295b-488e-49d6-9b7e-b699b310a1ec` |
+| Public hostname | wired into the tunnel ingress | `staging-api.exoper.com` |
+| Origin service URL | tunnel ingress (in-cluster DNS) | `https://edge-ingress.edge-ingress-system.svc.cluster.local:443` |
+| Tunnel ingress `noTLSVerify` | API PUT body | `false` (mTLS-style verify on; AOP CA bytes go into Vault in Phase 8.5 to make it succeed at runtime) |
+| Auto-created DNS record id | `GET /zones/.../dns_records?name=staging-api.exoper.com` | `d318ada0ea8eda04ccc9053cccf61951` |
+| Configurations version | PUT response | `2` (Cloudflare increments per write; `1` was created server-side at tunnel-create time) |
+| Tunnel token file (workstation, 0600) | written in 6.1 | `~/cloudflare-staging-tunnel-token.txt` (185 bytes, starts `eyJh`) |
+
+### Sub-step status
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 6.1 Create tunnel `etradie-staging` (Cloudflared type, copy single-use token) | ✅ | Created in the new "Networks → Tunnels" UI; token (`eyJ...`, 185 bytes) captured directly off the install screen via `cat > ~/cloudflare-staging-tunnel-token.txt` then `chmod 600`. Verification: `head -c 4` returned `eyJh` (correct JWT-ish base64 prefix), `wc -c` returned `185` (within the expected 180–230 byte range for a cloudflared remote-managed token), `tail -c 2 \| od -c` returned `9 \n` (exactly one trailing newline, no stray bytes). The install command itself was deliberately NOT run on the workstation — `cloudflared` will run as a Deployment inside the cluster, shipped by the `edge-ingress` Helm chart in Phase 12, and the token gets written into Vault at `secret/etradie/services/edge-ingress/staging/cloudflare/tunnel` in Phase 8.5. Tunnel status displayed as **Inactive** in the dashboard for the entire phase — correct: no connector has registered yet because the in-cluster cloudflared does not yet exist. |
+| 6.2 Add public hostname `staging-api.exoper.com -> https://edge-ingress.edge-ingress-system.svc.cluster.local:443` | ✅ (via API — UI path no longer available) | The dashboard wizard's step 4/4 ("Route tunnel") landed on a screen that only offered private-hostname routes (the form's helper text explicitly required Cloudflare One Client on end-user devices). Direct legacy URLs `/<account-id>/access/tunnels/<uuid>` and `/<account-id>/networks/tunnels/cfd_tunnel/<uuid>/edit` both returned `We could not find that page.` — the classic Public Hostname tab is fully gone from this account. Drove the configuration via REST API instead: minted a scoped token (Cloudflare Tunnel:Edit + Account Settings:Read + DNS:Edit, account-scoped + zone-scoped to `exoper.com`, 48h TTL); `PUT /accounts/.../cfd_tunnel/<uuid>/configurations` with an `ingress` array containing one rule for `staging-api.exoper.com -> https://edge-ingress.edge-ingress-system.svc.cluster.local:443` (`noTLSVerify: false`, `http2Origin: false`, conservative keepalive/timeout values) plus the mandatory `http_status:404` catch-all terminator. API returned `success: true`, `version: 2`. Cloudflare's configurations endpoint AUTO-CREATES the matching CNAME on first PUT (new behaviour in the Networks UI; the explicit `POST /zones/.../dns_records` for the same name failed with the expected `81053 record already exists`). Read-back via `GET /zones/.../dns_records?name=staging-api.exoper.com&type=CNAME` confirmed `content: 6d46295b-488e-49d6-9b7e-b699b310a1ec.cfargotunnel.com` (UUID matches tunnel UUID exactly), `proxied: true`, `ttl: 1` (auto). Public DNS verified via `getent hosts staging-api.exoper.com` returning two Cloudflare anycast IPv6 addresses (`2606:4700:3032::ac43:b39c` + `2606:4700:3037::6815:1fc2`, both in Cloudflare's `2606:4700::/32` block) — proves the CNAME exists, propagated, and the proxy is intercepting (returning Cloudflare's edge IPs rather than the `*.cfargotunnel.com` target). API token shredded post-write (`shred -u ~/.cloudflare-staging-api-token.txt`); server-side TTL expires 2026-06-15 23:59:59Z regardless. |
+| 6.3 Record the Tunnel UUID | ✅ | UUID `6d46295b-488e-49d6-9b7e-b699b310a1ec`, read directly from the dashboard URL on the tunnel detail page (`/<account-id>/networks/tunnels/cfd_tunnel/<UUID>`). Captured into the deploy-specific values table above. |
+
+### Expected end state through to Phase 12
+
+The tunnel will remain `Inactive` in the Cloudflare dashboard, with zero
+connectors registered and `Uptime: --`, until Phase 12 syncs the
+`edge-ingress-staging` ArgoCD app and the in-cluster `cloudflared`
+Deployment comes online. A request to `https://staging-api.exoper.com`
+at this point will return Cloudflare's Argo Tunnel error page (HTTP
+530 or HTML error 1033). That is the correct intermediate state, not a
+fault — every component is wired, only the connector is missing.
+
+### Phase 6 operator gotchas recorded for the next deploy
+
+**1. The classic "Public Hostname" tab is gone for new Cloudflare One
+accounts.** The README's Phase 6.2 was written against the old Zero
+Trust UI that exposed `Networks → Tunnels → <tunnel> → Public Hostname`
+as a dedicated tab. That tab no longer exists in accounts on the
+"Networks" UI; the surviving "Hostname routes" tab is for private
+hostnames only (requires Cloudflare One Client end-user enrollment).
+Do not use it — it will misconfigure the tunnel for our public-facing
+use case. Drive cloudflared tunnel ingress via the REST API instead
+(`PUT /accounts/<account-id>/cfd_tunnel/<tunnel-id>/configurations`).
+The configurations endpoint also auto-creates the matching CNAME in
+the target zone on first write, so a separate
+`POST /zones/<zone-id>/dns_records` call is no longer required (and
+will fail with the harmless `81053 record already exists`).
+
+**2. The mandatory `http_status:404` catch-all terminator.** Cloudflare
+rejects the configurations PUT with `1003 invalid ingress: no
+catch-all rule` if the `ingress` array does not END with a rule that
+has no `hostname` field and a `service` value of `http_status:<code>`,
+`http_status:404` being the conventional one. Easy to miss when
+templating the JSON body; if Phase 6.2's PUT returns 400 with that
+error, append the terminator and retry.
+
+**3. `noTLSVerify: false` is load-bearing.** Setting it to `true`
+appears to "just work" in early testing because Cloudflare establishes
+TLS to the in-cluster `edge-ingress` Service either way. But the
+Phase 8.5 Authenticated Origin Pull CA bytes (`aop_ca`) only get
+enforced when `noTLSVerify: false`, and Tier 11 requires that
+enforcement to keep the tunnel from being trivially impersonated by
+anything that gains a foothold on the host network. Always `false`.
+
+**4. Do not run `cloudflared service install <token>` on the
+workstation just because the Cloudflare wizard suggests it.** That
+command registers the workstation itself as a connector for the
+tunnel, which would expose `staging-api.exoper.com` from the laptop —
+the opposite of the architecture. The token's only purpose is to be
+written into Vault in Phase 8.5 so the in-cluster cloudflared
+Deployment can use it. Until Phase 8.5 + 12, the token sits idle in
+`~/cloudflare-staging-tunnel-token.txt` (0600).
+
+**5. The bootstrap API token can be a short-TTL scoped token.** The
+three permissions actually needed for Phase 6 are `Cloudflare
+Tunnel:Edit` (PUT configurations), `Account Settings:Read` (for the
+token verify endpoint), and `DNS:Edit` (for the read-back GET; the
+explicit POST is unnecessary now per gotcha #1). Account scope: the
+single account that owns the tunnel. Zone scope: just `exoper.com`.
+TTL: 48h is generous; the actual API surface usage took ~3 minutes.
+Client-IP filtering should be left blank — pinning to today's NAT
+exit IP adds nothing on a 48h credential and risks bricking the
+session if the ISP rotates the lease.
