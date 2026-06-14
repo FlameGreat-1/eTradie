@@ -40,14 +40,14 @@ jobs:
         run: gosec -fmt json -out gosec-report.json -severity medium ./src/gateway/... ./src/execution/... ./src/management/... ./src/billing/... ./src/auth/...
       - name: Upload gosec report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gosec-report
           path: gosec-report.json
           retention-days: 30
       - name: Upload security report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-report
           path: bandit-report.json
