@@ -578,9 +578,25 @@ ROOT_TOKEN=$(awk '/Initial Root Token:/ {print $NF}' ~/vault-init.txt)
 test -n "$ROOT_TOKEN" && echo "root token captured: ${#ROOT_TOKEN} chars" || { echo "FAILED to capture root token"; exit 1; }
 # Vault 1.17 root tokens are 'hvs.' + 24 chars = 28 chars total.
 
-# 3.4.1 — Enable KV-v2 at path 'secret'.
+# 3.4.1 — Enable KV-v2 at path 'secret' (dev/test mount).
 kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
-  vault secrets enable -version=2 -path=secret kv
+  vault secrets enable -version=2 -path=secret kv 2>/dev/null \
+  || echo "secret/ mount already enabled — idempotent, continuing"
+
+# 3.4.1b — Enable KV-v2 at path 'etradie' (CANONICAL platform mount).
+# infrastructure/cluster/vault-paths/variables.tf defaults vault_mount
+# to 'etradie'; every chart ExternalSecret reads from this mount via
+# the ClusterSecretStore (configured in §4.2 to point at this path).
+# The dev 'secret/' mount above is intentionally not the canonical
+# location — see the variables.tf comment about production posture.
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault secrets enable -version=2 -path=etradie kv 2>/dev/null \
+  || echo "etradie/ mount already enabled — idempotent, continuing"
+
+# Verify both mounts exist.
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault secrets list | grep -E '^(secret|etradie)/'
+# Expect TWO lines: secret/ and etradie/
 
 # 3.4.2 — Enable Kubernetes auth backend.
 kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
@@ -653,7 +669,11 @@ helm install external-secrets external-secrets/external-secrets \
 kubectl -n external-secrets wait --for=condition=Available deployment/external-secrets --timeout=120s
 ```
 
-4.2 ClusterSecretStore `vault-backend` (referenced by every chart):
+4.2 ClusterSecretStore `vault-backend` (referenced by every chart).
+The `path` field MUST equal the canonical KV-v2 mount from §3.4.1b
+(`etradie`), NOT the dev/test mount `secret`. Audit ref:
+`infrastructure/cluster/vault-paths/variables.tf::vault_mount`.
+
 ```bash
 cat <<'EOF' | kubectl apply -f -
 apiVersion: external-secrets.io/v1beta1
@@ -664,7 +684,7 @@ spec:
   provider:
     vault:
       server: "http://vault.vault.svc.cluster.local:8200"
-      path: "secret"
+      path: "etradie"
       version: "v2"
       auth:
         kubernetes:
@@ -675,7 +695,25 @@ spec:
             namespace: external-secrets
 EOF
 ```
-**Verify:** `kubectl get clustersecretstore vault-backend -o jsonpath='{.status.conditions[0].reason}'` -> `Valid`.
+**Verify:**
+```bash
+kubectl get clustersecretstore vault-backend -o jsonpath='{.spec.provider.vault.path}{"\n"}'
+# expect: etradie
+kubectl get clustersecretstore vault-backend -o jsonpath='{.status.conditions[0].reason}{"\n"}'
+# expect: Valid
+```
+
+> **Re-running an existing deploy where the ClusterSecretStore was
+> created with `path: secret`?** The staging deploy that produced this
+> revision hit exactly that. Patch in place; ESO refreshes within
+> the next reconcile interval:
+> ```bash
+> kubectl patch clustersecretstore vault-backend --type=merge \
+>   -p '{"spec":{"provider":{"vault":{"path":"etradie"}}}}'
+> kubectl get clustersecretstore vault-backend \
+>   -o jsonpath='{.spec.provider.vault.path} {.status.conditions[0].reason}{"\n"}'
+> # expect: etradie Valid
+> ```
 
 ---
 
