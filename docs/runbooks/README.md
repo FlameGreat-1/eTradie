@@ -1419,21 +1419,65 @@ StatefulSets are wave -2 in Phase 12 and their pods block in
 `Init:0/N` indefinitely if ESO cannot materialise their Secrets.
 Key names EXACT per the three `*-externalsecret.yaml` templates.
 
+> **CANONICAL WRITE PATTERN — read this before §8.4 onwards.** Every
+> Vault write in §8.4 through §8.11 uses the explicit form:
+>
+> ```bash
+> kubectl -n vault exec -i vault-0 -- \
+>   env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+>   etradie/<rest> <kv_pairs>
+> ```
+>
+> The explicit `-mount=etradie` flag plus the full `etradie/<rest>`
+> KEY (with the **doubled `etradie/` prefix** — NOT a typo) make the
+> path unambiguous and identical to terraform's resource id. The
+> `vkv` helper from §8.1 is more concise but takes a positional
+> `<mount>/<key>` path that is easy to misread: `vkv etradie/X`
+> resolves to mount=etradie, key=X, which is NOT what terraform
+> created (terraform names every resource as `etradie/<rest>` with
+> mount=etradie, key=etradie/<rest> — chart ExternalSecrets read
+> from `etradie/data/etradie/<rest>`). The staging deploy hit this
+> the first time; the explicit form below makes the same mistake
+> impossible to make. Audit ref: PROGRESS.md operator gotcha #9.
+
 ```bash
-vkv secret/etradie/data-layer/postgres/${ENV} \
+# 8.4.1 — Postgres: 3 properties.
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/data-layer/postgres/${ENV} \
   postgres_user=etradie \
   postgres_db=etradie \
   postgres_password="${DB_PASS}"
 
-vkv secret/etradie/data-layer/redis/${ENV} \
+# 8.4.2 — Redis: 1 property.
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/data-layer/redis/${ENV} \
   redis_password="${REDIS_PASS}"
 
-# ChromaDB: SINGLE key 'auth_token'. The chromadb StatefulSet (reads
-# CHROMA_SERVER_AUTHN_CREDENTIALS) AND the engine pod (reads
-# RAG_CHROMA_AUTH_TOKEN) BOTH consume this exact Vault property; the
-# engine's chromadbAuthVaultPath pin in values-<env>.yaml points HERE.
-vkv secret/etradie/data-layer/chromadb/${ENV} \
+# 8.4.3 — ChromaDB: SINGLE key 'auth_token'. The chromadb
+# StatefulSet (reads CHROMA_SERVER_AUTHN_CREDENTIALS) AND the engine
+# pod (reads RAG_CHROMA_AUTH_TOKEN) BOTH consume this exact Vault
+# property; the engine's chromadbAuthVaultPath pin in
+# values-<env>.yaml points HERE.
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/data-layer/chromadb/${ENV} \
   auth_token="${CHROMA_TOKEN}"
+
+# Read-back: confirm version 2 (terraform created v=1 placeholders).
+for p in etradie/data-layer/postgres/${ENV} etradie/data-layer/redis/${ENV} etradie/data-layer/chromadb/${ENV}; do
+  v=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault kv metadata get -mount=etradie "$p" 2>&1 | grep '^current_version' | awk '{print $2}')
+  echo "  $p  current_version=$v (expect 2)"
+done
+
+# DB_PASS hash-compare shell vs vault (no value leaks to scrollback).
+shell_hash=$(printf '%s' "${DB_PASS}" | sha256sum | cut -d' ' -f1)
+vault_hash=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -mount=etradie -field=postgres_password \
+  etradie/data-layer/postgres/${ENV} | sha256sum | cut -d' ' -f1)
+[ "$shell_hash" = "$vault_hash" ] && echo "  OK DB_PASS shell==vault" || echo "  FAIL"
 ```
 
 > **Production deviation — postgres-backup offsite (B2/rclone).** Per
@@ -1470,24 +1514,53 @@ will not find it and Phase 12's `linkerd-control-plane-production`
 sync will fail with `issuer secret linkerd-identity-issuer not found`.
 
 ```bash
-vkv_file secret/etradie/platform/linkerd/production \
-  trust_anchor_pem=@ca.crt \
-  issuer_tls_crt=@issuer.crt \
-  issuer_tls_key=@issuer.key
+# Read each PEM file into a shell variable so multi-line content
+# is passed inline to vault kv put. @file syntax does NOT work
+# through kubectl exec (the @ resolution happens INSIDE the pod,
+# where the workstation files do not exist).
+TRUST_ANCHOR_PEM="$(cat ca.crt)"
+ISSUER_TLS_CRT="$(cat issuer.crt)"
+ISSUER_TLS_KEY="$(cat issuer.key)"
 
-# Verify the bytes Vault holds match what is on disk. The fingerprints
-# below MUST equal the values recorded in PROGRESS.md §Phase 7.
-vkv_get -field=trust_anchor_pem \
-  secret/etradie/platform/linkerd/production \
-  | step certificate fingerprint /dev/stdin
-vkv_get -field=issuer_tls_crt \
-  secret/etradie/platform/linkerd/production \
-  | step certificate fingerprint /dev/stdin
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/platform/linkerd/production \
+  trust_anchor_pem="$TRUST_ANCHOR_PEM" \
+  issuer_tls_crt="$ISSUER_TLS_CRT" \
+  issuer_tls_key="$ISSUER_TLS_KEY"
+
+# Round-trip fingerprint verification. The disk fingerprints below
+# MUST equal the values recorded in PROGRESS.md §Phase 7.
+disk_ca_fp=$(step certificate fingerprint ca.crt)
+disk_issuer_fp=$(step certificate fingerprint issuer.crt)
+vault_ca_fp=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -mount=etradie -field=trust_anchor_pem \
+  etradie/platform/linkerd/production | step certificate fingerprint /dev/stdin)
+vault_issuer_fp=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -mount=etradie -field=issuer_tls_crt \
+  etradie/platform/linkerd/production | step certificate fingerprint /dev/stdin)
+[ "$disk_ca_fp" = "$vault_ca_fp" ] && echo "  OK trust_anchor_pem MATCH" || echo "  FAIL"
+[ "$disk_issuer_fp" = "$vault_issuer_fp" ] && echo "  OK issuer_tls_crt MATCH" || echo "  FAIL"
+
+# Issuer cert/key PAIRING check INSIDE Vault. This is what Linkerd's
+# identity controller runs at boot; catching a mismatch here surfaces
+# the problem as "your write was wrong" instead of as "linkerd-identity
+# won't start with invalid issuer cert chain" at Phase 12 sync.
+vault_cert=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -mount=etradie -field=issuer_tls_crt etradie/platform/linkerd/production)
+vault_key=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -mount=etradie -field=issuer_tls_key etradie/platform/linkerd/production)
+cert_pub_sha=$(printf '%s\n' "$vault_cert" | openssl x509 -noout -pubkey | sha256sum | cut -d' ' -f1)
+key_pub_sha=$( printf '%s\n' "$vault_key"  | openssl pkey -pubout 2>/dev/null | sha256sum | cut -d' ' -f1)
+[ "$cert_pub_sha" = "$key_pub_sha" ] && echo "  OK issuer cert+key PAIRED in Vault" || echo "  FAIL UNPAIRED"
+
+unset TRUST_ANCHOR_PEM ISSUER_TLS_CRT ISSUER_TLS_KEY vault_cert vault_key
 ```
 
-If either fingerprint differs from the PROGRESS.md §Phase 7 entry,
-stop. The most common cause is a trailing-newline transformation on
-the way through `kubectl exec`. Do NOT proceed.
+If any fingerprint differs from the PROGRESS.md §Phase 7 entry, or
+the cert/key pairing FAILs, stop. The most common cause is a
+trailing-newline transformation on the way through `kubectl exec`.
+Do NOT proceed.
 
 ### 8.6 — Edge-ingress paths (tunnel, AOP CA, MaxMind, TLS certs)
 
@@ -1500,37 +1573,110 @@ the post-audit procedure writes real Cloudflare Origin Certificates.
 
 ```bash
 # 8.6.1 — Tunnel connector token (Phase 6.1 output).
-vkv_file secret/etradie/services/edge-ingress/${ENV}/cloudflare/tunnel \
-  tunnel_token=@~/cloudflare-${ENV}-tunnel-token.txt
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/services/edge-ingress/${ENV}/cloudflare/tunnel \
+  tunnel_token="$(cat ~/cloudflare-${ENV}-tunnel-token.txt)"
 
-# 8.6.2 — Cloudflare Authenticated Origin Pulls CA.
-vkv secret/etradie/services/edge-ingress/${ENV}/cloudflare/aop_ca \
-  aop_ca="$(curl -fsS https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem)"
+# 8.6.2 — Cloudflare Authenticated Origin Pulls CA. Fetch live
+# (Cloudflare's canonical PEM URL); write into Vault so edge-ingress
+# reads it via ESO at runtime, avoiding a runtime egress dependency.
+AOP_CA_PEM=$(curl -fsS https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem)
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/services/edge-ingress/${ENV}/cloudflare/aop_ca \
+  aop_ca="$AOP_CA_PEM"
 
-# 8.6.3 — MaxMind GeoLite. Sourced from .env (NOT typed inline).
-set -a; . ~/eTradie/.env; set +a
-vkv secret/etradie/services/edge-ingress/${ENV}/maxmind \
-  license_key="${MAXMIND_LICENSE_KEY:?MAXMIND_LICENSE_KEY missing from .env}" \
-  account_id="${MAXMIND_ACCOUNT_ID:?MAXMIND_ACCOUNT_ID missing from .env}"
+# 8.6.3 — MaxMind GeoLite. Source the 2 needed keys with subshell
+# isolation (same pattern as §8.8 below) to avoid the .env source
+# clobbering §8.2 generated vars on shells where .env contains
+# stale POSTGRES_PASSWORD / AUTH_JWT_SECRET / BROKER_ENCRYPTION_KEY.
+# Audit ref: PROGRESS.md operator gotcha #12.
+eval "$(
+  set -a
+  . ~/eTradie/.env 2>/dev/null
+  set +a
+  for k in MAXMIND_LICENSE_KEY MAXMIND_ACCOUNT_ID; do
+    val=$(eval echo \"\${${k}}\")
+    val_esc=$(printf '%s' "$val" | sed "s/'/'\\\\''/g")
+    printf "ENV_%s='%s'\n" "$k" "$val_esc"
+  done
+)"
+[ -z "$ENV_MAXMIND_LICENSE_KEY" ] && { echo "FAIL MAXMIND_LICENSE_KEY missing from .env"; }
+[ -z "$ENV_MAXMIND_ACCOUNT_ID" ] && { echo "FAIL MAXMIND_ACCOUNT_ID missing from .env"; }
+
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/services/edge-ingress/${ENV}/maxmind \
+  license_key="$ENV_MAXMIND_LICENSE_KEY" \
+  account_id="$ENV_MAXMIND_ACCOUNT_ID"
 
 # 8.6.4 — TLS certificates. STAGING: 4 properties (staging_api_cert,
 # staging_api_key, staging_wildcard_cert, staging_wildcard_key) per
 # helm/edge-ingress/values-staging.yaml::externalSecrets.tlsCerts.entries.
-# PRODUCTION: 4 different property names (api_cert, api_key, wildcard_cert,
-# wildcard_key) per helm/edge-ingress/values.yaml base defaults.
+# PRODUCTION: 4 different property names (api_cert, api_key,
+# wildcard_cert, wildcard_key) per helm/edge-ingress/values.yaml
+# base defaults.
 if [ "$ENV" = staging ]; then
-  vkv_file secret/etradie/services/edge-ingress/staging/tls \
-    staging_api_cert=@~/cf-origin-staging-api.crt \
-    staging_api_key=@~/cf-origin-staging-api.key \
-    staging_wildcard_cert=@~/cf-origin-wildcard-staging.crt \
-    staging_wildcard_key=@~/cf-origin-wildcard-staging.key
+  STAGING_API_CERT="$(cat ~/cf-origin-staging-api.crt)"
+  STAGING_API_KEY="$(cat ~/cf-origin-staging-api.key)"
+  STAGING_WILD_CERT="$(cat ~/cf-origin-wildcard-staging.crt)"
+  STAGING_WILD_KEY="$(cat ~/cf-origin-wildcard-staging.key)"
+  kubectl -n vault exec -i vault-0 -- \
+    env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+    etradie/services/edge-ingress/staging/tls \
+    staging_api_cert="$STAGING_API_CERT" \
+    staging_api_key="$STAGING_API_KEY" \
+    staging_wildcard_cert="$STAGING_WILD_CERT" \
+    staging_wildcard_key="$STAGING_WILD_KEY"
+  unset STAGING_API_CERT STAGING_API_KEY STAGING_WILD_CERT STAGING_WILD_KEY
 else
-  vkv_file secret/etradie/services/edge-ingress/production/tls \
-    api_cert=@~/cf-origin-api.crt \
-    api_key=@~/cf-origin-api.key \
-    wildcard_cert=@~/cf-origin-wildcard.crt \
-    wildcard_key=@~/cf-origin-wildcard.key
+  API_CERT="$(cat ~/cf-origin-api.crt)"
+  API_KEY="$(cat ~/cf-origin-api.key)"
+  WILD_CERT="$(cat ~/cf-origin-wildcard.crt)"
+  WILD_KEY="$(cat ~/cf-origin-wildcard.key)"
+  kubectl -n vault exec -i vault-0 -- \
+    env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+    etradie/services/edge-ingress/production/tls \
+    api_cert="$API_CERT" \
+    api_key="$API_KEY" \
+    wildcard_cert="$WILD_CERT" \
+    wildcard_key="$WILD_KEY"
+  unset API_CERT API_KEY WILD_CERT WILD_KEY
 fi
+
+unset AOP_CA_PEM ENV_MAXMIND_LICENSE_KEY ENV_MAXMIND_ACCOUNT_ID
+```
+
+**Post-write verification.** Tunnel token byte equality (newline-
+stripped, since the vault CLI may +/- a trailing newline), AOP CA
+cert count parity, TLS cert fingerprint round-trip per pair, and
+TLS cert/key pairing INSIDE Vault per pair. The pairing check is
+the load-bearing one — it proves edge-ingress will TLS-handshake
+cleanly when cloudflared dials it at Phase 12.
+
+```bash
+for pair in "staging_api_cert:staging_api_key:cf-origin-staging-api" \
+            "staging_wildcard_cert:staging_wildcard_key:cf-origin-wildcard-staging"; do
+  cprop=$(echo "$pair" | cut -d: -f1)
+  kprop=$(echo "$pair" | cut -d: -f2)
+  fbase=$(echo "$pair" | cut -d: -f3)
+  # Fingerprint round-trip.
+  disk_fp=$(openssl x509 -in ~/${fbase}.crt -noout -fingerprint -sha256 | sed 's/.*=//;s/://g' | tr '[:upper:]' '[:lower:]')
+  vault_fp=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault kv get -mount=etradie -field="$cprop" \
+    etradie/services/edge-ingress/${ENV}/tls \
+    | openssl x509 -noout -fingerprint -sha256 | sed 's/.*=//;s/://g' | tr '[:upper:]' '[:lower:]')
+  [ "$disk_fp" = "$vault_fp" ] && echo "  OK $cprop fingerprint MATCH" || echo "  FAIL $cprop"
+  # Cert/key pairing inside Vault.
+  vc=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault kv get -mount=etradie -field="$cprop" etradie/services/edge-ingress/${ENV}/tls)
+  vk=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault kv get -mount=etradie -field="$kprop" etradie/services/edge-ingress/${ENV}/tls)
+  c_pub=$(printf '%s\n' "$vc" | openssl x509 -noout -pubkey 2>/dev/null | openssl pkey -pubin -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1)
+  k_pub=$(printf '%s\n' "$vk" | openssl rsa  -pubout 2>/dev/null              | openssl pkey -pubin -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1)
+  [ "$c_pub" = "$k_pub" ] && [ -n "$c_pub" ] && echo "  OK $cprop/$kprop PAIRED in Vault" || echo "  FAIL $cprop/$kprop UNPAIRED"
+done
 ```
 
 > **Production deviation — Cloudflare Origin Cert generation.** Generate
@@ -1559,7 +1705,9 @@ full Postgres DSN + the separate `POSTGRES_*` fields the Go envconfig
 fallback consumes when `auth_database_url` is empty. Twelve properties.
 
 ```bash
-vkv secret/etradie/services/gateway/${ENV} \
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/services/gateway/${ENV} \
   auth_database_url="${DB_URL_GO}" \
   postgres_user=etradie \
   postgres_password="${DB_PASS}" \
@@ -1572,6 +1720,20 @@ vkv secret/etradie/services/gateway/${ENV} \
   auth_admin_password="${ADMIN_PASS}" \
   engine_internal_shared_secret="${ENGINE_SHARED}" \
   billing_internal_shared_secret="${BILLING_SHARED}"
+
+# 3-way cross-path equality: postgres_password MUST match shell
+# DB_PASS, data-layer/postgres, and gateway. Catching a divergence
+# here is much easier than catching it via app-layer 500s at Phase 12.
+shell_pgpw=$(printf '%s' "${DB_PASS}" | sha256sum | cut -d' ' -f1)
+dlay_pgpw=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -mount=etradie -field=postgres_password \
+  etradie/data-layer/postgres/${ENV} | sha256sum | cut -d' ' -f1)
+gw_pgpw=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -mount=etradie -field=postgres_password \
+  etradie/services/gateway/${ENV} | sha256sum | cut -d' ' -f1)
+[ "$shell_pgpw" = "$dlay_pgpw" ] && [ "$dlay_pgpw" = "$gw_pgpw" ] \
+  && echo "  OK postgres_password 3-way MATCH" \
+  || echo "  FAIL MISMATCH — STOP, investigate before §8.8"
 ```
 
 ### 8.8 — Engine path
@@ -1589,10 +1751,51 @@ for system callers (RAG ingest, COT scraper, MetaApi provisioner)
 that have no user identity at runtime.
 
 ```bash
-# Source .env in THIS shell only (no export beyond Phase 8).
-set -a; . ~/eTradie/.env; set +a
+# Source .env keys with SUBSHELL ISOLATION so the §8.2 generated
+# values in the working shell are NOT clobbered. The platform's .env
+# redefines POSTGRES_PASSWORD, AUTH_JWT_SECRET, BROKER_ENCRYPTION_KEY
+# with stale/template values — a naive `set -a; . .env; set +a` would
+# overwrite §8.2's DB_PASS / JWT_SECRET / BROKER_KEY in this shell,
+# and every subsequent vault kv put would write the wrong values,
+# breaking the cross-path equality matrix that Phase 12 depends on.
+# Audit ref: PROGRESS.md operator gotcha #12.
+#
+# The eval "$(...)" pattern runs the .env source in a SUBSHELL,
+# extracts only the 7 keys we need, prefixes them with ENV_ so they
+# can't collide with §8.2 vars, and emits them as KEY='value' lines
+# back to the main shell. Subshell variables die when $(...) closes.
+eval "$(
+  set -a
+  . ~/eTradie/.env 2>/dev/null
+  set +a
+  for k in TWELVEDATA_API_KEY FRED_API_KEY CFTC_APP_TOKEN \
+           PROCESSOR_ANTHROPIC_API_KEY PROCESSOR_OPENAI_API_KEY \
+           PROCESSOR_GEMINI_API_KEY MT5_METAAPI_TOKEN; do
+    val=$(eval echo \"\${${k}}\")
+    val_esc=$(printf '%s' "$val" | sed "s/'/'\\\\''/g")
+    printf "ENV_%s='%s'\n" "$k" "$val_esc"
+  done
+)"
 
-vkv secret/etradie/services/engine/${ENV} \
+# Safety check: §8.2 variables MUST be unchanged after the source.
+# This is the load-bearing isolation check; if it FAILs, do NOT write.
+shell_db_pass_post=$(printf '%s' "${DB_PASS}" | sha256sum | cut -d' ' -f1)
+[ -n "$DB_PASS" ] && [ ${#DB_PASS} -eq 64 ] \
+  && echo "  OK §8.2 DB_PASS preserved (subshell isolation worked)" \
+  || { echo "  FAIL §8.2 DB_PASS clobbered — STOP, do not write Vault"; }
+
+# Fail-fast on the 2 engine-required-at-boot keys.
+[ -z "$ENV_TWELVEDATA_API_KEY" ] && echo "  FAIL TWELVEDATA_API_KEY missing"
+[ -z "$ENV_FRED_API_KEY" ] && echo "  FAIL FRED_API_KEY missing"
+
+# Write — 15 properties at the canonical engine path. The 16th
+# property (chromadb auth_token) is read by the engine from a
+# DIFFERENT Vault path (`etradie/data-layer/chromadb/${ENV}`) per
+# the engine chart's chromadbAuthVaultPath value — §8.4 already
+# populated it.
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/services/engine/${ENV} \
   database_url="${DB_URL_PY}" \
   postgres_user=etradie \
   postgres_password="${DB_PASS}" \
@@ -1601,18 +1804,18 @@ vkv secret/etradie/services/engine/${ENV} \
   broker_encryption_key="${BROKER_KEY}" \
   auth_jwt_secret="${JWT_SECRET}" \
   engine_internal_shared_secret="${ENGINE_SHARED}" \
-  twelvedata_api_key="${TWELVEDATA_API_KEY:?TWELVEDATA_API_KEY missing from .env (engine required-at-boot for ${ENV})}" \
-  fred_api_key="${FRED_API_KEY:?FRED_API_KEY missing from .env (engine required-at-boot)}" \
-  cftc_app_token="${CFTC_APP_TOKEN:-}" \
-  processor_anthropic_api_key="${PROCESSOR_ANTHROPIC_API_KEY:-}" \
-  processor_openai_api_key="${PROCESSOR_OPENAI_API_KEY:-}" \
-  processor_gemini_api_key="${PROCESSOR_GEMINI_API_KEY:-}" \
-  mt5_metaapi_token="${MT5_METAAPI_TOKEN:-}"
-```
+  twelvedata_api_key="$ENV_TWELVEDATA_API_KEY" \
+  fred_api_key="$ENV_FRED_API_KEY" \
+  cftc_app_token="${ENV_CFTC_APP_TOKEN:-}" \
+  processor_anthropic_api_key="${ENV_PROCESSOR_ANTHROPIC_API_KEY:-}" \
+  processor_openai_api_key="${ENV_PROCESSOR_OPENAI_API_KEY:-}" \
+  processor_gemini_api_key="${ENV_PROCESSOR_GEMINI_API_KEY:-}" \
+  mt5_metaapi_token="${ENV_MT5_METAAPI_TOKEN:-}"
 
-Fail-fast behaviour: `${VAR:?msg}` exits with `msg` if the variable is
-unset OR empty (used for the two required keys). `${VAR:-}` substitutes
-empty string if unset (used for the dashboard-managed keys).
+unset ENV_TWELVEDATA_API_KEY ENV_FRED_API_KEY ENV_CFTC_APP_TOKEN \
+      ENV_PROCESSOR_ANTHROPIC_API_KEY ENV_PROCESSOR_OPENAI_API_KEY \
+      ENV_PROCESSOR_GEMINI_API_KEY ENV_MT5_METAAPI_TOKEN
+```
 
 ### 8.9 — Execution + Management paths
 
@@ -1624,13 +1827,17 @@ in staging, but writing the values is still required because the
 production posture flips it to `mt5`.
 
 ```bash
-vkv secret/etradie/services/execution/${ENV} \
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/services/execution/${ENV} \
   execution_database_url="${DB_URL_GO}" \
   execution_redis_url="${REDIS1}" \
   auth_jwt_secret="${JWT_SECRET}" \
   engine_internal_shared_secret="${ENGINE_SHARED}"
 
-vkv secret/etradie/services/management/${ENV} \
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/services/management/${ENV} \
   management_database_url="${DB_URL_GO}" \
   management_redis_url="${REDIS1}" \
   auth_jwt_secret="${JWT_SECRET}" \
@@ -1639,11 +1846,19 @@ vkv secret/etradie/services/management/${ENV} \
 
 ### 8.10 — Billing path
 
-Fourteen properties. `src/billing/config/config.go::Load()` marks
-every Paddle + LemonSqueezy field as `required:"true"` and applies a
-`>=32 char` length check to `BILLING_INTERNAL_SHARED_SECRET`. An empty
-value for any of them fails the pod at boot with
-`billing config: required key X missing value`.
+**Eighteen properties** — the previous README said "Fourteen" but the
+chart's `helm/billing/templates/externalsecret.yaml` lists 18
+explicit `data:` entries: `billing_database_url` + 6 `POSTGRES_*`
+fields + `internal_shared_secret` + `billing_redis_url` + 4 Paddle
+keys + 5 LemonSqueezy keys = **18**. The 6 `POSTGRES_*` fallback
+fields the original block was missing are required because billing's
+`config.go` validates them on startup when `BILLING_DATABASE_URL` is
+unset; without all 6, ESO synthesises an empty Secret and the
+billing pod CrashLoops. `config.go::Load()` also marks every Paddle
++ LemonSqueezy field as `required:"true"` and applies a `>=32 char`
+length check to `BILLING_INTERNAL_SHARED_SECRET`. An empty value for
+any required field fails the pod at boot with `billing config:
+required key X missing value`.
 
 Staging writes **plausibly-formatted placeholders** per the Phase 0
 decision ("Paddle + Lemon Squeezy credentials NOT in hand. Phase 8.9
@@ -1655,16 +1870,22 @@ endpoints then reject real provider traffic with HMAC verification
 errors, which is the correct posture for staging.
 
 ```bash
-# Placeholder shapes match real provider value sizes.
-PLACEHOLDER_LONG=$(openssl rand -hex 32)
-PLACEHOLDER_API_KEY=$(openssl rand -hex 32)
-PLACEHOLDER_PRICE_BYOK="pri_placeholder_$(openssl rand -hex 6)"
-PLACEHOLDER_PRICE_MANAGED="pri_placeholder_$(openssl rand -hex 6)"
+# Placeholder shapes match real provider value sizes. Distinct
+# random values per provider (not shared between Paddle and LS) so
+# leaks/forensics distinguish which provider the value came from.
+PLACEHOLDER_PADDLE_WEBHOOK=$(openssl rand -hex 32)
+PLACEHOLDER_PADDLE_APIKEY=$(openssl rand -hex 32)
+PLACEHOLDER_PADDLE_PRICE_BYOK="pri_placeholder_$(openssl rand -hex 6)"
+PLACEHOLDER_PADDLE_PRICE_MANAGED="pri_placeholder_$(openssl rand -hex 6)"
+PLACEHOLDER_LS_WEBHOOK=$(openssl rand -hex 32)
+PLACEHOLDER_LS_APIKEY=$(openssl rand -hex 32)
 PLACEHOLDER_LS_STORE="$(( RANDOM % 90000 + 10000 ))"
 PLACEHOLDER_LS_VARIANT_BYOK="$(( RANDOM % 9000000 + 1000000 ))"
 PLACEHOLDER_LS_VARIANT_MANAGED="$(( RANDOM % 9000000 + 1000000 ))"
 
-vkv secret/etradie/services/billing/${ENV} \
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/services/billing/${ENV} \
   billing_database_url="${DB_URL_GO}" \
   postgres_user=etradie \
   postgres_password="${DB_PASS}" \
@@ -1674,39 +1895,68 @@ vkv secret/etradie/services/billing/${ENV} \
   postgres_sslmode=require \
   internal_shared_secret="${BILLING_SHARED}" \
   billing_redis_url="${REDIS0}" \
-  paddle_webhook_secret="${PLACEHOLDER_LONG}" \
-  paddle_api_key="${PLACEHOLDER_API_KEY}" \
-  paddle_price_pro_byok="${PLACEHOLDER_PRICE_BYOK}" \
-  paddle_price_pro_managed="${PLACEHOLDER_PRICE_MANAGED}" \
-  lemonsqueezy_webhook_secret="${PLACEHOLDER_LONG}" \
-  lemonsqueezy_api_key="${PLACEHOLDER_API_KEY}" \
+  paddle_webhook_secret="${PLACEHOLDER_PADDLE_WEBHOOK}" \
+  paddle_api_key="${PLACEHOLDER_PADDLE_APIKEY}" \
+  paddle_price_pro_byok="${PLACEHOLDER_PADDLE_PRICE_BYOK}" \
+  paddle_price_pro_managed="${PLACEHOLDER_PADDLE_PRICE_MANAGED}" \
+  lemonsqueezy_webhook_secret="${PLACEHOLDER_LS_WEBHOOK}" \
+  lemonsqueezy_api_key="${PLACEHOLDER_LS_APIKEY}" \
   lemonsqueezy_store_id="${PLACEHOLDER_LS_STORE}" \
   lemonsqueezy_variant_pro_byok="${PLACEHOLDER_LS_VARIANT_BYOK}" \
   lemonsqueezy_variant_pro_managed="${PLACEHOLDER_LS_VARIANT_MANAGED}"
+
+# Verify the asymmetric pair: gateway:billing_internal_shared_secret
+# == billing:internal_shared_secret. Different KEY names, SAME VALUE.
+shell_bs=$(printf '%s' "${BILLING_SHARED}" | sha256sum | cut -d' ' -f1)
+g_biss=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -mount=etradie -field=billing_internal_shared_secret \
+  etradie/services/gateway/${ENV} | sha256sum | cut -d' ' -f1)
+b_iss=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -mount=etradie -field=internal_shared_secret \
+  etradie/services/billing/${ENV} | sha256sum | cut -d' ' -f1)
+[ "$shell_bs" = "$g_biss" ] && [ "$g_biss" = "$b_iss" ] \
+  && echo "  OK asymmetric pair MATCH (gateway/billing_internal_shared_secret == billing/internal_shared_secret)" \
+  || echo "  FAIL MISMATCH — STOP"
 ```
 
 > **Production deviation — real Paddle + LemonSqueezy creds.** On the
 > production deploy, source the real values from `.env` instead of
 > generating placeholders:
 > ```bash
-> # Production-only.
-> set -a; . ~/eTradie/.env; set +a
-> vkv secret/etradie/services/billing/production \
+> # Production-only. Use the subshell-isolated .env source pattern
+> # so the 9 .env-sourced billing keys do NOT clobber §8.2 vars.
+> eval "$(
+>   set -a
+>   . ~/eTradie/.env 2>/dev/null
+>   set +a
+>   for k in PADDLE_WEBHOOK_SECRET PADDLE_API_KEY \
+>            PADDLE_PRICE_PRO_BYOK PADDLE_PRICE_PRO_MANAGED \
+>            LEMONSQUEEZY_WEBHOOK_SECRET LEMONSQUEEZY_API_KEY \
+>            LEMONSQUEEZY_STORE_ID LEMONSQUEEZY_VARIANT_PRO_BYOK \
+>            LEMONSQUEEZY_VARIANT_PRO_MANAGED; do
+>     val=$(eval echo \"\${${k}}\")
+>     val_esc=$(printf '%s' "$val" | sed "s/'/'\\\\''/g")
+>     printf "ENV_%s='%s'\n" "$k" "$val_esc"
+>   done
+> )"
+> kubectl -n vault exec -i vault-0 -- \
+>   env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+>   etradie/services/billing/production \
 >   billing_database_url="${DB_URL_GO}" \
 >   postgres_user=etradie postgres_password="${DB_PASS}" \
 >   postgres_host=postgres.etradie-system.svc.cluster.local \
 >   postgres_port=5432 postgres_db=etradie postgres_sslmode=require \
 >   internal_shared_secret="${BILLING_SHARED}" \
 >   billing_redis_url="${REDIS0}" \
->   paddle_webhook_secret="${PADDLE_WEBHOOK_SECRET:?required}" \
->   paddle_api_key="${PADDLE_API_KEY:?required}" \
->   paddle_price_pro_byok="${PADDLE_PRICE_PRO_BYOK:?required}" \
->   paddle_price_pro_managed="${PADDLE_PRICE_PRO_MANAGED:?required}" \
->   lemonsqueezy_webhook_secret="${LEMONSQUEEZY_WEBHOOK_SECRET:?required}" \
->   lemonsqueezy_api_key="${LEMONSQUEEZY_API_KEY:?required}" \
->   lemonsqueezy_store_id="${LEMONSQUEEZY_STORE_ID:?required}" \
->   lemonsqueezy_variant_pro_byok="${LEMONSQUEEZY_VARIANT_PRO_BYOK:?required}" \
->   lemonsqueezy_variant_pro_managed="${LEMONSQUEEZY_VARIANT_PRO_MANAGED:?required}"
+>   paddle_webhook_secret="${ENV_PADDLE_WEBHOOK_SECRET:?required}" \
+>   paddle_api_key="${ENV_PADDLE_API_KEY:?required}" \
+>   paddle_price_pro_byok="${ENV_PADDLE_PRICE_PRO_BYOK:?required}" \
+>   paddle_price_pro_managed="${ENV_PADDLE_PRICE_PRO_MANAGED:?required}" \
+>   lemonsqueezy_webhook_secret="${ENV_LEMONSQUEEZY_WEBHOOK_SECRET:?required}" \
+>   lemonsqueezy_api_key="${ENV_LEMONSQUEEZY_API_KEY:?required}" \
+>   lemonsqueezy_store_id="${ENV_LEMONSQUEEZY_STORE_ID:?required}" \
+>   lemonsqueezy_variant_pro_byok="${ENV_LEMONSQUEEZY_VARIANT_PRO_BYOK:?required}" \
+>   lemonsqueezy_variant_pro_managed="${ENV_LEMONSQUEEZY_VARIANT_PRO_MANAGED:?required}"
 > ```
 
 ### 8.11 — mt-node platform path + cross-path verification (closes Phase 8)
@@ -1716,7 +1966,9 @@ tokens are managed by the engine's `HostedProvisioner` at runtime; this
 is the default the EA uses when no per-tenant override exists.
 
 ```bash
-vkv secret/etradie/services/mt-node/${ENV} \
+kubectl -n vault exec -i vault-0 -- \
+  env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
+  etradie/services/mt-node/${ENV} \
   default_zmq_auth_token="${MT_DEFAULT_ZMQ}"
 ```
 
@@ -1730,46 +1982,95 @@ variable was redefined). Catch it now; Phase 12 surfaces these as
 confusing app-layer errors much later.
 
 ```bash
-echo "=== AUTH_JWT_SECRET equality across gateway/engine/execution/management ==="
+# Helper to keep the matrix readable.
+vg () { kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+          vault kv get -mount=etradie -field="$1" "$2" | sha256sum | cut -d' ' -f1; }
+
+echo "=== Matrix 1: auth_jwt_secret across gateway/engine/execution/management (4-way) ==="
 for path in \
-    secret/etradie/services/gateway/${ENV} \
-    secret/etradie/services/engine/${ENV} \
-    secret/etradie/services/execution/${ENV} \
-    secret/etradie/services/management/${ENV}; do
-  h=$(vkv_get -field=auth_jwt_secret "$path" | sha256sum | cut -d' ' -f1)
-  printf '  %-50s  %s\n' "$path" "$h"
+    etradie/services/gateway/${ENV} \
+    etradie/services/engine/${ENV} \
+    etradie/services/execution/${ENV} \
+    etradie/services/management/${ENV}; do
+  printf '  %-50s  %s\n' "$path" "$(vg auth_jwt_secret "$path")"
 done
 
-echo "=== engine_internal_shared_secret equality across the same four ==="
+echo "=== Matrix 2: engine_internal_shared_secret across same 4 (4-way) ==="
 for path in \
-    secret/etradie/services/gateway/${ENV} \
-    secret/etradie/services/engine/${ENV} \
-    secret/etradie/services/execution/${ENV} \
-    secret/etradie/services/management/${ENV}; do
-  h=$(vkv_get -field=engine_internal_shared_secret "$path" | sha256sum | cut -d' ' -f1)
-  printf '  %-50s  %s\n' "$path" "$h"
+    etradie/services/gateway/${ENV} \
+    etradie/services/engine/${ENV} \
+    etradie/services/execution/${ENV} \
+    etradie/services/management/${ENV}; do
+  printf '  %-50s  %s\n' "$path" "$(vg engine_internal_shared_secret "$path")"
 done
 
-echo "=== billing_internal_shared_secret pair (different KEY names, same VALUE) ==="
-g=$(vkv_get -field=billing_internal_shared_secret \
-      secret/etradie/services/gateway/${ENV} | sha256sum | cut -d' ' -f1)
-b=$(vkv_get -field=internal_shared_secret \
-      secret/etradie/services/billing/${ENV} | sha256sum | cut -d' ' -f1)
+echo "=== Matrix 3: billing asymmetric pair (different KEY names, SAME VALUE) ==="
+g=$(vg billing_internal_shared_secret etradie/services/gateway/${ENV})
+b=$(vg internal_shared_secret         etradie/services/billing/${ENV})
 printf '  %-50s  %s\n' "gateway:billing_internal_shared_secret" "$g"
-printf '  %-50s  %s\n' "billing:internal_shared_secret" "$b"
-[ "$g" = "$b" ] && echo "  OK  pair MATCH" || echo "  FAIL  pair MISMATCH"
+printf '  %-50s  %s\n' "billing:internal_shared_secret"         "$b"
+[ "$g" = "$b" ] && echo "  OK pair MATCH" || echo "  FAIL pair MISMATCH"
 
-echo "=== postgres_password equality: data-layer vs gateway vs engine ==="
-d=$(vkv_get -field=postgres_password \
-      secret/etradie/data-layer/postgres/${ENV} | sha256sum | cut -d' ' -f1)
-gp=$(vkv_get -field=postgres_password \
-      secret/etradie/services/gateway/${ENV} | sha256sum | cut -d' ' -f1)
-ep=$(vkv_get -field=postgres_password \
-      secret/etradie/services/engine/${ENV} | sha256sum | cut -d' ' -f1)
-printf '  %-50s  %s\n' "data-layer/postgres" "$d"
-printf '  %-50s  %s\n' "services/gateway" "$gp"
-printf '  %-50s  %s\n' "services/engine" "$ep"
-[ "$d" = "$gp" ] && [ "$gp" = "$ep" ] && echo "  OK  MATCH" || echo "  FAIL  MISMATCH"
+echo "=== Matrix 4: postgres_password across data-layer + gateway + engine + billing (4-way) ==="
+for path in \
+    etradie/data-layer/postgres/${ENV} \
+    etradie/services/gateway/${ENV} \
+    etradie/services/engine/${ENV} \
+    etradie/services/billing/${ENV}; do
+  printf '  %-50s  %s\n' "$path" "$(vg postgres_password "$path")"
+done
+
+echo "=== Matrix 5: redis_password across data-layer + engine (2-way) ==="
+for entry in "etradie/data-layer/redis/${ENV}:redis_password" \
+             "etradie/services/engine/${ENV}:redis_password"; do
+  printf '  %-50s  %s\n' "$entry" "$(vg "${entry##*:}" "${entry%:*}")"
+done
+
+echo "=== Matrix 6: shell-vs-vault byte equality for the 8 §8.2 generated secrets ==="
+shell_db=$(printf '%s' "${DB_PASS}" | sha256sum | cut -d' ' -f1)
+shell_rd=$(printf '%s' "${REDIS_PASS}" | sha256sum | cut -d' ' -f1)
+shell_jwt=$(printf '%s' "${JWT_SECRET}" | sha256sum | cut -d' ' -f1)
+shell_bk=$(printf '%s' "${BROKER_KEY}" | sha256sum | cut -d' ' -f1)
+shell_ct=$(printf '%s' "${CHROMA_TOKEN}" | sha256sum | cut -d' ' -f1)
+shell_es=$(printf '%s' "${ENGINE_SHARED}" | sha256sum | cut -d' ' -f1)
+shell_bs=$(printf '%s' "${BILLING_SHARED}" | sha256sum | cut -d' ' -f1)
+shell_mt=$(printf '%s' "${MT_DEFAULT_ZMQ}" | sha256sum | cut -d' ' -f1)
+for entry in \
+    "DB_PASS:$shell_db:$(vg postgres_password etradie/data-layer/postgres/${ENV})" \
+    "REDIS_PASS:$shell_rd:$(vg redis_password etradie/data-layer/redis/${ENV})" \
+    "JWT_SECRET:$shell_jwt:$(vg auth_jwt_secret etradie/services/gateway/${ENV})" \
+    "BROKER_KEY:$shell_bk:$(vg broker_encryption_key etradie/services/engine/${ENV})" \
+    "CHROMA_TOKEN:$shell_ct:$(vg auth_token etradie/data-layer/chromadb/${ENV})" \
+    "ENGINE_SHARED:$shell_es:$(vg engine_internal_shared_secret etradie/services/gateway/${ENV})" \
+    "BILLING_SHARED:$shell_bs:$(vg internal_shared_secret etradie/services/billing/${ENV})" \
+    "MT_DEFAULT_ZMQ:$shell_mt:$(vg default_zmq_auth_token etradie/services/mt-node/${ENV})"; do
+  v="${entry%%:*}"; rest="${entry#*:}"; sh="${rest%%:*}"; vh="${rest##*:}"
+  status="OK"; [ "$sh" != "$vh" ] && status="FAIL"
+  printf '  %-18s shell=%s vault=%s  %s\n' "$v" "${sh:0:12}..." "${vh:0:12}..." "$status"
+done
+
+echo "=== All 14 KV paths present (current_version check) ==="
+# Linkerd path is /production EVEN on staging (operator gotcha #10);
+# the v=1 on it is correct (first write, no terraform placeholder).
+for p in \
+    etradie/data-layer/postgres/${ENV} \
+    etradie/data-layer/redis/${ENV} \
+    etradie/data-layer/chromadb/${ENV} \
+    etradie/platform/linkerd/production \
+    etradie/services/edge-ingress/${ENV}/cloudflare/tunnel \
+    etradie/services/edge-ingress/${ENV}/cloudflare/aop_ca \
+    etradie/services/edge-ingress/${ENV}/maxmind \
+    etradie/services/edge-ingress/${ENV}/tls \
+    etradie/services/gateway/${ENV} \
+    etradie/services/engine/${ENV} \
+    etradie/services/execution/${ENV} \
+    etradie/services/management/${ENV} \
+    etradie/services/billing/${ENV} \
+    etradie/services/mt-node/${ENV}; do
+  v=$(kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+    vault kv metadata get -mount=etradie "$p" 2>&1 | grep '^current_version' | awk '{print $2}')
+  printf '  %-60s current_version=%s\n' "$p" "$v"
+done
 ```
 
 Every heading's hash column MUST be uniform. Any mismatch — re-write
