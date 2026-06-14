@@ -148,7 +148,14 @@ RUN set -eux; \
     rm -f "tini-${arch}" tini.sha256
 
 # ── Non-root user (matches helm/mt-node runAsUser=1000) ──────────
+# Ubuntu 24.04 ships a default 'ubuntu' user/group at UID/GID 1000.
+# We MUST keep mt at UID/GID 1000 (helm/mt-node/values.yaml pins
+# podSecurityContext.runAsUser=1000) so delete the default user first.
+# `|| true` keeps the step idempotent if a future base image drops the
+# default account.
 RUN set -eux; \
+    userdel -r ubuntu 2>/dev/null || true; \
+    groupdel ubuntu 2>/dev/null || true; \
     groupadd --gid 1000 mt; \
     useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash mt; \
     install -d -o mt -g mt \
