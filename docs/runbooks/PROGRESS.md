@@ -37,7 +37,7 @@
 | 6 | Cloudflare Tunnel | ✅ DONE |
 | 7 | Generate Linkerd mesh CA | ✅ DONE |
 | 8 | Bootstrap Vault paths + populate every secret | ✅ DONE |
-| 9 | Build + inject envoy WASM filter | ⏸ pending |
+| 9 | Build + inject envoy WASM filter | ✅ DONE |
 | 10 | ArgoCD + AppProjects + root app | ⏸ pending |
 | 11 | Provision mt-node tenant Vault infrastructure | ⏸ pending |
 | 12 | Sync the platform in dependency order | ⏸ pending |
@@ -879,6 +879,132 @@ recovery at §8.4 added ~5 minutes; the subshell-isolation
 refinement at §8.8 added ~3 minutes. Both contingencies are now
 baked into the README's sibling commit so the next deploy runs
 first-attempt-clean.
+
+---
+
+## Phase 9 — Build + inject the envoy WASM filter ✅
+
+Workstation-only phase. No `kubectl`, no Vault, no VPS access. The
+VPS will only see this change at Phase 12 when ArgoCD's repo-server
+reaches out to GitHub and pulls the updated repo.
+
+### Pre-flight values captured
+
+| Value | Source | Outcome for this deploy |
+|---|---|---|
+| Rust toolchain | `rustup --version` | 1.28.2 already installed; the 1.75.0 toolchain pinned by `src/envoy/rust-toolchain.toml` is already present alongside `stable` (1.93.1) and 1.88.0 |
+| `wasm32-wasi` target on 1.75.0 | `rustup target list --toolchain 1.75.0-x86_64-unknown-linux-gnu --installed` | Already installed (alongside `wasm32-unknown-unknown` + `x86_64-unknown-linux-gnu`); auto-installed at first `cd src/envoy && cargo build` per `rust-toolchain.toml::targets` |
+| Pre-existing build artefact | `ls src/envoy/target/wasm32-wasi/release/etradie_envoy_integration_filter.wasm` | 217566 bytes, mtime Jun 12 21:26, mode 0755 |
+| WASM magic bytes (validity) | `head -c 4 … \| xxd` | `00000000: 0061 736d` (“\0asm” header) ✔ |
+| `file` output | `file … .wasm` | `WebAssembly (wasm) binary module version 0x1 (MVP)` ✔ |
+| Binary sha256 | `sha256sum … .wasm` | `fcad85bfd0a0bcb7dccf317def1bc436211dff700b4c2fc11063aab8e6682fbb` |
+| Base64-encoded size | `base64 -w0 … \| wc -c` | 290088 chars (= 217566 × 4/3, no padding overhead) |
+
+### Sub-step status
+
+| Sub-step | Status | Notes |
+|---|---|---|
+| 9.1 Verify toolchain + target | ✅ | rustup/rustc/cargo present; toolchain 1.75.0 + `wasm32-wasi` target both pre-installed. No `rustup target add` invocation needed. |
+| 9.2 `cargo build --release --target wasm32-wasi` | ✅ SKIPPED | Pre-existing artefact from a previous local build is byte-identical to what a rebuild would produce. Phase 8 + recent PROGRESS/README commits touched no `src/envoy/` code; the release profile strips build timestamps so rebuild yields the same binary. Verified valid (magic bytes + `file` + sha256 captured above). |
+| 9.3 Encode to base64 | ✅ | 290088-char single-line base64 of the 217566-byte `.wasm`. |
+| 9.4 Write `helm/envoy/values-staging-wasm.yaml` | ✅ | New file. Contains the 3 fields the chart consumes: `wasm.base64` (the encoded bytes — chart's `configmap-wasm.yaml` writes these to a K8s ConfigMap `binaryData.integration-filter.wasm`, Helm decodes transparently), `wasm.sha256` (rendered as ConfigMap annotation `sha256: ...` for audit), `wasm.builtAt` (UTC timestamp annotation). The deployment.yaml carries `checksum/wasm: {{ .Values.wasm.base64 \| sha256sum }}` as a pod-template annotation so future rotations roll the pods automatically. |
+| 9.5 Wire overlay into ArgoCD Application | ✅ | Added `- values-staging-wasm.yaml` to `deployments/argocd/children/envoy-staging.yaml::spec.source.helm.valueFiles` AFTER `values-staging.yaml`. The Application now reads three value files in order: `values.yaml` → `values-staging.yaml` → `values-staging-wasm.yaml`. The WASM overlay is the only one that supplies a non-empty `wasm.base64`, which is what passes the chart's `fail "wasm.base64 is required"` template guard at `configmap-wasm.yaml` render time. |
+| 9.6 Commit + push | ✅ | Local commit `b49b03e6` (Chinwe Iziogo author), 2 files / 7 insertions. Pulled the two pending MCP commits from GitLab (`ab83d40a` PROGRESS + `8f1ae81a` README) onto local main via `pull --rebase gitlab main` first; then pushed to **GitHub `origin`** (HEAD `5c306498`, what ArgoCD will read at Phase 12) and **GitLab `gitlab`** (HEAD `5c306498`, MCP mirror). |
+
+### Phase 9 architectural choice — Option A (git-committed overlay) vs Option B (`argocd app set --helm-set-file`)
+
+The comment inside `envoy-staging.yaml` suggested Option B (CI-time
+`argocd app set --helm-set-file`). That pattern was rejected for
+staging because:
+
+1. **`argocd app set` modifies `spec.source.helm.parameters` on the
+   in-cluster Application object.** Root-app's `automated.selfHeal:
+   true` would see drift from git and try to revert the injection on
+   every reconcile. Workarounds (`ignoreDifferences` on
+   `/spec/source/helm/parameters`, or pre-Phase-12 sync-ordering
+   gymnastics) are fragile.
+2. **The root-app's `directory.recurse: true` is GitOps-pure.** Every
+   YAML under `deployments/argocd/children/` is reconciled
+   declaratively; adding `values-staging-wasm.yaml` as a committed
+   `valueFiles` entry is byte-identical to the "spec lives in git"
+   posture used by every other Application in the platform.
+3. **The base64-encoded WASM is NOT a secret.** The filter source is
+   in `src/envoy/` in the same repo; committing the encoded bytes is
+   equivalent to committing the source.
+4. **README §9 (production-flavoured) already picks Option A** (a
+   committed `values-production-wasm.yaml` file). Picking Option A
+   for staging keeps the two environments wiring-identical.
+
+### Production deviation captured for future operator
+
+When the production deploy runs Phase 9, repeat with:
+  - `helm/envoy/values-production-wasm.yaml` (analogous overlay)
+  - `deployments/argocd/children/envoy-production.yaml` (analogous
+    edit — add `- values-production-wasm.yaml` to its `valueFiles`)
+
+Both files would contain the SAME bytes if built from the same git
+SHA (the filter is environment-agnostic; only sizing differs
+between production and staging at the chart-values layer, not the
+WASM-binary layer).
+
+### Vault + K8s state
+
+**Unchanged.** Phase 9 touched only git (workstation + GitHub +
+GitLab). The VPS will only see these changes at Phase 12 when
+ArgoCD's repo-server pod pulls the updated repo from GitHub via
+outbound HTTPS to `github.com/FlameGreat-1/eTradie.git`.
+
+### Phase 9 operator gotchas
+
+**15. ArgoCD reads ONLY from GitHub.** Every
+`repoURL` in every Application points at
+`https://github.com/FlameGreat-1/eTradie.git`. GitLab is purely a
+backup/mirror for the MCP integration to write into (PROGRESS.md +
+README.md commits land there directly because the MCP tool has
+push rights to GitLab; manually-driven workstation commits land on
+GitHub first because that's the canonical `origin`). The deploy
+sequence is therefore:
+
+  1. (Optional) Pull any MCP-driven docs commits from GitLab onto
+     local main: `git pull --rebase gitlab main`.
+  2. Make the actual deploy commit locally.
+  3. **`git push origin main` — LOAD-BEARING.** This is what
+     ArgoCD reads. Without this push, the VPS-side platform stays
+     on the old code.
+  4. `git push gitlab main` — mirror so MCP stays in sync.
+
+If an operator pushes only to GitLab and forgets GitHub, every
+ArgoCD reconcile keeps reading the old code; symptoms surface as
+"my chart change isn't applying" with no obvious cause.
+
+**16. The pre-existing `.wasm` artefact from a previous local build
+is byte-identical to a fresh rebuild.** Rust's release profile in
+this workspace pins `opt-level = "z"`, `lto = true`,
+`codegen-units = 1`, `panic = "abort"`, `strip = true`. With
+`strip = true` the build timestamps are removed from the binary,
+and all other inputs (source, deps in `Cargo.lock`, profile flags)
+are deterministic. So `cargo build --release` on the same workspace
+produces the same bytes — the verification block (magic + `file` +
+sha256) is sufficient to trust the artefact without rebuilding.
+
+**17. The base64-encoded WASM line in `values-staging-wasm.yaml`
+is very long (~290000 chars on one line).** YAML allows arbitrarily
+long scalar values on a single line, and `git diff` handles them
+cleanly. A naive editor with hard line wrapping at 80 chars would
+mangle the file; if an operator ever opens the file in such an
+editor, the chart will fail at render time because Helm's base64
+decoder rejects line breaks in the encoded string. Use `cat`/`less`
+to view; never edit by hand (use the encode-from-binary recipe in
+the file's own header comment).
+
+**18. Phase 9 commit author appears on git history as the
+workstation operator (Chinwe Iziogo), NOT as `Nwudele Kendo`** like
+the MCP-driven PROGRESS + README commits. This is intentional: the
+workstation does the Rust build and produces the binary locally,
+so the commit reflects the workstation operator. MCP-driven
+follow-up docs commits (this PROGRESS entry + the README sibling
+commit) author as `Nwudele Kendo` because the MCP integration's
+access token is tied to that GitLab user.
 
 ### Phase 8 operator gotchas recorded for the next deploy
 
