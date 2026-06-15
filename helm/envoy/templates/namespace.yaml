@@ -6,10 +6,16 @@ metadata:
   labels:
     name: {{ include "envoy.namespace" . }}
     {{- include "envoy.labels" . | nindent 4 }}
-    pod-security.kubernetes.io/enforce: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
-    pod-security.kubernetes.io/enforce-version: latest
+    # PSS in warn + audit mode only (no enforce). Linkerd's proxy-init
+    # init container needs NET_ADMIN + NET_RAW capabilities to install
+    # iptables rules; restricted-tier enforce would reject every meshed
+    # pod at admission. Same posture as helm/data-layer/templates/
+    # namespace.yaml. Audit-log trail still flags any restricted-tier
+    # violations; nothing is silently allowed.
     pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/audit-version: {{ .Values.namespace.podSecurityStandardVersion | default "v1.30" }}
     pod-security.kubernetes.io/warn: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/warn-version: {{ .Values.namespace.podSecurityStandardVersion | default "v1.30" }}
   annotations:
     description: "eTradie Envoy proxy namespace"
 {{- end }}
