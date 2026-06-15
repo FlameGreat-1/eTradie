@@ -20,19 +20,6 @@ postgres:
     refreshInterval: 5m
   backup:
     enabled: false
-  # Staging mesh posture: drop the opaque-ports annotation so postgres
-  # uses the default mesh path (same as chromadb, which is proven
-  # working). The default opaque-ports outbound mTLS handshake budget
-  # is 1s in Linkerd 2.14, and the engine's outbound proxy times out
-  # every connection attempt to postgres:5432 within that window on
-  # this single-node K3s box. Removing the annotation falls back to
-  # protocol-detection + raw TCP forward without the strict opaque
-  # handshake budget. Re-enable on staging only after Phase 15's
-  # `linkerd viz edges` shows every internal edge SECURED.
-  # Production posture (helm/data-layer/values.yaml) is UNCHANGED.
-  podAnnotations:
-    linkerd.io/inject: enabled
-    config.linkerd.io/proxy-enable-native-sidecar: "true"
 
 redis:
   storage:
@@ -50,12 +37,6 @@ redis:
   externalSecret:
     vaultPath: etradie/data-layer/redis/staging
     refreshInterval: 5m
-  # Same staging-only mesh posture as postgres above. See the comment
-  # block on postgres.podAnnotations for the rationale + Phase 15
-  # re-enable path. Production posture is UNCHANGED.
-  podAnnotations:
-    linkerd.io/inject: enabled
-    config.linkerd.io/proxy-enable-native-sidecar: "true"
 
 chromadb:
   storage:

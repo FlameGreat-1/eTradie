@@ -76,6 +76,19 @@ proxy:
       request: 64Mi
       limit: 256Mi
   logLevel: warn,linkerd=info
+  # Outbound TCP connect timeout (includes mTLS handshake for opaque
+  # ports). The Linkerd 2.14 default of 1s (1000ms) is too aggressive
+  # for single-node + cold-start scenarios: the engine pod's outbound
+  # proxy regularly times out the opaque-port mTLS handshake to
+  # postgres (5432) and redis (6379) within 1s when its destination
+  # cache is fresh, causing the engine's RAG bootstrap to crash on
+  # the very first DB/cache connection. Bumped to 10s, which is what
+  # Linkerd edge-25.x ships as the new default (upstream raised it
+  # after 2.14 because the 1s default was widely reported as too
+  # tight). Single cluster-wide knob; applies identically to staging
+  # and production. Preserves Tier 9 G9-1 opaque-ports hardening.
+  # Audit ref: Phase 10.6 RCA, PROGRESS.md operator gotcha #36.
+  outboundConnectTimeout: 10000ms
 
 # proxy-init (iptables setup; short-lived). Raised to meet the 64Mi /
 # 50m LimitRange minimum. Operators who instead install the Linkerd CNI
