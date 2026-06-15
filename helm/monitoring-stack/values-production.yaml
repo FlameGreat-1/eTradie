@@ -60,6 +60,30 @@ prometheusOperator:
 # ---------------------------------------------------------------------
 prometheus:
   enabled: true
+
+  # Custom ServiceMonitors rendered by the chart into the monitoring
+  # namespace. The Prometheus operator's serviceMonitorSelector picks
+  # them up cluster-wide via the `prometheus: kube-prometheus` label.
+  additionalServiceMonitors:
+    # CoreDNS metrics scrape, replacing the chart-default (which
+    # would render a facade Service in kube-system the AppProject
+    # cannot authorize). Targets K3s's existing kube-dns Service
+    # in kube-system on :9153 directly.
+    - name: coredns
+      additionalLabels:
+        prometheus: kube-prometheus
+      namespaceSelector:
+        matchNames:
+          - kube-system
+      selector:
+        matchLabels:
+          k8s-app: kube-dns
+      endpoints:
+        - port: metrics
+          interval: 30s
+          scrapeTimeout: 10s
+          honorLabels: true
+
   prometheusSpec:
     replicas: 1
     retention: 7d
