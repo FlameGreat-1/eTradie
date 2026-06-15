@@ -21,9 +21,17 @@ provider "vault" {
 }
 
 # edge-ingress TLS. Audit ref: IV-M1.
+#
+# Note on `name`: KV-v2 secret names are STORED relative to the mount.
+# The on-the-wire API path is `<mount>/data/<name>`. Because
+# `mount = var.vault_mount` (defaults to `etradie`), `name` MUST NOT
+# re-include the `etradie/` prefix — ESO's vault provider would still
+# build the URL as `etradie/data/<name>` and never resolve a doubled
+# prefix. See pkg/provider/vault/client_get.go::buildPath in
+# external-secrets v0.10.4 for the exact strip+prepend logic.
 resource "vault_kv_secret_v2" "edge_ingress_tls" {
   mount               = var.vault_mount
-  name                = "etradie/services/edge-ingress/${var.environment}/tls"
+  name                = "services/edge-ingress/${var.environment}/tls"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate keys api_cert + api_key + wildcard_cert + wildcard_key (production) or staging_api_cert + staging_api_key + staging_wildcard_cert + staging_wildcard_key (staging). Values are PEM-encoded certificate / key strings."
@@ -35,7 +43,7 @@ resource "vault_kv_secret_v2" "edge_ingress_tls" {
 
 resource "vault_kv_secret_v2" "edge_ingress_aop_ca" {
   mount               = var.vault_mount
-  name                = "etradie/services/edge-ingress/${var.environment}/cloudflare/aop_ca"
+  name                = "services/edge-ingress/${var.environment}/cloudflare/aop_ca"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate with the Cloudflare AOP CA PEM after the cloudflare module applies"
@@ -47,7 +55,7 @@ resource "vault_kv_secret_v2" "edge_ingress_aop_ca" {
 
 resource "vault_kv_secret_v2" "edge_ingress_tunnel" {
   mount               = var.vault_mount
-  name                = "etradie/services/edge-ingress/${var.environment}/cloudflare/tunnel"
+  name                = "services/edge-ingress/${var.environment}/cloudflare/tunnel"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate with the Cloudflare Tunnel token (key: tunnel_token) after creating the Tunnel in Cloudflare Zero Trust"
@@ -60,7 +68,7 @@ resource "vault_kv_secret_v2" "edge_ingress_tunnel" {
 # MaxMind GeoLite credentials. Audit ref: IV-M1.
 resource "vault_kv_secret_v2" "edge_ingress_maxmind" {
   mount               = var.vault_mount
-  name                = "etradie/services/edge-ingress/${var.environment}/maxmind"
+  name                = "services/edge-ingress/${var.environment}/maxmind"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate keys license_key + account_id with a free GeoLite2 sign-up at https://www.maxmind.com/en/geolite2/signup. Both required."
@@ -77,7 +85,7 @@ resource "vault_kv_secret_v2" "edge_ingress_maxmind" {
 # Audit ref: IV-C1, IV-M3.
 resource "vault_kv_secret_v2" "gateway" {
   mount               = var.vault_mount
-  name                = "etradie/services/gateway/${var.environment}"
+  name                = "services/gateway/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate keys: auth_database_url, postgres_user, postgres_password, postgres_host, postgres_port, postgres_db, postgres_sslmode (require/verify-full; consumed by the gateway POSTGRES_* fallback DSN when auth_database_url is unset), gateway_redis_url, auth_jwt_secret, auth_admin_password, engine_internal_shared_secret (must equal etradie/services/engine/${var.environment}:engine_internal_shared_secret if you also store it there), billing_internal_shared_secret (MUST EQUAL etradie/services/billing/${var.environment}:internal_shared_secret)."
@@ -94,7 +102,7 @@ resource "vault_kv_secret_v2" "gateway" {
 # IV-C2, X-6, D-C3.
 resource "vault_kv_secret_v2" "engine" {
   mount               = var.vault_mount
-  name                = "etradie/services/engine/${var.environment}"
+  name                = "services/engine/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate keys: database_url, postgres_user, postgres_password, redis_url, redis_password, broker_encryption_key, auth_jwt_secret, cftc_app_token, fred_api_key, twelvedata_api_key, processor_anthropic_api_key, processor_openai_api_key, processor_gemini_api_key, mt5_metaapi_token. broker_encryption_key is the ONLY credential KEK in the platform (the engine is the sole consumer; gateway/execution/management do NOT hold it) and is KEK version 1 for credential-at-rest envelope encryption. To ROTATE the credential KEK, add broker_encryption_key_v<n> (n>=2, e.g. broker_encryption_key_v2 = openssl rand -hex 32) and declare it in helm/engine values externalSecrets.engine.rotationKeyVersions; the engine activates the highest version, the re-wrap routine migrates rows, then remove the old version to revoke it. Note: rag_chroma_auth_token is NOT in this path; populate etradie/data-layer/chromadb/${var.environment}:auth_token instead (single source of truth shared with the ChromaDB server)."
@@ -107,7 +115,7 @@ resource "vault_kv_secret_v2" "engine" {
 # Execution service secrets. Audit ref: IV-M1.
 resource "vault_kv_secret_v2" "execution" {
   mount               = var.vault_mount
-  name                = "etradie/services/execution/${var.environment}"
+  name                = "services/execution/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate keys: execution_database_url, execution_redis_url, auth_jwt_secret, engine_internal_shared_secret. auth_jwt_secret MUST equal etradie/services/gateway/${var.environment}:auth_jwt_secret. engine_internal_shared_secret MUST equal etradie/services/gateway/${var.environment}:engine_internal_shared_secret AND the engine's value -- execution sends it in X-Internal-Auth on every /internal/broker/* call and the pod fails fast at startup without it when BROKER_MODE=mt5 in production/staging. NOTE: no broker/credential encryption KEK here -- execution does not encrypt credentials; it reaches the broker via the engine /internal/broker/* bridge."
@@ -120,7 +128,7 @@ resource "vault_kv_secret_v2" "execution" {
 # Management service secrets. Audit ref: IV-M1.
 resource "vault_kv_secret_v2" "management" {
   mount               = var.vault_mount
-  name                = "etradie/services/management/${var.environment}"
+  name                = "services/management/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate keys: management_database_url, management_redis_url, auth_jwt_secret, engine_internal_shared_secret. auth_jwt_secret MUST equal etradie/services/gateway/${var.environment}:auth_jwt_secret. engine_internal_shared_secret MUST equal etradie/services/gateway/${var.environment}:engine_internal_shared_secret AND the engine's value -- management sends it in X-Internal-Auth on every /internal/broker/* call and the pod fails fast at startup without it when BROKER_MODE=mt5 in production/staging. NOTE: no broker/credential encryption KEK here -- management does not encrypt credentials; it reaches the broker via the engine /internal/broker/* bridge."
@@ -168,7 +176,7 @@ resource "vault_kv_secret_v2" "management" {
 #   lemonsqueezy_variant_pro_managed - LS variant_id for pro_managed.
 resource "vault_kv_secret_v2" "billing" {
   mount               = var.vault_mount
-  name                = "etradie/services/billing/${var.environment}"
+  name                = "services/billing/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate with billing_database_url, internal_shared_secret, billing_redis_url, paddle_webhook_secret, paddle_api_key, paddle_price_pro_byok, paddle_price_pro_managed, lemonsqueezy_webhook_secret, lemonsqueezy_api_key, lemonsqueezy_store_id, lemonsqueezy_variant_pro_byok, lemonsqueezy_variant_pro_managed BEFORE the billing chart is reconciled"
@@ -194,7 +202,7 @@ resource "vault_kv_secret_v2" "billing" {
 
 resource "vault_kv_secret_v2" "data_layer_postgres" {
   mount               = var.vault_mount
-  name                = "etradie/data-layer/postgres/${var.environment}"
+  name                = "data-layer/postgres/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate with postgres_user, postgres_db, postgres_password BEFORE the data-layer chart is reconciled (postgres pod blocks otherwise)"
@@ -206,7 +214,7 @@ resource "vault_kv_secret_v2" "data_layer_postgres" {
 
 resource "vault_kv_secret_v2" "data_layer_redis" {
   mount               = var.vault_mount
-  name                = "etradie/data-layer/redis/${var.environment}"
+  name                = "data-layer/redis/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate with redis_password"
@@ -226,7 +234,7 @@ resource "vault_kv_secret_v2" "data_layer_redis" {
 # Audit ref: IV-C2, X-6, D-C3, SC-C2.
 resource "vault_kv_secret_v2" "data_layer_chromadb" {
   mount               = var.vault_mount
-  name                = "etradie/data-layer/chromadb/${var.environment}"
+  name                = "data-layer/chromadb/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate the single key 'auth_token' with the ChromaDB token. Both the ChromaDB server (CHROMA_SERVER_AUTHN_CREDENTIALS) and the engine (RAG_CHROMA_AUTH_TOKEN) read from this exact Vault path. Generate with: openssl rand -hex 32."
@@ -291,7 +299,7 @@ resource "vault_kv_secret_v2" "data_layer_chromadb" {
 # changes on a full CA rotation (rare, documented in the runbook).
 resource "vault_kv_secret_v2" "linkerd_identity" {
   mount               = var.vault_mount
-  name                = "etradie/platform/linkerd/${var.environment}"
+  name                = "platform/linkerd/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate keys trust_anchor_pem (PEM root CA, public), issuer_tls_crt (PEM intermediate issuer cert signed by the root), issuer_tls_key (PEM intermediate issuer key) BEFORE the linkerd-control-plane ArgoCD Application is synced. Generate with smallstep `step` CLI per the runbook in docs/runbooks/tier9-linkerd-mesh-rollout.md (section 0)."
@@ -303,7 +311,7 @@ resource "vault_kv_secret_v2" "linkerd_identity" {
 
 resource "vault_kv_secret_v2" "mt_node" {
   mount               = var.vault_mount
-  name                = "etradie/services/mt-node/${var.environment}"
+  name                = "services/mt-node/${var.environment}"
   delete_all_versions = false
   data_json = jsonencode({
     bootstrap = "placeholder; populate default_zmq_auth_token (openssl rand -hex 32) before any user can pick connection_type=hosted. Per-tenant MT credentials are stored in etradie/tenants/mt-node/<sa_name> via the Vault Agent Injector path - see mt_node_tenant_secrets.tf."
