@@ -1,0 +1,244 @@
+# Production values overlay for kube-prometheus-stack.
+#
+# Sized for the production posture on the single-node Contabo box:
+#   prometheus       300m / 1Gi    (PVC 20Gi, 7d retention)
+#   grafana          100m / 128Mi  (PVC 5Gi for custom dashboards)
+#   kube-state-metrics 50m / 64Mi
+#   node-exporter     50m / 64Mi   (DaemonSet, one per node)
+#   prometheus-operator 50m / 96Mi
+#
+# alertmanager OFF (no receiver wired yet; turn on after Slack /
+# PagerDuty tokens are in Vault and the receiver config is reviewed).
+# defaultRules OFF (the platform ships its own PrometheusRule per
+# chart; the upstream defaults would double-fire and inflate
+# cardinality).
+#
+# Production deltas vs staging:
+#   - Grafana persistence ON (custom dashboards survive restarts).
+#   - tolerations: workload=etradie-system NoSchedule on every
+#     component so the stack lands on a future tainted node group.
+#     No-op on the untainted single-node K3s box.
+
+fullnameOverride: kube-prometheus-stack
+
+crds:
+  enabled: true
+
+# ---------------------------------------------------------------------
+# Prometheus operator (the controller)
+# ---------------------------------------------------------------------
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  podAnnotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/proxy-enable-native-sidecar: "true"
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: etradie-system
+      effect: NoSchedule
+  admissionWebhooks:
+    enabled: true
+    patch:
+      enabled: true
+      podAnnotations:
+        linkerd.io/inject: disabled
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: etradie-system
+          effect: NoSchedule
+
+# ---------------------------------------------------------------------
+# Prometheus server
+# ---------------------------------------------------------------------
+prometheus:
+  enabled: true
+  prometheusSpec:
+    replicas: 1
+    retention: 7d
+    retentionSize: "18GiB"
+
+    # Every chart NetworkPolicy in this platform admits Prometheus by
+    # selecting `app: prometheus` from the monitoring namespace. The
+    # chart's default pod label is `app.kubernetes.io/name=prometheus`
+    # which would NOT match those selectors. Without this override the
+    # scrape would silently fail with no in-cluster signal.
+    podMetadata:
+      labels:
+        app: prometheus
+      annotations:
+        linkerd.io/inject: enabled
+        config.linkerd.io/proxy-enable-native-sidecar: "true"
+
+    resources:
+      requests:
+        cpu: 300m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: etradie-system
+        effect: NoSchedule
+
+    # Discover every ServiceMonitor / PodMonitor / PrometheusRule /
+    # Probe cluster-wide. Empty selectors = match everything in scope.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    podMonitorSelector: {}
+    ruleSelector: {}
+    probeSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    podMonitorNamespaceSelector: {}
+    ruleNamespaceSelector: {}
+    probeNamespaceSelector: {}
+
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 2000
+      fsGroup: 2000
+      seccompProfile:
+        type: RuntimeDefault
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+# ---------------------------------------------------------------------
+# Alertmanager OFF
+# ---------------------------------------------------------------------
+# No receiver wired yet. Re-enable here AFTER the receiver config is
+# reviewed; alertmanager without a real receiver is noise.
+alertmanager:
+  enabled: false
+
+# ---------------------------------------------------------------------
+# Grafana
+# ---------------------------------------------------------------------
+grafana:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # Production: persist Grafana so user-customised dashboards survive
+  # pod restarts. 5Gi is generous for dashboard JSON + user state.
+  persistence:
+    enabled: true
+    type: pvc
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+  # The chart default admin password is 'prom-operator'. Rotate on
+  # first login. The admin user/pw sourcing can move to ESO + Vault
+  # in a follow-up.
+  adminUser: admin
+  adminPassword: prom-operator
+  podAnnotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/proxy-enable-native-sidecar: "true"
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: etradie-system
+      effect: NoSchedule
+  service:
+    type: ClusterIP
+  serviceMonitor:
+    enabled: true
+    labels:
+      prometheus: kube-prometheus
+
+# ---------------------------------------------------------------------
+# kube-state-metrics
+# ---------------------------------------------------------------------
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  # Cluster-scoped read SA; mesh adds no value on a read-only scrape
+  # path and complicates the kubelet's scrape of /metrics.
+  podAnnotations:
+    linkerd.io/inject: disabled
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: etradie-system
+      effect: NoSchedule
+
+# ---------------------------------------------------------------------
+# node-exporter (DaemonSet)
+# ---------------------------------------------------------------------
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  # Host network + privileged /proc + /sys access. Mesh inject is a
+  # non-starter for host-network pods.
+  podAnnotations:
+    linkerd.io/inject: disabled
+  # node-exporter must land on every node regardless of taint; the
+  # operates: Exists toleration covers any future workload taint.
+  tolerations:
+    - operator: Exists
+      effect: NoSchedule
+
+# ---------------------------------------------------------------------
+# Default rules OFF
+# ---------------------------------------------------------------------
+defaultRules:
+  create: false
+
+# ---------------------------------------------------------------------
+# Component scrape coverage
+# ---------------------------------------------------------------------
+# K3s collapses control-plane components into the k3s-server process,
+# so the standalone scrape targets don't exist as separate Services.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubelet:
+  enabled: true
+
+# ---------------------------------------------------------------------
+# Global resource scope
+# ---------------------------------------------------------------------
+global:
+  rbac:
+    create: true
+    pspEnabled: false

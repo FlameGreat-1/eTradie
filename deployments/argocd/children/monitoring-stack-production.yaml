@@ -1,0 +1,97 @@
+# kube-prometheus-stack for production. Sync wave -7 so the
+# monitoring.coreos.com CRDs land before Linkerd (-6) and before any
+# platform chart (-2 and later) hits ServerSideApply dry-run against
+# its ServiceMonitor / PrometheusRule objects.
+#
+# Production: automated.{prune:false, selfHeal:false}. Promotion is a
+# manual operator click; there is no AppProject syncWindow on this
+# project, so manual sync is allowed any time without a business-
+# hours wait (Prometheus is critical infrastructure during incidents).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-stack-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    exoper.com/component: monitoring-stack
+    exoper.com/environment: production
+  annotations:
+    argocd.argoproj.io/sync-wave: "-7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: monitoring
+
+  # Multi-source: the chart from prometheus-community, plus the
+  # in-repo values overlay via the $values ref. Same pattern as
+  # linkerd-control-plane-production.yaml.
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      # Pinned to the same version as staging for environment parity.
+      # K8s 1.30 compatible. Validate against the upstream matrix
+      # before bumping:
+      # https://github.com/prometheus-operator/prometheus-operator/blob/main/COMPATIBILITY.md
+      targetRevision: 65.5.0
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/helm/monitoring-stack/values-production.yaml
+    - repoURL: https://github.com/FlameGreat-1/eTradie.git
+      targetRevision: main
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  ignoreDifferences:
+    # The prometheus-operator admission webhooks carry caBundle fields
+    # the operator rotates. Do not fight them.
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
+    # The Prometheus + Alertmanager StatefulSets are mutated at
+    # runtime by the operator (config-reloader sidecar, env vars,
+    # volume mounts). Ignore the mutated fields so ArgoCD does not
+    # loop OutOfSync.
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/template/spec/containers
+        - /spec/template/spec/initContainers
+        - /spec/template/spec/volumes
+    # The Prometheus CRD's spec is reconciled by the operator from
+    # the chart-supplied values; the runtime form drifts as the
+    # operator adds fields.
+    - group: monitoring.coreos.com
+      kind: Prometheus
+      jsonPointers:
+        - /spec
+
+  syncPolicy:
+    # Production: NO automated prune, NO automated selfHeal.
+    # Operators promote with an explicit "Sync" click.
+    automated:
+      prune: false
+      selfHeal: false
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - Replace=false
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+
+  revisionHistoryLimit: 20
