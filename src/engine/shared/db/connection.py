@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -39,18 +40,47 @@ from engine.shared.metrics.prometheus import (
 logger = get_logger(__name__)
 
 
-# Mapping from libpq's `sslmode` query-string values (the form used by
-# every Postgres DSN convention, the runbook's Phase 8.2 DB_URL_PY, and
-# Settings._validate_production_secrets in engine.config) to asyncpg's
-# native `ssl=` kwarg values. asyncpg does NOT accept `sslmode` — it is
-# a libpq-only parameter and asyncpg has its own native Postgres protocol
-# implementation. Without this translation, the asyncpg dialect raises:
-#   TypeError: connect() got an unexpected keyword argument 'sslmode'
-# at the first connection attempt. The validator in engine.config still
-# inspects the ORIGINAL URL (with sslmode=...) so Tier 11 TLS-on hardening
-# is preserved; this helper only rewrites what we hand to SQLAlchemy /
-# asyncpg downstream.
-_LIBPQ_SSLMODE_TO_ASYNCPG_SSL: dict[str, Any] = {
+# libpq's `sslmode` query-string value mapped to asyncpg's `ssl=` kwarg.
+#
+# Why this exists at all:
+#   asyncpg has its own native Postgres protocol implementation, separate
+#   from libpq. It does NOT accept the libpq-style `sslmode` kwarg —
+#   asyncpg.connect() raises:
+#     TypeError: connect() got an unexpected keyword argument 'sslmode'
+#   So we must strip `sslmode` from the URL we hand to SQLAlchemy +
+#   asyncpg, and substitute the corresponding asyncpg `ssl` kwarg via
+#   create_async_engine's connect_args.
+#
+# What `ssl=` value to use depends on the deployment topology, NOT on
+# the libpq sslmode value alone. Two modes are supported:
+#
+#   MESH mode (ENGINE_DB_NATIVE_TLS=false, the DEFAULT):
+#     The cluster's Linkerd service mesh encrypts the wire between the
+#     engine pod and the postgres pod. The postgres SERVER on :5432 is
+#     plaintext (see helm/data-layer/templates/postgres-statefulset.yaml —
+#     no TLS args, no cert mount). The chart-rendered postgres-exporter
+#     sidecar connects with sslmode=disable (same architectural reason).
+#     asyncpg-level TLS would attempt a server-side SSL upgrade which
+#     postgres rejects (ConnectionError: rejected SSL upgrade). In MESH
+#     mode we therefore pass ssl=False regardless of the URL's sslmode
+#     value — Linkerd is doing the encryption, asyncpg should not try.
+#
+#   NATIVE mode (ENGINE_DB_NATIVE_TLS=true, opt-in):
+#     Used when postgres serves real TLS (e.g. managed databases like
+#     Neon / RDS / Aurora / Cloud SQL). The libpq sslmode -> asyncpg ssl
+#     mapping is the documented one:
+#       sslmode=disable      -> ssl=False
+#       sslmode=require      -> ssl='require'
+#       sslmode=verify-ca    -> ssl='verify-ca'
+#       sslmode=verify-full  -> ssl='verify-full'
+#
+# In BOTH modes the validator in engine.config
+# (Settings._validate_production_secrets) still inspects the ORIGINAL
+# URL string and rejects URLs without sslmode in {require, verify-ca,
+# verify-full}. That is a string-level Tier 11 audit-trail invariant
+# (config intends TLS); the wire-level translation here is a separate
+# concern.
+_LIBPQ_SSLMODE_TO_ASYNCPG_SSL_NATIVE: dict[str, Any] = {
     "disable": False,
     "require": "require",
     "verify-ca": "verify-ca",
@@ -58,28 +88,29 @@ _LIBPQ_SSLMODE_TO_ASYNCPG_SSL: dict[str, Any] = {
 }
 
 
+def _engine_db_native_tls() -> bool:
+    """Read ENGINE_DB_NATIVE_TLS env var. Default false (Linkerd-mesh
+    topology, postgres plaintext on the wire). Set true for managed-
+    postgres deployments where the server actually serves TLS.
+    """
+    return os.environ.get("ENGINE_DB_NATIVE_TLS", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _translate_sslmode_for_asyncpg(url: str) -> tuple[str, Any]:
     """Strip the libpq `sslmode` query param from a Postgres URL and
-    return the cleaned URL plus the asyncpg `ssl` kwarg value to pass
-    via connect_args.
+    return the cleaned URL plus the asyncpg `ssl` kwarg value.
 
-    Behaviour:
-      * If the URL has no `sslmode` query param, returns (url, None).
-        Caller passes connect_args unchanged.
-      * If `sslmode=disable` is present, returns (cleaned_url, False).
-        asyncpg interprets ssl=False as 'do not use TLS' — same as libpq.
-      * If `sslmode` is one of {require, verify-ca, verify-full},
-        returns (cleaned_url, <string form>). asyncpg accepts these
-        strings and negotiates TLS accordingly.
-      * If `sslmode` is `allow` or `prefer`, returns (cleaned_url, None)
-        — asyncpg has no direct mapping; falls back to its default
-        (no TLS unless server requires it). These modes are NOT used
-        by the engine in any environment (Settings validator rejects
-        them in staging/production), so this branch is a safety net.
-      * If `sslmode` value is unknown, returns (cleaned_url, None) and
-        logs a warning.
+    The `ssl` kwarg value depends on ENGINE_DB_NATIVE_TLS:
+      * false (default, MESH mode): ssl=False regardless of sslmode.
+        Linkerd handles encryption.
+      * true (NATIVE mode): use the libpq-to-asyncpg mapping above.
 
     All OTHER query params are preserved verbatim.
+
+    Returns (cleaned_url, ssl_kwarg_value_or_None).
+      * If the URL has no `sslmode`, returns (url, None) and caller
+        passes connect_args unchanged.
+      * If `sslmode` is present, returns (cleaned_url, computed_value).
     """
     parsed = urlparse(url)
     if not parsed.query:
@@ -99,7 +130,13 @@ def _translate_sslmode_for_asyncpg(url: str) -> tuple[str, Any]:
 
     cleaned_url = urlunparse(parsed._replace(query=urlencode(kept_pairs, doseq=True)))
 
-    ssl_kwarg = _LIBPQ_SSLMODE_TO_ASYNCPG_SSL.get(sslmode_value.strip().lower())
+    if not _engine_db_native_tls():
+        # MESH mode: Linkerd encrypts the wire; asyncpg must not attempt
+        # a server-side TLS upgrade that postgres-in-cluster would reject.
+        return cleaned_url, False
+
+    # NATIVE mode: libpq-to-asyncpg ssl mapping.
+    ssl_kwarg = _LIBPQ_SSLMODE_TO_ASYNCPG_SSL_NATIVE.get(sslmode_value.strip().lower())
     if ssl_kwarg is None and sslmode_value.strip().lower() not in {"allow", "prefer"}:
         logger.warning(
             "unknown_sslmode_value",

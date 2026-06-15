@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from logging.config import fileConfig
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -31,25 +32,37 @@ target_metadata = Base.metadata
 
 settings = get_settings()
 
-# Translate libpq's `sslmode` query param to asyncpg's native `ssl`
-# kwarg before handing the URL to SQLAlchemy. The Vault DSN carries
-# sslmode=require (enforced by Settings._validate_production_secrets),
-# but asyncpg.connect() rejects sslmode as an unknown kwarg. Removing
-# sslmode from the URL we hand to SQLAlchemy and passing ssl='require'
-# via connect_args lets the asyncpg dialect connect with identical TLS
-# behaviour to libpq's sslmode=require. The validator inspects the
-# original URL (settings.database_url) so Tier 11 invariants hold; this
-# rewrite affects only the URL string handed to async_engine_from_config.
+# Translate libpq's `sslmode` query param to asyncpg's `ssl` kwarg.
 # Mirror of engine.shared.db.connection._translate_sslmode_for_asyncpg —
 # kept inline so the migrate init does not import the heavier
 # DatabaseManager module path (which would pull in Prometheus client +
 # logging + metrics modules just to run a one-shot alembic migration).
-_LIBPQ_SSLMODE_TO_ASYNCPG_SSL: dict[str, Any] = {
+#
+# Two modes (selected by ENGINE_DB_NATIVE_TLS env var, default false):
+#
+#   MESH (default): asyncpg ssl=False regardless of sslmode. Linkerd
+#     encrypts the wire; postgres in-cluster serves plaintext. asyncpg
+#     must not attempt a server-side TLS upgrade.
+#
+#   NATIVE (opt-in): libpq sslmode -> asyncpg ssl mapping (require ->
+#     'require', verify-ca -> 'verify-ca', verify-full -> 'verify-full').
+#     For managed-postgres deployments (Neon / RDS / Cloud SQL) where
+#     the server serves real TLS.
+#
+# Settings._validate_production_secrets still requires sslmode in
+# {require, verify-ca, verify-full} in the URL string — that is the
+# Tier 11 audit-trail invariant on configuration intent, unchanged in
+# both modes.
+_LIBPQ_SSLMODE_TO_ASYNCPG_SSL_NATIVE: dict[str, Any] = {
     "disable": False,
     "require": "require",
     "verify-ca": "verify-ca",
     "verify-full": "verify-full",
 }
+
+
+def _engine_db_native_tls() -> bool:
+    return os.environ.get("ENGINE_DB_NATIVE_TLS", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _translate_sslmode(url: str) -> tuple[str, Any]:
@@ -67,7 +80,10 @@ def _translate_sslmode(url: str) -> tuple[str, Any]:
     if sslmode_value is None:
         return url, None
     cleaned = urlunparse(parsed._replace(query=urlencode(kept, doseq=True)))
-    return cleaned, _LIBPQ_SSLMODE_TO_ASYNCPG_SSL.get(sslmode_value.strip().lower())
+    if not _engine_db_native_tls():
+        # MESH mode: Linkerd encrypts the wire; asyncpg ssl off.
+        return cleaned, False
+    return cleaned, _LIBPQ_SSLMODE_TO_ASYNCPG_SSL_NATIVE.get(sslmode_value.strip().lower())
 
 
 _raw_url = settings.async_database_url
