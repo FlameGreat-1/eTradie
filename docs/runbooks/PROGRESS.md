@@ -1493,3 +1493,133 @@ Replaces the TODO list in the previous subsection. Items 1–6 below are the can
 #### Phase 10 (continuation) operator gotchas — addition
 
 **31. README.md Phase 15 and BUDGET.md Table 2B disagree about whether kube-prometheus-stack is optional, and BUDGET.md wins.** README Phase 15 bullet 4 calls it *"Monitoring (optional)"*; BUDGET.md Table 2B has all five kube-prometheus-stack rows (`Prometheus 200m/768Mi`, `Grafana 100m/128Mi`, `kube-state-metrics 50m/64Mi`, `node-exporter 50m/64Mi`, `prometheus-operator 50m/96Mi`) marked `ON` in the staging floor (~0.45 CPU / ~1.1Gi requests counted in the ≈ 4.1 CPU / ≈ 7.3Gi staging floor), and every staging chart ships `ServiceMonitor`/`PrometheusRule` objects unconditionally. The implementation is BUDGET.md Table 2B; the README's "optional" framing is a misclassification that hid the prerequisite during Phase 10. A sibling README commit moves the kube-prometheus-stack install into a new Phase 10.6 sub-step (REQUIRED before staging-children sync) and rewrites the Phase 15 bullet to talk about post-install operational notes rather than the install itself. Future operators: trust BUDGET.md Table 2B over README.md Phase 15 if they ever disagree again.
+
+### Phase 10.6 — staging children chart fixes (post-monitoring-stack-staging deploy)
+
+After the monitoring stack came up `Synced/Healthy` and the
+staging children's CRD-not-found blocker cleared, the 10 staging
+Applications synced but **7 of them entered `Synced/Degraded`**.
+Diagnosing the failures via pod status + Deployment conditions +
+namespace events established three independent chart defects, all
+pre-existing and unrelated to the monitoring-stack work. Each fix
+landed as its own commit so any regression is independently
+bisectable.
+
+#### Fix 1 — init container resources below the etradie-system LimitRange floor
+
+**Symptom.** The `execution`, `management`, `billing` Deployments
+reported `ReplicaFailure` with:
+
+```
+pods "etradie-execution-..." is forbidden:
+  [minimum cpu usage per Container is 50m, but request is 10m,
+   minimum memory usage per Container is 64Mi, but request is 16Mi]
+```
+
+0 replicas ever created. `etradie-envoy` had the same shape but
+rejected on the `linkerd-init` container (Linkerd injection adds
+it at admission time).
+
+**Root cause.** Every chart's `wait-for-deps` init container had
+`resources.requests: { cpu: 10m, memory: 16Mi }` — below the
+`etradie-system` namespace LimitRange minimum (`cpu: 50m, memory:
+64Mi`, owned by `helm/data-layer/values.yaml::limitRange.container.
+min`). The LimitRange admission plugin rejected every pod creation.
+
+Why engine + gateway pods existed despite the same defect: they
+were created during the earlier `data-layer` reconcile BEFORE the
+LimitRange was being enforced at admission. They are running on
+borrowed time — the next pod recreate (rollout, node drain, image
+bump, HPA scale) would have failed admission too. The fix unblocks
+execution/management/billing AND closes the latent failure window
+for engine/gateway.
+
+**Fix.** Raise `initContainer.resources.requests` to `50m / 64Mi`
+and limits to `100m / 128Mi` in all 5 chart `values.yaml` files
+(engine, gateway, execution, management, billing). The init
+container runs to completion in seconds; the requests are released
+back to the namespace quota and the steady-state main-container
+sizing per BUDGET.md Table 2B is unaffected.
+
+#### Fix 2 — chromadb crash loop on read-only root filesystem
+
+**Symptom.** `chromadb-0` was in `1/2 CrashLoopBackOff` (the
+linkerd-proxy sidecar up, the chromadb container itself crashing).
+Log showed:
+
+```
+OSError: [Errno 30] Read-only file system: '/chroma/chroma.log'
+ValueError: Unable to configure handler 'file'
+```
+
+Engine's `wait-for-deps` init container blocked indefinitely
+waiting for `chromadb.etradie-system.svc:8000` to come up; gateway
+blocked on engine in turn; the whole etradie-system app tier
+stuck behind chromadb.
+
+**Root cause.** ChromaDB 0.5.20's image bakes a uvicorn
+`log_config.yml` that opens `/chroma/chroma.log` via FileHandler
+at startup. The chart correctly set `readOnlyRootFilesystem: true`
+(Tier 11 hardening) and mounted the data PVC at `/chroma/chroma`
+(subdirectory). The `/chroma` parent stayed on the read-only root
+filesystem, so the log-file open failed.
+
+**Fix.** Move the PVC mount point UP one level: mount the data PVC
+at `/chroma` (parent) and store persistent data in `/chroma/index`
+(subdir). The chromadb log file at `/chroma/chroma.log` then lands
+on the writable PVC. `readOnlyRootFilesystem: true` posture is
+unchanged.
+
+Data migration: not needed on staging (chromadb never reached
+Ready, the existing PVC is empty). Not needed on production
+either because the chart change lands BEFORE production ever sees
+chromadb data. A future-self-deploy that already has chromadb data
+under `/chroma/chroma/` from a pre-fix install needs a one-time
+migration (documented in commit body).
+
+#### Fix 3 — envoy namespace PSS enforce=restricted blocks Linkerd proxy-init
+
+**Symptom.** `envoy-system` namespace had 0 pods. Events showed
+repeated rejections:
+
+```
+pods "etradie-envoy-..." is forbidden: violates PodSecurity
+  "restricted:latest": unrestricted capabilities (container
+  "linkerd-init" must not include "NET_ADMIN", "NET_RAW" in
+  securityContext.capabilities.add)
+```
+
+**Root cause.** The envoy chart's `namespace.yaml` template applied
+`pod-security.kubernetes.io/enforce=restricted` unconditionally.
+Linkerd's injector mutates every meshed pod at admission to add a
+`proxy-init` init container that needs NET_ADMIN + NET_RAW to
+install iptables rules. Restricted PSS forbids those capabilities;
+admission rejected every envoy pod.
+
+**Fix.** Drop the `enforce` label from the envoy namespace; keep
+`warn` + `audit` only. Same posture as
+`helm/data-layer/templates/namespace.yaml`. Audit-log trail still
+flags restricted-tier violations; nothing is silently allowed; the
+Linkerd-incompatible enforce-side rejection no longer fires. The
+trade-off (Linkerd in restricted-tier namespaces requires relaxing
+enforce) is documented and identical to every other meshed
+namespace on this platform.
+
+#### Phase 10.6 (continuation) operator gotchas
+
+**33. Init container resources MUST meet the namespace LimitRange floor.** The `etradie-system` namespace LimitRange (owned by `helm/data-layer/values.yaml::limitRange.container.min`) sets a minimum of `cpu: 50m, memory: 64Mi` per container. Init containers running in this namespace MUST request at least that. The pre-fix value of `cpu: 10m / memory: 16Mi` shipped in every service chart's `initContainer.resources.requests` was rejected by LimitRange admission at pod creation time — BUT pods created before the LimitRange was actively enforced continued running on borrowed time (engine, gateway), masking the defect until a later chart (execution, management, billing) triggered a fresh admission. Lesson: every container request — init included — must meet the floor of every namespace it can possibly run in. CI render-check should grep init container requests vs the LimitRange in lockstep.
+
+**34. ChromaDB 0.5.20 hardcoded log file vs readOnlyRootFilesystem.** ChromaDB's image bakes a uvicorn FileHandler pointing at `/chroma/chroma.log` and the path is NOT env-templated. With `readOnlyRootFilesystem: true` and the data PVC mounted at `/chroma/chroma` (a subdirectory), `/chroma` itself is read-only and the log open fails. Fix is to mount the PVC at `/chroma` (parent) and move PERSIST_DIRECTORY to `/chroma/index` so the log file and the data live on the same writable PVC. Watch for similar patterns in other charts that pin `readOnlyRootFilesystem: true` against an image whose log/cache path is not env-configurable. Future ChromaDB upgrades may expose a log-path env knob; if so, prefer that over the subdirectory remount.
+
+**35. Linkerd-injected pods cannot run under PSS `enforce=restricted`.** Linkerd's injector adds a `proxy-init` init container that needs NET_ADMIN + NET_RAW capabilities; PSS restricted-tier forbids those. The compatible posture is PSS `warn` + `audit` only (no `enforce` label) — the audit trail still surfaces any restricted-tier violation but admission does not reject the pod. Every meshed namespace on this platform follows this pattern: `data-layer/namespace.yaml`, `envoy/namespace.yaml` (after this fix), and any future meshed namespace. The PodSecurity admission plugin remains enabled cluster-wide (K3s apiserver flag at Phase 2.1); only individual namespaces opt out of enforce. If a future Linkerd release supports running entirely without an init container (native sidecar without iptables injection), this gotcha could be revisited.
+
+### Outstanding non-blocking items surfaced during Phase 10.6
+
+**CI test failure on `tests/api/endpoints.py`.** Four tests fail with the same shape:
+
+```
+assert '/internal/ta/analyze' in {'', '/docs', '/docs/oauth2-redirect',
+                                   '/metrics', '/openapi.json'}
+```
+
+The test fixture builds a FastAPI app where the registered-paths set has only 5 entries — none of the application routers (`/internal/ta/analyze`, `/internal/broker/account_info`, `/health`, `/api/analysis/latest`) are present. This is a test-fixture defect, not application code; the live engine pod registers all routes correctly. Failure does NOT block this Phase 10.6 deploy because ArgoCD reads chart manifests + images directly from the repo + GHCR; CI gate state is not consulted. Add to a separate engineering ticket; do NOT block Phase 10 closeout on it. Likely cause: a missing router `include_router(...)` in the test fixture's `create_app()` factory, or a config-loading exception silently swallowed during test setup.
