@@ -216,13 +216,17 @@ initContainer:
       port: 6379
     - host: "engine.etradie-system.svc.cluster.local"
       port: 8000
+  # Requests must meet the etradie-system namespace LimitRange minimum
+  # (50m cpu / 64Mi memory). The init container runs to completion in
+  # a few seconds; steady-state main-container sizing per Table 2B is
+  # unaffected.
   resources:
     requests:
-      cpu: 10m
-      memory: 16Mi
-    limits:
       cpu: 50m
-      memory: 32Mi
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
 
 # Section 6 (CHECKLIST): PrometheusRule covering order failure rate,
 # placement latency, queue drops, latency kill-switch, audit write
