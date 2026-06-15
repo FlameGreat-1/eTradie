@@ -55,7 +55,7 @@ data:
                     # TIER4 A2b: header-size backstop on the HCM. The
                     # per-route request-BODY cap (max_request_bytes) is
                     # set via typed_per_filter_config on each route below.
-                    max_request_headers_kb: {{ .Values.config.envoy.maxRequestHeadersKb | default 64 }}
+                    max_request_headers_kb: {{ .Values.config.envoy.maxRequestHeadersKb | default 64 | int64 }}
                     route_config:
                       name: local_route
                       virtual_hosts:
@@ -138,7 +138,7 @@ data:
                                 envoy.filters.http.buffer:
                                   "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.BufferPerRoute
                                   buffer:
-                                    max_request_bytes: {{ .Values.config.envoy.webhookRoute.maxRequestBytes | default 262144 }}
+                                    max_request_bytes: {{ .Values.config.envoy.webhookRoute.maxRequestBytes | default 262144 | int64 }}
                             - match:
                                 prefix: "/webhooks/lemonsqueezy"
                               route:
@@ -172,7 +172,7 @@ data:
                                 envoy.filters.http.buffer:
                                   "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.BufferPerRoute
                                   buffer:
-                                    max_request_bytes: {{ .Values.config.envoy.webhookRoute.maxRequestBytes | default 262144 }}
+                                    max_request_bytes: {{ .Values.config.envoy.webhookRoute.maxRequestBytes | default 262144 | int64 }}
                             - match:
                                 prefix: "/"
                               route:
@@ -193,7 +193,7 @@ data:
                                 envoy.filters.http.buffer:
                                   "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.BufferPerRoute
                                   buffer:
-                                    max_request_bytes: {{ .Values.config.envoy.route.maxRequestBytes | default 10485760 }}
+                                    max_request_bytes: {{ .Values.config.envoy.route.maxRequestBytes | default 10485760 | int64 }}
                     http_filters:
                       - name: envoy.filters.http.wasm
                         typed_config:
@@ -215,7 +215,7 @@ data:
                       - name: envoy.filters.http.buffer
                         typed_config:
                           "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.Buffer
-                          max_request_bytes: {{ .Values.config.envoy.maxRequestBytesChainCeiling | default 10485760 }}
+                          max_request_bytes: {{ .Values.config.envoy.maxRequestBytesChainCeiling | default 10485760 | int64 }}
                       {{- if .Values.config.envoy.localRateLimit.enabled }}
                       # TIER4 A2a: COARSE per-Envoy-POD L7 rate-limit
                       # backstop. Defense-in-depth ONLY: NOT a substitute
@@ -387,7 +387,14 @@ data:
         - name: envoy.resource_monitors.fixed_heap
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.resource_monitors.fixed_heap.v3.FixedHeapConfig
-            max_heap_size_bytes: {{ .Values.config.envoy.overload.maxHeapSizeBytes | default 2147483648 }}
+            # int64 pipe forces decimal integer rendering. Without it,
+            # Helm/Sprig may carry the value through as Go float64
+            # (sourced from values.yaml as an unquoted YAML number that
+            # the parser float-promoted) and `printf %v` emits
+            # scientific notation, e.g. 2147483648 -> 2.147483648e+09.
+            # envoy's protobuf uint64 JSON parser rejects scientific
+            # notation and the bootstrap fails with INVALID_ARGUMENT.
+            max_heap_size_bytes: {{ .Values.config.envoy.overload.maxHeapSizeBytes | default 2147483648 | int64 }}
       actions:
         - name: envoy.overload_actions.shrink_heap
           triggers:
@@ -405,4 +412,4 @@ data:
         - name: static_layer
           static_layer:
             overload:
-              global_downstream_max_connections: {{ .Values.config.envoy.overload.globalMaxConnections | default 50000 }}
+              global_downstream_max_connections: {{ .Values.config.envoy.overload.globalMaxConnections | default 50000 | int64 }}

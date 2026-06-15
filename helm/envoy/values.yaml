@@ -295,7 +295,9 @@ config:
       # gateway->engine traffic does NOT traverse this Envoy, and the
       # inbound dashboard/auth bodies are a few KB, so this never clips
       # legitimate traffic. An over-cap body gets a 413.
-      maxRequestBytes: 10485760
+      # QUOTED to defeat YAML parsers that float-promote large ints
+      # (see configmap.yaml | int64 pipe for the reverse coercion).
+      maxRequestBytes: "10485760"
     webhookRoute:
       timeout: "20s"
       idleTimeout: "30s"
@@ -303,12 +305,12 @@ config:
       perTryTimeout: "15s"
       # Webhook bodies are small JSON events; a tight 256 KiB cap is
       # ample. Webhook routes are also EXEMPT from local_ratelimit.
-      maxRequestBytes: 262144
+      maxRequestBytes: "262144"
     # TIER4 A2b: HCM header-size cap + the chain-level buffer ceiling.
     # The chain-level buffer is effectively the gateway-route value; the
     # real per-route enforcement is via BufferPerRoute on each route.
     maxRequestHeadersKb: 64
-    maxRequestBytesChainCeiling: 10485760
+    maxRequestBytesChainCeiling: "10485760"
     # TIER4 A2a: coarse per-Envoy-POD L7 rate-limit backstop. Sized
     # generously: 2000 tokens, refilled 2000 every 1s => ~2000 rps per
     # pod steady-state with a 2000 burst. With replicaCount=5 that is a
@@ -322,8 +324,12 @@ config:
       fillIntervalSeconds: 1
       enforcedFraction: 100
     overload:
-      maxHeapSizeBytes: 2147483648
-      globalMaxConnections: 50000
+      # QUOTED to defeat YAML parsers that float-promote large ints,
+      # which produced scientific notation ("2.147483648e+09") in the
+      # rendered envoy.yaml and broke envoy's uint64 JSON parser at
+      # startup. Paired with `| int64` in configmap.yaml.
+      maxHeapSizeBytes: "2147483648"
+      globalMaxConnections: "50000"
     # Distributed tracing. Envoy is the first server-side hop, so when
     # enabled it generates/propagates the W3C traceparent the gateway
     # (and everything downstream) continues, and exports its own span to
