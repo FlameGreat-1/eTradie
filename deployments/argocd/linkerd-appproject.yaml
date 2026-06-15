@@ -88,6 +88,11 @@ spec:
       kind: ServiceMonitor
     - group: monitoring.coreos.com
       kind: PodMonitor
+    # Linkerd control-plane Helm chart renders a CronJob
+    # `linkerd-heartbeat` (daily anonymous telemetry to api.linkerd.io).
+    # Upstream chart default; kept as-is for shape-parity with upstream.
+    - group: batch
+      kind: CronJob
 
   roles:
     - name: maintainers
