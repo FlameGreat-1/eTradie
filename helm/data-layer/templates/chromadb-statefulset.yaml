@@ -73,13 +73,8 @@ spec:
           env:
             - name: IS_PERSISTENT
               value: "TRUE"
-            # Data lives in a subdir of the PVC so chromadb's hardcoded
-            # log file at /chroma/chroma.log can be written to the PVC
-            # root. Audit ref: chromadb 0.5.20 image bakes the log path
-            # into chromadb/log_config.yml; the data subdir keeps the
-            # log file and the actual SQLite/index files separate.
             - name: PERSIST_DIRECTORY
-              value: /chroma/index
+              value: /chroma/chroma
             - name: CHROMA_SERVER_AUTHN_PROVIDER
               value: chromadb.auth.token_authn.TokenAuthenticationServerProvider
             - name: CHROMA_SERVER_AUTHN_TOKEN_TRANSPORT_HEADER
@@ -119,15 +114,28 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 3
           volumeMounts:
-            # PVC mounted at /chroma (parent of both the log file at
-            # /chroma/chroma.log and the data subdir at /chroma/index).
-            # readOnlyRootFilesystem: true stays in effect on the rest
-            # of the container's filesystem.
+            # PVC for chromadb data. Sits in the /chroma/chroma subdir
+            # so the image-baked /chroma/chromadb/* files (notably
+            # log_config.yml that uvicorn resolves via the relative
+            # path 'chromadb/log_config.yml') remain visible.
             - name: data
-              mountPath: /chroma
+              mountPath: /chroma/chroma
+            # Single-file emptyDir mount for the log file uvicorn's
+            # baked-in log_config.yml writes via FileHandler. subPath
+            # mounts exactly one entry from the emptyDir at the named
+            # destination path; the rest of /chroma stays on the
+            # read-only root + image filesystem. fsGroup: 1000 on the
+            # pod spec lets uid 1000 write to it. Ephemeral per-pod
+            # (chromadb's stdout is captured by Loki/Promtail already).
+            - name: chroma-log
+              mountPath: /chroma/chroma.log
+              subPath: chroma.log
             - name: tmp
               mountPath: /tmp
       volumes:
+        - name: chroma-log
+          emptyDir:
+            sizeLimit: 32Mi
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
