@@ -117,25 +117,34 @@ spec:
             # PVC for chromadb data. Sits in the /chroma/chroma subdir
             # so the image-baked /chroma/chromadb/* files (notably
             # log_config.yml that uvicorn resolves via the relative
-            # path 'chromadb/log_config.yml') remain visible.
+            # path 'chromadb/log_config.yml') remain visible -- the
+            # ConfigMap subPath mount below replaces only that one
+            # file, keeping chromadb/__init__.py, chromadb/app.py,
+            # and every other baked file intact.
             - name: data
               mountPath: /chroma/chroma
-            # Single-file emptyDir mount for the log file uvicorn's
-            # baked-in log_config.yml writes via FileHandler. subPath
-            # mounts exactly one entry from the emptyDir at the named
-            # destination path; the rest of /chroma stays on the
-            # read-only root + image filesystem. fsGroup: 1000 on the
-            # pod spec lets uid 1000 write to it. Ephemeral per-pod
-            # (chromadb's stdout is captured by Loki/Promtail already).
-            - name: chroma-log
-              mountPath: /chroma/chroma.log
-              subPath: chroma.log
+            # Override the image-baked uvicorn log_config so logs
+            # route to stdout instead of /chroma/chroma.log
+            # (RotatingFileHandler conflicts with
+            # readOnlyRootFilesystem: true). subPath + ConfigMap
+            # source binds the projected file (NOT a directory --
+            # unlike subPath + emptyDir). Stdout is captured by
+            # containerd and shipped to Loki by
+            # observability-logs-staging / -production.
+            - name: log-config
+              mountPath: /chroma/chromadb/log_config.yml
+              subPath: log_config.yml
+              readOnly: true
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: chroma-log
-          emptyDir:
-            sizeLimit: 32Mi
+        - name: log-config
+          configMap:
+            name: chromadb-log-config
+            defaultMode: 0444
+            items:
+              - key: log_config.yml
+                path: log_config.yml
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi

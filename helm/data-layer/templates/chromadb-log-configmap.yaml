@@ -1,0 +1,86 @@
+{{- if .Values.chromadb.enabled }}
+# ChromaDB image 0.5.20 launches uvicorn with
+#   uvicorn chromadb.app:app ... --log-config chromadb/log_config.yml ...
+# Image WORKDIR is /chroma, so the relative path resolves to
+# /chroma/chromadb/log_config.yml. The baked file uses
+# RotatingFileHandler against /chroma/chroma.log, which conflicts
+# with readOnlyRootFilesystem: true and with every viable variant
+# of making a single in-/chroma file writable from K8s. We override
+# it with a stdout-only StreamHandler configuration so logs flow
+# through containerd to Loki/Promtail (the platform's existing log
+# pipeline) without any filesystem-write dependency.
+#
+# Mounted into the chromadb container via a ConfigMap volume +
+# subPath in chromadb-statefulset.yaml (subPath + ConfigMap source
+# binds the projected file -- unlike subPath + emptyDir which
+# creates an intermediate directory).
+#
+# Schema is Python logging.config.dictConfig version 1. Format
+# strings mirror uvicorn's default LOGGING_CONFIG
+# (uvicorn.config.LOGGING_CONFIG) so log line layout in Loki stays
+# consistent with every other Python workload on the platform.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chromadb-log-config
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "chromadb.labels" . | nindent 4 }}
+  annotations:
+    description: "Override of the image-baked /chroma/chromadb/log_config.yml. Routes uvicorn + chromadb log records to stdout (Loki captures stdout via Promtail)."
+data:
+  log_config.yml: |
+    version: 1
+    disable_existing_loggers: false
+    formatters:
+      default:
+        "()": uvicorn.logging.DefaultFormatter
+        fmt: '%(levelprefix)s %(asctime)s [%(name)s] %(message)s'
+        datefmt: '%Y-%m-%dT%H:%M:%S%z'
+        use_colors: false
+      access:
+        "()": uvicorn.logging.AccessFormatter
+        fmt: '%(levelprefix)s %(asctime)s [%(name)s] %(client_addr)s - "%(request_line)s" %(status_code)s'
+        datefmt: '%Y-%m-%dT%H:%M:%S%z'
+        use_colors: false
+    handlers:
+      default:
+        class: logging.StreamHandler
+        formatter: default
+        stream: ext://sys.stdout
+      access:
+        class: logging.StreamHandler
+        formatter: access
+        stream: ext://sys.stdout
+      # The image's baked log_config.yml names this handler 'file'.
+      # We keep the handler NAME so any other config that wires
+      # loggers to 'file' still resolves; only the underlying class
+      # changes from RotatingFileHandler to StreamHandler(stdout).
+      file:
+        class: logging.StreamHandler
+        formatter: default
+        stream: ext://sys.stdout
+    loggers:
+      uvicorn:
+        level: INFO
+        handlers:
+          - default
+        propagate: false
+      uvicorn.error:
+        level: INFO
+      uvicorn.access:
+        level: INFO
+        handlers:
+          - access
+        propagate: false
+      chromadb:
+        level: INFO
+        handlers:
+          - default
+          - file
+        propagate: false
+    root:
+      level: INFO
+      handlers:
+        - default
+{{- end }}
