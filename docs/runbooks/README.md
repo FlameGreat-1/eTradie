@@ -367,6 +367,90 @@ You must have TWO terminals open at the same time before running any command in 
 
 **Terminal 2 — the working terminal.** This is where every subsequent command in this runbook is typed. You may open additional working terminals (Terminal 3, 4, ...) as needed; they all share the single tunnel from Terminal 1.
 
+### Architecture — where everything actually runs
+
+This is the load-bearing mental model. Every operator on this
+platform must internalise it before running any command from
+Phase 3 onward.
+
+**The workstation orchestrates. The VPS runs everything.**
+
+When you type `kubectl apply -f ...` or `argocd app sync ...` on
+the workstation, you are NOT running anything on the workstation.
+You are sending an HTTP request through the SSH tunnel to the K3s
+API server on the VPS, which then schedules pods on the VPS,
+allocates PVCs from the VPS's disk, and reports results back
+through the tunnel to your terminal.
+
+What lives on the workstation:
+
+| File / process | Purpose | Size |
+|---|---|---|
+| `~/eTradie` (git checkout) | source for `git push`; editing chart values | a few hundred MB |
+| `~/.kube/etradie-contabo.yaml` | kubeconfig (cluster URL + client cert) | ~3 KB text |
+| `~/vault-init.txt` | Vault unseal keys + root token (Phase 3.2) | ~1 KB, mode 0600 |
+| `~/.ghcr_pat`, `~/.ghcr_pull_pat` | GHCR PATs for push + pull | ~50 B each, mode 0600 |
+| `~/cloudflare-<env>-tunnel-token.txt` | Cloudflare tunnel connector token | ~200 B, mode 0600 |
+| `~/cf-origin-*.{crt,key}` | Cloudflare Origin Certificates | a few KB each, mode 0600 |
+| `~/etradie-<env>-creds.txt` | §8.2 generated shared secrets (workstation safety net) | ~1 KB, mode 0600 |
+| `~/eTradie/{ca,issuer}.{crt,key}` | Linkerd mesh CA bundle (Phase 7) | a few KB each, mode 0600 |
+| `ssh-agent` with the operator's key | unlocks SSH for the tunnel | in-memory |
+| Foreground `ssh -N -L 6443 ...` process | the SSH tunnel itself | a few MB resident |
+| Foreground `kubectl port-forward ...` processes (ArgoCD, sometimes Prometheus) | ArgoCD CLI + ad-hoc UI access | a few MB each |
+
+What lives on the VPS:
+
+| Resource | Where on the VPS |
+|---|---|
+| K3s itself (kube-apiserver, controller-manager, scheduler, kubelet, containerd, embedded datastore) | systemd unit `k3s.service` |
+| Every pod (Linkerd, Vault, ESO, Reloader, ArgoCD, Prometheus, Grafana, postgres, redis, chromadb, engine, gateway, every workload) | containerd, pod sandbox under `/var/lib/rancher/k3s/` |
+| Every PersistentVolume + PVC backing data (postgres 16Gi, redis 8Gi, chromadb 16Gi, Loki 20Gi, Prometheus 20Gi, Vault 10Gi, MT PVCs, etc.) | `/var/lib/rancher/k3s/storage/...` on the VPS NVMe |
+| Every Kubernetes Secret + every Vault KV entry | etcd / SQLite (cluster) and Vault PVC (Vault) |
+| Every container image pulled from GHCR / Docker Hub | containerd image store on the VPS |
+| Every log produced by every container | the VPS journal / pod log files |
+
+What the SSH tunnel actually carries:
+
+When you run `kubectl get pods` on the workstation, this is what
+happens:
+
+1. `kubectl` builds a TLS-wrapped HTTPS request locally pointing at
+   `https://127.0.0.1:6443` (the workstation loopback).
+2. The SSH local-forward (Terminal 1) accepts the TCP connection on
+   the workstation's `127.0.0.1:6443`, encrypts the bytes inside
+   the existing SSH session, and forwards them to the VPS.
+3. On the VPS, `sshd` decrypts and delivers the bytes to
+   `127.0.0.1:6443` inside the VPS — which is the K3s API server
+   listening on the VPS loopback (ufw blocks it on the public IP).
+4. K3s processes the request — looking up pods in its own datastore
+   ON THE VPS, scheduling new pods if applicable ON THE VPS,
+   touching no resource on the workstation.
+5. K3s sends the response back through the same channel; `kubectl`
+   renders it to your terminal.
+
+The workstation is a thin client. Its disk, CPU, and RAM usage do
+not change meaningfully when 100+ pods spin up on the VPS. The 20Gi
+Prometheus PVC, the postgres database, every container image, every
+log — all on the VPS.
+
+**Implication for capacity planning.** When BUDGET.md Table 2B says
+“staging fits ~4–5 test users on 8 vCPU / 24 GB / 200 GB”, those
+are VPS resources. Your workstation is irrelevant to that ledger.
+
+**Implication for failure modes.** If your laptop dies mid-deploy,
+the cluster keeps running. If WSL crashes, the cluster keeps
+running. If the SSH tunnel drops, your `kubectl` calls fail but the
+VPS-side workloads continue undisturbed. Reopening the tunnel is
+always safe.
+
+**Implication for security.** Every credential the platform uses
+lives in Vault on the VPS. The handful of files on your workstation
+are bootstrap-only (kubeconfig, Vault unseal keys, GHCR PATs,
+Cloudflare tokens, the mesh CA bundle). Lose the workstation and
+you lose access to operate the cluster, but you do not lose any
+platform data; the rotation playbook in Phase 15 + Phase 3.4 covers
+rebuilding operator access from a fresh workstation.
+
 Run these once per WSL boot, in this order:
 
 ```bash
