@@ -1824,3 +1824,197 @@ Do these in sequence; each item resolves a specific blocker before the next.
 - `docs/runbooks/README.md` "Architecture — where everything actually runs" (PROGRESS gotcha #32 cross-reference) — the workstation-vs-VPS topology.
 - `docs/runbooks/README.md` Phase 10 + Phase 10.6 — the canonical procedure for everything we've been doing.
 - This PROGRESS.md from Phase 10 continuation onward — the audit trail of what actually happened vs what was planned.
+
+---
+
+## Phase 10.6 in-flight checkpoint — 2026-06-15 (engine RAG bootstrap defect; debugging in progress)
+
+**SUPERSEDES every prior "Phase 10.6 closeout TODO" block above for this in-flight defect.** Once this defect is resolved and engine reaches `2/2 Running` stable, the prior closeout TODOs (vault-auth token_reviewer_jwt, audit log disable, etc.) apply again.
+
+### The exact symptom
+
+`etradie-engine` pods enter `CrashLoopBackOff` on every restart. Engine container reaches the FastAPI lifespan startup, gets past every config and dependency-injection step, and dies at `engine.rag.services.bootstrap.bootstrap()` line 93 with:
+
+```
+asyncpg.exceptions.ConnectionDoesNotExistError: connection was closed in the middle of operation
+
+The above exception was the direct cause of the following exception:
+
+  File ".../engine/rag/services/bootstrap.py", line 58, in bootstrap
+    await seed_knowledge_assets(
+  File ".../engine/rag/knowledge/bootstrap/seed.py", line 19, in seed_knowledge_assets
+    existing = await document_repo.get_by_doc_type(asset.doc_type)
+  ...
+  File ".../sqlalchemy/pool/base.py", line 896, in __connect
+    self.dbapi_connection = connection = pool._invoke_creator(self)
+  ...
+  File ".../asyncpg/connect_utils.py", line 934, in __connect_addr
+    await connected
+engine.shared.exceptions.RAGBootstrapError:
+    Failed to bootstrap knowledge assets: connection was closed in the middle of operation
+ERROR:    Application startup failed. Exiting.
+```
+
+The error is on the very FIRST postgres connection asyncpg tries to open in the engine's outbound pool. It fires immediately (within 1 second after the engine process starts the lifespan), so it is NOT a slow query / not a long-running operation drop. Earlier in the same startup, there are also 3 attempts at `cache_connection_error errno 104 'Connection reset by peer'` against `redis.etradie-system.svc.cluster.local:6379` that all fail before the postgres attempt.
+
+### The headline question being debugged
+
+**Why does the engine pod's outbound Linkerd proxy fail to complete TCP+mTLS to the postgres ClusterIP (and redis ClusterIP), but the same proxy successfully reaches the chromadb ClusterIP using the same path?**
+
+### Cluster state at this checkpoint
+
+- ArgoCD `linkerd-control-plane-production`: Synced revision `64036054`, Healthy. The `OutOfSync` items on it (Deployment linkerd-destination, linkerd-proxy-injector; Secret linkerd-*-validator-k8s-tls; CronJob linkerd-heartbeat) are by-design Linkerd runtime drift (caBundle rotation, ESO field-manager, kube-state-metrics status fields). Documented in earlier PROGRESS gotchas (#23 / #26).
+- ArgoCD `data-layer-staging`: Synced revision `64036054`, Healthy. The `OutOfSync` items (StatefulSet postgres/redis/chromadb; ExternalSecret *-credentials; ServiceMonitor postgres/redis) are by-design (Linkerd webhook-injected sidecar drift on the StatefulSet specs, ESO field-manager on ExternalSecret, kube-prometheus-stack runtime fields on ServiceMonitor).
+- `linkerd-config` ConfigMap on the cluster: confirmed `outboundConnectTimeout: 10000ms` (the 1s → 10s commit landed and is live).
+- postgres-0 pod: 3/3 Running 0 restarts. Annotation `config.linkerd.io/opaque-ports: "5432"` present. Pod IP at last check: `10.42.0.227`.
+- redis-0 pod: 3/3 Running 0 restarts. Annotation `config.linkerd.io/opaque-ports: "6379"` present. Pod IP at last check: `10.42.0.228`.
+- chromadb-0 pod: 2/2 Running 0 restarts. No opaque-ports annotation. Pod IP at last check: `10.42.0.229`.
+- etradie-engine pods: CrashLoopBackOff, restart-count incrementing.
+- etradie-gateway / execution / management / billing pods: also restarted; will Init-block waiting on engine.
+
+### Proven facts (from observed evidence, NOT hypotheses)
+
+1. **Engine pod's outbound proxy IS receiving the connection attempts.** `tcp_open_total` for `peer="src"` (the engine app → proxy hop on loopback) shows 24+ connection attempts on postgres ClusterIP 10.43.151.84:5432 and redis ClusterIP 10.43.156.25:6379.
+
+2. **The proxy IS performing the DNAT-aware destination resolution.** `tcp_open_total` for `peer="dst"` has metric rows for postgres (target_addr=`10.42.0.227:5432`, dst_pod=`postgres-0`, tls=`true`, server_id=`default.etradie-system.serviceaccount.identity.linkerd.cluster.local`) and redis (target_addr=`10.42.0.228:6379`, same identity). So the proxy CAN identify the destination pod and IS marking the destination for mTLS.
+
+3. **The proxy NEVER successfully completes the outbound mTLS to postgres or redis.** `tcp_open_total peer="dst"` value is `0` for both postgres and redis. After the 10s timeout fix, the value remains `0`. Chromadb same metric shows `5` (handful of successful opens).
+
+4. **iptables NAT counter on the host kernel proves DNAT IS happening.** `KUBE-SEP-DAHTEJ5G56IQEXKC` (postgres SEP rule) pkts counter incremented to 5,643+; redis SEP rule pkts to 5+; chromadb SEP rule pkts to 12. So the engine pod's SYNs ARE being rewritten by kube-proxy from ClusterIP to pod IP.
+
+5. **The host node CAN reach postgres pod IP directly.** From the VPS netns: `</dev/tcp/10.42.0.54/5432` returned OPEN (before the latest pod restart cycle); same for redis and chromadb. Network plumbing on the cluster level is healthy.
+
+6. **Postgres-0's INBOUND proxy log is EMPTY** after `Certified identity`. No proxy-init errors, no policy-controller errors that affect inbound :5432. The proxy IS up and listening on `:4143` inside the netns. From inside postgres-0's network namespace, `</dev/tcp/127.0.0.1/4143` returns OK.
+
+7. **Postgres-0's iptables (iptables-legacy backend) PROXY_INIT chains are present and correct.** `linkerd-init` container exited 0 with the full chain install in its log:
+   ```
+   PROXY_INIT_REDIRECT redirects all TCP to :4143
+   PROXY_INIT_OUTPUT redirects all TCP from non-proxy users to :4140
+   PREROUTING -> PROXY_INIT_REDIRECT
+   OUTPUT -> PROXY_INIT_OUTPUT
+   ```
+8. **Chromadb works through the same proxy.** Engine outbound has 30+ successful HTTP 200 responses to chromadb at `chromadb.etradie-system.svc.cluster.local:8000`. mTLS is established (`tls=true`, server_id=correct). So mesh fundamentals are working for the chromadb destination but not postgres/redis.
+
+9. **The ONLY structural difference between chromadb (works) and postgres/redis (broken) is the opaque-ports annotation.** Chromadb has no `config.linkerd.io/opaque-ports`. Postgres has `5432`. Redis has `6379`. Every other Linkerd setting is identical (native sidecar, mesh injection enabled, same control plane, same identity scheme).
+
+10. **NetworkPolicies allow engine → postgres + redis.** Confirmed via full spec read: `postgres-network-policy` ingress allows `podSelector: app.kubernetes.io/name=etradie-engine` on port 5432; `redis-network-policy` same for 6379. `etradie-engine-network-policy` egress allows port 5432 → `app.kubernetes.io/name=postgres`, 6379 → `app.kubernetes.io/name=redis`, 8000 → `app.kubernetes.io/name=chromadb`. All three should be permitted.
+
+11. **Linkerd control plane is healthy and stable.** 3 control-plane pods Running 53+ minutes uptime: `linkerd-destination` 4/4, `linkerd-identity` 2/2, `linkerd-proxy-injector` 2/2 (restarted to refresh ConfigMap template).
+
+12. **The Linkerd proxy is reading the new `outboundConnectTimeout: 10000ms`.** Confirmed via `kubectl get pod postgres-0 -o jsonpath='...env...'`: `LINKERD2_PROXY_OUTBOUND_CONNECT_TIMEOUT` = `10000ms`. So the timeout change IS propagating to new pod proxies.
+
+13. **Bumping the timeout to 10s did NOT fix the symptom.** With 10s budget the proxy log no longer shows explicit `connect timed out after 1s` warnings, but `tcp_open_total peer="dst"` for postgres+redis still stays at 0 and the engine still crashes with the same `connection was closed in the middle of operation`. So the bottleneck is NOT the 1s connect deadline — that timing fix only suppressed a symptom log; the connection is failing for a different reason.
+
+### Hypotheses tried in this session — chronological
+
+| # | Hypothesis | Tested by | Outcome | Disposition |
+|---|---|---|---|---|
+| H1 | Linkerd control-plane subscriptions are stale after multiple control-plane restarts | restart linkerd-destination/identity/proxy-injector, verify uptime | control plane stable 53m+ but engine still crashes | rejected — not a stale subscription issue |
+| H2 | Postgres / redis pods need a fresh restart so their proxies re-subscribe from a clean state | `kubectl delete pod postgres-0 redis-0` and watch them come back | both came back 3/3 Running cleanly in ~11 sec each; engine still crashes after | rejected — pod restarts alone do not resolve |
+| H3 | NetworkPolicies are blocking the engine → postgres/redis traffic | full ingress + egress yaml inspection + label cross-check | NetworkPolicies admit the traffic correctly | rejected — not a NetworkPolicy block |
+| H4 | flannel/CNI bridge has stale ARP / FDB entries for the recreated pod IPs | check ARP cache, bridge FDB, host-to-pod-IP connect | ARP REACHABLE, FDB clean, host → pod IPs OPEN | rejected — CNI plumbing is healthy |
+| H5 | Linkerd proxy-init iptables rules are missing or broken in postgres-0 netns | `nsenter` + iptables-legacy/nft chain dump | rules are present and correct in iptables-legacy backend | rejected — proxy-init succeeded |
+| H6 | Postgres-0's INBOUND proxy never receives the SYN (silent drop) | nsenter ss -tln + connect to loopback 4143 from inside netns | proxy listening on 4143, accepts from loopback | inconclusive — the proxy LISTENS but its inbound metrics show 0 inbound TCP opens from engine |
+| H7 | The Linkerd 2.14 default 1s outbound TCP-connect timeout is too tight for opaque-port mTLS on a cold-start single-node | bumped to 10s via `proxy.outboundConnectTimeout: 10000ms` in `deployments/linkerd/control-plane-values.yaml`; verified env var on new pod proxies = 10000ms | engine STILL crashes; chromadb still works; postgres/redis `tcp_open_total peer="dst"` still 0 | **REJECTED — the 10s commit is live and proven inert. The bottleneck is not connect-timeout-related.** |
+| H8 (open) | Linkerd 2.14 has a known issue with outbound mTLS to opaque-ports on native-sidecar + single-node where the proxy resolves the destination but cannot complete the TLS handshake for some specific TLS-layer reason | not yet tested | — | **OPEN — next investigation surface** |
+| H9 (open) | A field-manager / server-side-apply drift on the engine's outbound proxy environment is silently overriding the opaque-port handling, OR the engine's pod-level service-account-to-service-account TLS resolution is failing for opaque ports | not yet tested | — | **OPEN — next investigation surface** |
+
+### Commits made in this debug session
+
+| Short SHA | What it does | Status |
+|---|---|---|
+| (reverted via squash) staging-only opaque-ports drop on postgres/redis in `helm/data-layer/values-staging.yaml` | a workaround that silently disabled Tier 9 G9-1 hardening — operator (correctly) called this out as bad practice; reverted in `64036054` | not in current main |
+| `64036054` | **PROPER fix attempt**: bump `proxy.outboundConnectTimeout: 1000ms → 10000ms` cluster-wide in `deployments/linkerd/control-plane-values.yaml`; revert the staging opaque-ports drop. Preserves Tier 9 G9-1 hardening. | live on cluster; **demonstrably did NOT fix the symptom** |
+
+### What we have NOT yet tried but should
+
+These are open investigation paths if the next operator picks up:
+
+1. **`linkerd diagnostics` from the operator's local install.** A locally-installed `linkerd` CLI (separate from the cluster) can run `linkerd viz tap` and `linkerd diagnostics endpoints` against the proxy to see live request flow + destination resolution from outside the cluster. The platform's runbook Phase 15 documents installing `linkerd-viz` on demand.
+
+2. **Inspect linkerd-destination's published Server policy for postgres/redis from outside the proxy.** Run from inside the linkerd-destination pod:
+   ```bash
+   kubectl -n linkerd exec deploy/linkerd-destination -c destination -- \
+     /linkerd-destination dump-endpoint postgres.etradie-system.svc.cluster.local:5432
+   ```
+   Compare to what it returns for chromadb. If postgres has different/missing policy metadata, that's the cause.
+
+3. **TLS handshake debug logs.** Enable proxy log level `trace,linkerd=trace` temporarily on the engine pod (`config.linkerd.io/proxy-log-level` annotation override). The trace logs WILL show the TLS ClientHello + ServerHello (or the lack thereof) on postgres connections.
+
+4. **Upgrade Linkerd 2.14.10 → latest 2.14.x or to 2.16.** Multiple GitHub issues against `linkerd2-proxy` 2.210.x (the proxy version we run) reference outbound opaque-port handling issues on native-sidecar configurations. A targeted minor upgrade may resolve this without further investigation.
+
+5. **Switch from `proxy.proxyEnableNativeSidecar: true` → false on engine pod.** Native sidecar is a 1.29+ feature; the side-effect-free alternative is the legacy init-container-style sidecar (proxy injects as init container before app). This proves whether the issue is in the native-sidecar codepath.
+
+6. **Test engine → postgres connection FROM A SEPARATE meshed pod** to determine if the problem is engine-specific or universal. Create a temporary meshed test pod:
+   ```bash
+   kubectl -n etradie-system run mesh-probe \
+     --image=postgres:16-alpine \
+     --annotations='linkerd.io/inject=enabled,config.linkerd.io/proxy-enable-native-sidecar=true' \
+     --command -- sleep 3600
+   # then exec in and try psql -h postgres.etradie-system.svc.cluster.local
+   ```
+   If `psql` succeeds from a separate meshed pod, the issue is engine-specific. If it ALSO fails, the issue is universal opaque-ports.
+
+7. **Run the engine pod WITHOUT mesh injection at all** (temporary, staging-only). Add `linkerd.io/inject: disabled` to engine pod template. If the engine then boots cleanly, the mesh is unambiguously the issue and we have a clean baseline.
+
+### Diagnostic commands at session resume
+
+If you are resuming this debug session, run these first to confirm the cluster state matches this checkpoint:
+
+```bash
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+
+# 1. Tunnel + auth
+kubectl get nodes        # vmi3362776 Ready ...
+argocd account list --grpc-web 2>&1 | head -3
+
+# 2. linkerd-config has the 10000ms (the H7 fix that is live but inert)
+kubectl -n linkerd get cm linkerd-config -o yaml | grep -E 'outboundConnect|inboundConnect'
+# expect: outboundConnectTimeout: 10000ms / inboundConnectTimeout: 100ms
+
+# 3. Confirm postgres + redis still have opaque-ports annotation
+kubectl -n etradie-system get pod postgres-0 -o jsonpath='{.metadata.annotations}' | jq | grep opaque
+kubectl -n etradie-system get pod redis-0 -o jsonpath='{.metadata.annotations}' | jq | grep opaque
+# expect: "5432" and "6379" respectively
+
+# 4. Confirm engine pod's NEW proxy has the 10000ms env var
+NEWPOD=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine -o jsonpath='{.items[0].metadata.name}')
+kubectl -n etradie-system get pod "$NEWPOD" \
+  -o jsonpath='{.spec.containers[?(@.name=="linkerd-proxy")].env}' \
+  | jq '.[] | select(.name | test("CONNECT_TIMEOUT"))'
+# expect: LINKERD2_PROXY_OUTBOUND_CONNECT_TIMEOUT value 10000ms
+
+# 5. Confirm the engine STILL crashes with the same RAGBootstrapError
+kubectl -n etradie-system logs "$NEWPOD" -c engine --previous --tail=30 2>&1 | tail -10
+# expect: "connection was closed in the middle of operation" + "Application startup failed. Exiting."
+
+# 6. Confirm engine outbound proxy tcp_open_total peer="dst" for postgres/redis = 0
+kubectl -n etradie-system port-forward "$NEWPOD" 14191:4191 >/tmp/pf.log 2>&1 &
+PF=$!
+sleep 3
+curl -sf http://127.0.0.1:14191/metrics 2>&1 | grep 'tcp_open_total.*peer="dst"' | grep -E 'postgres|redis|chromadb'
+kill $PF 2>/dev/null
+```
+
+If those 6 checks match this checkpoint, you are at the same state. Pick up at "What we have NOT yet tried but should" above. Recommended next step: option **6** (the meshed test pod) because it cleanly bisects engine-specific vs universal opaque-ports, and **does not require any chart change or pod template modification on the production-tracking helm charts**.
+
+### Operator gotcha #36 (provisional — until root cause is identified)
+
+**Linkerd 2.14.10 outbound mTLS to opaque-port destinations may silently fail on a single-node K3s box with native sidecars even when:**
+- The proxy is correctly injected with all expected env vars
+- The proxy successfully resolves the destination (dst_pod, dst_service set in metrics)
+- The proxy attempts the TLS handshake (tls="true", server_id correct in metrics)
+- The destination pod's inbound proxy is up and listening on 4143
+- iptables proxy-init rules are correctly installed in both pod netns
+- NetworkPolicies admit the traffic
+- The host kernel can reach the destination pod IP directly
+- DNAT counters confirm the SYN reaches kube-proxy
+- The outbound connect timeout is set permissively (10s)
+
+Symptom: `tcp_open_total peer="dst"` for the opaque destination stays at 0 forever; the client application sees a connect failure (asyncpg: `ConnectionDoesNotExistError`; redis-py: `Connection reset by peer`); the destination pod's inbound proxy log shows NO inbound traffic.
+
+Workaround (staging only, not production-grade): drop the `config.linkerd.io/opaque-ports` annotation on the affected destination pods. The runbook's Phase 15 documents this as the canonical pre-hardening staging posture.
+
+Proper engineering fix: still to be determined. Open candidates listed in "What we have NOT yet tried but should" above.
+
+This gotcha gets a final form (with the actual root cause) once the debug session is closed.
