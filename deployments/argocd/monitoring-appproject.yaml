@@ -1,31 +1,18 @@
-# Dedicated AppProject for the kube-prometheus-stack monitoring stack
-# (BUDGET.md Table 2B: Prometheus + Grafana + kube-state-metrics +
-# node-exporter + prometheus-operator all ON in the staging floor;
-# ON in the production floor). REQUIRED for Phase 10.6 (per README
-# Phase 10.6) BEFORE the 10 staging children can sync — every staging
-# chart ships ServiceMonitor and/or PrometheusRule objects that fail
-# ArgoCD's ServerSideApply dry-run when monitoring.coreos.com CRDs
-# do not exist on the cluster.
+# AppProject for the kube-prometheus-stack monitoring stack.
 #
-# Why this is a SEPARATE AppProject (not an extension of `etradie`):
-# the chart installs a wide cluster-scoped surface — 10 CRDs under
-# monitoring.coreos.com, 2 admission webhooks (prometheus-operator
-# validating + mutating), ClusterRoles + ClusterRoleBindings for the
-# operator + every component, a PriorityClass option. Extending
-# `etradie`'s clusterResourceWhitelist with that surface would
-# over-privilege the app-workload project for its entire lifetime.
-# The Linkerd separation (linkerd-appproject.yaml) establishes the
-# precedent: platform infrastructure with cluster-scoped CRDs +
-# webhooks gets its own AppProject so its blast radius is isolated
-# and independently auditable, and so mesh / monitoring upgrades can
-# be gated separately from app rollouts.
+# Separate from the `etradie` AppProject because the chart installs a
+# wide cluster-scoped surface (10 monitoring.coreos.com CRDs, two
+# admission webhooks, several ClusterRoles + ClusterRoleBindings, a
+# PriorityClass). Keeping it in its own project isolates that blast
+# radius from the app-workload project. Same pattern as the existing
+# `linkerd` AppProject.
 #
-# This file is applied directly via:
+# Apply directly:
 #   kubectl apply -f deployments/argocd/monitoring-appproject.yaml
-# Root-app's source path is deployments/argocd/children/ and does NOT
-# recurse into deployments/argocd/ — same posture as the existing
-# appproject.yaml + linkerd-appproject.yaml (PROGRESS.md operator
-# gotcha #24).
+#
+# The root app reconciles only files under deployments/argocd/children/,
+# so AppProject files in deployments/argocd/ are not GitOps-managed and
+# must be applied with kubectl on each change.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -35,54 +22,43 @@ metadata:
     app.kubernetes.io/part-of: etradie
     app.kubernetes.io/managed-by: argocd
   annotations:
-    description: "kube-prometheus-stack (Prometheus + Grafana + kube-state-metrics + node-exporter + prometheus-operator). Isolated from the app-workload AppProject."
+    description: "kube-prometheus-stack: Prometheus + Grafana + kube-state-metrics + node-exporter + prometheus-operator."
 spec:
-  description: "kube-prometheus monitoring stack for the eTradie platform"
+  description: "kube-prometheus monitoring stack"
 
-  # Allowed git sources. The chart is pulled from the official
-  # prometheus-community Helm repo; the values overlay path is in
-  # the platform repo. Both variants of the GitHub URL are listed
-  # tolerantly (with and without the .git suffix), matching the
-  # pattern in linkerd-appproject.yaml.
+  # The chart is pulled from the prometheus-community Helm repo; the
+  # values overlay path is in the platform repo. Both GitHub URL
+  # variants are listed tolerantly, matching linkerd-appproject.yaml.
   sourceRepos:
     - https://prometheus-community.github.io/helm-charts
     - https://github.com/FlameGreat-1/eTradie.git
     - https://github.com/FlameGreat-1/eTradie
 
-  # Allowed destinations.
   destinations:
     - name: in-cluster
       namespace: monitoring
 
   # Cluster-scoped resources the chart installs. Scoped to the exact
-  # kinds kube-prometheus-stack creates — no wildcards.
+  # kinds kube-prometheus-stack creates; no wildcards.
   clusterResourceWhitelist:
-    # Namespace creation (CreateNamespace=true in the Application).
     - group: ""
       kind: Namespace
-    # The 10 monitoring.coreos.com CRDs the prometheus-operator
-    # installs. Listed as a single CustomResourceDefinition entry —
-    # the AppProject filter is by kind only at the cluster scope.
     - group: apiextensions.k8s.io
       kind: CustomResourceDefinition
-    # prometheus-operator admission webhooks.
     - group: admissionregistration.k8s.io
       kind: MutatingWebhookConfiguration
     - group: admissionregistration.k8s.io
       kind: ValidatingWebhookConfiguration
-    # ClusterRoles + ClusterRoleBindings for the operator +
-    # kube-state-metrics + node-exporter + Prometheus + Alertmanager.
     - group: rbac.authorization.k8s.io
       kind: ClusterRole
     - group: rbac.authorization.k8s.io
       kind: ClusterRoleBinding
-    # PriorityClass option (chart-rendered; OFF by default in the
-    # values overlay but whitelisted here so a future operator can
-    # turn it on without an AppProject diff).
     - group: scheduling.k8s.io
       kind: PriorityClass
 
-  # Namespace-scoped resources the chart renders into `monitoring`.
+  # Namespace-scoped resources the chart renders into `monitoring`,
+  # plus ExternalSecret so Vault-sourced credentials (Grafana admin
+  # password, Alertmanager receiver tokens) can be wired via ESO.
   namespaceResourceWhitelist:
     - group: ""
       kind: ConfigMap
@@ -108,7 +84,6 @@ spec:
       kind: NetworkPolicy
     - group: policy
       kind: PodDisruptionBudget
-    # The 10 CRD instances the chart creates inside `monitoring`.
     - group: monitoring.coreos.com
       kind: Prometheus
     - group: monitoring.coreos.com
@@ -129,21 +104,15 @@ spec:
       kind: ScrapeConfig
     - group: monitoring.coreos.com
       kind: ThanosRuler
-    # ESO ExternalSecret: lets Grafana admin password (and any future
-    # monitoring-stack secrets, e.g. Slack / PagerDuty receivers for
-    # Alertmanager) be sourced from Vault via the vault-backend
-    # ClusterSecretStore. Same posture as every other chart in this
-    # platform; consistent with the runbook's "every secret comes from
-    # Vault" stance.
     - group: external-secrets.io
       kind: ExternalSecret
 
-  # Roles the project grants. Same group bindings as the etradie +
-  # linkerd projects so platform maintainers can sync the monitoring
-  # stack without separate group mapping.
+  # Same group bindings as the etradie + linkerd projects so platform
+  # maintainers can sync the monitoring stack without separate group
+  # mapping.
   roles:
     - name: maintainers
-      description: "Platform maintainers - can sync any monitoring Application in this project."
+      description: "Platform maintainers can sync any monitoring Application in this project."
       policies:
         - p, proj:monitoring:maintainers, applications, get, monitoring/*, allow
         - p, proj:monitoring:maintainers, applications, sync, monitoring/*, allow
@@ -157,11 +126,7 @@ spec:
       groups:
         - etradie:engineering
 
-  # No syncWindows. kube-prometheus-stack is platform infrastructure
-  # shared by staging + production; per-environment promotion gating
-  # is enforced on the Applications themselves (staging:
-  # automated.{prune:true,selfHeal:true}; production:
-  # automated.{prune:false,selfHeal:false}). Adding a 13:00 UTC
-  # business-hours allow window here would gate emergency Prometheus
-  # config changes (e.g. silencing a noisy alert during an incident)
-  # which is the wrong posture for the monitoring stack.
+  # No syncWindows. Per-environment promotion gating is enforced on
+  # the Applications themselves (staging: prune+selfHeal on; production:
+  # off). A business-hours window here would block emergency Prometheus
+  # config changes during an incident.
