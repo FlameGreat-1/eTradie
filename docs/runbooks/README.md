@@ -2595,6 +2595,114 @@ issuer cert chain`, the byte-level fingerprint MATCH from §8.5
 the right bytes — do NOT regenerate the CA; troubleshoot the
 Vault → ESO → K8s Secret pipeline first.
 
+### 10.6 — Install kube-prometheus-stack (REQUIRED before staging-children sync, per BUDGET.md Table 2B)
+
+**Why this is REQUIRED, not optional.** Every staging chart
+(`data-layer`, `engine`, `gateway`, `execution`, `management`,
+`billing`, `edge-ingress`, `envoy`, `observability-logs`)
+unconditionally ships `ServiceMonitor` and/or `PrometheusRule`
+objects on staging (their `serviceMonitor.enabled` /
+`prometheusRule.enabled` toggles default to `true` in each chart's
+`values.yaml` and the staging overlays do not override them).
+BUDGET.md Table 2B "Staging on Contabo, everything ON" carries five
+kube-prometheus-stack rows in the staging floor — `Prometheus`
+(200m / 768Mi), `Grafana` (100m / 128Mi), `kube-state-metrics`
+(50m / 64Mi), `node-exporter` (50m / 64Mi), `prometheus-operator`
+(50m / 96Mi) — all marked `ON` (~0.45 CPU / ~1.1Gi total requests,
+already counted in the Table 2B staging floor of ≈ 4.1 CPU / ≈
+7.3Gi). The kube-prometheus-stack is part of the Table 2B staging
+floor, not an optional add-on.
+
+Without this step, every staging child fails ArgoCD's
+`ServerSideApply` dry-run with `the server could not find the
+requested resource` for `monitoring.coreos.com/ServiceMonitor` and
+`monitoring.coreos.com/PrometheusRule`, and `ApplyOutOfSyncOnly=true`
++ wave-ordering prevents the rest of the resources from being
+applied. (`mt-node-staging` is the only staging child that ships no
+Prometheus Operator objects, and is therefore the only one that
+reports `Healthy` in this failure mode — independent confirmation
+that the diagnosis is correct.)
+
+**Sub-step layout.** A new ArgoCD `Application` under
+`deployments/argocd/children/monitoring-stack-staging.yaml` at sync
+wave `-7` (before the Linkerd `-6` so the CRDs land before any
+chart that references them), targeting the `monitoring` namespace
+(already whitelisted in the `etradie` AppProject's `destinations`),
+sourced from the official `prometheus-community` Helm repo at
+`https://prometheus-community.github.io/helm-charts`, chart
+`kube-prometheus-stack`. A staging values overlay at
+`helm/monitoring-stack/values-staging.yaml` sizes every component to
+BUDGET.md Table 2B's staging row.
+
+**AppProject layout decision.** Mirrors the Linkerd pattern: a
+dedicated `monitoring` AppProject at
+`deployments/argocd/monitoring-appproject.yaml` whitelisting the
+cluster-scoped CRDs the stack installs
+(`apiextensions.k8s.io/CustomResourceDefinition`, the
+`admissionregistration.k8s.io` webhooks, the cluster-scoped
+`ClusterRole`/`ClusterRoleBinding`/`PriorityClass` rows) plus the
+namespace-scoped kinds the chart renders into `monitoring`. The
+`etradie` AppProject already whitelists the namespace as a
+destination, but extending its `clusterResourceWhitelist` with the
+full kube-prometheus-stack surface would over-privilege the
+app-workload project. Same blast-radius isolation rationale as the
+Linkerd separation. Applied via direct `kubectl apply -f` (the
+root-app's `directory.recurse` does NOT include AppProject files —
+see PROGRESS.md operator gotcha #24).
+
+**Apply + sync.**
+
+```bash
+# 1. Apply the new AppProject (one-shot, not GitOps-reconciled per
+#    the root-app source-path limitation).
+kubectl apply -f deployments/argocd/monitoring-appproject.yaml
+
+# 2. The root-app's next reconcile (default 3 min) picks up the new
+#    Application file under children/. Force it sooner:
+argocd app sync etradie-root
+
+# 3. Manually sync the monitoring-stack-staging Application. (Its
+#    automated.{prune:true, selfHeal:true} fires on the next
+#    reconcile too, but a manual sync makes the order explicit.)
+argocd app sync monitoring-stack-staging --timeout 600
+argocd app wait monitoring-stack-staging --health --timeout 600
+
+# 4. Verify the CRDs exist on the cluster.
+kubectl get crds | grep monitoring.coreos.com
+# expect: servicemonitors / podmonitors / prometheusrules / probes /
+#         alertmanagerconfigs / alertmanagers / prometheuses /
+#         prometheusagents / scrapeconfigs / thanosrulers (10 total)
+
+# 5. Verify the pods are Running 1/1 in the monitoring namespace.
+kubectl -n monitoring get pods
+# expect: kube-prometheus-stack-operator-...               1/1 Running
+#         prometheus-kube-prometheus-stack-prometheus-0    2/2 Running (prometheus + config-reloader)
+#         alertmanager-kube-prometheus-stack-alertmanager-0 2/2 Running (alertmanager + config-reloader)
+#         kube-prometheus-stack-grafana-...                3/3 Running (grafana + sidecars)
+#         kube-prometheus-stack-kube-state-metrics-...     1/1 Running
+#         kube-prometheus-stack-prometheus-node-exporter-* 1/1 Running (DaemonSet, one per node)
+```
+
+**Now the 10 staging children's next reconcile finds the CRDs and
+clears their dry-run.** Force the reconcile sooner if you don't
+want to wait 3 minutes:
+
+```bash
+for app in data-layer engine gateway execution management billing \
+           mt-node edge-ingress envoy observability-logs; do
+  argocd app sync ${app}-staging --timeout 600 || true
+done
+argocd app list --grpc-web | grep staging
+# expect: every staging child Synced/Healthy (or Synced/Progressing
+# while pods come up; mt-node-staging stays Synced/Healthy because
+# its chart renders no resources with mtConnection.enabled=false).
+```
+
+If any staging child still fails after the kube-prometheus-stack is
+healthy, capture the exact error with `argocd app get <name>
+--grpc-web` before re-trying — at this point a remaining failure is
+a chart-specific defect, not a missing-CRD problem.
+
 ---
 
 ## Phase 11 — Provision mt-node tenant Vault infrastructure
@@ -2804,7 +2912,7 @@ Vault path, AND the PVC — StatefulSet GC does not cascade to the PVC).
 - **Mesh verification before per-service authz:** install viz on demand (`git mv deployments/argocd/optional/linkerd-viz-production.yaml deployments/argocd/children/` then sync), run `linkerd viz edges` until every internal edge is SECURED, then set `linkerdPolicy.enabled: true` per service and re-sync. See `docs/runbooks/linkerd-mesh-rollout.md`.
 - **Backups:** production postgres backup CronJob + weekly restore drill are ON. Populate the offsite B2 path `etradie/data-layer/postgres-backup/production` (rclone_remote_name, rclone_config, remote_bucket, remote_path_prefix) BEFORE the first 02:00 UTC run. See `docs/runbooks/database-backup-restore.md`.
 - **Vault Raft snapshots:** back up Vault out-of-band — it is the source of truth for every secret and the mesh CA.
-- **Monitoring (optional):** install kube-prometheus-stack into `monitoring` (AppProject-allowlisted); ServiceMonitors auto-discover via the `prometheus: kube-prometheus` label.
+- **Monitoring stack operational notes:** the kube-prometheus-stack itself was installed at Phase 10.6 (REQUIRED step, per BUDGET.md Table 2B's staging floor). Post-install operational items: rotate the Grafana admin password (default `prom-operator` from the chart) on first login; Prometheus retention is 7d / 20Gi PVC per Table 2B (raise both with a values overlay edit + re-sync if the soak shows higher cardinality); every chart's `ServiceMonitor`/`PrometheusRule` is auto-discovered via the `prometheus: kube-prometheus` label set on each object by the platform charts. Mute alerts during a planned outage by silencing them in the Alertmanager UI rather than turning the rule off.
 
 ---
 
@@ -2821,6 +2929,7 @@ Vault path, AND the PVC — StatefulSet GC does not cascade to the PVC).
 | Cloudflare `HTTP 1033` | tunnel not connected | verify outbound :443 from cluster; check token |
 | meshed pods never Ready | K3s < 1.29 (no native sidecar) | reinstall K3s >= 1.29 |
 | envoy app won't render | WASM bytes missing | complete Phase 9 |
+| staging children `OutOfSync/Missing`, `argocd app get` shows `the server could not find the requested resource` for `monitoring.coreos.com/ServiceMonitor` or `PrometheusRule` | kube-prometheus-stack CRDs missing on the cluster | complete Phase 10.6 (REQUIRED per BUDGET.md Table 2B); staging children auto-sync on the next reconcile |
 
 ---
 
