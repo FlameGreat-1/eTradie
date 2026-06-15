@@ -1,0 +1,95 @@
+# kube-prometheus-stack for staging. Sync wave -7 so the
+# monitoring.coreos.com CRDs land before Linkerd (-6) and before any
+# platform chart (-2 and later) hits ServerSideApply dry-run against
+# its ServiceMonitor / PrometheusRule objects.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-stack-staging
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: etradie
+    exoper.com/component: monitoring-stack
+    exoper.com/environment: staging
+  annotations:
+    argocd.argoproj.io/sync-wave: "-7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: monitoring
+
+  # Multi-source: the chart from prometheus-community, plus the
+  # in-repo values overlay via the $values ref. Same pattern as
+  # linkerd-control-plane-production.yaml so the override path is
+  # consistent across platform-infrastructure Applications.
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      # K8s 1.30 compatible. Validate against the upstream matrix
+      # before bumping:
+      # https://github.com/prometheus-operator/prometheus-operator/blob/main/COMPATIBILITY.md
+      targetRevision: 65.5.0
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/helm/monitoring-stack/values-staging.yaml
+    - repoURL: https://github.com/FlameGreat-1/eTradie.git
+      targetRevision: main
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  ignoreDifferences:
+    # The prometheus-operator admission webhooks carry caBundle fields
+    # the operator rotates. Same posture as the Linkerd identity
+    # webhooks; do not fight them.
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
+    # The Prometheus + Alertmanager StatefulSets are mutated at
+    # runtime by the operator (it injects the config-reloader
+    # sidecar, env vars, volume mounts derived from the operator's
+    # current reconciliation state). Ignore the mutated fields so
+    # ArgoCD does not loop OutOfSync.
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/template/spec/containers
+        - /spec/template/spec/initContainers
+        - /spec/template/spec/volumes
+    # The Prometheus CRD's spec is reconciled by the operator from
+    # the chart-supplied values; the runtime form drifts as the
+    # operator adds fields. Ignore the noise.
+    - group: monitoring.coreos.com
+      kind: Prometheus
+      jsonPointers:
+        - /spec
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      # The chart ships large CRD manifests that exceed the
+      # client-side apply annotation limit. ServerSideApply handles
+      # them; this option is the canonical chart-render fix.
+      - Replace=false
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+
+  revisionHistoryLimit: 20

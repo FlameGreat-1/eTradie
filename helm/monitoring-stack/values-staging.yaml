@@ -1,0 +1,224 @@
+# Staging values overlay for kube-prometheus-stack.
+#
+# Sized to the single-node Contabo box. Total request envelope:
+#   prometheus       200m / 768Mi   (PVC 20Gi, 7d retention)
+#   grafana          100m / 128Mi   (no PVC; dashboards rebuild fresh)
+#   kube-state-metrics 50m / 64Mi
+#   node-exporter     50m / 64Mi    (DaemonSet, one per node)
+#   prometheus-operator 50m / 96Mi
+#
+# alertmanager OFF (no receiver wired yet; turn on after Slack/PagerDuty
+# tokens are in Vault and the receiver config is reviewed).
+# defaultRules OFF (the platform ships its own PrometheusRule per chart;
+# the upstream defaults would double-fire and inflate cardinality).
+
+fullnameOverride: kube-prometheus-stack
+
+crds:
+  enabled: true
+
+# ---------------------------------------------------------------------
+# Prometheus operator (the controller)
+# ---------------------------------------------------------------------
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  # Native sidecar so the proxy is Ready before the operator opens its
+  # admission webhook listener. Same mesh posture as every other
+  # platform component.
+  podAnnotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/proxy-enable-native-sidecar: "true"
+  admissionWebhooks:
+    enabled: true
+    patch:
+      enabled: true
+      podAnnotations:
+        linkerd.io/inject: disabled
+
+# ---------------------------------------------------------------------
+# Prometheus server
+# ---------------------------------------------------------------------
+prometheus:
+  enabled: true
+  prometheusSpec:
+    replicas: 1
+    retention: 7d
+    retentionSize: "18GiB"
+
+    # Every chart NetworkPolicy in this platform admits Prometheus by
+    # selecting `app: prometheus` from the monitoring namespace. The
+    # chart's default pod label is `app.kubernetes.io/name=prometheus`
+    # which would NOT match those selectors. Without this override the
+    # scrape would silently fail with no in-cluster signal.
+    podMetadata:
+      labels:
+        app: prometheus
+      annotations:
+        linkerd.io/inject: enabled
+        config.linkerd.io/proxy-enable-native-sidecar: "true"
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 768Mi
+      limits:
+        cpu: "1"
+        memory: 1536Mi
+
+    # Discover every ServiceMonitor / PodMonitor / PrometheusRule /
+    # Probe cluster-wide. Every platform chart already labels its
+    # monitors `prometheus: kube-prometheus`; setting the selectors
+    # to {} keeps that intent explicit (empty selector = match
+    # everything in scope) and avoids a surprise gap when a future
+    # chart forgets the label.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    podMonitorSelector: {}
+    ruleSelector: {}
+    probeSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    podMonitorNamespaceSelector: {}
+    ruleNamespaceSelector: {}
+    probeNamespaceSelector: {}
+
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 2000
+      fsGroup: 2000
+      seccompProfile:
+        type: RuntimeDefault
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+# ---------------------------------------------------------------------
+# Alertmanager OFF
+# ---------------------------------------------------------------------
+# No receiver wired yet (Slack / PagerDuty tokens not in Vault).
+# Re-enable here AFTER the receiver config is reviewed; alertmanager
+# without a real receiver is noise.
+alertmanager:
+  enabled: false
+
+# ---------------------------------------------------------------------
+# Grafana
+# ---------------------------------------------------------------------
+grafana:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # No PVC. Dashboards are rebuilt fresh on pod restart from the
+  # chart-bundled ConfigMaps; the loss is acceptable in staging.
+  # Persist Grafana to a PVC in production where users have custom
+  # dashboards worth keeping.
+  persistence:
+    enabled: false
+  # The chart default admin password is 'prom-operator'. Rotate on
+  # first login (Grafana UI -> profile -> change password). The
+  # admin user/pw sourcing can move to ESO + Vault in a follow-up.
+  adminUser: admin
+  adminPassword: prom-operator
+  podAnnotations:
+    linkerd.io/inject: enabled
+    config.linkerd.io/proxy-enable-native-sidecar: "true"
+  service:
+    type: ClusterIP
+  # ServiceMonitor for Grafana itself (so Prometheus scrapes Grafana's
+  # own metrics).
+  serviceMonitor:
+    enabled: true
+    labels:
+      prometheus: kube-prometheus
+
+# ---------------------------------------------------------------------
+# kube-state-metrics
+# ---------------------------------------------------------------------
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  # kube-state-metrics binds the API server on a ServiceAccount with
+  # cluster-scoped read permissions. Keep it OUT of the mesh; the
+  # proxy adds no value on a read-only metrics scrape path and
+  # complicates the kubelet's scrape of /metrics.
+  podAnnotations:
+    linkerd.io/inject: disabled
+
+# ---------------------------------------------------------------------
+# node-exporter (DaemonSet)
+# ---------------------------------------------------------------------
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  # node-exporter runs on host network with privileged access to
+  # /proc + /sys. Mesh inject is a non-starter for host-network pods
+  # (the proxy listens on a pod-network port that doesn't exist).
+  podAnnotations:
+    linkerd.io/inject: disabled
+
+# ---------------------------------------------------------------------
+# Default rules OFF
+# ---------------------------------------------------------------------
+# Every platform chart ships its own PrometheusRule with rules tuned
+# to this stack. The upstream defaults would double-fire (e.g.
+# KubePodCrashLooping vs our PostgresPodHighRestarts) and inflate
+# rule-evaluation cost on the single-node box.
+defaultRules:
+  create: false
+
+# ---------------------------------------------------------------------
+# Component scrape coverage
+# ---------------------------------------------------------------------
+# K3s collapses control-plane components into the k3s-server process,
+# so the standalone kube-controller-manager / kube-scheduler / etcd
+# scrape targets don't exist as separate Services on this cluster.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+# kubelet metrics still come from each node's :10250 (cAdvisor) and
+# are scraped by the chart's auto-rendered ServiceMonitor.
+kubelet:
+  enabled: true
+
+# ---------------------------------------------------------------------
+# Global resource scope
+# ---------------------------------------------------------------------
+global:
+  rbac:
+    create: true
+    pspEnabled: false
