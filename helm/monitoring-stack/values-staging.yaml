@@ -210,6 +210,15 @@ kubeEtcd:
   enabled: false
 kubeProxy:
   enabled: false
+# CoreDNS: the chart's default mode renders a facade Service in
+# kube-system that the monitoring AppProject does not (and should
+# not) authorize. Disable the chart-rendered piece here; CoreDNS
+# metrics are restored by an additionalServiceMonitor under
+# `prometheus.additionalServiceMonitors` that targets K3s's existing
+# kube-dns Service on :9153 directly. The Grafana CoreDNS dashboards
+# read from standard coredns_* metric names and populate either way.
+coreDns:
+  enabled: false
 # kubelet metrics still come from each node's :10250 (cAdvisor) and
 # are scraped by the chart's auto-rendered ServiceMonitor.
 kubelet:
