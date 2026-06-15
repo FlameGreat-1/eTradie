@@ -2681,6 +2681,8 @@ Vault → ESO → K8s Secret pipeline first.
 
 ### 10.6 — Install kube-prometheus-stack (REQUIRED before staging-children sync, per BUDGET.md Table 2B)
 
+> **Session-resume entry point.** If you are picking up Phase 10 mid-flight on an existing cluster, read PROGRESS.md “Phase 10.6 in-flight checkpoint” FIRST. The checkpoint section supersedes every earlier resume block in PROGRESS.md and records the exact cluster state, the open defects, the verification commands to run before any fix, and the closeout TODO order. The procedure below is the steady-state canonical install; the checkpoint covers any state where the install has partially completed.
+
 **Why this is REQUIRED, not optional.** Every staging chart
 (`data-layer`, `engine`, `gateway`, `execution`, `management`,
 `billing`, `edge-ingress`, `envoy`, `observability-logs`)

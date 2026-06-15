@@ -1623,3 +1623,204 @@ assert '/internal/ta/analyze' in {'', '/docs', '/docs/oauth2-redirect',
 ```
 
 The test fixture builds a FastAPI app where the registered-paths set has only 5 entries — none of the application routers (`/internal/ta/analyze`, `/internal/broker/account_info`, `/health`, `/api/analysis/latest`) are present. This is a test-fixture defect, not application code; the live engine pod registers all routes correctly. Failure does NOT block this Phase 10.6 deploy because ArgoCD reads chart manifests + images directly from the repo + GHCR; CI gate state is not consulted. Add to a separate engineering ticket; do NOT block Phase 10 closeout on it. Likely cause: a missing router `include_router(...)` in the test fixture's `create_app()` factory, or a config-loading exception silently swallowed during test setup.
+
+---
+
+## Phase 10.6 in-flight checkpoint — 2026-06-15 (session-resume entry point)
+
+**Read this section first if you are picking up Phase 10 mid-flight.** It supersedes every prior "Session-resume recovery" block in the file because the cluster state has moved on materially since each of them was written.
+
+### Status board correction
+
+| Phase | Title | Status at this checkpoint |
+|---|---|---|
+| 0–9 | (everything up to Phase 9) | ✅ DONE |
+| 10 | ArgoCD + AppProjects + root app | 🟡 in progress — monitoring stack Healthy + 9 staging children syncing; 2 chart-level defects under investigation |
+| 10.6 | Install kube-prometheus-stack | ✅ DONE — `monitoring-stack-staging` Synced/Healthy; CoreDNS scrape Up; CRDs present |
+| 11–15 | (after Phase 10) | ⏸ pending |
+
+Do NOT flip Phase 10 to ✅ in `## Status board` at the top of this file until both open defects (§ below) are resolved AND all 11 staging Applications report `Synced/Healthy`. As of this checkpoint that has NOT happened.
+
+### What landed in this session (in commit order, oldest first)
+
+| Short SHA | Title | What it does |
+|---|---|---|
+| `f93bdf4f` | PROGRESS.md — Phase 10 continuation 2026-06-15 | Records the Vault path defect + migration + Linkerd mesh up arc |
+| `f632ec41` | PROGRESS.md — correct Phase 10 staging-children root cause | Supersedes the wrong hypotheses with the real cause (kube-prometheus-stack missing) |
+| `024bada1` | README.md — move kube-prometheus-stack into Phase 10.6 | Reclassifies monitoring from "optional Phase 15" to "REQUIRED Phase 10.6" per BUDGET.md Table 2B |
+| `a71020af` | Add dedicated `monitoring` AppProject | New AppProject scoped to kube-prometheus-stack |
+| `8b949bc8` | Clean inline comments in monitoring AppProject | Strip doc cross-refs from the YAML |
+| `c7483f7f` | Add staging kube-prometheus-stack values overlay + Application | `helm/monitoring-stack/values-staging.yaml` + `deployments/argocd/children/monitoring-stack-staging.yaml` |
+| `b049d371` | Add production overlay + Application | `helm/monitoring-stack/values-production.yaml` + `deployments/argocd/children/monitoring-stack-production.yaml` |
+| `95bd9c86` | Fix AppProject whitelist + tighten ignoreDifferences | Add `batch/Job`+`batch/CronJob` to monitoring AppProject; remove over-broad `ignoreDifferences` |
+| `3ee834e7` | Disable chart's CoreDNS rendering | `coreDns.enabled: false` (the chart's facade Service in `kube-system` was blocked by AppProject scope) |
+| `e213fa9d` | Restore CoreDNS scraping via additionalServiceMonitors | Custom ServiceMonitor in `monitoring` ns targeting K3s `kube-dns:9153` directly |
+| `ba25de8d` | README.md — document workstation-vs-VPS topology | New "Architecture" subsection + PROGRESS gotcha #32 |
+| `73be1e2a` | Raise init container requests across 5 service charts | `cpu: 10m → 50m`, `memory: 16Mi → 64Mi` to clear etradie-system LimitRange floor |
+| `f81a646a` | chromadb writable parent dir for `/chroma/chroma.log` | PVC mount moves from `/chroma/chroma` to `/chroma`; `PERSIST_DIRECTORY` to `/chroma/index` |
+| `3bc20fa7` | envoy namespace PSS warn+audit (drop enforce) | Same posture as data-layer namespace so Linkerd proxy-init can run |
+| `4022660c` | PROGRESS.md — chart fixes + CI test failure TODO + gotchas #33–35 | Documents the 3 chart fixes above + the CI test failure non-blocker |
+
+GitLab `main` and GitHub `origin/main` are both at `4022660c` at the time of this checkpoint.
+
+### Cluster state at this checkpoint
+
+**Healthy and Ready:**
+
+- `monitoring-stack-staging` — `Synced/Healthy`. 5 chart components Running:
+  - `kube-prometheus-stack-operator` 1/1
+  - `prometheus-kube-prometheus-stack-prometheus-0` 3/3
+  - `kube-prometheus-stack-grafana` 3/3
+  - `kube-prometheus-stack-kube-state-metrics` 1/1
+  - `kube-prometheus-stack-prometheus-node-exporter` (DaemonSet, 1/1 on the single node)
+- 10 `monitoring.coreos.com` CRDs present cluster-wide.
+- Prometheus scrape targets all `up`: `apiserver`, `cloudflared-metrics`, `kube-dns` (the additionalServiceMonitor for CoreDNS), `kube-prometheus-stack-operator`, `kube-prometheus-stack-prometheus` (×2), `kubelet` (×3). 8 targets total, all healthy.
+- `mt-node-staging` — `OutOfSync/Healthy` (chart renders nothing because `mtConnection.enabled=false` in staging; by-design).
+- `linkerd-*` Applications — all 3 Healthy; 3 control-plane pods 2/2-or-4/4 in `linkerd` namespace.
+- `monitoring-stack-production` — created, `OutOfSync` (manual sync only; expected, do NOT sync on a staging-only box).
+
+**Progressing (good — chart fixes are rolling out):**
+
+- 6 staging children showing `OutOfSync/Progressing`: `data-layer-staging`, `engine-staging`, `gateway-staging`, `execution-staging`, `management-staging`, `billing-staging`, `observability-logs-staging`. New pods spawning under the new pod-template hashes; old pods being drained as the new ones come Ready.
+- Pod state at the moment of this checkpoint:
+  - `postgres-0` 3/3 Running ✅
+  - `redis-0` 3/3 Running ✅
+  - `chromadb-0` **1/2 CrashLoopBackOff** (DEFECT A — see below)
+  - `etradie-engine-d7bd6444d-2lwp8` 0/2 Init:0/3 (new pod, waiting on chromadb)
+  - `etradie-engine-5cd9b9d777-tq8cq` 0/2 Init:0/3 (old pod, will be reaped once new is Ready)
+  - `etradie-gateway-bfbc5fcf8-k2lm9` 0/2 Init:0/2 (new pod, waiting on engine)
+  - `etradie-gateway-7bd667b5d7-wbkcj` 0/1 Init:CrashLoopBackOff (old pod, will be reaped)
+  - `etradie-execution-8576bf499-cchxl` 0/2 Init:0/2 (waiting on engine)
+  - `etradie-management-5b697754d6-jngsh` 0/2 Init:0/2 (waiting on engine)
+  - `etradie-billing-6bd67b7b55-qpks8` 0/1 Init:0/1 (waiting on engine)
+  - In `edge-ingress-system`: `cloudflared-fb8f66bf8-mwp7z` 1/1 Running ✅ (the tunnel itself is up).
+
+**Degraded (the 2 still-open defects):**
+
+- `edge-ingress-staging` — `OutOfSync/Degraded`. The `edge-ingress` Deployment is degraded because `etradie-gateway` is not Ready upstream. This is a cascade of Defect A; expected to clear once chromadb is fixed. NOT a separate defect.
+- `envoy-staging` — `OutOfSync/Degraded`. **Zero pods in `envoy-system`** — DEFECT B (see below).
+
+### Open defects at this checkpoint
+
+#### Defect A — chromadb StatefulSet pod not replaced after template change
+
+**Symptom.** Chart commit `f81a646a` changed the chromadb StatefulSet to mount the PVC at `/chroma` (parent) instead of `/chroma/chroma` (subdir). ArgoCD synced the StatefulSet object — BUT `chromadb-0` is still the original pod, age 33 min, restart count 11+, **NOT replaced**.
+
+**Hypothesised root cause.** Classic StatefulSet `RollingUpdate` deadlock:
+
+1. StatefulSet `updateStrategy.type: RollingUpdate` (verified in `helm/data-layer/templates/chromadb-statefulset.yaml`).
+2. Rolling update gates each pod-replace on the previous pod being Ready.
+3. `chromadb-0` is in CrashLoopBackOff (NOT Ready) under the old broken spec.
+4. Controller refuses to delete pod-0 because it's not Ready (would violate the rolling-update guarantee).
+5. Pod stays stuck on the old spec; new mount path never applied; loop forever.
+
+**Pre-action verification — confirm hypothesis before fixing:**
+
+```bash
+# Compare StatefulSet template vs live pod
+kubectl -n etradie-system get statefulset chromadb \
+  -o jsonpath='{.spec.template.spec.containers[?(@.name=="chromadb")].volumeMounts}' | jq
+kubectl -n etradie-system get pod chromadb-0 \
+  -o jsonpath='{.spec.containers[?(@.name=="chromadb")].volumeMounts}' | jq
+kubectl -n etradie-system get pod chromadb-0 \
+  -o jsonpath='{.spec.containers[?(@.name=="chromadb")].env[?(@.name=="PERSIST_DIRECTORY")]}' | jq
+```
+
+If the StatefulSet shows `mountPath: /chroma` and the pod shows `mountPath: /chroma/chroma`, hypothesis confirmed.
+
+**Fix (verified-correct path, NOT yet executed):**
+
+```bash
+# Delete the stuck pod. StatefulSet controller will immediately
+# recreate it under the NEW pod template (the one with /chroma mount).
+kubectl -n etradie-system delete pod chromadb-0
+
+# Watch the new pod come up
+kubectl -n etradie-system get pod chromadb-0 -w
+```
+
+Do NOT run this without first verifying via the three `kubectl get` commands above that the StatefulSet's template actually has the new spec. If the StatefulSet itself still shows the OLD spec, then ArgoCD hasn't synced the change yet — force a sync first: `argocd app sync data-layer-staging --timeout 600`.
+
+**Why ArgoCD didn't auto-handle this.** ArgoCD does NOT issue `kubectl delete pod` to break a StatefulSet rolling-update deadlock. That's a deliberate K8s controller behaviour, not an ArgoCD bug. The operator action is part of the StatefulSet contract.
+
+#### Defect B — envoy-system namespace's pre-existing PSS enforce label not updated by chart re-sync
+
+**Symptom.** Chart commit `3bc20fa7` removed the `pod-security.kubernetes.io/enforce` label from the envoy namespace template. ArgoCD shows `envoy-staging` Synced — BUT `envoy-system` namespace still has zero pods and the live namespace object likely still carries the old `enforce: restricted` label (admission still rejects Linkerd-injected pods).
+
+**Hypothesised root cause.** ArgoCD with `ServerSideApply=true` does NOT remove labels it doesn't own. The `pod-security.kubernetes.io/enforce` label was originally applied by ArgoCD's earlier sync (with the old chart spec), so ArgoCD DOES own that label. But once the new chart template no longer renders the label, ArgoCD should patch it out… if `Prune=true` semantics apply to label keys, which they generally do NOT in server-side-apply mode.
+
+**Pre-action verification — confirm hypothesis before fixing:**
+
+```bash
+# Is the enforce label still on the live namespace?
+kubectl get namespace envoy-system -o jsonpath='{.metadata.labels}' | jq | grep -E 'pod-security'
+
+# What's the most recent admission rejection (if any)?
+kubectl -n envoy-system get events --sort-by='.lastTimestamp' | tail -10
+```
+
+If the label is still there, hypothesis confirmed.
+
+**Fix (manual label-removal):**
+
+```bash
+# Remove the enforce label directly. Same effect as the chart template
+# change (which is now applied to the chart but couldn't reach the
+# live label).
+kubectl label namespace envoy-system pod-security.kubernetes.io/enforce-
+kubectl label namespace envoy-system pod-security.kubernetes.io/enforce-version-
+
+# Force ArgoCD to re-sync the Deployment now that the namespace is permissive
+argocd app terminate-op envoy-staging 2>/dev/null
+argocd app sync envoy-staging --timeout 600
+argocd app wait envoy-staging --health --timeout 600
+```
+
+If this works once, the chart template `3bc20fa7` will prevent the label from ever being re-added on a fresh namespace creation. For long-term hardening, consider adding `kubectl.kubernetes.io/last-applied-configuration` annotations that include the absence of the label, or use `argocd app sync --force` once to make ArgoCD reapply the namespace from scratch.
+
+### Diagnostic commands to run at session start
+
+If you are resuming this session, run these in order to determine the exact next action:
+
+```bash
+# Sanity: tunnel + argocd + login (see PROGRESS gotcha #32 for context)
+kubectl get nodes
+curl -sk https://127.0.0.1:8080/healthz
+argocd account list 2>&1 | head -3
+
+# Defect A verification (chromadb)
+kubectl -n etradie-system get statefulset chromadb \
+  -o jsonpath='{.spec.template.spec.containers[?(@.name=="chromadb")].volumeMounts}' | jq
+kubectl -n etradie-system get pod chromadb-0 \
+  -o jsonpath='{.spec.containers[?(@.name=="chromadb")].volumeMounts}' | jq
+
+# Defect B verification (envoy ns PSS)
+kubectl get namespace envoy-system -o jsonpath='{.metadata.labels}' | jq | grep -E 'pod-security'
+
+# Overall pod state
+kubectl get pods -A --field-selector=status.phase!=Running 2>/dev/null | grep -vE '(Completed|^NAMESPACE)' || echo "  all pods Running"
+
+# Application state
+argocd app list --grpc-web | grep -E '(staging|monitoring-stack-staging)'
+```
+
+### Phase 10.6 closeout TODOs (updated order)
+
+Do these in sequence; each item resolves a specific blocker before the next.
+
+1. **Defect A:** verify chromadb StatefulSet template-vs-pod drift, delete pod-0 if confirmed, watch new pod come up Healthy. After this, the cascade resolves: engine waits clear, then gateway, then execution/management/billing pods reach Ready (the new pod-template-hash pods you see Init:0/N at this checkpoint).
+2. **Defect B:** verify envoy-system PSS label drift, remove enforce label manually if confirmed, force envoy-staging re-sync. Pod should come up Ready.
+3. After both defects resolved, run a full `argocd app list --grpc-web | grep staging` and verify all 11 staging Applications report `Synced/Healthy`. The 3 `linkerd-*` Applications will stay `OutOfSync/Healthy` (by-design ESO drift + operator-mutated webhook caBundle drift; documented at the top of the Phase 10 continuation section).
+4. **vault-auth token_reviewer_jwt** — mint a non-expiring legacy Secret-bound token and replace the 24h TTL token on Vault's `kubernetes/config`. Was item 4 in the previous closeout list, still required.
+5. **Vault audit log** — disable at `/tmp/vault-audit.log` (gotcha #29). Was item 5; still required.
+6. **PROGRESS gotcha #9 correction commit** — "the doubled-prefix was NOT intentional; here is the actual ESO `buildPath` behavior" (gotcha #23). Cosmetic but improves the historical accuracy of the file.
+7. **Delete the 14 doubled-prefix Vault entries** once all staging Applications are `Synced/Healthy`. `vault kv metadata delete -mount=etradie etradie/<rest>` × 14.
+8. **CI test failure** — fix the test-fixture defect in `tests/api/endpoints.py` (the registered-paths set has only 5 entries because the test fixture's `create_app()` factory doesn't `include_router(...)` the application routers). Separate engineering ticket; does NOT block Phase 10 closeout but blocks future CI green status. See "Outstanding non-blocking items" above for context.
+9. **README + PROGRESS update** flipping the status board: Phase 10 → ✅ DONE after items 1–3 pass; Phase 11 takes over.
+
+### Files you might want to read first if you have never deployed this platform
+
+- `BUDGET.md` Table 2B — the capacity ledger this deploy implements.
+- `docs/runbooks/README.md` "Architecture — where everything actually runs" (PROGRESS gotcha #32 cross-reference) — the workstation-vs-VPS topology.
+- `docs/runbooks/README.md` Phase 10 + Phase 10.6 — the canonical procedure for everything we've been doing.
+- This PROGRESS.md from Phase 10 continuation onward — the audit trail of what actually happened vs what was planned.
