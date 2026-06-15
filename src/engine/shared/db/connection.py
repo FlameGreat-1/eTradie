@@ -97,13 +97,9 @@ def _translate_sslmode_for_asyncpg(url: str) -> tuple[str, Any]:
     if sslmode_value is None:
         return url, None
 
-    cleaned_url = urlunparse(
-        parsed._replace(query=urlencode(kept_pairs, doseq=True))
-    )
+    cleaned_url = urlunparse(parsed._replace(query=urlencode(kept_pairs, doseq=True)))
 
-    ssl_kwarg = _LIBPQ_SSLMODE_TO_ASYNCPG_SSL.get(
-        sslmode_value.strip().lower()
-    )
+    ssl_kwarg = _LIBPQ_SSLMODE_TO_ASYNCPG_SSL.get(sslmode_value.strip().lower())
     if ssl_kwarg is None and sslmode_value.strip().lower() not in {"allow", "prefer"}:
         logger.warning(
             "unknown_sslmode_value",
@@ -147,9 +143,7 @@ class DatabaseManager:
         # libpq -> asyncpg mapping table.
         cleaned_url, ssl_kwarg = _translate_sslmode_for_asyncpg(url)
 
-        connect_args: dict[str, Any] = {
-            "server_settings": {"statement_timeout": str(query_timeout * 1000)},
-        }
+        connect_args: dict[str, Any] = {"server_settings": {"statement_timeout": str(query_timeout * 1000)}}
         if ssl_kwarg is not None:
             connect_args["ssl"] = ssl_kwarg
 
