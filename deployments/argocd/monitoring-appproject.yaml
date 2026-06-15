@@ -84,6 +84,16 @@ spec:
       kind: NetworkPolicy
     - group: policy
       kind: PodDisruptionBudget
+    # batch/Job is required: the prometheus-operator chart renders a
+    # kube-webhook-certgen Job to patch the admission webhook caBundles
+    # at install time. Without this entry ArgoCD refuses to create the
+    # Job and the entire wave aborts. batch/CronJob is defensive: the
+    # chart ships no CronJob today but the AppProject should anticipate
+    # the kind so a future chart bump does not require an AppProject diff.
+    - group: batch
+      kind: Job
+    - group: batch
+      kind: CronJob
     - group: monitoring.coreos.com
       kind: Prometheus
     - group: monitoring.coreos.com

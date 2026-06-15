@@ -57,23 +57,6 @@ spec:
       kind: ValidatingWebhookConfiguration
       jqPathExpressions:
         - .webhooks[].clientConfig.caBundle
-    # The Prometheus + Alertmanager StatefulSets are mutated at
-    # runtime by the operator (config-reloader sidecar, env vars,
-    # volume mounts). Ignore the mutated fields so ArgoCD does not
-    # loop OutOfSync.
-    - group: apps
-      kind: StatefulSet
-      jsonPointers:
-        - /spec/template/spec/containers
-        - /spec/template/spec/initContainers
-        - /spec/template/spec/volumes
-    # The Prometheus CRD's spec is reconciled by the operator from
-    # the chart-supplied values; the runtime form drifts as the
-    # operator adds fields.
-    - group: monitoring.coreos.com
-      kind: Prometheus
-      jsonPointers:
-        - /spec
 
   syncPolicy:
     # Production: NO automated prune, NO automated selfHeal.
