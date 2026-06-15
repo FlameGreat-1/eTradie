@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from urllib.parse import urlparse
+from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from sqlalchemy import event, text
 from sqlalchemy.exc import (
@@ -38,6 +39,79 @@ from engine.shared.metrics.prometheus import (
 logger = get_logger(__name__)
 
 
+# Mapping from libpq's `sslmode` query-string values (the form used by
+# every Postgres DSN convention, the runbook's Phase 8.2 DB_URL_PY, and
+# Settings._validate_production_secrets in engine.config) to asyncpg's
+# native `ssl=` kwarg values. asyncpg does NOT accept `sslmode` — it is
+# a libpq-only parameter and asyncpg has its own native Postgres protocol
+# implementation. Without this translation, the asyncpg dialect raises:
+#   TypeError: connect() got an unexpected keyword argument 'sslmode'
+# at the first connection attempt. The validator in engine.config still
+# inspects the ORIGINAL URL (with sslmode=...) so Tier 11 TLS-on hardening
+# is preserved; this helper only rewrites what we hand to SQLAlchemy /
+# asyncpg downstream.
+_LIBPQ_SSLMODE_TO_ASYNCPG_SSL: dict[str, Any] = {
+    "disable": False,
+    "require": "require",
+    "verify-ca": "verify-ca",
+    "verify-full": "verify-full",
+}
+
+
+def _translate_sslmode_for_asyncpg(url: str) -> tuple[str, Any]:
+    """Strip the libpq `sslmode` query param from a Postgres URL and
+    return the cleaned URL plus the asyncpg `ssl` kwarg value to pass
+    via connect_args.
+
+    Behaviour:
+      * If the URL has no `sslmode` query param, returns (url, None).
+        Caller passes connect_args unchanged.
+      * If `sslmode=disable` is present, returns (cleaned_url, False).
+        asyncpg interprets ssl=False as 'do not use TLS' — same as libpq.
+      * If `sslmode` is one of {require, verify-ca, verify-full},
+        returns (cleaned_url, <string form>). asyncpg accepts these
+        strings and negotiates TLS accordingly.
+      * If `sslmode` is `allow` or `prefer`, returns (cleaned_url, None)
+        — asyncpg has no direct mapping; falls back to its default
+        (no TLS unless server requires it). These modes are NOT used
+        by the engine in any environment (Settings validator rejects
+        them in staging/production), so this branch is a safety net.
+      * If `sslmode` value is unknown, returns (cleaned_url, None) and
+        logs a warning.
+
+    All OTHER query params are preserved verbatim.
+    """
+    parsed = urlparse(url)
+    if not parsed.query:
+        return url, None
+
+    pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    kept_pairs: list[tuple[str, str]] = []
+    sslmode_value: str | None = None
+    for key, value in pairs:
+        if key.lower() == "sslmode":
+            sslmode_value = value
+            continue
+        kept_pairs.append((key, value))
+
+    if sslmode_value is None:
+        return url, None
+
+    cleaned_url = urlunparse(
+        parsed._replace(query=urlencode(kept_pairs, doseq=True))
+    )
+
+    ssl_kwarg = _LIBPQ_SSLMODE_TO_ASYNCPG_SSL.get(
+        sslmode_value.strip().lower()
+    )
+    if ssl_kwarg is None and sslmode_value.strip().lower() not in {"allow", "prefer"}:
+        logger.warning(
+            "unknown_sslmode_value",
+            extra={"sslmode": sslmode_value, "action": "falling_back_to_asyncpg_default"},
+        )
+    return cleaned_url, ssl_kwarg
+
+
 class DatabaseManager:
     """
     Production-grade async database connection manager.
@@ -64,18 +138,31 @@ class DatabaseManager:
     ) -> None:
         self._validate_connection_url(url)
 
+        # Translate libpq sslmode -> asyncpg ssl kwarg. The Vault DSN
+        # carries sslmode=require (Tier 11 mandate, enforced by
+        # Settings._validate_production_secrets BEFORE this constructor
+        # runs), but asyncpg's connect() rejects sslmode as an unknown
+        # kwarg. Strip + translate to ssl='require' in connect_args.
+        # See _translate_sslmode_for_asyncpg docstring for the full
+        # libpq -> asyncpg mapping table.
+        cleaned_url, ssl_kwarg = _translate_sslmode_for_asyncpg(url)
+
+        connect_args: dict[str, Any] = {
+            "server_settings": {"statement_timeout": str(query_timeout * 1000)},
+        }
+        if ssl_kwarg is not None:
+            connect_args["ssl"] = ssl_kwarg
+
         self._query_timeout = query_timeout
         self._engine: AsyncEngine = create_async_engine(
-            url,
+            cleaned_url,
             pool_size=pool_size,
             max_overflow=max_overflow,
             pool_timeout=pool_timeout,
             pool_recycle=pool_recycle,
             pool_pre_ping=True,
             echo=echo,
-            connect_args={
-                "server_settings": {"statement_timeout": str(query_timeout * 1000)},
-            },
+            connect_args=connect_args,
         )
 
         self._session_factory = async_sessionmaker(

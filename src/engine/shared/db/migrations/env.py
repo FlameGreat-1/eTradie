@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from logging.config import fileConfig
+from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from alembic import context
 from sqlalchemy import pool
@@ -28,7 +30,52 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.async_database_url)
+
+# Translate libpq's `sslmode` query param to asyncpg's native `ssl`
+# kwarg before handing the URL to SQLAlchemy. The Vault DSN carries
+# sslmode=require (enforced by Settings._validate_production_secrets),
+# but asyncpg.connect() rejects sslmode as an unknown kwarg. Removing
+# sslmode from the URL we hand to SQLAlchemy and passing ssl='require'
+# via connect_args lets the asyncpg dialect connect with identical TLS
+# behaviour to libpq's sslmode=require. The validator inspects the
+# original URL (settings.database_url) so Tier 11 invariants hold; this
+# rewrite affects only the URL string handed to async_engine_from_config.
+# Mirror of engine.shared.db.connection._translate_sslmode_for_asyncpg —
+# kept inline so the migrate init does not import the heavier
+# DatabaseManager module path (which would pull in Prometheus client +
+# logging + metrics modules just to run a one-shot alembic migration).
+_LIBPQ_SSLMODE_TO_ASYNCPG_SSL: dict[str, Any] = {
+    "disable": False,
+    "require": "require",
+    "verify-ca": "verify-ca",
+    "verify-full": "verify-full",
+}
+
+
+def _translate_sslmode(url: str) -> tuple[str, Any]:
+    parsed = urlparse(url)
+    if not parsed.query:
+        return url, None
+    pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    kept: list[tuple[str, str]] = []
+    sslmode_value: str | None = None
+    for k, v in pairs:
+        if k.lower() == "sslmode":
+            sslmode_value = v
+            continue
+        kept.append((k, v))
+    if sslmode_value is None:
+        return url, None
+    cleaned = urlunparse(parsed._replace(query=urlencode(kept, doseq=True)))
+    return cleaned, _LIBPQ_SSLMODE_TO_ASYNCPG_SSL.get(sslmode_value.strip().lower())
+
+
+_raw_url = settings.async_database_url
+_cleaned_url, _ssl_kwarg = _translate_sslmode(_raw_url)
+config.set_main_option("sqlalchemy.url", _cleaned_url)
+_engine_connect_args: dict[str, Any] = {}
+if _ssl_kwarg is not None:
+    _engine_connect_args["ssl"] = _ssl_kwarg
 
 
 def run_migrations_offline() -> None:
@@ -50,10 +97,16 @@ def do_run_migrations(connection):  # type: ignore[no-untyped-def]
 
 
 async def run_async_migrations() -> None:
+    # async_engine_from_config forwards the kwargs we add here into
+    # SQLAlchemy's create_async_engine call. connect_args carries the
+    # asyncpg `ssl` kwarg derived from the URL's original sslmode by
+    # _translate_sslmode above. If sslmode was absent (dev/testing), the
+    # dict is empty and asyncpg uses its default (no TLS).
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=_engine_connect_args,
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
