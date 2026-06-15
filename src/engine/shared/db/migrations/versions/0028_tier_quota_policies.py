@@ -15,9 +15,14 @@ Created:  2026-05-28
 
 from __future__ import annotations
 
+import logging
+
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
+
+_log = logging.getLogger("alembic.runtime.migration")
 
 # Alembic identifiers.
 revision = "0028"
@@ -215,19 +220,46 @@ def upgrade() -> None:
         ),
     )
 
-    # Foreign-key updated_by -> auth_users(id) is added separately so
-    # the constraint name is stable and the table create above stays
-    # readable. Use ON DELETE SET NULL so a deleted admin does not
-    # cascade-delete the policy row; the historical edit attribution
-    # is preserved as NULL.
-    op.create_foreign_key(
-        constraint_name="tier_quota_policies_updated_by_fkey",
-        source_table="tier_quota_policies",
-        referent_table="auth_users",
-        local_cols=["updated_by"],
-        remote_cols=["id"],
-        ondelete="SET NULL",
-    )
+    # Foreign-key updated_by -> auth_users(id) is created CONDITIONALLY.
+    # `auth_users` is owned by the Go gateway service
+    # (src/auth/store.go::SchemaSQL()), NOT by alembic. On a fresh
+    # cluster the gateway has not started yet when this migration runs
+    # (chart dependency order: data-layer -> engine -> gateway), so the
+    # table does not exist. Migration 0011 set the precedent for this
+    # constraint by adding a user_id VARCHAR without a FK to
+    # auth_users; here we follow the same pattern but ALSO add the FK
+    # when auth_users IS present (re-run / upgrade against an
+    # established cluster).
+    #
+    # Use ON DELETE SET NULL so a deleted admin does not cascade-delete
+    # the policy row; the historical edit attribution is preserved as
+    # NULL.
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if "auth_users" in inspector.get_table_names():
+        op.create_foreign_key(
+            constraint_name="tier_quota_policies_updated_by_fkey",
+            source_table="tier_quota_policies",
+            referent_table="auth_users",
+            local_cols=["updated_by"],
+            remote_cols=["id"],
+            ondelete="SET NULL",
+        )
+    else:
+        # auth_users does not exist yet (fresh deploy; gateway will
+        # create it at its own startup). The `updated_by` column stays
+        # a plain VARCHAR(32) with no FK constraint. Audit attribution
+        # is preserved by the column value (a string user-id). An
+        # operator who wants the FK enforced post-deploy can run a
+        # follow-up migration once auth_users exists.
+        _log.info(
+            "0028_tier_quota_policies: skipping FK "
+            "tier_quota_policies_updated_by_fkey -> auth_users(id) "
+            "because auth_users does not exist yet "
+            "(gateway-owned table created at gateway startup). "
+            "updated_by remains a plain VARCHAR(32) column. "
+            "See migration 0011 for the same pattern on user_id columns."
+        )
 
     # Seed the four canonical tier rows with explicit INSERTs. Same
     # pattern as 0008 / 0009 / 0019 (and the rest of the seed-bearing
@@ -284,9 +316,18 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint(
-        "tier_quota_policies_updated_by_fkey",
-        "tier_quota_policies",
-        type_="foreignkey",
-    )
+    # Conditionally drop the FK constraint: if the upgrade skipped it
+    # (auth_users did not exist at migration time), the constraint
+    # does not exist either and trying to drop it would error. Use the
+    # same inspector-based existence check the upgrade uses.
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if "tier_quota_policies" in inspector.get_table_names():
+        existing_fks = {fk["name"] for fk in inspector.get_foreign_keys("tier_quota_policies")}
+        if "tier_quota_policies_updated_by_fkey" in existing_fks:
+            op.drop_constraint(
+                "tier_quota_policies_updated_by_fkey",
+                "tier_quota_policies",
+                type_="foreignkey",
+            )
     op.drop_table("tier_quota_policies")
