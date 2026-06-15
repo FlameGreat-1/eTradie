@@ -21,6 +21,15 @@ spec:
   # actually owns or integrates with. Bootstrap of new namespaces
   # requires an explicit AppProject change.
   destinations:
+    # root-app (the App-of-Apps) lives in this AppProject and reconciles
+    # INTO the argocd namespace because the children it creates are
+    # argoproj.io/Application objects, which ArgoCD requires to live
+    # in the argocd namespace. Without this entry, root-app fails its
+    # own reconcile with InvalidSpecError and no children are created.
+    # The argoproj.io/Application kind is whitelisted under
+    # namespaceResourceWhitelist below, completing the permission grant.
+    - name: in-cluster
+      namespace: argocd
     - name: in-cluster
       namespace: etradie-system
     - name: in-cluster
