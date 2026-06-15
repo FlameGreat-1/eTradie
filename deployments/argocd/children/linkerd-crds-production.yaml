@@ -22,7 +22,10 @@ spec:
   project: linkerd
 
   source:
-    repoURL: https://helm.linkerd.io
+    # Linkerd chart index lives at /stable; the repo root returns 404
+    # (verified 2026-06-15: GET https://helm.linkerd.io/index.yaml -> 404,
+    # GET https://helm.linkerd.io/stable/index.yaml -> 200).
+    repoURL: https://helm.linkerd.io/stable
     chart: linkerd-crds
     targetRevision: 1.8.0
     helm:

@@ -26,6 +26,12 @@ spec:
     # The Linkerd Helm charts are pulled from the official Linkerd OCI /
     # HTTPS chart repo by the child Applications; allow it here plus the
     # platform git repo (for any in-repo values overlays).
+    #
+    # Both /stable and root URLs whitelisted: /stable is the live path
+    # (verified 2026-06-15) and what the Applications now use; the root
+    # URL is retained tolerantly in case the upstream restores the
+    # legacy /index.yaml or an operator reverts.
+    - https://helm.linkerd.io/stable
     - https://helm.linkerd.io
     - https://github.com/FlameGreat-1/eTradie.git
     - https://github.com/FlameGreat-1/eTradie

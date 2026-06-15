@@ -38,7 +38,11 @@ spec:
     # (multi-source Application) so the trust-anchor PEM + issuer
     # Secret reference live in git-reviewed values without committing
     # cert bytes.
-    - repoURL: https://helm.linkerd.io
+    #
+    # Linkerd chart index lives at /stable; the repo root returns 404
+    # (verified 2026-06-15: GET https://helm.linkerd.io/index.yaml -> 404,
+    # GET https://helm.linkerd.io/stable/index.yaml -> 200).
+    - repoURL: https://helm.linkerd.io/stable
       chart: linkerd-control-plane
       targetRevision: 1.16.11
       helm:
