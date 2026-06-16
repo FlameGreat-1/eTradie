@@ -90,9 +90,27 @@ COPY src/engine/shared/db/migrations src/engine/shared/db/migrations
 COPY knowledge/ knowledge/
 
 # Ownership
-RUN chown -R etradie:etradie /app
+RUN chown -R etradie:etradie /app /home/etradie
 
 USER etradie
+
+# Pre-bake the SentenceTransformer embedding model into the image so
+# the runtime engine pod does NOT need to call HuggingFace at boot.
+# The model bytes (~90 MB for sentence-transformers/all-MiniLM-L6-v2)
+# live in the etradie user's HF cache, which is mounted at
+# /home/etradie/.cache in the runtime pod (chart emptyDir at the same
+# path; the COPY ownership above sets the etradie user as owner).
+# Without this pre-bake the runtime download stalls on a missing or
+# restricted NetworkPolicy egress and /readiness rag.embedding_ready
+# stays false until the egress is fixed AND the download completes.
+# Pre-bake makes the model load deterministic (~2-3s from disk) and
+# air-gap ready. The model name MUST match the runtime config value
+# RAG_EMBEDDING_MODEL = all-MiniLM-L6-v2 (helm/engine/values.yaml).
+ENV HF_HOME=/home/etradie/.cache/huggingface
+ENV SENTENCE_TRANSFORMERS_HOME=/home/etradie/.cache/torch/sentence_transformers
+RUN python -c "from sentence_transformers import SentenceTransformer; \
+    m = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2'); \
+    print('embedding model pre-baked:', m.get_sentence_embedding_dimension(), 'dims')"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

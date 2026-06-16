@@ -694,11 +694,27 @@ networkPolicy:
           port: 53
         - protocol: TCP
           port: 53
-    # Outbound HTTPS for upstream data providers (FRED, CFTC,
-    # TwelveData, RSS feeds, LLM APIs). The Cloudflare/Contabo/OCI
-    # network plugin handles SNAT.
+    # Outbound HTTPS to the public internet for upstream data
+    # providers (FRED, CFTC, TwelveData, RSS feeds, LLM APIs:
+    # Anthropic / OpenAI / Gemini) and HuggingFace model cache
+    # refreshes. Previously this rule used `namespaceSelector: {}`
+    # which matches ONLY in-cluster pods and silently dropped every
+    # external HTTPS call -> engine boot stalled at /readiness with
+    # rag.embedding_ready=false. Industry-standard fix: explicit
+    # ipBlock for 0.0.0.0/0 with `except` for the K3s pod CIDR
+    # (10.42.0.0/16) and service CIDR (10.43.0.0/16) so this rule
+    # does NOT accidentally cover east-west traffic that the
+    # explicit per-service rules above already govern.
+    # Only ports 80/443 are permitted outbound; everything else
+    # (SMTP, SSH, SOCKS, arbitrary high ports) stays denied. The
+    # configured outbound API clients carry their auth headers; this
+    # rule is the L4 envelope they need, not authentication.
     - to:
-        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.42.0.0/16
+              - 10.43.0.0/16
       ports:
         - protocol: TCP
           port: 443
