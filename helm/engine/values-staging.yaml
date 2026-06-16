@@ -24,18 +24,9 @@ config:
     debug: "false"
     logLevel: "DEBUG"
   observability:
-    # Distributed tracing TEMPORARILY DISABLED in staging.
-    # Setting this to a non-empty value triggers FastAPIInstrumentor.
-    # instrument_app(app) in src/engine/main.py:373, which crashes on
-    # every request with AttributeError: '_IncludedRouter' object has
-    # no attribute 'path' inside opentelemetry-instrumentation-fastapi's
-    # _get_route_details. Every /health probe returns 500 -> pod
-    # readiness never passes -> CrashLoopBackOff. Empty string makes
-    # main.py log 'tracing_disabled_no_otlp_endpoint_configured' and
-    # skip the instrumentation entirely. Other observability (Prometheus
-    # scrape, Loki logs, Grafana dashboards) remains ON.
-    # Path back to tracing-on: see commit message + CHROMADB-RAG-CHECKPOINT.md.
-    otelEndpoint: ""
+    # Distributed tracing ON in staging: export OTLP spans to the
+    # in-cluster OTel Collector (helm/observability-logs tracing.enabled).
+    otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
   vault:
     address: "https://vault.vault.svc.cluster.local:8200"
   rag:

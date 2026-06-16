@@ -78,16 +78,7 @@ podAnnotations:
   # containers reach meshed postgres/redis. ZeroMQ to mt-node :5555 is
   # opaque (non-HTTP server-first framing); the OTLP collector port
   # 4317 is skipped so traces flow to a possibly-un-meshed collector.
-  # TEMPORARILY DISABLED for the phase 10.6 staging unblock. Engine's
-  # FastAPI lifespan fires postgres + redis + chromadb connections in
-  # the first ~30ms, which races the Linkerd proxy's cold-start
-  # outbound handshake (Certified identity is reached early but
-  # outbound routing/discovery for these backends is not yet warm).
-  # cprobe (engine image, engine SA, mesh ON, sleeps before issuing
-  # one request) reaches chromadb HTTP 200 in 10ms — mesh works. The
-  # engine's startup pattern does not tolerate the cold-start window.
-  # Path back to enabled: see commit message + CHROMADB-RAG-CHECKPOINT.md.
-  linkerd.io/inject: disabled
+  linkerd.io/inject: enabled
   config.linkerd.io/proxy-enable-native-sidecar: "true"
   # Outbound opaque-ports list. REPLACES cluster default (not
   # additive), so EVERY opaque-server destination the engine dials
