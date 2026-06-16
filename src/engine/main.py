@@ -75,16 +75,27 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # container.shutdown() at the bottom of this lifespan.
     await container.broker_client_pool.start()
 
-    # Section 5 (CHECKLIST): refresh the etradie_active_user_connections
-    # gauge so the engine HPA can scale on user count when the operator
-    # has wired prometheus-adapter (see values.yaml autoscaling.customMetrics).
-    await container.start_active_connections_refresh(interval_secs=30.0)
-
     APP_INFO.info({"version": "1.0.0", "environment": settings.app_env.value})
 
+    # Warm the DB + cache pools BEFORE any application-level workload
+    # tries to use them. health_check() has retry-with-backoff (3
+    # attempts, exponential 0.1->0.2->0.4s, 5s timeout each ~= 15s
+    # budget); it deterministically warms the cold pool with bounded
+    # latency. Running this BEFORE start_active_connections_refresh()
+    # eliminates the lifespan-internal startup race where the gauge
+    # refresher's first SELECT raced an un-warmed asyncpg connection
+    # and crashed the engine (RAGBootstrapError -> CrashLoopBackOff).
+    # Industry-standard pattern: confirm dependency health before
+    # launching application background tasks.
     db_ok = await container.db.health_check()
     cache_ok = await container.cache.health_check()
     logger.info("startup_health", db=db_ok, cache=cache_ok)
+
+    # Section 5 (CHECKLIST): refresh the etradie_active_user_connections
+    # gauge so the engine HPA can scale on user count when the operator
+    # has wired prometheus-adapter (see values.yaml autoscaling.customMetrics).
+    # Now safe to run: the pool is warm.
+    await container.start_active_connections_refresh(interval_secs=30.0)
 
     # Publish the dynamic Correlation matrix to Redis for the Go Exposure Engine
     try:
