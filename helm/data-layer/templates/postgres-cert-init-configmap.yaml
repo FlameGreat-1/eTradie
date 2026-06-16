@@ -1,0 +1,57 @@
+{{- if and .Values.postgres.enabled .Values.postgres.tls.enabled }}
+{{- /*
+Openssl configuration for the postgres tls-cert-init initContainer.
+
+Why this is a ConfigMap and not inline in the StatefulSet:
+
+  - The SAN list (and any future trusted hostnames) is a per-cluster
+    deployment concern. Pulling it into a ConfigMap makes it overrideable
+    via .Values.postgres.tls.subjectAltNames without editing the template,
+    and makes the openssl invocation in the init container a clean
+    `openssl req -config /etc/postgres-tls-init/openssl.cnf` call instead
+    of a 40-character single-line argv string that escapes ',' poorly.
+
+  - Operator-driven cert rotation (described in postgres-statefulset.yaml)
+    regenerates with EXACTLY these SANs every time. No drift between the
+    initial cert and a rotated one.
+
+The subject CN is the canonical in-cluster postgres hostname. Clients
+use libpq sslmode=require which does NOT chain-verify or hostname-verify,
+so the CN value is informational; the SAN list is what matters when (and
+if) the platform later upgrades to verify-ca / verify-full.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-tls-init-config
+  namespace: {{ include "data-layer.namespace" . }}
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+  annotations:
+    description: "openssl.cnf consumed by the postgres tls-cert-init initContainer to generate the self-signed server cert + key at first boot."
+data:
+  openssl.cnf: |
+    [req]
+    default_bits        = {{ .Values.postgres.tls.keySize | default 4096 }}
+    default_md          = sha256
+    distinguished_name  = req_distinguished_name
+    x509_extensions     = v3_req
+    prompt              = no
+
+    [req_distinguished_name]
+    CN = {{ .Values.postgres.tls.subjectCommonName | default "postgres.etradie-system.svc.cluster.local" }}
+    O  = etradie
+    OU = data-layer
+
+    [v3_req]
+    basicConstraints     = critical, CA:FALSE
+    keyUsage             = critical, digitalSignature, keyEncipherment
+    extendedKeyUsage     = serverAuth
+    subjectAltName       = @alt_names
+
+    [alt_names]
+    {{- range $i, $san := .Values.postgres.tls.subjectAltNames }}
+    DNS.{{ add $i 1 }} = {{ $san }}
+    {{- end }}
+    IP.1 = 127.0.0.1
+{{- end }}

@@ -115,6 +115,16 @@ spec:
                     secretKeyRef:
                       name: {{ include "postgres.secretName" . }}
                       key: POSTGRES_DB
+                {{- if .Values.postgres.tls.enabled }}
+                # Server now serves TLS (postgres-statefulset.yaml
+                # ssl=on). libpq defaults to sslmode=prefer when
+                # unset which would still work, but explicit is
+                # better than implicit: lock the backup connection
+                # to sslmode=require so it matches every application
+                # client (gateway/execution/management/billing/engine).
+                - name: PGSSLMODE
+                  value: "require"
+                {{- end }}
                 - name: RETENTION_DAYS
                   value: {{ .Values.postgres.backup.retentionDays | default 7 | quote }}
                 {{- if .Values.postgres.backup.offsite.enabled }}

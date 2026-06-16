@@ -100,6 +100,74 @@ postgres:
     logStatement: "ddl"
     logLinePrefix: "%m [%p] user=%u db=%d client=%h app=%a "
 
+  # Server-side TLS. The Go services (gateway/execution/management/
+  # billing) and the Python engine all enforce `sslmode=require` in
+  # production/staging at config validation time. Without server TLS
+  # those clients fail at first connect with `read: connection reset
+  # by peer` (pgx) or `server does not support SSL, but SSL was
+  # required` (libpq). Enabling TLS here makes the application's
+  # stated contract (sslmode=require) negotiable end-to-end.
+  #
+  # The cert is generated at first boot by a `tls-cert-init`
+  # initContainer (postgres-statefulset.yaml). 10-year self-signed,
+  # written to an emptyDir at /var/lib/postgresql/certs/, owned by uid
+  # 70 (the postgres user inside postgres:16-alpine), mode 0600 on the
+  # key so postgres accepts it (`FATAL: private key file has group or
+  # world access` otherwise). The init is idempotent: it skips
+  # regeneration if a valid cert with >30 days to expiry already
+  # exists in the emptyDir, so a rolling restart on the same node
+  # reuses the same cert; a pod recreate (new emptyDir) regenerates.
+  #
+  # Defense in depth on every in-cluster postgres hop:
+  #   1. ufw at the host (Tier 11; :5432 not exposed publicly)
+  #   2. Linkerd mTLS (Tier 9 mesh identity; opaque-ports raw-TCP tunnel)
+  #   3. Application TLS (libpq sslmode=require; this section).
+  #
+  # Clients use sslmode=require (channel encryption only, no chain
+  # verification), so the self-signed cert is accepted by both libpq
+  # (gateway/execution/management/billing via pgx) and asyncpg (engine,
+  # with ENGINE_DB_NATIVE_TLS=true set in helm/engine/values-*.yaml).
+  # A future upgrade to verify-ca / verify-full would require
+  # distributing the CA bundle to every consumer pod, which is out of
+  # scope here.
+  #
+  # Operator-driven rotation:
+  #   kubectl -n etradie-system exec postgres-0 -c tls-cert-init -- \
+  #     rm -f /var/lib/postgresql/certs/server.crt /var/lib/postgresql/certs/server.key
+  #   kubectl -n etradie-system delete pod postgres-0
+  # The new pod's init container regenerates with the same SAN list.
+  tls:
+    enabled: true
+    # SHA-256 self-signed RSA. Validity is intentionally long because
+    # the cert never leaves the cluster and clients don't verify the
+    # chain (sslmode=require). Operator-driven rotation works for
+    # earlier renewal if needed.
+    certValidityDays: 3650
+    keySize: 4096
+    # Subject + SAN list. CN is informational under sslmode=require;
+    # the SAN list is what matters if the platform later flips clients
+    # to verify-full.
+    subjectCommonName: "postgres.etradie-system.svc.cluster.local"
+    subjectAltNames:
+      - "postgres.etradie-system.svc.cluster.local"
+      - "postgres-headless.etradie-system.svc.cluster.local"
+      - "postgres.etradie-system"
+      - "postgres"
+      - "localhost"
+    # Resources for the tls-cert-init initContainer. Requests MUST
+    # meet the etradie-system namespace LimitRange minimum (50m cpu /
+    # 64Mi memory) or pod admission is rejected. The init runs once
+    # per pod and finishes in <5s on this node class; these requests
+    # are released back to the namespace quota immediately after the
+    # init exits.
+    initResources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
   externalSecret:
     enabled: true
     secretStoreName: vault-backend

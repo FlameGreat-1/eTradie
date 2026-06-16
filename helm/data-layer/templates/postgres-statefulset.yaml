@@ -52,6 +52,85 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.postgres.tls.enabled }}
+      # tls-cert-init: generate a self-signed RSA server cert + key at
+      # first boot. Reuses the postgres:16-alpine image (already cached
+      # on the node; uid 70 native; /usr/bin/openssl present as a
+      # runtime dep of openssl-dev pulled by the official Dockerfile).
+      # Writes to the certs emptyDir; postgres container mounts it
+      # read-only at /var/lib/postgresql/certs/. Idempotent: skips
+      # regeneration if a valid cert with >30d to expiry exists.
+      #
+      # Why uid 70 not root: postgres refuses to start unless
+      # ssl_key_file is owner-only 0600 owned by the postgres user (or
+      # 0640 owned by root with postgres-group). The init runs as
+      # uid 70 with the pod's fsGroup: 70, writes the files owned by
+      # postgres, and chmods to 0600 / 0644. No root required.
+      initContainers:
+        - name: tls-cert-init
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy | default "IfNotPresent" }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 70
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              CERT_DIR=/var/lib/postgresql/certs
+              CERT_FILE=$CERT_DIR/server.crt
+              KEY_FILE=$CERT_DIR/server.key
+              CONFIG=/etc/postgres-tls-init/openssl.cnf
+              VALIDITY_DAYS={{ .Values.postgres.tls.certValidityDays | default 3650 }}
+              # Idempotency: regenerate only when the cert is missing
+              # OR will expire in <30 days. Rolling restart on the same
+              # node reuses the same cert; pod recreate (new emptyDir)
+              # generates fresh. Operator rotation is `rm -f $CERT_FILE
+              # $KEY_FILE && delete pod`.
+              if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
+                if openssl x509 -in "$CERT_FILE" -noout -checkend 2592000 >/dev/null 2>&1; then
+                  echo "[tls-cert-init] existing cert is valid for >30d; skipping regeneration"
+                  echo "[tls-cert-init] subject: $(openssl x509 -in "$CERT_FILE" -noout -subject)"
+                  echo "[tls-cert-init] not after: $(openssl x509 -in "$CERT_FILE" -noout -enddate)"
+                  exit 0
+                fi
+                echo "[tls-cert-init] existing cert expires within 30d; regenerating"
+              else
+                echo "[tls-cert-init] no cert present; generating fresh self-signed cert"
+              fi
+              umask 077
+              openssl req \
+                -x509 \
+                -new \
+                -nodes \
+                -days "$VALIDITY_DAYS" \
+                -config "$CONFIG" \
+                -keyout "$KEY_FILE" \
+                -out "$CERT_FILE"
+              # postgres refuses to start unless ssl_key_file is owner
+              # postgres + mode 0600. The pod runs uid 70 with fsGroup
+              # 70 so files are already owner-correct; explicit chmod
+              # to be defensive against future fsGroup changes.
+              chmod 0600 "$KEY_FILE"
+              chmod 0644 "$CERT_FILE"
+              echo "[tls-cert-init] cert written: $(openssl x509 -in "$CERT_FILE" -noout -subject -dates)"
+          resources:
+            {{- toYaml .Values.postgres.tls.initResources | nindent 12 }}
+          volumeMounts:
+            - name: certs
+              mountPath: /var/lib/postgresql/certs
+            - name: tls-init-config
+              mountPath: /etc/postgres-tls-init
+              readOnly: true
+            - name: tls-init-tmp
+              mountPath: /tmp
+      {{- end }}
       containers:
         - name: postgres
           image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
@@ -67,11 +146,15 @@ spec:
             capabilities:
               drop:
                 - ALL
-          {{- if .Values.postgres.auditLogging.enabled }}
-          # Database-level audit logging. Passed as args so the official
-          # entrypoint forwards them to `postgres` without a config-file
-          # mount, keeping the readOnly/non-root posture intact.
+          {{- if or .Values.postgres.auditLogging.enabled .Values.postgres.tls.enabled }}
+          # Postgres -c args. The official entrypoint forwards every -c
+          # pair to the `postgres` server binary unchanged, so we use
+          # them for both audit-logging and TLS rather than mounting a
+          # config file (which would break the readOnly/non-root posture).
           args:
+            {{- if .Values.postgres.auditLogging.enabled }}
+            # Database-level audit logging. log_statement=ddl records
+            # every CREATE/ALTER/DROP without logging row data.
             - -c
             - log_connections={{ ternary "on" "off" .Values.postgres.auditLogging.logConnections }}
             - -c
@@ -80,6 +163,23 @@ spec:
             - log_statement={{ .Values.postgres.auditLogging.logStatement | default "ddl" }}
             - -c
             - log_line_prefix={{ .Values.postgres.auditLogging.logLinePrefix | default "%m [%p] user=%u db=%d client=%h app=%a " | quote }}
+            {{- end }}
+            {{- if .Values.postgres.tls.enabled }}
+            # Server-side TLS. Cert + key live in the certs emptyDir,
+            # populated by the tls-cert-init initContainer before this
+            # container starts. The stock pg_hba.conf is `host all all
+            # all scram-sha-256`, which accepts both TLS and non-TLS
+            # connections; this is intentional so the postgres-exporter
+            # sidecar's loopback connection (sslmode=disable) continues
+            # to work. Remote clients enforce sslmode=require at their
+            # end, so they always negotiate TLS.
+            - -c
+            - ssl=on
+            - -c
+            - ssl_cert_file=/var/lib/postgresql/certs/server.crt
+            - -c
+            - ssl_key_file=/var/lib/postgresql/certs/server.key
+            {{- end }}
           {{- end }}
           ports:
             - name: postgres
@@ -137,6 +237,11 @@ spec:
             {{- if .Values.postgres.initSQL.enabled }}
             - name: init-sql
               mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+            {{- end }}
+            {{- if .Values.postgres.tls.enabled }}
+            - name: certs
+              mountPath: /var/lib/postgresql/certs
               readOnly: true
             {{- end }}
         {{- if .Values.postgres.metrics.enabled }}
@@ -218,6 +323,23 @@ spec:
           configMap:
             name: {{ include "postgres.initSqlConfigMap" . }}
             defaultMode: 0444
+        {{- end }}
+        {{- if .Values.postgres.tls.enabled }}
+        # Cert + key emptyDir. Written by tls-cert-init initContainer,
+        # consumed read-only by the postgres main container.
+        - name: certs
+          emptyDir:
+            sizeLimit: 16Mi
+        # openssl.cnf for the tls-cert-init initContainer (SANs etc.).
+        - name: tls-init-config
+          configMap:
+            name: postgres-tls-init-config
+            defaultMode: 0444
+        # tls-cert-init runs with readOnlyRootFilesystem=true; openssl
+        # writes a few small temp files to /tmp during cert generation.
+        - name: tls-init-tmp
+          emptyDir:
+            sizeLimit: 8Mi
         {{- end }}
   volumeClaimTemplates:
     - metadata:

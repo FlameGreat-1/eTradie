@@ -101,6 +101,13 @@ spec:
                     secretKeyRef:
                       name: {{ include "postgres.secretName" . }}
                       key: POSTGRES_DB
+                {{- if .Values.postgres.tls.enabled }}
+                # Server serves TLS; lock the drill connection to
+                # sslmode=require so the restore exercise mirrors the
+                # production application-client posture exactly.
+                - name: PGSSLMODE
+                  value: "require"
+                {{- end }}
                 - name: SCRATCH_DB
                   value: {{ .Values.postgres.restoreDrill.scratchDatabase | default "etradie_restore_drill" | quote }}
               command:
