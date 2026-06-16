@@ -21,6 +21,11 @@ podAnnotations:
   prometheus.io/port: "8000"
   prometheus.io/path: "/metrics"
   tier: staging
+  # TEMPORARY: mesh disabled on engine pod only. Cold-start mesh handshake races
+  # postgres/redis health checks in the first 30ms of FastAPI lifespan,
+  # causing reset-by-peer crash loop. Phase 10.6 unblock; revisit with retry-with-backoff
+  # in lifespan or longer wait-for-deps pre-warm window.
+  linkerd.io/inject: "disabled"
 
 config:
   app:
@@ -63,7 +68,6 @@ config:
         prometheus.io/port: "9100"
         prometheus.io/path: "/metrics"
         tier: staging
-        linkerd.io/inject: "disabled"
         config.linkerd.io/proxy-enable-native-sidecar: "true"
         config.linkerd.io/opaque-ports: "5555"
         vault.hashicorp.com/agent-requests-cpu: "50m"
