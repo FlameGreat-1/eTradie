@@ -19,6 +19,14 @@ data:
   POSTGRES_PORT: {{ .Values.config.postgres.port | quote }}
   POSTGRES_DB: {{ .Values.config.postgres.db | quote }}
 
+  # Wire-TLS mode for asyncpg. "false" = MESH mode (asyncpg ssl=False,
+  # plaintext to a postgres that does not serve TLS); "true" = NATIVE
+  # mode (asyncpg ssl='require', server must serve TLS). The platform
+  # data-layer chart enables postgres TLS by default, so the staging
+  # and production overlays set this to "true". Read by both the
+  # engine main container and the migrate init container.
+  ENGINE_DB_NATIVE_TLS: {{ .Values.config.database.nativeTls | default "false" | quote }}
+
   # Redis non-secret pieces. Password + REDIS_URL come from the
   # ExternalSecret.
   REDIS_HOST: {{ .Values.config.redis.host | quote }}

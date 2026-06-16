@@ -21,17 +21,29 @@ podAnnotations:
   prometheus.io/port: "8000"
   prometheus.io/path: "/metrics"
   tier: staging
-  # TEMPORARY: mesh disabled on engine pod only. Cold-start mesh handshake races
-  # postgres/redis health checks in the first 30ms of FastAPI lifespan,
-  # causing reset-by-peer crash loop. Phase 10.6 unblock; revisit with retry-with-backoff
-  # in lifespan or longer wait-for-deps pre-warm window.
-  linkerd.io/inject: "disabled"
+  # NOTE: the previous-session `linkerd.io/inject: "disabled"` override
+  # has been REMOVED. It was a temporary unblock during the data-layer
+  # plaintext-postgres workaround arc (commit 8843f074); the root cause
+  # was that postgres did not serve TLS, which caused asyncpg+mesh
+  # handshake races during FastAPI lifespan startup. With postgres now
+  # serving TLS (data-layer chart, postgres.tls.enabled=true) and the
+  # engine flipped to ENGINE_DB_NATIVE_TLS=true below, the original
+  # failure mode no longer applies. The base values.yaml's mesh
+  # annotations (linkerd.io/inject: enabled, native sidecar, opaque-
+  # ports for mt-node :5555 + chromadb :8000, skip-outbound for OTel
+  # :4317, proxy-await: enabled) now apply to engine end-to-end.
 
 config:
   app:
     env: "staging"
     debug: "false"
     logLevel: "DEBUG"
+  # The staging data-layer chart enables postgres.tls (commit in this
+  # series), so flip the engine to native-TLS asyncpg. ssl='require'
+  # negotiates an encrypted channel without chain verification, which
+  # matches the chart's self-signed posture exactly.
+  database:
+    nativeTls: "true"
   observability:
     # Distributed tracing ON in staging: export OTLP spans to the
     # in-cluster OTel Collector (helm/observability-logs tracing.enabled).

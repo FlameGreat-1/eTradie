@@ -119,6 +119,11 @@ config:
     env: "production"
     debug: "false"
     logLevel: "INFO"
+  # Production data-layer chart enables postgres.tls; flip engine
+  # asyncpg to native-TLS (ssl='require'). Audit-trail invariant
+  # sslmode=require in the Vault DSN now matches wire-level reality.
+  database:
+    nativeTls: "true"
   observability:
     # Distributed tracing ON: export OTLP spans to the in-cluster OTel
     # Collector deployed by helm/observability-logs (tracing.enabled).

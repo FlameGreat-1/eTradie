@@ -363,6 +363,32 @@ config:
     port: "6379"
     db: "0"
 
+  # Database wire-TLS posture. Selected by engine.shared.db.connection.
+  # _engine_db_native_tls() and the alembic migrate env.py mirror, both
+  # of which read ENGINE_DB_NATIVE_TLS from this ConfigMap.
+  #
+  #   "false" (DEFAULT in base values): MESH mode. The asyncpg `ssl=`
+  #     kwarg is set to False regardless of the DSN's sslmode value.
+  #     Used when the postgres server is plaintext (e.g. a managed
+  #     external DB without TLS, or our own data-layer chart with
+  #     postgres.tls.enabled=false). The validator's sslmode invariant
+  #     in src/engine/config.py is unaffected because it inspects the
+  #     URL STRING; the wire-level translation is a separate concern.
+  #
+  #   "true" (set in values-{staging,production}.yaml): NATIVE mode.
+  #     The libpq sslmode in the URL is translated to asyncpg's native
+  #     ssl values ('require'/'verify-ca'/'verify-full'). Used when
+  #     postgres actually serves TLS. The platform's data-layer chart
+  #     enables this via postgres.tls.enabled (see helm/data-layer/
+  #     values.yaml::postgres.tls), so every overlay that pairs the
+  #     engine with that chart MUST set this to "true" to flip
+  #     ENGINE_DB_NATIVE_TLS to NATIVE mode.
+  #
+  # Audit ref: src/engine/shared/db/connection.py::_translate_sslmode_
+  # for_asyncpg docstring.
+  database:
+    nativeTls: "false"
+
 externalSecrets:
   enabled: true
   engine:
