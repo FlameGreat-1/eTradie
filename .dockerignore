@@ -13,6 +13,16 @@ __pycache__
 htmlcov
 *.md
 *.docx
+# The engine image needs the RAG knowledge base (all markdown). The
+# broad `*.md` exclusion above would strip every knowledge document
+# from the build context, so `COPY knowledge/` in the engine Dockerfile
+# would ship an empty dir and RAG bootstrap would fail at ingest with
+# RAGLoaderError. Re-include the knowledge tree AFTER the `*.md` rule
+# (.dockerignore last-match-wins / gitignore semantics). Only the
+# knowledge/ markdown is re-admitted; every other *.md (READMEs,
+# docs/, design notes) stays excluded.
+!knowledge
+!knowledge/**
 .pre-commit-config.yaml
 # Secrets must never land in build context. Audit ref: DI-H1.
 .env
@@ -29,7 +39,6 @@ htmlcov
 model_cache/
 output/
 tests/
-knowledge/scenarios/
 deployments/cloudflare/origin-pull/dev-*.crt
 deployments/cloudflare/origin-pull/dev-*.key
 deployments/cloudflare/origin-pull/dev-*.pem
