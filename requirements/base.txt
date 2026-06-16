@@ -26,6 +26,11 @@ feedparser==6.0.11
 
 # ── Scheduler ────────────────────────────────────────────────
 APScheduler==3.10.4
+# Explicit pin — APScheduler 3.10.4 declares tzlocal!=3.*,>=2.0 as a
+# transitive dependency, but pip's resolver evicted it during the
+# opentelemetry 1.42.1 / 0.63b1 bump's larger constraint graph. Pinning
+# directly guarantees it lands in the runtime image.
+tzlocal>=4.0,<6.0
 
 # ── Observability ────────────────────────────────────────────
 prometheus-client==0.21.1
