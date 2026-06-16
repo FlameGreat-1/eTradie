@@ -2232,3 +2232,273 @@ linkerd-destination got restarted again and the data-layer pods'
 proxies are stale — restart postgres-0 / redis-0 / chromadb-0 in that
 order, wait for them to come back Ready, then restart the engine pod.
 Documented in detail in CHROMADB-RAG-CHECKPOINT.md.
+
+---
+
+## Phase 10.6 — postgres TLS server-side + engine native-TLS revert 2026-06-16 (the real fix)
+
+> **This section supersedes the previous-session `ENGINE_DB_NATIVE_TLS=false`
+> + `linkerd.io/inject: "disabled"` engine workarounds.** Those were
+> debug-arc dead-ends; root cause was that postgres did not serve TLS
+> while every application config enforces `sslmode=require`. With this
+> series of three commits, the chart now matches the application
+> contract and both workarounds are reverted.
+
+### How the staging cascade surfaced this
+
+After Vault path mount mismatch + execution/management missing
+`auth_admin_password` were fixed earlier in this session, the
+`execution` and `management` pods reached the main container and
+crashed at first DB ping with:
+
+```
+fatal: failed to connect to `user=etradie database=etradie`:
+       10.43.151.84:5432 (postgres.etradie-system.svc.cluster.local):
+       tls error: read tcp 10.42.0.239:45900->10.43.151.84:5432:
+       read: connection reset by peer
+```
+
+Meshed-pod psql probes from a temporary `pgprobe-meshed` pod proved:
+
+| sslmode | result |
+|---|---|
+| disable | OK (returns `1`) |
+| prefer  | OK (returns `1`) |
+| require | FAIL `server does not support SSL, but SSL was required` |
+
+And `SHOW ssl;` on postgres-0 returned `off`. Postgres was plaintext.
+
+### The 4-validator contract that hard-enforces sslmode=require
+
+Reading every config validator in the codebase (not just the engine's,
+as earlier sessions had):
+
+| Service | File | What it enforces in prod/staging |
+|---|---|---|
+| auth (gateway/execution/management share `src/auth`) | `src/auth/config.go::validate()` | `AUTH_DATABASE_URL` non-empty (string-level audit invariant) |
+| billing | `src/billing/config/config.go::requireTLSDatabaseURL` | sslmode in {require, verify-ca, verify-full}; rejects disable/allow/prefer with explicit error message *"refusing to start in a production-like environment"* |
+| execution | `src/execution/internal/config/config.go::validate()` | Identical to billing's check, same allowed set |
+| engine | `src/engine/config.py::_validate_production_secrets` | Identical string-level check on `DATABASE_URL` query string |
+
+The billing config carries the load-bearing comment:
+*"Default to require so the connection is encrypted **even when the
+service mesh is off**"*. The intent across the codebase is
+unambiguous: TLS is a wire-level invariant, independent of Linkerd.
+
+### The previous-session engine workaround was a debug-arc dead-end
+
+The history:
+
+| Date | Commit | What happened |
+|---|---|---|
+| 2026-05-04 | `ae1ed53e` | Postgres StatefulSet added. No SSL config from day one. |
+| 2026-06-09 | `f935b42c` | postgres-exporter sidecar added with `sslmode=disable` (loopback). Inline comment claims *"meshed peers are mTLS'd by Linkerd, not libpq TLS"* — true for the EXPORTER hop, but conflates loopback semantics with remote-client semantics. |
+| 2026-06-15 09:29Z | `23e3f674` | Engine `migrate` init crashed: `TypeError: connect() got an unexpected keyword argument 'sslmode'`. asyncpg has its own protocol impl and doesn't accept libpq's `sslmode` kwarg name. Fix #1: translate libpq sslmode → asyncpg `ssl=`. |
+| 2026-06-15 09:59Z | `8843f074` | 30 minutes later, fix #1 produced a new failure: `ConnectionError: PostgreSQL server ... rejected SSL upgrade`. Author traced it to plaintext postgres, added `ENGINE_DB_NATIVE_TLS` env var defaulting to `false` (MESH mode → asyncpg ssl=False regardless of DSN sslmode). The commit message itself framed it as a forward-compatible escape hatch for managed-postgres deploys, NOT the intended steady state. |
+
+The workaround masked the underlying inconsistency: the chart was the
+component out of step with the application contract, not the engine.
+
+### The fix (3 commits in this series)
+
+**Commit 1: helm/data-layer — enable postgres TLS server-side.**
+
+  - New `tls-cert-init` initContainer in `postgres-statefulset.yaml`.
+    Reuses the `postgres:16-alpine` image (already cached on the node,
+    uid 70 native, `/usr/bin/openssl` present as a runtime dep of
+    `openssl-dev` pulled by the official Dockerfile). Generates a
+    10-year self-signed RSA-4096 cert+key into an emptyDir mounted
+    at `/var/lib/postgresql/certs/`. Owner uid 70, mode 0600 on key,
+    0644 on cert (postgres refuses to start otherwise: `FATAL:
+    private key file has group or world access`).
+  - Idempotent: skips regeneration if the cert exists with >30 days
+    to expiry. Rolling restart on the same node reuses the cert; pod
+    recreate generates fresh.
+  - SAN list in `postgres-cert-init-configmap.yaml` (new): the
+    canonical postgres FQDN + headless + short forms + localhost +
+    127.0.0.1. Centralised so a future operator-driven rotation
+    regenerates with the same SANs.
+  - Postgres args appended: `-c ssl=on -c ssl_cert_file=... -c
+    ssl_key_file=...`. Composed with the existing audit-logging `-c`
+    args block; the readOnlyRootFilesystem + non-root posture is
+    preserved (no config-file mount added).
+  - Backup + restore-drill CronJobs: `PGSSLMODE=require` added
+    explicitly. libpq defaults to `prefer` (which still works against
+    a TLS-on server), but explicit > implicit; matches every other
+    postgres consumer's posture exactly.
+
+  Stock `pg_hba.conf` is `host all all all scram-sha-256` (accepts
+  both TLS and non-TLS). The postgres-exporter sidecar's loopback
+  connection (sslmode=disable) keeps working without change. Remote
+  clients enforce sslmode=require at their end and always negotiate TLS.
+
+**Commit 2: helm/engine — flip ENGINE_DB_NATIVE_TLS=true + re-enable mesh.**
+
+  - New `config.database.nativeTls` value in `helm/engine/values.yaml`
+    (default `"false"` in base for forward-compat with managed-postgres
+    deploys that don't run our data-layer chart).
+  - `ENGINE_DB_NATIVE_TLS` rendered from this value in the engine
+    ConfigMap. The ConfigMap is mounted via envFrom on both the
+    engine main container AND the migrate init container, so the
+    single key feeds both code paths (engine.shared.db.connection +
+    engine.shared.db.migrations.env).
+  - `values-staging.yaml` and `values-production.yaml` both set this
+    to `"true"`. Engine asyncpg now uses native TLS
+    (`ssl='require'`), same wire semantics as the Go services'
+    `sslmode=require`.
+  - `values-staging.yaml` also REMOVES the temporary
+    `linkerd.io/inject: "disabled"` annotation block. The mesh was
+    disabled on engine only as a temporary unblock during the data-
+    layer plaintext-postgres workaround arc; with postgres now
+    serving TLS, the original cold-start handshake race no longer
+    applies. Engine joins the mesh end-to-end like every other
+    service. Base values.yaml's mesh annotations (native sidecar,
+    proxy-await, opaque-ports for mt-node :5555 + chromadb :8000,
+    skip-outbound for OTel :4317) apply unchanged.
+
+**Commit 3: docs (this commit).** README troubleshooting row +
+this PROGRESS section.
+
+### What this does NOT change
+
+- **Zero application source code changed.** The Go validators continue
+  to enforce `sslmode=require` — they will now succeed because postgres
+  serves TLS. The engine's MESH-mode flag (`ENGINE_DB_NATIVE_TLS=false`
+  default in `src/engine/shared/db/connection.py`) stays in code as a
+  forward-compatible escape hatch for managed-postgres deployments;
+  the chart's prod/staging overlays opt out of that default by setting
+  the env var to `"true"`.
+- **Vault DSN format unchanged.** Every Vault path keeps
+  `sslmode=require`. Audit-trail invariant intact.
+- **Linkerd opaque-ports unchanged.** `opaque-ports: "5432"` on
+  postgres still tells the proxy to raw-TCP-tunnel the connection.
+  The bytes inside the tunnel are now TLS-encrypted instead of
+  plaintext postgres wire — defense in depth, not conflict.
+- **NetworkPolicies unchanged.** Port 5432 is still 5432;
+  `appProtocol: postgresql` on the Service is still accurate.
+
+### Defense in depth on every in-cluster postgres hop
+
+1. **ufw at the host** (Tier 11; postgres :5432 not exposed publicly).
+2. **Linkerd mTLS** (Tier 9 mesh identity; opaque-ports raw-TCP tunnel).
+3. **Application TLS** (libpq sslmode=require; pgx + asyncpg both honour).
+
+### Operator rollout sequence after merging this commit
+
+The three commits go to `main` in order; ArgoCD reconciles in dependency
+order. Operator does NOT need to live-patch the cluster — just push +
+monitor + run one cleanup at the end.
+
+```bash
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+
+# 1. Verify the data-layer change reconciled — postgres MUST roll with TLS on.
+argocd app sync data-layer-staging --grpc-web --timeout 300
+argocd app wait data-layer-staging --health --timeout 300
+for i in $(seq 1 30); do
+  R=$(kubectl -n etradie-system get pod postgres-0 \
+      -o jsonpath='{.status.containerStatuses[*].ready}' 2>/dev/null \
+      | tr ' ' '\n' | grep -c true)
+  echo "T+$((i*5))s postgres-0 ready=$R/3"
+  [ "$R" = "3" ] && break
+  sleep 5
+done
+
+# 2. Sanity: postgres now serves TLS.
+kubectl -n etradie-system exec postgres-0 -c postgres -- \
+  psql -U etradie -d etradie -c "SHOW ssl;"
+# expect: ssl on (was 'off' before this fix)
+
+# 3. Sanity: cert file exists with the correct SAN list.
+kubectl -n etradie-system exec postgres-0 -c postgres -- \
+  openssl x509 -in /var/lib/postgresql/certs/server.crt -noout -subject -dates -ext subjectAltName
+# expect: CN=postgres.etradie-system.svc.cluster.local + SAN with the
+# 5 hostnames listed in postgres-cert-init-configmap.yaml + IP:127.0.0.1
+
+# 4. Sync the engine. It rolls with ENGINE_DB_NATIVE_TLS=true and
+#    mesh sidecar injected (the previous-session inject:"disabled"
+#    override is removed).
+argocd app sync engine-staging --grpc-web --timeout 600
+argocd app wait engine-staging --health --timeout 600
+
+# 5. Engine pod sanity: 2/2 (engine + linkerd-proxy), ENGINE_DB_NATIVE_TLS=true.
+ENG=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine \
+      --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+kubectl -n etradie-system get pod "$ENG" -o wide
+kubectl -n etradie-system get pod "$ENG" -o jsonpath='{.spec.containers[*].name}{"\n"}'
+# expect: linkerd-proxy engine (or engine linkerd-proxy)
+kubectl -n etradie-system exec "$ENG" -c engine -- env | grep ENGINE_DB_NATIVE_TLS
+# expect: ENGINE_DB_NATIVE_TLS=true
+
+# 6. Force-restart the Go service pods so they handshake against
+#    the now-TLS-serving postgres in a clean state.
+for svc in etradie-gateway etradie-execution etradie-management etradie-billing; do
+  kubectl -n etradie-system delete pod -l app.kubernetes.io/name=$svc --grace-period=0 --force
+done
+kubectl -n edge-ingress-system delete pod -l app.kubernetes.io/name=edge-ingress --grace-period=0 --force
+sleep 60
+kubectl -n etradie-system get pods
+
+# 7. Final state: every staging child Synced/Healthy.
+argocd app list --grpc-web | grep staging
+# expect: 11 apps; 10 Synced/Healthy + linkerd-* OutOfSync/Healthy
+# (the latter is by-design ESO + webhook caBundle drift; documented
+# in earlier PROGRESS sections).
+```
+
+### Phase 10.6 closeout TODOs after this fix lands cleanly
+
+The engine mesh-disabled override was the only remaining production-
+blocking debt; it is reverted by this series. The remaining
+close-out items are operational hygiene, NOT production-blockers:
+
+1. Mint a non-expiring legacy Secret-bound token for the `vault-auth`
+   ServiceAccount and replace the 24h TTL `token_reviewer_jwt` on
+   Vault's `kubernetes/config` (PROGRESS gotcha #28).
+2. Disable the Vault audit log at `/tmp/vault-audit.log` (PROGRESS
+   gotcha #29).
+3. PROGRESS gotcha #9 correction commit ("the doubled-prefix was NOT
+   intentional; here is the actual ESO `buildPath` behavior" —
+   PROGRESS gotcha #23).
+4. Delete the 14 doubled-prefix Vault entries (post-stability cleanup).
+5. Flip the Phase 10 status board to ✅ once all 11 staging children
+   report Synced/Healthy under the rollout sequence above.
+
+### Phase 10.6 operator gotchas added by this fix
+
+**37. Chart-vs-application TLS contract drift is silent until first
+connect.** The data-layer chart shipped postgres with SSL off from
+commit `ae1ed53e` (2026-05-04). Every config validator in the Go and
+Python source enforced `sslmode=require` from day one. The mismatch
+produced no error at chart-render time, no error at Vault-write time,
+no error at pod-schedule time, no error at namespace-admission time —
+it surfaced ONLY when the first application client opened a TCP
+connection and asked for SSL. Earlier sessions diagnosed the engine
+case wrongly (added ENGINE_DB_NATIVE_TLS workaround instead of fixing
+the chart). Lesson: when adding a fail-closed wire-level validator in
+any service, audit the chart that provisions the server-side endpoint
+in the same MR — drift between server posture and client posture is
+invisible until a real connection is attempted.
+
+**38. Postgres `ssl_key_file` permissions are strict.** Postgres
+refuses to start unless `ssl_key_file` is either (i) owner = postgres
+user + mode 0600, or (ii) owner = root + group = postgres-group +
+mode 0640. The `tls-cert-init` initContainer runs as uid 70 (postgres
+user inside `postgres:16-alpine`) with `fsGroup: 70` on the pod, so
+files are owner-correct by default; the script also `chmod 0600` /
+`chmod 0644` explicitly as a defense against future fsGroup changes.
+Skipping the explicit chmod or running the init container as root
+(without setting `runAsUser: 70`) breaks the strict-mode contract
+and postgres logs `FATAL: private key file has group or world access`.
+
+**39. asyncpg `ssl='require'` against a self-signed cert succeeds.**
+asyncpg's `ssl='require'` is the documented analog of libpq's
+`sslmode=require`: it encrypts the channel but does NOT chain-verify
+or hostname-verify. The chart's self-signed cert is therefore
+accepted by both pgx (libpq) and asyncpg without any client-side CA
+distribution. A future hardening to `verify-ca` / `verify-full`
+would require distributing the CA bundle to every consumer pod,
+which is out of scope for in-cluster TLS where Linkerd already
+provides identity. See `src/engine/shared/db/connection.py::
+_translate_sslmode_for_asyncpg` for the full asyncpg ssl-kwarg
+mapping documentation.
