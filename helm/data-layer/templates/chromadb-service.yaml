@@ -19,7 +19,16 @@ spec:
       port: {{ .Values.chromadb.service.port | default 8000 }}
       targetPort: http
       protocol: TCP
-      appProtocol: http
+      # NO appProtocol here. chromadb's pod carries
+      # config.linkerd.io/opaque-ports: "8000" (raw-TCP mTLS tunnel,
+      # same posture as postgres/redis). If this Service declared
+      # appProtocol: http, the Linkerd 2.14 destination controller would
+      # advertise HTTP to callers and the engine's OUTBOUND proxy would
+      # open an L7 connection, while chromadb's INBOUND proxy expects an
+      # opaque tunnel -> protocol mismatch -> Connection refused (os
+      # error 111) on the engine->chromadb hop -> RAG bootstrap crash.
+      # Leaving appProtocol unset lets the opaque-ports annotation
+      # govern the hop end-to-end. (phase10.6 RCA 2026-06-16.)
 ---
 apiVersion: v1
 kind: Service
@@ -41,5 +50,7 @@ spec:
       port: {{ .Values.chromadb.service.port | default 8000 }}
       targetPort: http
       protocol: TCP
-      appProtocol: http
+      # NO appProtocol (see ClusterIP Service above): opaque-ports:8000
+      # on the chromadb pod governs this hop. Declaring appProtocol:http
+      # here breaks the engine->chromadb opaque mTLS path.
 {{- end }}
