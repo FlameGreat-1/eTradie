@@ -1911,27 +1911,36 @@ sets `brokerMode: "mock"` so that guard is dormant in staging, but
 writing the values is still required because the production posture
 flips it to `mt5`.
 
-**`auth_database_url`** is the load-bearing addition: the shared
-`src/auth` package (consumed by gateway + execution + management)
-reads `AUTH_DATABASE_URL` via envconfig prefix `AUTH` and validates
-it as required in production/staging. Without this property in Vault,
-the execution + management ExternalSecrets render their K8s Secrets
-without the key, and both pods fail fast at startup with:
+**`auth_database_url` AND `auth_admin_password`** are load-bearing:
+the shared `src/auth` package (consumed by gateway + execution +
+management) reads `AUTH_DATABASE_URL` and `AUTH_ADMIN_PASSWORD` via
+envconfig prefix `AUTH` and validates BOTH as required in
+production/staging. Without either property in Vault the execution +
+management ExternalSecrets render their K8s Secrets without the key
+and the pods fail fast at startup with one of:
 
 ```
 fatal: auth config: validation: AUTH_DATABASE_URL must be set in
        staging; the auth store cannot start without a valid DSN
 ```
 
-`DB_URL_GO` from §8.2 is the same shared DSN used by the gateway path;
-all three services dial the same Postgres + the auth tables are
-shared.
+```
+fatal: auth config: validation: AUTH_ADMIN_PASSWORD must be set in
+       staging; refusing to seed the initial admin user with an
+       empty password
+```
+
+`DB_URL_GO` and `ADMIN_PASS` from §8.2 are the same shared values used
+by the gateway path (§8.7); all three services dial the same Postgres,
+the auth tables are shared, and the seeded admin user is one row that
+every service agrees on.
 
 ```bash
 kubectl -n vault exec -i vault-0 -- \
   env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
   etradie/services/execution/${ENV} \
   auth_database_url="${DB_URL_GO}" \
+  auth_admin_password="${ADMIN_PASS}" \
   execution_database_url="${DB_URL_GO}" \
   execution_redis_url="${REDIS1}" \
   auth_jwt_secret="${JWT_SECRET}" \
@@ -1941,6 +1950,7 @@ kubectl -n vault exec -i vault-0 -- \
   env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
   etradie/services/management/${ENV} \
   auth_database_url="${DB_URL_GO}" \
+  auth_admin_password="${ADMIN_PASS}" \
   management_database_url="${DB_URL_GO}" \
   management_redis_url="${REDIS1}" \
   auth_jwt_secret="${JWT_SECRET}" \
