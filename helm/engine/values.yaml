@@ -82,6 +82,20 @@ podAnnotations:
   config.linkerd.io/proxy-enable-native-sidecar: "true"
   config.linkerd.io/opaque-ports: "5555"
   config.linkerd.io/skip-outbound-ports: "4317"
+  # Gate EVERY other container (the wait-for-deps + migrate init
+  # containers AND the engine main container) until the Linkerd proxy's
+  # readiness probe passes. A native sidecar reaches "Certified
+  # identity" early, but that is NOT the same as the proxy's OUTBOUND
+  # routing/discovery being ready: without proxy-await the engine's
+  # FastAPI lifespan hits postgres/redis/chromadb in its first ~30ms,
+  # before outbound routing is warm, so every meshed connection is
+  # reset/refused and RAG bootstrap fail-fasts -> CrashLoopBackOff.
+  # (phase10.6 RCA 2026-06-16, isolated by elimination: a meshed probe
+  # with this image+SA+these exact annotations reaches chromadb
+  # /api/v2/auth/identity with HTTP 200; only the engine's startup
+  # TIMING differed.) proxy-await fixes ordering only; no hardening is
+  # weakened.
+  config.linkerd.io/proxy-await: enabled
 
 podSecurityContext:
   runAsNonRoot: true
