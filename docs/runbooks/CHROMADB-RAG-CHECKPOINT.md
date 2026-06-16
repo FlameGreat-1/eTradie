@@ -1,5 +1,20 @@
 # Phase 10.6 Checkpoint — Engine RAG bootstrap blocker (chromadb mesh path)
 
+> **SUPERSEDED 2026-06-16 (read this banner first).** The engine
+> mesh-disabled workaround described below has been **REVERTED**. Root
+> cause was that postgres did not serve TLS while every application
+> config validator enforces `sslmode=require`; the fix is in the
+> data-layer chart (postgres now serves TLS via a self-signed cert
+> init container) and `helm/engine/values-staging.yaml` no longer
+> carries `linkerd.io/inject: "disabled"`. Engine joins the mesh
+> end-to-end like every other service. Canonical record is in
+> `PROGRESS.md` under the section
+> `## Phase 10.6 — postgres TLS server-side + engine native-TLS revert 2026-06-16 (the real fix)`.
+> Do NOT re-add the mesh-disabled override on staging or production.
+>
+> The historical content below is kept verbatim as the audit trail of
+> the earlier debug arc.
+
 > **Status: ✅ RESOLVED 2026-06-16 evening.** Engine reaches
 > `/readiness 200` with all four gates green (db, cache,
 > vectorstore_connected, embedding_ready) in ~20s from pod start, 0
