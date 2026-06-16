@@ -1,5 +1,102 @@
 # Phase 10.6 Checkpoint — Engine RAG bootstrap blocker (chromadb mesh path)
 
+> **Status: ✅ RESOLVED 2026-06-16 evening.** Engine reaches
+> `/readiness 200` with all four gates green (db, cache,
+> vectorstore_connected, embedding_ready) in ~20s from pod start, 0
+> restarts. **Mesh injection is DISABLED on the engine pod only**
+> (staging overlay) as the workaround — every other workload stays
+> fully meshed. **Revert mesh-on after the engine code adds a
+> retry-with-backoff layer around its first DB / redis / chromadb call
+> in lifespan; before any production cutover.** Full closeout state
+> + the seven-commit fix chain is recorded in `PROGRESS.md` at the
+> bottom under the section
+> `## Phase 10.6 — RESOLVED 2026-06-16 evening (engine READY 2/2 — read this first)`.
+> The rest of this file (old session-1 + session-2 hypotheses) is kept
+> as the audit trail of what was tried and why it didn't fully work —
+> do NOT re-try those paths.
+
+---
+
+## What actually fixed it (the seven-commit chain)
+
+| # | Short SHA | Fix |
+|---|---|---|
+| 1 | `27ae1a37` | engine lifespan reorder: health-check DB+cache (3× exponential backoff each) BEFORE spawning the active-connections refresher |
+| 2 | `a626042f` | **insufficient** — bumped opentelemetry to 0.55b1/1.34.1; 0.55b1 still had bare `starlette_route.path` access (no getattr guard). Superseded by commit 7. |
+| 3 | `d505cad4` | revert engine mesh-disabled + OTel-disabled workarounds |
+| 4 | `f033386b` | engine `image.pullPolicy: Always` on staging so kubelet re-pulls `:0.1.0` after each CI rebuild |
+| 5 | `aff0e645` | pre-bake `all-MiniLM-L6-v2` HF model into image + fix NetworkPolicy egress (was `namespaceSelector: {}` which matches only in-cluster pods; replaced with `ipBlock: 0.0.0.0/0` minus K3s pod/svc CIDRs on 80/443) |
+| 6 | `13ec57e4` | pin python:3.12-slim by digest + bump GHA cache scope (was resolving to poisoned python:3.14-slim manifest) |
+| 7 | `206b13da` | **final** — bumped opentelemetry to **1.42.1 / 0.63b1** (the actual `_IncludedRouter` getattr-guard line) |
+
+Plus runtime / non-code actions:
+- `cc97e632` + `f255c797`: chart commits setting `linkerd.io/inject:
+  "disabled"` on the staging engine pod (the temporary workaround).
+- A one-shot live `kubectl delete pod postgres-0 redis-0 chromadb-0`:
+  the data-layer pods' inbound proxies were chasing dead
+  `linkerd-policy` Service endpoint IPs from earlier
+  `linkerd-destination` rolls; restarting them forced re-resolution to
+  the live `10.42.0.6` destination pod. Their proxies then showed only
+  `Certified identity` with NO `Connection refused 8090` / fail-fast
+  lines.
+
+## CRITICAL TEMPORARY POSTURE — mesh-disable on engine
+
+**Chart line that must come back BEFORE production:**
+```yaml
+# helm/engine/values-staging.yaml
+podAnnotations:
+  # TEMPORARY: mesh disabled on engine pod only. Cold-start mesh handshake races
+  # postgres/redis health checks in the first 30ms of FastAPI lifespan,
+  # causing reset-by-peer crash loop. Phase 10.6 unblock; revisit with retry-with-backoff
+  # in lifespan or longer wait-for-deps pre-warm window.
+  linkerd.io/inject: "disabled"
+```
+
+Production overlay (`helm/engine/values-production.yaml`) is
+UNTOUCHED — it still has mesh-on by default; production cannot ship
+with this annotation present in its overlay.
+
+## What stays ON in staging (do not touch)
+
+- Linkerd mesh on every other workload in the cluster.
+- Linkerd control plane: identity, destination, proxy-injector — all
+  Healthy.
+- OpenTelemetry tracing in the engine — re-enabled and working at
+  `otel-collector.etradie-observability.svc.cluster.local:4317`
+  (instrumentation 0.63b1 has the upstream `_IncludedRouter` fix).
+- chromadb `config.linkerd.io/opaque-ports: "8000"` annotation
+  (committed at `c52ea2fc`). Currently inert because the engine no
+  longer mesh-talks to chromadb, but the chart change preserves
+  correctness for the eventual mesh-on revert.
+- The 4143 NetworkPolicy ingress rules on every meshed service.
+
+## If the engine flips back to CrashLoopBackOff
+
+Most likely cause: `linkerd-destination` rolled again and the
+data-layer pods' proxies are stale. The fix is mechanical:
+
+```bash
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+kubectl -n etradie-system delete pod chromadb-0 redis-0 postgres-0
+kubectl -n etradie-system wait --for=condition=Ready --timeout=120s \
+  pod/postgres-0 pod/redis-0 pod/chromadb-0
+kubectl -n etradie-system delete pod -l app.kubernetes.io/name=etradie-engine --grace-period=0 --force
+```
+
+A permanent fix needs the engine-side retry loop in lifespan (then
+the mesh-on revert can also land).
+
+---
+
+## Historical sections (audit trail — do NOT re-try these paths)
+
+> The block below is the original "Status: 🟡 IN PROGRESS" preamble and
+> the Session 2 hypotheses (proxy-await startup race, opaque-ports
+> shenanigans, etc.). They are kept verbatim so a future operator can
+> see what was tried. The actual resolution is the seven-commit chain
+> above. Do not re-attempt these dead-ends.
+
 > **Status: 🟡 IN PROGRESS — engine still CrashLoopBackOff.** Read the
 > SESSION 2 UPDATE block immediately below FIRST; it supersedes parts of
 > the original analysis. Then read the rest top-to-bottom.
