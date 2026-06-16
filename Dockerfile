@@ -1,5 +1,18 @@
 # ── Build stage ──────────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+# Pinned to a content digest, NOT the floating python:3.12-slim tag,
+# so:
+#   - GitHub Actions BuildKit's GHA cache cannot serve a stale-digest
+#     manifest from a previous CI run (the cache layer attack vector
+#     that previously poisoned engine builds with python:3.14-slim).
+#   - Docker Hub's mutable 3.12-slim label re-pointing (security
+#     patches, distroless rebases) cannot silently shift the build's
+#     base bytes between CI runs.
+# Digest captured from `docker pull python:3.12-slim` 2026-06-16.
+# Both stages share this digest so BuildKit reuses the layer.
+# Rotate this digest in lockstep with apt security updates by
+# re-running the local pull + commit + bumping the GHA cache scope
+# in .github/workflows/ci.yml.
+FROM python:3.12-slim@sha256:d764629ce0ddd8c71fd371e9901efb324a95789d2315a47db7e4d27e78f1b0e9 AS builder
 
 WORKDIR /build
 
@@ -60,7 +73,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         --prefix=/install .
 
 # ── Runtime stage ────────────────────────────────────────────────
-FROM python:3.12-slim AS runtime
+# Runtime stage uses the SAME digest as the builder so the two layers
+# share storage in BuildKit's cache and in containerd at the runtime
+# pull. Rotating one without the other defeats both the cache-share
+# and the reproducibility guarantee.
+FROM python:3.12-slim@sha256:d764629ce0ddd8c71fd371e9901efb324a95789d2315a47db7e4d27e78f1b0e9 AS runtime
 
 # Security: non-root user
 RUN groupadd --gid 1000 etradie \

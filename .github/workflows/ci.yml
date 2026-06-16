@@ -786,8 +786,15 @@ jobs:
             ${{ env.IMAGE_BASE }}/${{ matrix.service }}:staging-${{ env.RELEASE_TAG }}
             ${{ matrix.service == 'edge-ingress' && format('{0}/{1}:{2}', env.IMAGE_BASE, matrix.service, env.EDGE_INGRESS_RELEASE_TAG) || '' }}
             ${{ matrix.service == 'edge-ingress' && format('{0}/{1}:staging-v{2}', env.IMAGE_BASE, matrix.service, env.RELEASE_TAG) || '' }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          # Cache scope is suffixed -v2 to bust the previous GHA cache
+          # that imported a stale python:3.14-slim manifest into the
+          # engine build (poisoning every wheel build with a missing
+          # C/C++ toolchain). BuildKit sees no existing manifest at
+          # -v2 and starts a clean cache against the digest-pinned
+          # Dockerfile (see Dockerfile FROM lines for the rationale).
+          # Rotate to -v3, -v4, ... on the next base-image digest bump.
+          cache-from: type=gha,scope=${{ matrix.service }}-v2
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-v2
           provenance: true
           sbom: true
           # mt-node needs the supply-chain build-args plumbed in;
