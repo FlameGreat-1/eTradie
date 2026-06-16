@@ -38,13 +38,13 @@ prometheus-client==0.21.1
 # crash every HTTP request with AttributeError: '_IncludedRouter'
 # object has no attribute 'path' -> engine CrashLoopBackOff on
 # kubelet /health probes.
-opentelemetry-api==1.36.0
-opentelemetry-sdk==1.36.0
-opentelemetry-exporter-otlp-proto-grpc==1.36.0
-opentelemetry-instrumentation-fastapi==0.57b0
-opentelemetry-instrumentation-aiohttp-client==0.57b0
-opentelemetry-instrumentation-sqlalchemy==0.57b0
-opentelemetry-instrumentation-redis==0.57b0
+opentelemetry-api==1.42.1
+opentelemetry-sdk==1.42.1
+opentelemetry-exporter-otlp-proto-grpc==1.42.1
+opentelemetry-instrumentation-fastapi==0.63b0
+opentelemetry-instrumentation-aiohttp-client==0.63b0
+opentelemetry-instrumentation-sqlalchemy==0.63b0
+opentelemetry-instrumentation-redis==0.63b0
 
 # ── Structured Logging ───────────────────────────────────────
 structlog==24.4.0
