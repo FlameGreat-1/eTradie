@@ -288,6 +288,15 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 4191
+    # Linkerd proxy INBOUND port :4143 (meshed proxy-to-proxy mTLS).
+    # See the engine chart NetworkPolicy for the full rationale.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: etradie-system
+      ports:
+        - protocol: TCP
+          port: 4143
   egress:
     # The injected Linkerd proxy must reach the control plane in the
     # linkerd namespace (identity, destination, policy), or it never
