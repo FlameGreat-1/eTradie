@@ -1903,17 +1903,35 @@ unset ENV_TWELVEDATA_API_KEY ENV_FRED_API_KEY ENV_CFTC_APP_TOKEN \
 
 ### 8.9 — Execution + Management paths
 
-Four properties each. Both services send `ENGINE_SHARED` in
-`X-Internal-Auth` on every `/internal/broker/*` call. Both refuse to
-boot in staging/production with `BROKER_MODE=mt5` if either is empty.
-The staging overlay sets `brokerMode: "mock"` so the guard is dormant
-in staging, but writing the values is still required because the
-production posture flips it to `mt5`.
+**Five properties each** (was four pre-fix). Both services send
+`ENGINE_SHARED` in `X-Internal-Auth` on every `/internal/broker/*`
+call. Both refuse to boot in staging/production with `BROKER_MODE=mt5`
+if either of the cross-service secrets is empty. The staging overlay
+sets `brokerMode: "mock"` so that guard is dormant in staging, but
+writing the values is still required because the production posture
+flips it to `mt5`.
+
+**`auth_database_url`** is the load-bearing addition: the shared
+`src/auth` package (consumed by gateway + execution + management)
+reads `AUTH_DATABASE_URL` via envconfig prefix `AUTH` and validates
+it as required in production/staging. Without this property in Vault,
+the execution + management ExternalSecrets render their K8s Secrets
+without the key, and both pods fail fast at startup with:
+
+```
+fatal: auth config: validation: AUTH_DATABASE_URL must be set in
+       staging; the auth store cannot start without a valid DSN
+```
+
+`DB_URL_GO` from §8.2 is the same shared DSN used by the gateway path;
+all three services dial the same Postgres + the auth tables are
+shared.
 
 ```bash
 kubectl -n vault exec -i vault-0 -- \
   env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
   etradie/services/execution/${ENV} \
+  auth_database_url="${DB_URL_GO}" \
   execution_database_url="${DB_URL_GO}" \
   execution_redis_url="${REDIS1}" \
   auth_jwt_secret="${JWT_SECRET}" \
@@ -1922,6 +1940,7 @@ kubectl -n vault exec -i vault-0 -- \
 kubectl -n vault exec -i vault-0 -- \
   env VAULT_TOKEN="$ROOT_TOKEN" vault kv put -mount=etradie \
   etradie/services/management/${ENV} \
+  auth_database_url="${DB_URL_GO}" \
   management_database_url="${DB_URL_GO}" \
   management_redis_url="${REDIS1}" \
   auth_jwt_secret="${JWT_SECRET}" \
