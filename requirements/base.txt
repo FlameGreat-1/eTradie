@@ -29,13 +29,22 @@ APScheduler==3.10.4
 
 # ── Observability ────────────────────────────────────────────
 prometheus-client==0.21.1
-opentelemetry-api==1.30.0
-opentelemetry-sdk==1.30.0
-opentelemetry-exporter-otlp-proto-grpc==1.30.0
-opentelemetry-instrumentation-fastapi==0.51b0
-opentelemetry-instrumentation-aiohttp-client==0.51b0
-opentelemetry-instrumentation-sqlalchemy==0.51b0
-opentelemetry-instrumentation-redis==0.51b0
+# Bumped 0.51b0/1.30.0 -> 0.55b1/1.34.1 to pick up the upstream fix
+# for the FastAPI instrumentor's _get_route_details() crash on
+# _IncludedRouter / Mount entries in app.routes. The four
+# instrumentation packages MUST stay on the same 0.55b* minor as the
+# core api/sdk/exporter on 1.34.1 (the matched compatibility line
+# per opentelemetry-python-contrib release notes). Pre-fix versions
+# crash every HTTP request with AttributeError: '_IncludedRouter'
+# object has no attribute 'path' -> engine CrashLoopBackOff on
+# kubelet /health probes.
+opentelemetry-api==1.34.1
+opentelemetry-sdk==1.34.1
+opentelemetry-exporter-otlp-proto-grpc==1.34.1
+opentelemetry-instrumentation-fastapi==0.55b1
+opentelemetry-instrumentation-aiohttp-client==0.55b1
+opentelemetry-instrumentation-sqlalchemy==0.55b1
+opentelemetry-instrumentation-redis==0.55b1
 
 # ── Structured Logging ───────────────────────────────────────
 structlog==24.4.0
