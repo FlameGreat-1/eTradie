@@ -80,7 +80,21 @@ podAnnotations:
   # 4317 is skipped so traces flow to a possibly-un-meshed collector.
   linkerd.io/inject: enabled
   config.linkerd.io/proxy-enable-native-sidecar: "true"
-  config.linkerd.io/opaque-ports: "5555"
+  # Outbound opaque-ports list. REPLACES cluster default (not
+  # additive), so EVERY opaque-server destination the engine dials
+  # must be enumerated here:
+  #   5555 = mt-node ZMQ (server-first framing, non-HTTP).
+  #   8000 = chromadb HTTP. chromadb's pod carries
+  #          config.linkerd.io/opaque-ports: "8000" (raw-TCP mTLS
+  #          tunnel; see helm/data-layer/templates/chromadb-service.yaml
+  #          for the rationale). Without 8000 in the engine's OUTBOUND
+  #          list, the engine proxy opens an L7 connection while
+  #          chromadb's inbound proxy expects opaque -> protocol
+  #          mismatch -> Connection refused (os error 111) ->
+  #          RAG bootstrap CrashLoopBackOff (phase10.6 RCA 2026-06-16).
+  # postgres :5432 and redis :6379 are NOT listed because they are
+  # already in Linkerd's universal cluster-default opaque list.
+  config.linkerd.io/opaque-ports: "5555,8000"
   config.linkerd.io/skip-outbound-ports: "4317"
   # Gate EVERY other container (the wait-for-deps + migrate init
   # containers AND the engine main container) until the Linkerd proxy's
