@@ -354,15 +354,31 @@ chromadb:
       memory: 1Gi
 
   # Tier 9 (CHECKLIST microservice security): mesh ChromaDB so the
-  # engine <-> chroma hop is mTLS'd. Chroma speaks HTTP on :8000, so
-  # the proxy handles it natively — inject only, no opaque-ports.
-  # Audit ref: Tier 9 G9-1.
+  # engine <-> chroma hop is mTLS'd. ChromaDB speaks HTTP on :8000,
+  # but it is marked OPAQUE (raw-TCP mTLS tunnel, like postgres/redis)
+  # rather than letting the proxy do L7 HTTP handling.
+  #
+  # Why opaque and not L7-HTTP (phase10.6 RCA, 2026-06-16):
+  # As an L7/HTTP destination, chromadb's proxy depends on the
+  # linkerd-policy controller for inbound authorization. When
+  # linkerd-destination rolls to a new pod IP (e.g. a control-plane
+  # upgrade), meshed proxies that cached the old policy endpoint enter
+  # fail-fast on the chromadb HTTP path -> the engine's outbound proxy
+  # returns 504 then 503 ("service in fail-fast") and RAG
+  # bootstrap_collections() fails. postgres/redis never hit this
+  # because they are opaque (raw TCP, no L7 policy dependency on the
+  # data path). Marking chromadb opaque makes all three data services
+  # behave identically and immune to control-plane rolls. mTLS (Tier 9
+  # G9-1) is preserved; only L7 HTTP metrics on this hop are lost.
+  # Live-verified: with opaque-ports 8000, the engine RAG bootstrap
+  # passes bootstrap_collections cleanly.
   podAnnotations:
     linkerd.io/inject: enabled
     # Native sidecar for a uniform mesh. ChromaDB's HTTP
     # /api/v2/heartbeat probe is rewritten by Linkerd to bypass the
     # proxy, so readiness is unaffected.
     config.linkerd.io/proxy-enable-native-sidecar: "true"
+    config.linkerd.io/opaque-ports: "8000"
 
   # Scheduling. Empty defaults; production overlay sets a toleration
   # for the etradie-system taint.

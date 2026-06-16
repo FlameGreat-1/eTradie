@@ -78,6 +78,17 @@ WORKDIR /app
 COPY alembic.ini alembic.ini
 COPY src/engine/shared/db/migrations src/engine/shared/db/migrations
 
+# RAG knowledge base. The engine's RAG bootstrap (ingest_on_startup=true)
+# reads the 9 manifest documents from /app/knowledge at boot
+# (knowledgeBaseDir=/app/knowledge; src/engine/rag/ingest/manifest.py
+# BOOTSTRAP_MANIFEST). These files live at the repo-root knowledge/ dir
+# and are NOT part of the installed Python package, so they must be
+# copied explicitly into the runtime image. WORKDIR is /app, so this
+# lands at /app/knowledge; the chown below covers ownership for uid 1000.
+# Without this, RAG bootstrap fails at ingest with:
+#   RAGLoaderError: Cannot load markdown file: /app/knowledge/master_rulebook.md
+COPY knowledge/ knowledge/
+
 # Ownership
 RUN chown -R etradie:etradie /app
 
