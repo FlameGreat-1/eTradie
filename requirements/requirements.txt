@@ -1,0 +1,26 @@
+# Aggregate pip requirements file for the eTradie engine.
+#
+# This file is a Dependabot/Dependency-Graph compatibility stub. It
+# exists so GitHub's Dependabot dependency-graph submitter finds a
+# canonical filename (requirements.txt) in the /requirements/
+# directory; without it, the submitter fails every run with
+# "No supported dependency file present". The PR-creation side of
+# Dependabot reads the four sibling .txt files directly without
+# needing this aggregate.
+#
+# Layered file purposes (the canonical sources, do NOT duplicate
+# pins here):
+#   base.txt     - runtime deps shipped in the engine image
+#   test.txt     - pytest + test-only deps; NOT shipped in image
+#   dev.txt      - ruff/mypy/pre-commit for local dev + CI lint job
+#   security.txt - pip-audit + supply-chain tools for the CI security
+#                  jobs; NOT shipped in image
+#
+# Engine Dockerfile + CI workflows continue to target the layered
+# files directly so build cache layers and runtime-vs-dev separation
+# stay correct. This aggregate is for Dependabot + local convenience
+# only.
+-r base.txt
+-r test.txt
+-r dev.txt
+-r security.txt
