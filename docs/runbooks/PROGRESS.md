@@ -1998,23 +1998,30 @@ kill $PF 2>/dev/null
 
 If those 6 checks match this checkpoint, you are at the same state. Pick up at "What we have NOT yet tried but should" above. Recommended next step: option **6** (the meshed test pod) because it cleanly bisects engine-specific vs universal opaque-ports, and **does not require any chart change or pod template modification on the production-tracking helm charts**.
 
-### Operator gotcha #36 (provisional — until root cause is identified)
+### Operator gotcha #36 — SUPERSEDED (hypothesis was WRONG)
 
-**Linkerd 2.14.10 outbound mTLS to opaque-port destinations may silently fail on a single-node K3s box with native sidecars even when:**
-- The proxy is correctly injected with all expected env vars
-- The proxy successfully resolves the destination (dst_pod, dst_service set in metrics)
-- The proxy attempts the TLS handshake (tls="true", server_id correct in metrics)
-- The destination pod's inbound proxy is up and listening on 4143
-- iptables proxy-init rules are correctly installed in both pod netns
-- NetworkPolicies admit the traffic
-- The host kernel can reach the destination pod IP directly
-- DNAT counters confirm the SYN reaches kube-proxy
-- The outbound connect timeout is set permissively (10s)
+**The earlier "Linkerd 2.14.10 opaque-port outbound silently fails"
+hypothesis recorded here has been DISPROVEN.** Do NOT act on it. The
+engine RAG-bootstrap blocker was four separate layered defects, not an
+unfixable Linkerd opaque-ports bug:
 
-Symptom: `tcp_open_total peer="dst"` for the opaque destination stays at 0 forever; the client application sees a connect failure (asyncpg: `ConnectionDoesNotExistError`; redis-py: `Connection reset by peer`); the destination pod's inbound proxy log shows NO inbound traffic.
+1. NetworkPolicy missing the Linkerd proxy inbound port **4143** on
+   every meshed service — **FIXED** (commits 57e73bf6 → 74574c4c).
+2. chromadb doing L7/HTTP through the proxy (`appProtocol: http`) so it
+   depended on the linkerd-policy controller — **FIXED** by marking it
+   `opaque-ports: 8000` (commit c52ea2fc).
+3. The 9 RAG knowledge docs were never copied into the engine image
+   (Dockerfile + `.dockerignore` `*.md` exclusion) — **FIXED** (commit
+   c52ea2fc + the `.dockerignore` re-include commit). Verified: all 9
+   `.md` present in the new image.
+4. `linkerd-policy` Service Endpoints went stale after repeated
+   `linkerd-destination` rolls, so chromadb's proxy dialed a dead
+   policy-controller IP → 504/fail-fast on the chromadb hop — **OPEN /
+   PARTIALLY FIXED** (endpoint reconciled to the live pod; the engine +
+   chromadb proxies still need a clean restart in that window).
 
-Workaround (staging only, not production-grade): drop the `config.linkerd.io/opaque-ports` annotation on the affected destination pods. The runbook's Phase 15 documents this as the canonical pre-hardening staging posture.
-
-Proper engineering fix: still to be determined. Open candidates listed in "What we have NOT yet tried but should" above.
-
-This gotcha gets a final form (with the actual root cause) once the debug session is closed.
+**Canonical resume document:**
+[`docs/runbooks/CHROMADB-RAG-CHECKPOINT.md`](CHROMADB-RAG-CHECKPOINT.md)
+contains the full session state, what is PROVEN vs RULED OUT (so the
+dead ends are not re-tried), every fix commit, the single open blocker,
+and copy-paste EXACT resume steps. Start there next session.
