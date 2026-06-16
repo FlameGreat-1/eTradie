@@ -44,17 +44,7 @@ spec:
     # GET https://helm.linkerd.io/stable/index.yaml -> 200).
     - repoURL: https://helm.linkerd.io/stable
       chart: linkerd-control-plane
-      # 1.16.11 -> 1.16.12: minimal patch upgrade within the 2.14 line
-      # to pick up the linkerd2-proxy fix for outbound mTLS to opaque-
-      # port destinations on native-sidecar single-node K3s. Ships
-      # proxy 2.211.x (was 2.210.4 in 1.16.11 — Nov 2023 build,
-      # carries the bug that broke engine -> postgres + engine -> redis
-      # outbound on this cluster). Bump in lockstep with linkerd-crds.
-      # See Phase 10.6 H7 debug arc + commit message of the bump for
-      # the full RCA. If this patch does NOT resolve the outbound mTLS
-      # symptom (re-test via mesh-probe), escalate to 2.16 stable
-      # (chart 1.18.x, proxy 2.232+).
-      targetRevision: 1.16.12
+      targetRevision: 1.16.11
       helm:
         releaseName: linkerd-control-plane
         valueFiles:

@@ -27,12 +27,7 @@ spec:
     # GET https://helm.linkerd.io/stable/index.yaml -> 200).
     repoURL: https://helm.linkerd.io/stable
     chart: linkerd-crds
-    # 1.8.0 -> 1.8.2: minimal patch upgrade within the 2.14 line to
-    # pick up the linkerd2-proxy fix for outbound mTLS to opaque-port
-    # destinations on native-sidecar single-node K3s. See Phase 10.6
-    # H7 debug arc + commit message of the bump for the full RCA.
-    # Bump in lockstep with the linkerd-control-plane chart below.
-    targetRevision: 1.8.2
+    targetRevision: 1.8.0
     helm:
       releaseName: linkerd-crds
 
