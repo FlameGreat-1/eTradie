@@ -63,7 +63,7 @@ config:
         prometheus.io/port: "9100"
         prometheus.io/path: "/metrics"
         tier: staging
-        linkerd.io/inject: enabled
+        linkerd.io/inject: "disabled"
         config.linkerd.io/proxy-enable-native-sidecar: "true"
         config.linkerd.io/opaque-ports: "5555"
         vault.hashicorp.com/agent-requests-cpu: "50m"
