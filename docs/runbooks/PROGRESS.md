@@ -2025,3 +2025,210 @@ unfixable Linkerd opaque-ports bug:
 contains the full session state, what is PROVEN vs RULED OUT (so the
 dead ends are not re-tried), every fix commit, the single open blocker,
 and copy-paste EXACT resume steps. Start there next session.
+
+---
+
+## Phase 10.6 — RESOLVED 2026-06-16 evening (engine READY 2/2 — read this first)
+
+> **This section supersedes every earlier Phase 10.6 / chromadb-RAG /
+> engine-bootstrap entry above.** Those entries are kept as an audit
+> trail of dead-ends and partial hypotheses; this section records what
+> actually fixed it.
+
+### Headline state
+
+- ✅ **etradie-engine: READY=true** within ~20s of pod start, restart
+  count 0, `/readiness` returns the JSON below, `/health` returns
+  `{"status":"ok"}` HTTP 200.
+  ```json
+  {"status":"ready","db":true,"cache":true,
+   "rag":{"enabled":true,"vectorstore_connected":true,
+          "database_connected":true,"embedding_ready":true}}
+  ```
+- ✅ Engine image digest currently running:
+  `ghcr.io/flamegreat-1/etradie/engine@sha256:b30ee6733b2c9bac8d7e97db10f9ef39061d4ddb83b9d0ba832aa3f801092964`
+  (CI commit on GitHub main; rebuild succeeded with the OpenTelemetry
+  bump + the pre-baked HF model + the tzlocal pin).
+- 🟡 **Downstream cascade — UNBLOCKED past wait-for-deps but main
+  containers still failing.** gateway/execution/management pods are
+  now `1/2 CrashLoopBackOff` (proxy up, main container crashes) and
+  billing/edge-ingress are still `Init:CrashLoopBackOff` (likely
+  reusing OLD pods that have a stale wait-for-deps state — a fresh
+  force-delete is needed to surface their real main-container errors).
+  This is the next operator task.
+
+### The six fixes that landed this session (in commit order)
+
+Every one of these is now on `main` AND has been verified live in the
+running engine image.
+
+| # | Short SHA | Fix | What it does |
+|---|---|---|---|
+| 1 | `27ae1a37` | engine lifespan reorder | Health-checks DB + cache (with their own 3× exponential backoff) BEFORE spawning the active-connections refresher. Warms the cold pool inside lifespan ordering rather than racing it. |
+| 2 | `a626042f` | (insufficient) bump opentelemetry 0.51b0/1.30.0 → 0.55b1/1.34.1 | Attempted to pick up the `_IncludedRouter` getattr-guard. Was incorrect — 0.55b1 still had `route = starlette_route.path` bare access at line 453+456 of `opentelemetry/instrumentation/fastapi/__init__.py`. SUPERSEDED by commit 7 below. |
+| 3 | `d505cad4` | revert engine mesh-disabled + OTel-disabled workarounds | Tried to re-enable mesh + tracing after fixes 1+2; required fix 6 to actually work. |
+| 4 | `f033386b` | `image.pullPolicy: Always` on staging engine | Kubelet re-pulls `:0.1.0` on every pod create so an in-place CI rebuild of the tag is picked up. |
+| 5 | `aff0e645` | pre-bake sentence-transformers model + fix egress | Dockerfile pre-bakes `all-MiniLM-L6-v2` into the image. NetworkPolicy egress was rewritten from broken `namespaceSelector: {}` (matches only in-cluster pods) to working `ipBlock: 0.0.0.0/0` minus K3s pod/svc CIDRs on ports 80/443. |
+| 6 | `13ec57e4` | pin python:3.12-slim by digest + bust GHA cache | The CI GHA BuildKit cache had been resolving `FROM python:3.12-slim` to a poisoned manifest pointing at `python:3.14-slim` (no prebuilt wheels for the C-extension pins). Digest pin + cache-scope bump fixed CI. |
+| 7 | `206b13da` | bump opentelemetry to 1.42.1 / 0.63b1 (FINAL) | The ACTUAL `_IncludedRouter` getattr guard is from instrumentation 0.57b0 onward; 1.42.1/0.63b1 is the pip-resolvable matched line. |
+| 8 | `(this commit)` | docs update | Records the resolved state. |
+
+Plus two helper commits the cluster needed at runtime:
+- `cc97e632` + `f255c797`: disable mesh injection on the engine pod
+  (staging overlay) — **TEMPORARY**, see "CRITICAL TEMPORARY POSTURE"
+  below.
+- Live action (not committed; idempotent): `kubectl delete pod` on
+  postgres-0 / redis-0 / chromadb-0 to force their inbound proxies to
+  re-resolve `linkerd-policy` to the live destination pod IP
+  (`10.42.0.6`). The OLD inbound proxies were chasing dead policy-
+  controller IPs from earlier linkerd-destination rolls; the restart
+  cleared the staleness. **If linkerd-destination rolls again, the
+  data-layer pods need to be restarted again** until a permanent fix
+  is in place upstream.
+
+### 🚨 CRITICAL TEMPORARY POSTURE — REVERT BEFORE PRODUCTION
+
+**Mesh injection is DISABLED on the engine pod only.** Every other
+workload on the cluster is fully meshed (postgres, redis, chromadb,
+gateway, execution, management, billing, edge-ingress, envoy, mt-node,
+monitoring stack, ArgoCD itself).
+
+- **Where:** `helm/engine/values-staging.yaml::podAnnotations`,
+  the line `linkerd.io/inject: "disabled"` (with the inline comment
+  block explaining why).
+- **Why it had to go off:** With mesh ON, postgres + redis + chromadb
+  proxies reset every inbound connection from the engine during the
+  first ~30ms of FastAPI lifespan startup. The lifespan-reorder fix
+  (commit 1) PLUS the data-layer proxy restart (live action) PLUS
+  `proxy-await: enabled` (already in base values) together were
+  insufficient — the data-layer proxies' policy-controller dependency
+  chain stays fragile across `linkerd-destination` rolls. Disabling
+  mesh on the engine sidesteps the whole class of failure for staging
+  and lets us validate everything else.
+- **Trade-off accepted for staging only:** engine →
+  postgres/redis/chromadb hops are plaintext TCP inside the cluster
+  (not mTLS). The data-layer pods still mTLS each other and every
+  other east-west hop in the cluster is still mTLS. ufw blocks every
+  non-SSH inbound publicly. On a single-node K3s VPS with the data
+  layer co-located, the plaintext hop never leaves loopback / cluster
+  network namespace.
+- **Revert path (do this before production cutover):**
+  1. Land an upstream code fix in the engine that wraps the first DB
+     / redis / chromadb call in a retry-with-backoff loop tolerant of
+     `Connection reset by peer` for the first ~5s (defense-in-depth
+     against any cold-start handshake jitter).
+  2. Validate against a freshly-rolled `linkerd-destination` that the
+     engine pod can come up with mesh ON.
+  3. Delete the `linkerd.io/inject: "disabled"` line +
+     accompanying comment block from
+     `helm/engine/values-staging.yaml::podAnnotations`.
+  4. Commit, push to both remotes, force ArgoCD sync, delete the
+     engine pod, verify `inject=enabled` + `containers=linkerd-proxy
+     engine` on the new pod, verify it reaches READY=true.
+
+### What is currently TURNED OFF / DEGRADED that needs reverting later
+
+| What | Where it is | Why it is off | When to turn back on |
+|---|---|---|---|
+| Engine Linkerd mesh injection | `helm/engine/values-staging.yaml::podAnnotations::linkerd.io/inject: "disabled"` | cold-start handshake race (see above) | After upstream retry-with-backoff fix in engine lifespan; before production |
+| OTel tracing — was OFF temporarily | re-enabled in commit `d505cad4` after fixes 1+2 landed; current `helm/engine/values-staging.yaml::config.observability.otelEndpoint = otel-collector.etradie-observability.svc.cluster.local:4317` | (was) `_IncludedRouter` instrumentor crash; now fixed by commit 7 | already re-enabled — no action |
+| Engine `image.pullPolicy: Always` (staging only) | `helm/engine/values-staging.yaml::image.pullPolicy: Always` | staging needs in-place tag updates during deploys | After we cut a real `0.1.1` chart-pin bump, flip back to `IfNotPresent` (chart base default) |
+
+Production overlay (`helm/engine/values-production.yaml`) is UNTOUCHED
+by this session. Production uses `IfNotPresent` + mesh-on by default;
+those defaults are correct for production and must remain so.
+
+### Mesh / data-layer / runtime invariants verified working this session
+
+1. The data-layer (postgres-0 / redis-0 / chromadb-0) IS fully meshed,
+   3/3 and 2/2 Ready, proxies show only `Certified identity` —
+   confirmed clean immediately after the live-restart action.
+2. ESO ClusterSecretStore `vault-backend` Valid; every chart
+   ExternalSecret materialises correctly.
+3. Linkerd identity + destination + proxy-injector all Healthy in the
+   `linkerd` namespace (`linkerd-destination-7bb76fd76-c8gfm` at
+   `10.42.0.6`; `linkerd-policy` + `linkerd-dst` endpoints both point
+   at that IP).
+4. ArgoCD `engine-staging` Application Synced/Healthy.
+5. Engine RAG bootstrap completes end-to-end:
+   `rag_bootstrap_starting → bootstrap_seeding_started → 9× seed_skipped_exists
+    → bootstrap_seeding_completed → rag_bootstrap_completed → application_started
+    → Uvicorn running on http://0.0.0.0:8000`.
+6. Pre-baked HF model loads from disk (`/home/etradie/.cache/...`) at
+   pod start — no HuggingFace egress at boot.
+
+### Open work for the next operator (resume point)
+
+1. **Surface the downstream cascade errors.** With the engine now Ready,
+   the etradie Service Endpoints populate and wait-for-deps clears for
+   gateway/execution/management/billing. They MOVED past Init to main
+   container, where they now crash with their OWN errors (not
+   engine-blocked anymore). Force-delete all stuck pods to surface the
+   real errors:
+   ```bash
+   for svc in etradie-gateway etradie-execution etradie-management etradie-billing; do
+     kubectl -n etradie-system delete pod -l app.kubernetes.io/name=$svc --grace-period=0 --force
+   done
+   kubectl -n edge-ingress-system delete pod -l app.kubernetes.io/name=edge-ingress --grace-period=0 --force
+   sleep 25
+   for svc in etradie-gateway etradie-execution etradie-management etradie-billing; do
+     POD=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=$svc \
+       --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+     echo "=== $svc ($POD) ==="
+     kubectl -n etradie-system logs "$POD" --all-containers=true --tail=40 2>&1 | tail -40
+   done
+   ```
+2. Fix each downstream service's main-container error in turn.
+3. Once all five staging children are `Synced/Healthy` AND pods are
+   `Ready`, run the Phase 14 end-to-end verification block from the
+   README.
+4. Implement the engine retry-with-backoff lifespan fix; flip
+   `linkerd.io/inject` back to enabled; verify mesh-on works; commit.
+5. Complete the Phase 10.6 closeout TODOs that were carried over from
+   earlier checkpoints (non-expiring `vault-auth` token, disable
+   `/tmp/vault-audit.log`, delete the 14 doubled-prefix Vault entries,
+   flip Phase 10 status board to ✅).
+
+### Session-resume checklist if the operator session ended here
+
+```bash
+# 1. Tunnel + KUBECONFIG (always once per WSL boot)
+ssh-add ~/.ssh/id_ed25519
+ssh -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173        # dedicated terminal, leave open
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+
+# 2. ArgoCD port-forward (separate dedicated terminal)
+kubectl -n argocd port-forward svc/argocd-server 8080:443
+
+# 3. ArgoCD CLI login (working terminal)
+ADMIN=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d)
+argocd login 127.0.0.1:8080 --username admin --password "$ADMIN" --insecure
+unset ADMIN
+
+# 4. Sanity — these must all hold true
+kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine
+# expect: 1/1 Running 0 restarts (no linkerd-proxy sidecar, by-design temporary)
+
+kubectl -n etradie-system port-forward \
+  $(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine \
+    -o jsonpath='{.items[0].metadata.name}') 18000:8000 >/tmp/pf.log 2>&1 &
+sleep 3
+curl -sS http://127.0.0.1:18000/readiness
+# expect: {"status":"ready","db":true,"cache":true,"rag":{...,"embedding_ready":true}}
+kill %1
+
+kubectl -n linkerd get pods
+# expect: linkerd-destination + linkerd-identity + linkerd-proxy-injector all Running
+
+kubectl -n etradie-system get pod postgres-0 redis-0 chromadb-0
+# expect: postgres 3/3, redis 3/3, chromadb 2/2 — all Running
+```
+
+If any of those 4 sanity checks fail, RE-READ this section before
+touching anything. If the engine has flipped to CrashLoopBackOff again
+after being Ready, the most likely cause is
+linkerd-destination got restarted again and the data-layer pods'
+proxies are stale — restart postgres-0 / redis-0 / chromadb-0 in that
+order, wait for them to come back Ready, then restart the engine pod.
+Documented in detail in CHROMADB-RAG-CHECKPOINT.md.
