@@ -1,466 +1,654 @@
-54s
-Run docker/build-push-action@v6
-GitHub Actions runtime token ACs
-Docker info
-Proxy configuration
-Buildx version
-Builder info
-/usr/bin/docker buildx build --build-arg MT5_INSTALLER_SHA256= --build-arg MT4_INSTALLER_SHA256= --build-arg MT5_INSTALLER_URL= --build-arg MT4_INSTALLER_URL= --build-arg EA_EX5_SHA256= --build-arg EA_EX4_SHA256= --build-arg WINEHQ_VERSION= --cache-from type=gha,scope=engine --cache-to type=gha,mode=max,scope=engine --file Dockerfile --iidfile /home/runner/work/_temp/docker-actions-toolkit-jHLv7I/build-iidfile-6f95cc2947.txt --attest type=provenance,builder-id=https://github.com/FlameGreat-1/eTradie/actions/runs/27635610287/attempts/1 --attest type=sbom,disabled=false --tag ghcr.io/flamegreat-1/etradie/engine:77b805080b4baca35bacc0104ce7bba0f10e5ee0 --tag ghcr.io/flamegreat-1/etradie/engine:0.1.0 --tag ghcr.io/flamegreat-1/etradie/engine:staging-0.1.0 --metadata-file /home/runner/work/_temp/docker-actions-toolkit-jHLv7I/build-metadata-eb1f5ff2af.json .
-#0 building with "builder-ef367e57-5794-4671-b1e4-64bf24a1a4be" instance using docker-container driver
+softverse@Softverse:~/eTradie$ ^C
+softverse@Softverse:~/eTradie$ ^C
+softverse@Softverse:~/eTradie$ ADMIN_ARGO_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d)
+argocd login 127.0.0.1:8080 --username admin --password "$ADMIN_ARGO_PWD" --insecure
+unset ADMIN_ARGO_PWD
+argocd account list 2>&1 | head -3
+'admin:login' logged in successfully
+Context '127.0.0.1:8080' updated
+NAME   ENABLED  CAPABILITIES
+admin  true     login
+softverse@Softverse:~/eTradie$ export KUBECONFIG=~/.kube/etradie-contabo.yaml
 
-#1 [internal] load build definition from Dockerfile
-#1 transferring dockerfile: 6.12kB done
-#1 DONE 0.0s
+echo "=== G1. force ArgoCD to sync engine-staging ==="
+kubectl -n argocd annotate application engine-staging argocd.argoproj.io/refresh=hard --overwrite
+sleep 10
+kubectl -n argocd get application engine-staging -o jsonpath='
+  sync={.status.sync.status}{"\n"}
+  revision={.status.sync.revision}{"\n"}
+  health={.status.health.status}{"\n"}'
 
-#2 [auth] docker/buildkit-syft-scanner:pull token for registry-1.docker.io
-#2 DONE 0.0s
+echo
+echo "=== G2. wait for the Deployment template to flip to inject=disabled ==="
+for i in 1 2 3 4 5 6; do
+  INJ=$(kubectl -n etradie-system get deployment etradie-engine \
+    -o jsonpath='{.spec.template.metadata.annotations.linkerd\.io/inject}')
+  echo "  T+$((i*10))s: deployment template linkerd.io/inject = '$INJ'"
+  [ "$INJ" = "disabled" ] && echo "  *** Deployment template updated ***" && break
+  sleep 10
+done
 
-#3 resolve image config for docker-image://docker.io/docker/buildkit-syft-scanner:stable-1
-#3 DONE 0.5s
+echo
+echo "=== G3. find the new engine pod (should have NO linkerd-proxy container) ==="
+sleep 15
+ENG=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine \
+  --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+echo "latest engine pod: $ENG"
+echo
+echo "--- containers in the new pod ---"
+kubectl -n etradie-system get pod "$ENG" -o jsonpath='containers: {range .spec.containers[*]}{.name} {end}{"\n"}initContainers: {range .spec.initContainers[*]}{.name} {end}{"\n"}'
+echo
+echo "--- pod's inject annotation ---"
+kubectl -n etradie-system get pod "$ENG" -o jsonpath='inject={.metadata.annotations.linkerd\.io/inject}{"\n"}'
 
-#4 [auth] library/python:pull token for registry-1.docker.io
-#4 DONE 0.0s
+echo
+echo "=== G4. watch boot for up to 7 minutes (no mesh = clean startup) ==="
+for i in $(seq 1 42); do
+  STATUS=$(kubectl -n etradie-system get pod "$ENG" \
+    -o jsonpath='READY={.status.containerStatuses[?(@.name=="engine")].ready} PHASE={.status.phase} RESTARTS={.status.containerStatuses[?(@.name=="engine")].restartCount}')
+kubectl -n edge-ingress-system get pods 2>/dev/nulles.io/name in (etradie-gateway,etradie-execution,etradie-management,etradie-billing)'
+=== G1. force ArgoCD to sync engine-staging ===
+application.argoproj.io/engine-staging annotated
 
-#5 [internal] load metadata for docker.io/library/python:3.14-slim
-#5 DONE 0.4s
+  sync=OutOfSync
 
-#6 [internal] load .dockerignore
-#6 transferring context: 1.16kB done
-#6 DONE 0.0s
+  revision=b3240792c24db5cea370cef4da8f0ef70826272b
 
-#7 [internal] load build context
-#7 DONE 0.0s
+  health=Degraded
 
-#8 [builder 1/8] FROM docker.io/library/python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061
-#8 resolve docker.io/library/python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061 0.0s done
-#8 DONE 0.0s
+=== G2. wait for the Deployment template to flip to inject=disabled ===
+  T+10s: deployment template linkerd.io/inject = 'disabled'
+  *** Deployment template updated ***
 
-#9 docker-image://docker.io/docker/buildkit-syft-scanner:stable-1
-#9 resolve docker.io/docker/buildkit-syft-scanner:stable-1 0.1s done
-#9 DONE 0.1s
+=== G3. find the new engine pod (should have NO linkerd-proxy container) ===
+latest engine pod: etradie-engine-6695956874-tnx75
 
-#10 importing cache manifest from gha:14074510552613513460
-#10 DONE 0.2s
+--- containers in the new pod ---
+containers: engine
+initContainers: wait-for-deps migrate
 
-#8 [builder 1/8] FROM docker.io/library/python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061
-#8 sha256:29834f362f6707ca7d7b3dab84940835bc605366abd298c8eb80c1aea11d52b7 249B / 249B 0.1s done
-#8 sha256:af30767b7cec62d8fced706f16261691936a306b774196f12d43681755f483d3 12.34MB / 12.34MB 0.2s done
-#8 sha256:72c03230f1363a3fb61d2f98504cf168bad3fe22f511ad2005dc021515d7ce97 4.19MB / 29.79MB 0.2s
-#8 sha256:da106fed7af036778f0d10708e3f8a6dd3efcfac5c3ac7ad6f5df982a0fbfbc9 1.29MB / 1.29MB 0.1s done
-#8 sha256:72c03230f1363a3fb61d2f98504cf168bad3fe22f511ad2005dc021515d7ce97 23.07MB / 29.79MB 0.3s
-#8 ...
+--- pod's inject annotation ---
+inject=disabled
 
-#7 [internal] load build context
-#7 transferring context: 6.60MB 0.2s done
-#7 DONE 0.6s
+=== G4. watch boot for up to 7 minutes (no mesh = clean startup) ===
+  T+10s: READY=false PHASE=Running RESTARTS=16
+  *** ENGINE CRASHED 16 TIMES — breaking ***
 
-#8 [builder 1/8] FROM docker.io/library/python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061
-#8 sha256:72c03230f1363a3fb61d2f98504cf168bad3fe22f511ad2005dc021515d7ce97 29.79MB / 29.79MB 0.5s
-#8 sha256:72c03230f1363a3fb61d2f98504cf168bad3fe22f511ad2005dc021515d7ce97 29.79MB / 29.79MB 0.6s done
-#8 extracting sha256:72c03230f1363a3fb61d2f98504cf168bad3fe22f511ad2005dc021515d7ce97
-#8 ...
+=== G5. final state + RAG bootstrap log ===
+NAME                              READY   STATUS    RESTARTS       AGE   IP            NODE         NOMINATED NODE   READINESS GATES
+etradie-engine-6695956874-tnx75   0/1     Running   16 (50s ago)   84m   10.42.0.217   vmi3362776   <none>           <none>
 
-#9 docker-image://docker.io/docker/buildkit-syft-scanner:stable-1
-#9 sha256:8b29db3a8efc45d6eea600012e1fed5a2452fc59a5b7e703a3e643ccbf5d4509 46.45MB / 46.45MB 0.6s done
-#9 extracting sha256:8b29db3a8efc45d6eea600012e1fed5a2452fc59a5b7e703a3e643ccbf5d4509 0.4s done
-#9 DONE 1.1s
+--- RAG bootstrap milestones ---
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
 
-#8 [builder 1/8] FROM docker.io/library/python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061
-#8 extracting sha256:72c03230f1363a3fb61d2f98504cf168bad3fe22f511ad2005dc021515d7ce97 0.6s done
-#8 DONE 1.2s
+=== G6. cascade — downstream services ===
+NAME                                 READY   STATUS                  RESTARTS          AGE
+etradie-billing-6bd67b7b55-dqwmh     0/2     Init:CrashLoopBackOff   131 (73s ago)     15h
+etradie-billing-75d844d7d8-w66s8     0/2     Init:CrashLoopBackOff   131 (86s ago)     15h
+etradie-execution-6d89988995-7lnns   0/2     Init:CrashLoopBackOff   115 (110s ago)    15h
+etradie-execution-8576bf499-dzblv    0/2     Init:0/2                116 (5m38s ago)   15h
+etradie-gateway-785f4998f8-jb6pc     0/2     Init:CrashLoopBackOff   131 (2m17s ago)   15h
+etradie-gateway-bfbc5fcf8-9p68r      0/2     Init:CrashLoopBackOff   131 (3m37s ago)   15h
+etradie-management-f9d95547b-f88kp   0/2     Init:0/2                0                 34s
+NAME                            READY   STATUS                  RESTARTS        AGE
+cloudflared-fb8f66bf8-mwp7z     1/1     Running                 0               33h
+edge-ingress-68489cd577-h9p8n   0/1     Init:CrashLoopBackOff   288 (24s ago)   24h
+softverse@Softverse:~/eTradie$
+softverse@Softverse:~/eTradie$
+softverse@Softverse:~/eTradie$ export KUBECONFIG=~/.kube/etradie-contabo.yaml
 
-#8 [builder 1/8] FROM docker.io/library/python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061
-#8 extracting sha256:da106fed7af036778f0d10708e3f8a6dd3efcfac5c3ac7ad6f5df982a0fbfbc9 0.1s done
-#8 extracting sha256:af30767b7cec62d8fced706f16261691936a306b774196f12d43681755f483d3
-#8 extracting sha256:af30767b7cec62d8fced706f16261691936a306b774196f12d43681755f483d3 0.3s done
-#8 DONE 1.6s
+ENG=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine \
+  --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+echo "engine pod: $ENG"
 
-#8 [builder 1/8] FROM docker.io/library/python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061
-#8 extracting sha256:29834f362f6707ca7d7b3dab84940835bc605366abd298c8eb80c1aea11d52b7 done
-#8 DONE 1.6s
+echo
+echo "=== H1. current pod state + restart count ==="
+kubectl -n etradie-system get pod "$ENG"
 
-#11 [runtime 2/9] RUN groupadd --gid 1000 etradie     && useradd --uid 1000 --gid etradie --shell /bin/bash --create-home etradie
-#11 ...
+echo
+echo "=== H2. full engine log — last 100 lines, no grep, see the actual error ==="
+kubectl -n etradie-system logs "$ENG" -c engine --tail=100
 
-#12 [builder 2/8] WORKDIR /build
-#12 DONE 1.4s
+echo
+echo "=== H3. previous container instance log — what made it restart? ==="
+kubectl -n etradie-system logs "$ENG" -c engine --previous --tail=60 2>&1 | tail -60
 
-#11 [runtime 2/9] RUN groupadd --gid 1000 etradie     && useradd --uid 1000 --gid etradie --shell /bin/bash --create-home etradie
-#11 DONE 1.4s
+echo
+echo "=== H4. did RAG bootstrap actually complete? (search for the success marker) ==="
+kubectl -n etradie-system logs "$ENG" -c engine --tail=2000 2>&1 \
+  | grep -iE 'rag_bootstrap_completed|rag_bootstrap_starting|application_started|loaded_markdown|ingest|listening|uvicorn running|error|exception' | tail -30
 
-#13 [builder 3/8] COPY requirements/base.txt requirements/base.txt
-#13 DONE 0.0s
+echo
+echo "=== H5. one gateway pod's init log — to understand why downstream is now Init:CrashLoopBackOff ==="
+GW=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-gateway \
+  --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+echo "gateway pod: $GW"
+kubectl -n etradie-system describe pod "$GW" 2>&1 | grep -A 10 'wait-for-deps\|Init:CrashLoopBackOff\|Reason:\|Message:' | head -40
+kubectl -n etradie-system logs "$GW" -c wait-for-deps --previous --tail=30 2>/dev/null || \
+kubectl -n etradie-system logs "$GW" -c wait-for-deps --tail=30 2>/dev/null
+engine pod: etradie-engine-6695956874-tnx75
 
-#14 [builder 4/8] RUN --mount=type=cache,target=/root/.cache/pip     pip install --default-timeout=1000 --retries=10 --prefix=/install         --extra-index-url https://download.pytorch.org/whl/cpu         -r requirements/base.txt
-#14 1.590 Looking in indexes: https://pypi.org/simple, https://download.pytorch.org/whl/cpu
-#14 1.802 Collecting fastapi>=0.115.8 (from -r requirements/base.txt (line 2))
-#14 1.826   Downloading fastapi-0.137.1-py3-none-any.whl.metadata (26 kB)
-#14 1.942 Collecting uvicorn==0.34.0 (from uvicorn[standard]==0.34.0->-r requirements/base.txt (line 3))
-#14 1.945   Downloading uvicorn-0.34.0-py3-none-any.whl.metadata (6.5 kB)
-#14 2.049 Collecting pydantic==2.9.2 (from -r requirements/base.txt (line 4))
-#14 2.052   Downloading pydantic-2.9.2-py3-none-any.whl.metadata (149 kB)
-#14 2.129 Collecting pydantic-settings==2.8.1 (from -r requirements/base.txt (line 5))
-#14 2.132   Downloading pydantic_settings-2.8.1-py3-none-any.whl.metadata (3.5 kB)
-#14 2.336 Collecting sqlalchemy==2.0.38 (from sqlalchemy[asyncio]==2.0.38->-r requirements/base.txt (line 8))
-#14 2.341   Downloading SQLAlchemy-2.0.38-py3-none-any.whl.metadata (9.6 kB)
-#14 2.432 Collecting asyncpg==0.30.0 (from -r requirements/base.txt (line 9))
-#14 2.435   Downloading asyncpg-0.30.0.tar.gz (957 kB)
-#14 2.454      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 957.7/957.7 kB 56.1 MB/s  0:00:00
-#14 2.508   Installing build dependencies: started
-#14 3.633   Installing build dependencies: finished with status 'done'
-#14 3.634   Getting requirements to build wheel: started
-#14 4.190   Getting requirements to build wheel: finished with status 'done'
-#14 4.191   Preparing metadata (pyproject.toml): started
-#14 4.407   Preparing metadata (pyproject.toml): finished with status 'done'
-#14 4.454 Collecting alembic==1.14.1 (from -r requirements/base.txt (line 10))
-#14 4.458   Downloading alembic-1.14.1-py3-none-any.whl.metadata (7.4 kB)
-#14 4.572 Collecting greenlet==3.1.1 (from -r requirements/base.txt (line 11))
-#14 4.576   Downloading greenlet-3.1.1.tar.gz (186 kB)
-#14 4.606   Installing build dependencies: started
-#14 5.319   Installing build dependencies: finished with status 'done'
-#14 5.320   Getting requirements to build wheel: started
-#14 5.633   Getting requirements to build wheel: finished with status 'done'
-#14 5.634   Preparing metadata (pyproject.toml): started
-#14 5.809   Preparing metadata (pyproject.toml): finished with status 'done'
-#14 5.869 Collecting redis==5.2.1 (from redis[hiredis]==5.2.1->-r requirements/base.txt (line 14))
-#14 5.872   Downloading redis-5.2.1-py3-none-any.whl.metadata (9.1 kB)
-#14 6.227 Collecting aiohttp==3.14.1 (from -r requirements/base.txt (line 21))
-#14 6.230   Downloading aiohttp-3.14.1-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (8.3 kB)
-#14 6.285 Collecting aiohttp-retry==2.9.1 (from -r requirements/base.txt (line 22))
-#14 6.288   Downloading aiohttp_retry-2.9.1-py3-none-any.whl.metadata (8.8 kB)
-#14 6.332 Collecting feedparser==6.0.11 (from -r requirements/base.txt (line 25))
-#14 6.336   Downloading feedparser-6.0.11-py3-none-any.whl.metadata (2.4 kB)
-#14 6.377 Collecting APScheduler==3.10.4 (from -r requirements/base.txt (line 28))
-#14 6.380   Downloading APScheduler-3.10.4-py3-none-any.whl.metadata (5.7 kB)
-#14 6.431 Collecting prometheus-client==0.21.1 (from -r requirements/base.txt (line 31))
-#14 6.434   Downloading prometheus_client-0.21.1-py3-none-any.whl.metadata (1.8 kB)
-#14 6.493 Collecting opentelemetry-api==1.34.1 (from -r requirements/base.txt (line 41))
-#14 6.496   Downloading opentelemetry_api-1.34.1-py3-none-any.whl.metadata (1.5 kB)
-#14 6.541 Collecting opentelemetry-sdk==1.34.1 (from -r requirements/base.txt (line 42))
-#14 6.544   Downloading opentelemetry_sdk-1.34.1-py3-none-any.whl.metadata (1.6 kB)
+=== H1. current pod state + restart count ===
+NAME                              READY   STATUS    RESTARTS         AGE
+etradie-engine-6695956874-tnx75   0/1     Running   16 (3m30s ago)   87m
 
+=== H2. full engine log — last 100 lines, no grep, see the actual error ===
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/usr/local/lib/python3.12/site-packages/engine/shared/body_limit.py", line 180, in __call__
+    await self.app(scope, limited_receive, guarded_send)
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/asgi/__init__.py", line 687, in __call__
+    span_name, additional_attributes = self.default_span_details(scope)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py", line 443, in _get_default_span_details
+    route = _get_route_details(scope)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py", line 427, in _get_route_details
+    route = starlette_route.path
+            ^^^^^^^^^^^^^^^^^^^^
+AttributeError: '_IncludedRouter' object has no attribute 'path'
+{"extra": {"phase": "periodic", "scanned": 0, "unhealthy": 0, "reprovisioned": 0, "failed": 0, "outcome": "ok"}, "event": "hosted_recovery_sweep_complete", "level": "INFO", "logger": "engine.ta.broker.mt5.hosted.recovery", "timestamp": "2026-06-16T16:45:48.512784Z"}
+{"extra": {"operation": "GET /health", "error_type": "AttributeError", "error_message": "'_IncludedRouter' object has no attribute 'path'"}, "event": "panic_recovered", "level": "ERROR", "logger": "engine.shared.error_handler", "timestamp": "2026-06-16T16:45:53.397424Z", "exception": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py\", line 164, in __call__\n    await self.app(scope, receive, _send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py\", line 88, in __call__\n    await self.app(scope, receive, send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 193, in __call__\n    response = await self.dispatch_func(request, call_next)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/csrf.py\", line 230, in dispatch\n    return await call_next(request)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 168, in call_next\n    raise app_exc from app_exc.__cause__ or app_exc.__context__\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 144, in coro\n    await self.app(scope, receive_or_disconnect, send_no_error)\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/body_limit.py\", line 180, in __call__\n    await self.app(scope, limited_receive, guarded_send)\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/asgi/__init__.py\", line 687, in __call__\n    span_name, additional_attributes = self.default_span_details(scope)\n                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 443, in _get_default_span_details\n    route = _get_route_details(scope)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 427, in _get_route_details\n    route = starlette_route.path\n            ^^^^^^^^^^^^^^^^^^^^\nAttributeError: '_IncludedRouter' object has no attribute 'path'"}
+INFO:     10.42.0.1:57378 - "GET /health HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/fastapi/applications.py", line 1162, in __call__
+    await super().__call__(scope, receive, send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/engine/shared/csrf.py", line 230, in dispatch
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/usr/local/lib/python3.12/site-packages/engine/shared/body_limit.py", line 180, in __call__
+    await self.app(scope, limited_receive, guarded_send)
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/asgi/__init__.py", line 687, in __call__
+    span_name, additional_attributes = self.default_span_details(scope)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py", line 443, in _get_default_span_details
+    route = _get_route_details(scope)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py", line 427, in _get_route_details
+    route = starlette_route.path
+            ^^^^^^^^^^^^^^^^^^^^
+AttributeError: '_IncludedRouter' object has no attribute 'path'
+{"extra": {"operation": "GET /health", "error_type": "AttributeError", "error_message": "'_IncludedRouter' object has no attribute 'path'"}, "event": "panic_recovered", "level": "ERROR", "logger": "engine.shared.error_handler", "timestamp": "2026-06-16T16:45:58.398125Z", "exception": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py\", line 164, in __call__\n    await self.app(scope, receive, _send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py\", line 88, in __call__\n    await self.app(scope, receive, send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 193, in __call__\n    response = await self.dispatch_func(request, call_next)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/csrf.py\", line 230, in dispatch\n    return await call_next(request)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 168, in call_next\n    raise app_exc from app_exc.__cause__ or app_exc.__context__\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 144, in coro\n    await self.app(scope, receive_or_disconnect, send_no_error)\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/body_limit.py\", line 180, in __call__\n    await self.app(scope, limited_receive, guarded_send)\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/asgi/__init__.py\", line 687, in __call__\n    span_name, additional_attributes = self.default_span_details(scope)\n                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 443, in _get_default_span_details\n    route = _get_route_details(scope)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 427, in _get_route_details\n    route = starlette_route.path\n            ^^^^^^^^^^^^^^^^^^^^\nAttributeError: '_IncludedRouter' object has no attribute 'path'"}
+INFO:     10.42.0.1:52564 - "GET /health HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/fastapi/applications.py", line 1162, in __call__
+    await super().__call__(scope, receive, send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/engine/shared/csrf.py", line 230, in dispatch
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/usr/local/lib/python3.12/site-packages/engine/shared/body_limit.py", line 180, in __call__
+    await self.app(scope, limited_receive, guarded_send)
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/asgi/__init__.py", line 687, in __call__
+    span_name, additional_attributes = self.default_span_details(scope)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py", line 443, in _get_default_span_details
+    route = _get_route_details(scope)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py", line 427, in _get_route_details
+    route = starlette_route.path
+            ^^^^^^^^^^^^^^^^^^^^
+AttributeError: '_IncludedRouter' object has no attribute 'path'
 
-uild/lib.linux-x86_64-cpython-314/greenlet/platform
-#14 43.27       copying src/greenlet/platform/switch_x86_msvc.h -> build/lib.linux-x86_64-cpython-314/greenlet/platform
-#14 43.27       copying src/greenlet/platform/switch_x86_unix.h -> build/lib.linux-x86_64-cpython-314/greenlet/platform
-#14 43.27       copying src/greenlet/tests/_test_extension.c -> build/lib.linux-x86_64-cpython-314/greenlet/tests
-#14 43.27       copying src/greenlet/tests/_test_extension_cpp.cpp -> build/lib.linux-x86_64-cpython-314/greenlet/tests
-#14 43.27       running build_ext
-#14 43.27       building 'greenlet._greenlet' extension
-#14 43.27       creating build/temp.linux-x86_64-cpython-314/src/greenlet
-#14 43.27       gcc -fno-strict-overflow -Wsign-compare -DNDEBUG -g -O3 -Wall -fPIC -I/usr/local/include/python3.14 -c src/greenlet/greenlet.cpp -o build/temp.linux-x86_64-cpython-314/src/greenlet/greenlet.o
-#14 43.27       error: command 'gcc' failed: No such file or directory
-#14 43.27       [end of output]
-#14 43.27   
-#14 43.27   note: This error originates from a subprocess, and is likely not a problem with pip.
-#14 43.27   ERROR: Failed building wheel for greenlet
-#14 43.27   Building wheel for pyzmq (pyproject.toml): started
-#14 43.52   Building wheel for pyzmq (pyproject.toml): finished with status 'error'
-#14 43.52   error: subprocess-exited-with-error
-#14 43.52   
-#14 43.52   × Building wheel for pyzmq (pyproject.toml) did not run successfully.
-#14 43.52   │ exit code: 1
-#14 43.52   ╰─> [17 lines of output]
-#14 43.52       WARNING: Use build.targets instead of cmake.targets for scikit-build-core >= 0.10
-#14 43.52       *** scikit-build-core 0.12.2 using CMake 4.3.2 (wheel)
-#14 43.52       *** Configuring CMake...
-#14 43.52       loading initial cache file /tmp/tmpod1rrxla/build/CMakeInit.txt
-#14 43.52       CMake Error at /tmp/pip-build-env-p8bhre0u/normal/lib/python3.14/site-packages/cmake/data/share/cmake-4.3/Modules/CMakeDetermineCCompiler.cmake:48 (message):
-#14 43.52         Could not find the compiler specified in the environment variable CC:
-#14 43.52       
-#14 43.52         gcc.
-#14 43.52       Call Stack (most recent call first):
-#14 43.52         CMakeLists.txt:2 (project)
-#14 43.52       
-#14 43.52       
-#14 43.52       CMake Error: CMAKE_C_COMPILER not set, after EnableLanguage
-#14 43.52       CMake Error: CMAKE_CXX_COMPILER not set, after EnableLanguage
-#14 43.52       -- Configuring incomplete, errors occurred!
-#14 43.52       
-#14 43.52       *** CMake configuration failed
-#14 43.52       [end of output]
-#14 43.52   
-#14 43.52   note: This error originates from a subprocess, and is likely not a problem with pip.
-#14 43.52   ERROR: Failed building wheel for pyzmq
-#14 43.52   Building wheel for msgpack (pyproject.toml): started
-#14 43.68   Building wheel for msgpack (pyproject.toml): finished with status 'error'
-#14 43.69   error: subprocess-exited-with-error
-#14 43.69   
-#14 43.69   × Building wheel for msgpack (pyproject.toml) did not run successfully.
-#14 43.69   │ exit code: 1
-#14 43.69   ╰─> [53 lines of output]
-#14 43.69       /tmp/pip-build-env-h2s8x_bb/overlay/lib/python3.14/site-packages/setuptools/config/_apply_pyprojecttoml.py:82: SetuptoolsDeprecationWarning: `project.license` as a TOML table is deprecated
-#14 43.69       !!
-#14 43.69       
-#14 43.69               ********************************************************************************
-#14 43.69               Please use a simple string containing a SPDX expression for `project.license`. You can also use `project.license-files`. (Both options available on setuptools>=77.0.0).
-#14 43.69       
-#14 43.69               By 2027-Feb-18, you need to update your project and remove deprecated calls
-#14 43.69               or your builds will no longer be supported.
-#14 43.69       
-#14 43.69               See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
-#14 43.69               ********************************************************************************
-#14 43.69       
-#14 43.69       !!
-#14 43.69         corresp(dist, value, root_dir)
-#14 43.69       /tmp/pip-build-env-h2s8x_bb/overlay/lib/python3.14/site-packages/setuptools/config/_apply_pyprojecttoml.py:61: SetuptoolsDeprecationWarning: License classifiers are deprecated.
-#14 43.69       !!
-#14 43.69       
-#14 43.69               ********************************************************************************
-#14 43.69               Please consider removing the following classifiers in favor of a SPDX license expression:
-#14 43.69       
-#14 43.69               License :: OSI Approved :: Apache Software License
-#14 43.69       
-#14 43.69               See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
-#14 43.69               ********************************************************************************
-#14 43.69       
-#14 43.69       !!
-#14 43.69         dist._finalize_license_expression()
-#14 43.69       /tmp/pip-build-env-h2s8x_bb/overlay/lib/python3.14/site-packages/setuptools/dist.py:765: SetuptoolsDeprecationWarning: License classifiers are deprecated.
-#14 43.69       !!
-#14 43.69       
-#14 43.69               ********************************************************************************
-#14 43.69               Please consider removing the following classifiers in favor of a SPDX license expression:
-#14 43.69       
-#14 43.69               License :: OSI Approved :: Apache Software License
-#14 43.69       
-#14 43.69               See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
-#14 43.69               ********************************************************************************
-#14 43.69       
-#14 43.69       !!
-#14 43.69         self._finalize_license_expression()
-#14 43.69       running bdist_wheel
-#14 43.69       running build
-#14 43.69       running build_py
-#14 43.69       creating build/lib.linux-x86_64-cpython-314/msgpack
-#14 43.69       copying msgpack/__init__.py -> build/lib.linux-x86_64-cpython-314/msgpack
-#14 43.69       copying msgpack/exceptions.py -> build/lib.linux-x86_64-cpython-314/msgpack
-#14 43.69       copying msgpack/fallback.py -> build/lib.linux-x86_64-cpython-314/msgpack
-#14 43.69       copying msgpack/ext.py -> build/lib.linux-x86_64-cpython-314/msgpack
-#14 43.69       running build_ext
-#14 43.69       building 'msgpack._cmsgpack' extension
-#14 43.69       creating build/temp.linux-x86_64-cpython-314/msgpack
-#14 43.69       gcc -fno-strict-overflow -Wsign-compare -DNDEBUG -g -O3 -Wall -fPIC -I. -I/usr/local/include/python3.14 -c msgpack/_cmsgpack.c -o build/temp.linux-x86_64-cpython-314/msgpack/_cmsgpack.o
-#14 43.69       error: command 'gcc' failed: No such file or directory
-#14 43.69       [end of output]
-#14 43.69   
-#14 43.69   note: This error originates from a subprocess, and is likely not a problem with pip.
-#14 43.69   ERROR: Failed building wheel for msgpack
-#14 43.69   Building wheel for chroma-hnswlib (pyproject.toml): started
-#14 43.91   Building wheel for chroma-hnswlib (pyproject.toml): finished with status 'error'
-#14 43.91   error: subprocess-exited-with-error
-#14 43.91   
-#14 43.91   × Building wheel for chroma-hnswlib (pyproject.toml) did not run successfully.
-#14 43.91   │ exit code: 1
-#14 43.91   ╰─> [89 lines of output]
-#14 43.91       running bdist_wheel
-#14 43.91       running build
-#14 43.91       running build_ext
-#14 43.91       creating tmp
-#14 43.91       gcc -fno-strict-overflow -Wsign-compare -DNDEBUG -g -O3 -Wall -fPIC -I/usr/local/include/python3.14 -c /tmp/tmpm5v7_6vs.cpp -o tmp/tmpm5v7_6vs.o -std=c++14
-#14 43.91       gcc -fno-strict-overflow -Wsign-compare -DNDEBUG -g -O3 -Wall -fPIC -I/usr/local/include/python3.14 -c /tmp/tmppywi_hjx.cpp -o tmp/tmppywi_hjx.o -std=c++11
-#14 43.91       Traceback (most recent call last):
-#14 43.91         File "/usr/local/lib/python3.14/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 389, in <module>
-#14 43.91           main()
-#14 43.91           ~~~~^^
-#14 43.91         File "/usr/local/lib/python3.14/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 373, in main
-#14 43.91           json_out["return_val"] = hook(**hook_input["kwargs"])
+=== H3. previous container instance log — what made it restart? ===
+    route = _get_route_details(scope)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py", line 427, in _get_route_details
+    route = starlette_route.path
+            ^^^^^^^^^^^^^^^^^^^^
+AttributeError: '_IncludedRouter' object has no attribute 'path'
+{"extra": {"operation": "GET /health", "error_type": "AttributeError", "error_message": "'_IncludedRouter' object has no attribute 'path'"}, "event": "panic_recovered", "level": "ERROR", "logger": "engine.shared.error_handler", "timestamp": "2026-06-16T16:42:23.398677Z", "exception": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py\", line 164, in __call__\n    await self.app(scope, receive, _send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py\", line 88, in __call__\n    await self.app(scope, receive, send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 193, in __call__\n    response = await self.dispatch_func(request, call_next)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/csrf.py\", line 230, in dispatch\n    return await call_next(request)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 168, in call_next\n    raise app_exc from app_exc.__cause__ or app_exc.__context__\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 144, in coro\n    await self.app(scope, receive_or_disconnect, send_no_error)\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/body_limit.py\", line 180, in __call__\n    await self.app(scope, limited_receive, guarded_send)\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/asgi/__init__.py\", line 687, in __call__\n    span_name, additional_attributes = self.default_span_details(scope)\n                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 443, in _get_default_span_details\n    route = _get_route_details(scope)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 427, in _get_route_details\n    route = starlette_route.path\n            ^^^^^^^^^^^^^^^^^^^^\nAttributeError: '_IncludedRouter' object has no attribute 'path'"}
+INFO:     10.42.0.1:43844 - "GET /health HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/fastapi/applications.py", line 1162, in __call__
+    await super().__call__(scope, receive, send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py", line 88, in __call__
+    await self.app(scope, receive, send)
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/engine/shared/csrf.py", line 230, in dispatch
+    return await call_next(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/usr/local/lib/python3.12/site-packages/engine/shared/body_limit.py", line 180, in __call__
+    await self.app(scope, limited_receive, guarded_send)
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/asgi/__init__.py", line 687, in __call__
+    span_name, additional_attributes = self.default_span_details(scope)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py", line 443, in _get_default_span_details
+    route = _get_route_details(scope)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py", line 427, in _get_route_details
+    route = starlette_route.path
+            ^^^^^^^^^^^^^^^^^^^^
+AttributeError: '_IncludedRouter' object has no attribute 'path'
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+{"event": "hosted_recovery_loop_cancelled", "level": "INFO", "logger": "engine.ta.broker.mt5.hosted.recovery", "timestamp": "2026-06-16T16:42:28.572973Z"}
+{"extra": {"wait_for_jobs": false, "active_jobs": 0}, "event": "scheduler_shutting_down", "level": "INFO", "logger": "engine.shared.scheduler.apscheduler", "timestamp": "2026-06-16T16:42:28.573602Z"}
+{"event": "scheduler_stopped", "level": "INFO", "logger": "engine.shared.scheduler.apscheduler", "timestamp": "2026-06-16T16:42:28.574085Z"}
+{"event": "Scheduler has been shut down"}
+{"event": "http_client_closed", "level": "INFO", "logger": "engine.shared.http.client", "timestamp": "2026-06-16T16:42:28.574718Z"}
+{"event": "redis_cache_closed", "level": "INFO", "logger": "engine.shared.cache.redis_cache", "timestamp": "2026-06-16T16:42:28.575212Z"}
+{"event": "database_manager_closed", "level": "INFO", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T16:42:28.586042Z"}
+{"event": "application_stopped", "level": "INFO", "logger": "engine.main", "timestamp": "2026-06-16T16:42:28.586362Z"}
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1]
 
-el for chroma-hnswlib (pyproject.toml): started
-#14 43.91   Building wheel for chroma-hnswlib (pyproject.toml): finished with status 'error'
-#14 43.91   error: subprocess-exited-with-error
-#14 43.91   
-#14 43.91   × Building wheel for chroma-hnswlib (pyproject.toml) did not run successfully.
-#14 43.91   │ exit code: 1
-#14 43.91   ╰─> [89 lines of output]
-#14 43.91       running bdist_wheel
-#14 43.91       running build
-#14 43.91       running build_ext
-#14 43.91       creating tmp
-#14 43.91       gcc -fno-strict-overflow -Wsign-compare -DNDEBUG -g -O3 -Wall -fPIC -I/usr/local/include/python3.14 -c /tmp/tmpm5v7_6vs.cpp -o tmp/tmpm5v7_6vs.o -std=c++14
-#14 43.91       gcc -fno-strict-overflow -Wsign-compare -DNDEBUG -g -O3 -Wall -fPIC -I/usr/local/include/python3.14 -c /tmp/tmppywi_hjx.cpp -o tmp/tmppywi_hjx.o -std=c++11
-#14 43.91       Traceback (most recent call last):
-#14 43.91         File "/usr/local/lib/python3.14/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 389, in <module>
-#14 43.91           main()
-#14 43.91           ~~~~^^
-#14 43.91         File "/usr/local/lib/python3.14/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 373, in main
-#14 43.91           json_out["return_val"] = hook(**hook_input["kwargs"])
-#14 43.91                                    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^
-#14 43.91         File "/usr/local/lib/python3.14/site-packages/pip/_vendor/pyproject_hooks/_in_process/_in_process.py", line 280, in build_wheel
-#14 43.91           return _build_backend().build_wheel(
-#14 43.91                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
-#14 43.91               wheel_directory, config_settings, metadata_directory
-#14 43.91               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#14 43.91           )
-#14 43.91           ^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/build_meta.py", line 441, in build_wheel
-#14 43.91           return _build(['bdist_wheel', '--dist-info-dir', str(metadata_directory)])
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/build_meta.py", line 429, in _build
-#14 43.91           return self._build_with_temp_dir(
-#14 43.91                  ~~~~~~~~~~~~~~~~~~~~~~~~~^
-#14 43.91               cmd,
-#14 43.91               ^^^^
-#14 43.91           ...<3 lines>...
-#14 43.91               self._arbitrary_args(config_settings),
-#14 43.91               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#14 43.91           )
-#14 43.91           ^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/build_meta.py", line 410, in _build_with_temp_dir
-#14 43.91           self.run_setup()
-#14 43.91           ~~~~~~~~~~~~~~^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/build_meta.py", line 317, in run_setup
-#14 43.91           exec(code, locals())
-#14 43.91           ~~~~^^^^^^^^^^^^^^^^
-#14 43.91         File "<string>", line 119, in <module>
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/__init__.py", line 117, in setup
-#14 43.91           return distutils.core.setup(**attrs)  # type: ignore[return-value]
-#14 43.91                  ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/_distutils/core.py", line 186, in setup
-#14 43.91           return run_commands(dist)
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/_distutils/core.py", line 202, in run_commands
-#14 43.91           dist.run_commands()
-#14 43.91           ~~~~~~~~~~~~~~~~~^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/_distutils/dist.py", line 1000, in run_commands
-#14 43.91           self.run_command(cmd)
-#14 43.91           ~~~~~~~~~~~~~~~~^^^^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/dist.py", line 1107, in run_command
-#14 43.91           super().run_command(command)
-#14 43.91           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/_distutils/dist.py", line 1019, in run_command
-#14 43.91           cmd_obj.run()
-#14 43.91           ~~~~~~~~~~~^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/command/bdist_wheel.py", line 370, in run
-#14 43.91           self.run_command("build")
-#14 43.91           ~~~~~~~~~~~~~~~~^^^^^^^^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/_distutils/cmd.py", line 341, in run_command
-#14 43.91           self.distribution.run_command(command)
-#14 43.91           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/dist.py", line 1107, in run_command
-#14 43.91           super().run_command(command)
-#14 43.91           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/_distutils/dist.py", line 1019, in run_command
-#14 43.91           cmd_obj.run()
-#14 43.91           ~~~~~~~~~~~^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/_distutils/command/build.py", line 135, in run
-#14 43.91           self.run_command(cmd_name)
-#14 43.91           ~~~~~~~~~~~~~~~~^^^^^^^^^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/_distutils/cmd.py", line 341, in run_command
-#14 43.91           self.distribution.run_command(command)
-#14 43.91           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/dist.py", line 1107, in run_command
-#14 43.91           super().run_command(command)
-#14 43.91           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/_distutils/dist.py", line 1019, in run_command
-#14 43.91           cmd_obj.run()
-#14 43.91           ~~~~~~~~~~~^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/command/build_ext.py", line 97, in run
-#14 43.91           _build_ext.run(self)
-#14 43.91           ~~~~~~~~~~~~~~^^^^^^
-#14 43.91         File "/tmp/pip-build-env-1viia3e8/overlay/lib/python3.14/site-packages/setuptools/_distutils/command/build_ext.py", line 367, in run
-#14 43.91           self.build_extensions()
-#14 43.91           ~~~~~~~~~~~~~~~~~~~~~^^
-#14 43.91         File "<string>", line 106, in build_extensions
-#14 43.91         File "<string>", line 70, in cpp_flag
-#14 43.91       RuntimeError: Unsupported compiler -- at least C++11 support is needed!
-#14 43.91       [end of output]
-#14 43.91   
-#14 43.91   note: This error originates from a subprocess, and is likely not a problem with pip.
-#14 43.91   ERROR: Failed building wheel for chroma-hnswlib
-#14 43.91   Building wheel for pydantic-core (pyproject.toml): started
-#14 44.50   Building wheel for pydantic-core (pyproject.toml): finished with status 'error'
-#14 44.51   error: subprocess-exited-with-error
-#14 44.51   
-#14 44.51   × Building wheel for pydantic-core (pyproject.toml) did not run successfully.
-#14 44.51   │ exit code: 1
-#14 44.51   ╰─> [41 lines of output]
-#14 44.51       Python reports SOABI: cpython-314-x86_64-linux-gnu
-#14 44.51       Computed rustc target triple: x86_64-unknown-linux-gnu
-#14 44.51       Installation directory: /root/.cache/puccinialin
-#14 44.51       Rustup already downloaded
-#14 44.51       Installing rust to /root/.cache/puccinialin/rustup
-#14 44.51       warn: It looks like you have an existing rustup settings file at:
-#14 44.51       warn: /root/.cache/puccinialin/rustup/settings.toml
-#14 44.51       warn: Rustup will install the default toolchain as specified in the settings file,
-#14 44.51       warn: instead of the one inferred from the default host triple.
-#14 44.51       info: profile set to minimal
-#14 44.51       info: setting default host triple to x86_64-unknown-linux-gnu
-#14 44.51       warn: Updating existing toolchain, profile choice will be ignored
-#14 44.51       info: syncing channel updates for stable-x86_64-unknown-linux-gnu
-#14 44.51       info: default toolchain set to stable-x86_64-unknown-linux-gnu
-#14 44.51       warn: no default linker (`cc`) was found in your PATH
-#14 44.51       warn: many Rust crates require a system C toolchain to build
-#14 44.51       Checking if cargo is installed
-#14 44.51       cargo 1.96.0 (30a34c682 2026-05-25)
-#14 44.51       Rust not found, installing into a temporary directory
-#14 44.51       Running `maturin pep517 build-wheel -i /usr/local/bin/python3.14 --compatibility off`
-#14 44.51       📦 Including license file `LICENSE`
-#14 44.51       🍹 Building a mixed python/rust project
-#14 44.51       🐍 Found CPython 3.14 at /usr/local/bin/python3.14
-#14 44.51       🔗 Found pyo3 bindings
-#14 44.51       📡 Using build options features, bindings from pyproject.toml
-#14 44.51          Compiling proc-macro2 v1.0.86
-#14 44.51          Compiling unicode-ident v1.0.12
+=== H4. did RAG bootstrap actually complete? (search for the success marker) ===
+    await self.app(scope, receive_or_disconnect, send_no_error)
+AttributeError: '_IncludedRouter' object has no attribute 'path'
+{"extra": {"operation": "GET /health", "error_type": "AttributeError", "error_message": "'_IncludedRouter' object has no attribute 'path'"}, "event": "panic_recovered", "level": "ERROR", "logger": "engine.shared.error_handler", "timestamp": "2026-06-16T16:45:48.397774Z", "exception": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py\", line 164, in __call__\n    await self.app(scope, receive, _send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py\", line 88, in __call__\n    await self.app(scope, receive, send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 193, in __call__\n    response = await self.dispatch_func(request, call_next)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/csrf.py\", line 230, in dispatch\n    return await call_next(request)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 168, in call_next\n    raise app_exc from app_exc.__cause__ or app_exc.__context__\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 144, in coro\n    await self.app(scope, receive_or_disconnect, send_no_error)\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/body_limit.py\", line 180, in __call__\n    await self.app(scope, limited_receive, guarded_send)\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/asgi/__init__.py\", line 687, in __call__\n    span_name, additional_attributes = self.default_span_details(scope)\n                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 443, in _get_default_span_details\n    route = _get_route_details(scope)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 427, in _get_route_details\n    route = starlette_route.path\n            ^^^^^^^^^^^^^^^^^^^^\nAttributeError: '_IncludedRouter' object has no attribute 'path'"}
+INFO:     10.42.0.1:57366 - "GET /health HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive_or_disconnect, send_no_error)
+AttributeError: '_IncludedRouter' object has no attribute 'path'
+{"extra": {"operation": "GET /health", "error_type": "AttributeError", "error_message": "'_IncludedRouter' object has no attribute 'path'"}, "event": "panic_recovered", "level": "ERROR", "logger": "engine.shared.error_handler", "timestamp": "2026-06-16T16:45:53.397424Z", "exception": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py\", line 164, in __call__\n    await self.app(scope, receive, _send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py\", line 88, in __call__\n    await self.app(scope, receive, send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 193, in __call__\n    response = await self.dispatch_func(request, call_next)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/csrf.py\", line 230, in dispatch\n    return await call_next(request)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 168, in call_next\n    raise app_exc from app_exc.__cause__ or app_exc.__context__\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 144, in coro\n    await self.app(scope, receive_or_disconnect, send_no_error)\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/body_limit.py\", line 180, in __call__\n    await self.app(scope, limited_receive, guarded_send)\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/asgi/__init__.py\", line 687, in __call__\n    span_name, additional_attributes = self.default_span_details(scope)\n                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 443, in _get_default_span_details\n    route = _get_route_details(scope)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 427, in _get_route_details\n    route = starlette_route.path\n            ^^^^^^^^^^^^^^^^^^^^\nAttributeError: '_IncludedRouter' object has no attribute 'path'"}
+INFO:     10.42.0.1:57378 - "GET /health HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive_or_disconnect, send_no_error)
+AttributeError: '_IncludedRouter' object has no attribute 'path'
+{"extra": {"operation": "GET /health", "error_type": "AttributeError", "error_message": "'_IncludedRouter' object has no attribute 'path'"}, "event": "panic_recovered", "level": "ERROR", "logger": "engine.shared.error_handler", "timestamp": "2026-06-16T16:45:58.398125Z", "exception": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py\", line 164, in __call__\n    await self.app(scope, receive, _send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py\", line 88, in __call__\n    await self.app(scope, receive, send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 193, in __call__\n    response = await self.dispatch_func(request, call_next)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/csrf.py\", line 230, in dispatch\n    return await call_next(request)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 168, in call_next\n    raise app_exc from app_exc.__cause__ or app_exc.__context__\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 144, in coro\n    await self.app(scope, receive_or_disconnect, send_no_error)\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/body_limit.py\", line 180, in __call__\n    await self.app(scope, limited_receive, guarded_send)\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/asgi/__init__.py\", line 687, in __call__\n    span_name, additional_attributes = self.default_span_details(scope)\n                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 443, in _get_default_span_details\n    route = _get_route_details(scope)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 427, in _get_route_details\n    route = starlette_route.path\n            ^^^^^^^^^^^^^^^^^^^^\nAttributeError: '_IncludedRouter' object has no attribute 'path'"}
+INFO:     10.42.0.1:52564 - "GET /health HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive_or_disconnect, send_no_error)
+AttributeError: '_IncludedRouter' object has no attribute 'path'
+{"extra": {"operation": "GET /health", "error_type": "AttributeError", "error_message": "'_IncludedRouter' object has no attribute 'path'"}, "event": "panic_recovered", "level": "ERROR", "logger": "engine.shared.error_handler", "timestamp": "2026-06-16T16:46:03.398513Z", "exception": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py\", line 164, in __call__\n    await self.app(scope, receive, _send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py\", line 88, in __call__\n    await self.app(scope, receive, send)\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 193, in __call__\n    response = await self.dispatch_func(request, call_next)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/csrf.py\", line 230, in dispatch\n    return await call_next(request)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 168, in call_next\n    raise app_exc from app_exc.__cause__ or app_exc.__context__\n  File \"/usr/local/lib/python3.12/site-packages/starlette/middleware/base.py\", line 144, in coro\n    await self.app(scope, receive_or_disconnect, send_no_error)\n  File \"/usr/local/lib/python3.12/site-packages/engine/shared/body_limit.py\", line 180, in __call__\n    await self.app(scope, limited_receive, guarded_send)\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/asgi/__init__.py\", line 687, in __call__\n    span_name, additional_attributes = self.default_span_details(scope)\n                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 443, in _get_default_span_details\n    route = _get_route_details(scope)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/opentelemetry/instrumentation/fastapi/__init__.py\", line 427, in _get_route_details\n    route = starlette_route.path\n            ^^^^^^^^^^^^^^^^^^^^\nAttributeError: '_IncludedRouter' object has no attribute 'path'"}
+INFO:     10.42.0.1:52578 - "GET /health HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+  File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive_or_disconnect, send_no_error)
+AttributeError: '_IncludedRouter' object has no attribute 'path'
 
-icense file `LICENSE`
-#14 44.51       🍹 Building a mixed python/rust project
-#14 44.51       🐍 Found CPython 3.14 at /usr/local/bin/python3.14
-#14 44.51       🔗 Found pyo3 bindings
-#14 44.51       📡 Using build options features, bindings from pyproject.toml
-#14 44.51          Compiling proc-macro2 v1.0.86
-#14 44.51          Compiling unicode-ident v1.0.12
-#14 44.51          Compiling target-lexicon v0.12.14
-#14 44.51          Compiling python3-dll-a v0.2.10
-#14 44.51          Compiling once_cell v1.19.0
-#14 44.51       error: linker `cc` not found
-#14 44.51         |
-#14 44.51         = note: No such file or directory (os error 2)
-#14 44.51       
-#14 44.51       error: could not compile `proc-macro2` (build script) due to 1 previous error
-#14 44.51       warning: build failed, waiting for other jobs to finish...
-#14 44.51       error: could not compile `target-lexicon` (build script) due to 1 previous error
-#14 44.51       💥 maturin failed
-#14 44.51         Caused by: Failed to build a native library through cargo
-#14 44.51         Caused by: Cargo build finished with "exit status: 101": `env -u CARGO PYO3_BUILD_EXTENSION_MODULE="1" PYO3_ENVIRONMENT_SIGNATURE="cpython-3.14-64bit" PYO3_PYTHON="/usr/local/bin/python3.14" PYTHON_SYS_EXECUTABLE="/usr/local/bin/python3.14" "cargo" "rustc" "--profile" "release" "--features" "pyo3/extension-module" "--message-format" "json-render-diagnostics" "--manifest-path" "/tmp/pip-install-a70fs8q1/pydantic-core_0b1bcee826c7463f945e61c0c433d641/Cargo.toml" "--lib" "--crate-type" "cdylib"`
-#14 44.51       Error: command ['maturin', 'pep517', 'build-wheel', '-i', '/usr/local/bin/python3.14', '--compatibility', 'off'] returned non-zero exit status 1
-#14 44.51       [end of output]
-#14 44.51   
-#14 44.51   note: This error originates from a subprocess, and is likely not a problem with pip.
-#14 44.51   ERROR: Failed building wheel for pydantic-core
-#14 44.51   Building wheel for sgmllib3k (pyproject.toml): started
-#14 44.69   Building wheel for sgmllib3k (pyproject.toml): finished with status 'done'
-#14 44.69   Created wheel for sgmllib3k: filename=sgmllib3k-1.0.0-py3-none-any.whl size=6090 sha256=8211e4183a680c0cecf342b84c22d2eac37dee410343ab7c399ddf9fc6fa1d0d
-#14 44.69   Stored in directory: /root/.cache/pip/wheels/e3/43/83/0f6e317d0698ac38ee6a5b6e214019c167057916a11bad91ab
-#14 44.69 Successfully built sgmllib3k
-#14 44.69 Failed to build asyncpg greenlet pyzmq msgpack chroma-hnswlib pydantic-core
-#14 44.69 error: failed-wheel-build-for-install
-#14 44.69 
-#14 44.69 × Failed to build installable wheels for some pyproject.toml based projects
-#14 44.69 ╰─> asyncpg, greenlet, pyzmq, msgpack, chroma-hnswlib, pydantic-core
-#14 ERROR: process "/bin/sh -c pip install --default-timeout=1000 --retries=10 --prefix=/install         --extra-index-url https://download.pytorch.org/whl/cpu         -r requirements/base.txt" did not complete successfully: exit code: 1
-------
- > [builder 4/8] RUN --mount=type=cache,target=/root/.cache/pip     pip install --default-timeout=1000 --retries=10 --prefix=/install         --extra-index-url https://download.pytorch.org/whl/cpu         -r requirements/base.txt:
-44.51   Building wheel for sgmllib3k (pyproject.toml): started
-44.69   Building wheel for sgmllib3k (pyproject.toml): finished with status 'done'
-44.69   Created wheel for sgmllib3k: filename=sgmllib3k-1.0.0-py3-none-any.whl size=6090 sha256=8211e4183a680c0cecf342b84c22d2eac37dee410343ab7c399ddf9fc6fa1d0d
-44.69   Stored in directory: /root/.cache/pip/wheels/e3/43/83/0f6e317d0698ac38ee6a5b6e214019c167057916a11bad91ab
-44.69 Successfully built sgmllib3k
-44.69 Failed to build asyncpg greenlet pyzmq msgpack chroma-hnswlib pydantic-core
-44.69 error: failed-wheel-build-for-install
-44.69 
-44.69 × Failed to build installable wheels for some pyproject.toml based projects
-44.69 ╰─> asyncpg, greenlet, pyzmq, msgpack, chroma-hnswlib, pydantic-core
-------
-WARNING: No output specified with docker-container driver. Build result will only remain in the build cache. To push result image into registry use --push or to load image into docker use --load
-Dockerfile:23
---------------------
-  22 |     # CI, so the COPY broke every build in the workflow build matrix.
-  23 | >>> RUN --mount=type=cache,target=/root/.cache/pip \
-  24 | >>>     pip install --default-timeout=1000 --retries=10 --prefix=/install \
-  25 | >>>         --extra-index-url https://download.pytorch.org/whl/cpu \
-  26 | >>>         -r requirements/base.txt
-  27 |     
---------------------
-ERROR: failed to build: failed to solve: process "/bin/sh -c pip install --default-timeout=1000 --retries=10 --prefix=/install         --extra-index-url https://download.pytorch.org/whl/cpu         -r requirements/base.txt" did not complete successfully: exit code: 1
-Reference
-Check build summary support
-Error: buildx failed with: ERROR: failed to build: failed to solve: process "/bin/sh -c pip install --default-timeout=1000 --retries=10 --prefix=/install         --extra-index-url https://download.pytorch.org/whl/cpu         -r requirements/base.txt" did not complete successfully: exit code: 1
+=== H5. one gateway pod's init log — to understand why downstream is now Init:CrashLoopBackOff ===
+gateway pod: etradie-gateway-bfbc5fcf8-9p68r
+  wait-for-deps:
+    Container ID:    containerd://47c3fc3f3762228f600ff374af20acff445d0d47771bdcbf225433a5f18fc33c
+    Image:           busybox:1.36
+    Image ID:        docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+    Port:            <none>
+    Host Port:       <none>
+    SeccompProfile:  RuntimeDefault
+    Command:
+      /bin/sh
+      -c
+      set -eu
+--
+      echo "[wait-for-deps] checking postgres.etradie-system.svc.cluster.local:5432"
+      while ! nc -z -w 2 "postgres.etradie-system.svc.cluster.local" 5432; do
+        if [ "$(date +%s)" -ge "${deadline}" ]; then
+          echo "[wait-for-deps] FATAL: timed out waiting for postgres.etradie-system.svc.cluster.local:5432"
+          exit 1
+        fi
+        echo "[wait-for-deps] postgres.etradie-system.svc.cluster.local:5432 not yet reachable; sleeping ${WAIT_FOR_DEPS_INTERVAL_SECS}s"
+        sleep "${WAIT_FOR_DEPS_INTERVAL_SECS}"
+      done
+      echo "[wait-for-deps] postgres.etradie-system.svc.cluster.local:5432 reachable"
+      echo "[wait-for-deps] checking redis.etradie-system.svc.cluster.local:6379"
+      while ! nc -z -w 2 "redis.etradie-system.svc.cluster.local" 6379; do
+        if [ "$(date +%s)" -ge "${deadline}" ]; then
+          echo "[wait-for-deps] FATAL: timed out waiting for redis.etradie-system.svc.cluster.local:6379"
+          exit 1
+        fi
+        echo "[wait-for-deps] redis.etradie-system.svc.cluster.local:6379 not yet reachable; sleeping ${WAIT_FOR_DEPS_INTERVAL_SECS}s"
+        sleep "${WAIT_FOR_DEPS_INTERVAL_SECS}"
+      done
+      echo "[wait-for-deps] redis.etradie-system.svc.cluster.local:6379 reachable"
+      echo "[wait-for-deps] checking engine.etradie-system.svc.cluster.local:8000"
+      while ! nc -z -w 2 "engine.etradie-system.svc.cluster.local" 8000; do
+        if [ "$(date +%s)" -ge "${deadline}" ]; then
+          echo "[wait-for-deps] FATAL: timed out waiting for engine.etradie-system.svc.cluster.local:8000"
+          exit 1
+        fi
+        echo "[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping ${WAIT_FOR_DEPS_INTERVAL_SECS}s"
+        sleep "${WAIT_FOR_DEPS_INTERVAL_SECS}"
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] FATAL: timed out waiting for engine.etradie-system.svc.cluster.local:8000
+softverse@Softverse:~/eTradie$
+softverse@Softverse:~/eTradie$
+softverse@Softverse:~/eTradie$ cd ~/eTradie
+git fetch gitlab main
+git log --oneline gitlab/main -1
+# expect new commit at top: "helm/engine: disable OTel tracing in staging..."
+
+git status
+# if clean:
+git pull --rebase gitlab main
+# if it produces SHA divergence (probable from history):
+git push --force-with-lease origin main
+git log --oneline origin/main -3
+remote: Enumerating objects: 9, done.
+remote: Counting objects: 100% (9/9), done.
+remote: Compressing objects: 100% (5/5), done.
+remote: Total 5 (delta 4), reused 0 (delta 0), pack-reused 0 (from 0)
+Unpacking objects: 100% (5/5), 1.98 KiB | 80.00 KiB/s, done.
+From https://gitlab.com/exoper2/exoper
+ * branch              main       -> FETCH_HEAD
+   b3240792..24943c30  main       -> gitlab/main
+24943c30 (gitlab/main) helm/engine: disable OTel tracing in staging to work around OTel/FastAPI _IncludedRouter crash (phase10.6 unblock)
+On branch main
+Your branch is up to date with 'origin/main'.
+
+nothing to commit, working tree clean
+From https://gitlab.com/exoper2/exoper
+ * branch              main       -> FETCH_HEAD
+Updating b3240792..24943c30
+Fast-forward
+ helm/engine/values-staging.yaml | 15 ++++++++++++---
+ 1 file changed, 12 insertions(+), 3 deletions(-)
+Enumerating objects: 9, done.
+Counting objects: 100% (9/9), done.
+Delta compression using up to 4 threads
+Compressing objects: 100% (5/5), done.
+Writing objects: 100% (5/5), 2.00 KiB | 1.00 MiB/s, done.
+Total 5 (delta 4), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (4/4), completed with 4 local objects.
+To https://github.com/FlameGreat-1/eTradie.git
+   b3240792..24943c30  main -> main
+24943c30 (HEAD -> main, origin/main, gitlab/main) helm/engine: disable OTel tracing in staging to work around OTel/FastAPI _IncludedRouter crash (phase10.6 unblock)
+b3240792 wip: local debug edits
+6fc12230 helm/engine: temporarily disable mesh injection on engine pod (phase10.6 unblock)
+softverse@Softverse:~/eTradie$ export KUBECONFIG=~/.kube/etradie-contabo.yaml
+
+echo "=== K1. force ArgoCD sync ==="
+kubectl -n argocd annotate application engine-staging argocd.argoproj.io/refresh=hard --overwrite
+sleep 10
+
+echo "=== K2. wait for deployment template to flip OTEL_EXPORTER_OTLP_ENDPOINT to empty ==="
+for i in 1 2 3 4 5 6; do
+  OTEL=$(kubectl -n etradie-system get configmap etradie-engine-config \
+    -o jsonpath='{.data.OTEL_EXPORTER_OTLP_ENDPOINT}')
+  echo "  T+$((i*10))s: OTEL_EXPORTER_OTLP_ENDPOINT = '$OTEL'"
+  [ -z "$OTEL" ] && echo "  *** ConfigMap updated, value is empty ***" && break
+  sleep 10
+done
+
+echo
+echo "=== K3. find new engine pod (configmap checksum changes → deployment rolls) ==="
+sleep 20
+ENG=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine \
+  --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+echo "engine pod: $ENG"
+kubectl -n etradie-system get pod "$ENG"
+
+echo
+echo "=== K4. watch boot (no mesh + no OTel-FastAPI instrumentation = clean) ==="
+for i in $(seq 1 30); do
+  STATUS=$(kubectl -n etradie-system get pod "$ENG" \
+    -o jsonpath='READY={.status.containerStatuses[?(@.name=="engine")].ready} PHASE={.status.phase} RESTARTS={.status.containerStatuses[?(@.name=="engine")].restartCount}')
+  echo "  T+$((i*10))s: $STATUS"
+  READY=$(kubectl -n etradie-system get pod "$ENG" \
+    -o jsonpath='{.status.containerStatuses[?(@.name=="engine")].ready}')
+  [ "$READY" = "true" ] && echo "  *** ENGINE READY ***" && break
+  sleep 10
+done
+
+echo
+echo "=== K5. log — should now show clean tracing_disabled + /health 200 ==="
+kubectl -n etradie-system get pod "$ENG" -o wide
+kubectl -n etradie-system logs "$ENG" -c engine --tail=80 2>&1 \
+kubectl -n edge-ingress-system get pods 2>/dev/nulles.io/name in (etradie-gateway,etradie-execution,etradie-management,etradie-billing)'ror' | tail -30
+=== K1. force ArgoCD sync ===
+application.argoproj.io/engine-staging annotated
+=== K2. wait for deployment template to flip OTEL_EXPORTER_OTLP_ENDPOINT to empty ===
+  T+10s: OTEL_EXPORTER_OTLP_ENDPOINT = ''
+  *** ConfigMap updated, value is empty ***
+
+=== K3. find new engine pod (configmap checksum changes → deployment rolls) ===
+engine pod: etradie-engine-55dbc59c78-7hgnx
+NAME                              READY   STATUS    RESTARTS   AGE
+etradie-engine-55dbc59c78-7hgnx   0/1     Running   0          33s
+
+=== K4. watch boot (no mesh + no OTel-FastAPI instrumentation = clean) ===
+  T+10s: READY=false PHASE=Running RESTARTS=0
+  T+20s: READY=false PHASE=Running RESTARTS=0
+  T+30s: READY=false PHASE=Running RESTARTS=0
+  T+40s: READY=false PHASE=Running RESTARTS=0
+  T+50s: READY=false PHASE=Running RESTARTS=0
+  T+60s: READY=false PHASE=Running RESTARTS=0
+  T+70s: READY=false PHASE=Running RESTARTS=0
+  T+80s: READY=false PHASE=Running RESTARTS=0
+  T+90s: READY=false PHASE=Running RESTARTS=0
+  T+100s: READY=false PHASE=Running RESTARTS=0
+  T+110s: READY=false PHASE=Running RESTARTS=0
+  T+120s: READY=false PHASE=Running RESTARTS=0
+  T+130s: READY=false PHASE=Running RESTARTS=0
+  T+140s: READY=false PHASE=Running RESTARTS=0
+  T+150s: READY=false PHASE=Running RESTARTS=0
+  T+160s: READY=false PHASE=Running RESTARTS=0
+  T+170s: READY=false PHASE=Running RESTARTS=0
+  T+180s: READY=false PHASE=Running RESTARTS=0
+  T+190s: READY=false PHASE=Running RESTARTS=0
+  T+200s: READY=false PHASE=Running RESTARTS=0
+  T+210s: READY=false PHASE=Running RESTARTS=0
+  T+220s: READY=false PHASE=Running RESTARTS=0
+  T+230s: READY=false PHASE=Running RESTARTS=0
+  T+240s: READY=false PHASE=Running RESTARTS=0
+  T+250s: READY=false PHASE=Running RESTARTS=0
+  T+260s: READY=false PHASE=Running RESTARTS=0
+  T+270s: READY=false PHASE=Running RESTARTS=0
+  T+280s: READY=false PHASE=Running RESTARTS=0
+  T+290s: READY=false PHASE=Running RESTARTS=0
+  T+300s: READY=false PHASE=Running RESTARTS=0
+
+=== K5. log — should now show clean tracing_disabled + /health 200 ===
+NAME                              READY   STATUS    RESTARTS   AGE     IP           NODE         NOMINATED NODE   READINESS GATES
+etradie-engine-55dbc59c78-7hgnx   0/1     Running   0          6m57s   10.42.0.34   vmi3362776   <none>           <none>
+INFO:     10.42.0.1:48704 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.42.0.1:35508 - "GET /health HTTP/1.1" 200 OK
+INFO:     10.42.0.1:43954 - "GET /health HTTP/1.1" 200 OK
+
+=== K6. cascade — gateway/execution/management/billing/edge-ingress ===
+NAME                                 READY   STATUS                  RESTARTS          AGE
+etradie-billing-6bd67b7b55-dqwmh     0/2     Init:0/2                133 (7m ago)      15h
+etradie-billing-75d844d7d8-w66s8     0/2     Init:Error              133 (7m22s ago)   15h
+etradie-execution-6d89988995-7lnns   0/2     Init:0/2                117 (6m49s ago)   15h
+etradie-execution-8576bf499-dzblv    0/2     Init:CrashLoopBackOff   117 (2m19s ago)   15h
+etradie-gateway-785f4998f8-jb6pc     0/2     Init:CrashLoopBackOff   133 (56s ago)     15h
+etradie-gateway-bfbc5fcf8-9p68r      0/2     Init:CrashLoopBackOff   133 (2m21s ago)   15h
+etradie-management-f9d95547b-fb75p   0/2     Terminating             0                 2m21s
+NAME                            READY   STATUS                  RESTARTS         AGE
+cloudflared-fb8f66bf8-mwp7z     1/1     Running                 0                33h
+edge-ingress-68489cd577-h9p8n   0/1     Init:CrashLoopBackOff   290 (3m3s ago)   24h
+softverse@Softverse:~/eTradie$
+softverse@Softverse:~/eTradie$
+softverse@Softverse:~/eTradie$ export KUBECONFIG=~/.kube/etradie-contabo.yaml
+ENG=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine \
+  --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+echo "engine pod: $ENG"
+
+echo
+echo "=== D1. directly hit /readiness from inside the cluster (port-forward) ==="
+kubectl -n etradie-system port-forward "$ENG" 18000:8000 >/tmp/pf.log 2>&1 &
+PF=$!
+sleep 3
+curl -sS -o /tmp/readiness.body -w "HTTP=%{http_code} time=%{time_total}s\n" \
+  http://127.0.0.1:18000/readiness
+echo "--- /readiness response body ---"
+cat /tmp/readiness.body
+echo
+kill $PF 2>/dev/null
+wait $PF 2>/dev/null
+
+echo
+echo "=== D2. engine log — startup_health + readiness probe failures ==="
+kubectl -n etradie-system logs "$ENG" -c engine --tail=600 2>&1 \
+  | grep -iE 'startup_health|tracing_disabled|application_started|rag_bootstrap_completed|rag_health_startup|readiness|/readiness|503|db_health|cache_health|rag_startup|loaded_markdown' | tail -25
+
+echo
+echo "=== D3. one gateway pod's init log to see why it crashes ==="
+GW=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-gateway \
+  --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+echo "gateway pod: $GW"
+kubectl -n etradie-system get pod "$GW" -o jsonpath='{range .spec.initContainers[*]}{.name}{"\n"}{end}'
+echo "--- last gateway init log ---"
+kubectl -n etradie-system logs "$GW" -c wait-for-deps --previous --tail=20 2>/dev/null \
+  || kubectl -n etradie-system logs "$GW" -c wait-for-deps --tail=20 2>/dev/null
+engine pod: etradie-engine-55dbc59c78-7hgnx
+
+=== D1. directly hit /readiness from inside the cluster (port-forward) ===
+[1] 43944
+HTTP=503 time=30.003990s
+--- /readiness response body ---
+{"status":"not_ready","db":true,"cache":true,"rag":{"enabled":true,"vectorstore_connected":true,"database_connected":true,"embedding_ready":false}}
+
+=== D2. engine log — startup_health + readiness probe failures ===
+INFO:     10.42.0.1:53514 - "GET /readiness HTTP/1.1" 503 Service Unavailable
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:02:52.432056Z"}
+{"event": "cache_health_check_passed", "level": "DEBUG", "logger": "engine.shared.cache.redis_cache", "timestamp": "2026-06-16T17:02:52.434135Z"}
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:02:52.469983Z"}
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:02:57.441999Z"}
+{"event": "cache_health_check_passed", "level": "DEBUG", "logger": "engine.shared.cache.redis_cache", "timestamp": "2026-06-16T17:02:57.444330Z"}
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:02:57.507007Z"}
+{"extra": {"db": true, "cache": true, "rag": false}, "event": "readiness_probe_unhealthy", "level": "WARNING", "logger": "engine.routers.health", "timestamp": "2026-06-16T17:02:57.574105Z"}
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:03:01.199470Z"}
+{"event": "cache_health_check_passed", "level": "DEBUG", "logger": "engine.shared.cache.redis_cache", "timestamp": "2026-06-16T17:03:01.200486Z"}
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:03:01.238551Z"}
+{"extra": {"db": true, "cache": true, "rag": false}, "event": "readiness_probe_unhealthy", "level": "WARNING", "logger": "engine.routers.health", "timestamp": "2026-06-16T17:03:04.674947Z"}
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:03:05.535837Z"}
+{"event": "cache_health_check_passed", "level": "DEBUG", "logger": "engine.shared.cache.redis_cache", "timestamp": "2026-06-16T17:03:05.537164Z"}
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:03:05.568966Z"}
+{"extra": {"db": true, "cache": true, "rag": false}, "event": "readiness_probe_unhealthy", "level": "WARNING", "logger": "engine.routers.health", "timestamp": "2026-06-16T17:03:13.762954Z"}
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:03:15.536547Z"}
+{"event": "cache_health_check_passed", "level": "DEBUG", "logger": "engine.shared.cache.redis_cache", "timestamp": "2026-06-16T17:03:15.538487Z"}
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:03:15.576256Z"}
+{"extra": {"db": true, "cache": true, "rag": false}, "event": "readiness_probe_unhealthy", "level": "WARNING", "logger": "engine.routers.health", "timestamp": "2026-06-16T17:03:23.747681Z"}
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:03:25.534954Z"}
+{"event": "cache_health_check_passed", "level": "DEBUG", "logger": "engine.shared.cache.redis_cache", "timestamp": "2026-06-16T17:03:25.536233Z"}
+{"event": "db_health_check_passed", "level": "DEBUG", "logger": "engine.shared.db.connection", "timestamp": "2026-06-16T17:03:25.579058Z"}
+{"extra": {"db": true, "cache": true, "rag": false}, "event": "readiness_probe_unhealthy", "level": "WARNING", "logger": "engine.routers.health", "timestamp": "2026-06-16T17:03:30.658771Z"}
+INFO:     127.0.0.1:58000 - "GET /readiness HTTP/1.1" 503 Service Unavailable
+
+=== D3. one gateway pod's init log to see why it crashes ===
+gateway pod: etradie-gateway-bfbc5fcf8-9p68r
+wait-for-deps
+linkerd-init
+--- last gateway init log ---
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] engine.etradie-system.svc.cluster.local:8000 not yet reachable; sleeping 2s
+[wait-for-deps] FATAL: timed out waiting for engine.etradie-system.svc.cluster.local:8000
+softverse@Softverse:~/eTradie$
+softverse@Softverse:~/eTradie$
