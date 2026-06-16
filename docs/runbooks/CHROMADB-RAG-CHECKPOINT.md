@@ -1,11 +1,83 @@
 # Phase 10.6 Checkpoint — Engine RAG bootstrap blocker (chromadb mesh path)
 
-> **Status: 🟡 IN PROGRESS — engine still CrashLoopBackOff.** 3 of 4 root
-> causes FIXED; 1 open (linkerd-policy Service endpoint staleness causing
-> chromadb L7 fail-fast). Read this top-to-bottom before touching anything.
+> **Status: 🟡 IN PROGRESS — engine still CrashLoopBackOff.** Read the
+> SESSION 2 UPDATE block immediately below FIRST; it supersedes parts of
+> the original analysis. Then read the rest top-to-bottom.
 > This supersedes the provisional "operator gotcha #36" in PROGRESS.md
 > (that hypothesis — "Linkerd 2.14.10 opaque-port outbound silently fails"
 > — was WRONG; the real causes are documented below).
+
+---
+
+## 🔴 SESSION 2 UPDATE (2026-06-16, later) — READ THIS FIRST
+
+The original "4 root causes" analysis below is mostly correct, but the
+FINAL root cause is now identified and it is **NOT** chromadb, the policy
+endpoint, appProtocol, or the opaque-ports annotations. It is a
+**Linkerd proxy-readiness STARTUP RACE in the engine pod.**
+
+### PROVEN this session (do NOT re-test these):
+1. ✅ **Root cause #4 (stale linkerd-policy endpoint) is RESOLVED.**
+   chromadb-0 is stable: 2/2 Running, 0 restarts, proxy log shows
+   `Certified identity` and ZERO `:8090`/refused/fail-fast lines.
+2. ✅ **chromadb is reachable through the mesh with the engine's identity.**
+   A fresh meshed probe (engine image `ghcr.io/flamegreat-1/etradie/engine:0.1.0`,
+   SA `etradie-engine`, `linkerd.io/inject: enabled`) gets **HTTP 200** on
+   BOTH `/api/v2/heartbeat` AND the engine's real failing call
+   `/api/v2/auth/identity` (with the real `Bearer` token from secret
+   `chromadb-credentials` key `CHROMA_SERVER_AUTHN_CREDENTIALS`).
+   (Note: chromadb returns `user_id: anonymous` — token auth is permissive
+   on this build; irrelevant to bootstrap, the connect succeeds.)
+3. ✅ **The engine's annotations are NOT the cause.** A second probe
+   (`ragprobe2`) carrying the engine's EXACT annotations
+   (`config.linkerd.io/opaque-ports: "5555"`,
+   `config.linkerd.io/skip-outbound-ports: "4317"`,
+   `proxy-enable-native-sidecar: "true"`) ALSO got HTTP 200 on both
+   endpoints. So opaque-ports:5555 is a red herring.
+4. ✅ **chromadb Service `appProtocol: http` was removed** (chart commit +
+   live `kubectl patch`). Necessary cleanup but NOT sufficient alone —
+   the engine still crashed after it.
+
+### RULED OUT (do NOT chase these again):
+- NOT a chromadb app problem (stable; serves probes 200).
+- NOT the linkerd-policy endpoint (reconciled; proxy clean).
+- NOT auth/token (identity returns 200 with the real token).
+- NOT the engine's opaque-ports/skip-outbound annotations (probe2 proved).
+- NOT a Linkerd version issue.
+
+### THE ACTUAL ROOT CAUSE (high confidence, by elimination):
+**Engine pod proxy-readiness startup race.** The engine app container
+begins hitting postgres/redis/chromadb within the FIRST ~30ms of FastAPI
+lifespan startup (postgres `Connection reset` logged at T+0.03s after
+`database_manager_initialized`). At that instant the native-sidecar
+Linkerd proxy has `Certified identity` but its OUTBOUND routing/discovery
+is NOT yet ready, so it refuses/resets ALL outbound mesh connections
+(postgres `Connection reset by peer`, redis `Connection reset`, chromadb
+`502`/`Connection refused`). The engine proxy log shows
+`outbound...HTTP/1.1 request failed ... Connection refused` to chromadb
+`:8000` repeatedly (T+9s, 47s, 148s, 427s). The engine pod has NO
+`config.linkerd.io/proxy-await` annotation (verified: `proxy-await=`
+empty), so nothing gates the app container until the proxy is ready.
+
+### THE FIX (to apply next — verify before/after):
+Add to the ENGINE chart pod annotations (helm/engine, deployment.yaml /
+values.yaml podAnnotations):
+```
+config.linkerd.io/proxy-await: "enabled"
+```
+This makes linkerd-init block the engine container from starting until
+the proxy is fully ready, eliminating the race. Consider also making the
+engine's RAG bootstrap + db/redis health checks retry-with-backoff on
+startup (defense in depth) — but proxy-await is the primary fix.
+After applying: `helm upgrade engine` (or Argo sync) and the engine
+should pass bootstrap_collections -> seed -> ingest 9 docs ->
+`rag_bootstrap_completed` -> 2/2 Running.
+
+### Debug probes to delete at closeout:
+`ragprobe`, `ragprobe2` (plus the older `cprobe`, `asyncpg-probe`,
+`mesh-probe`, `pg-probe-bare`).
+
+---
 
 **Last updated:** 2026-06-16, mid-session.
 **Cluster:** staging, single-node Contabo K3s, mesh ON.
