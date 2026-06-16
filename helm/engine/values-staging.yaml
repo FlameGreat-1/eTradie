@@ -10,7 +10,11 @@ replicaCount: 1
 
 image:
   tag: "0.1.0"
-  pullPolicy: IfNotPresent
+  # TEMPORARY: pullPolicy Always so the CI-rebuilt 0.1.0 engine image
+  # (lifespan + OTel fixes) is fetched on next ArgoCD sync even though
+  # the tag string is unchanged. Reverts back to IfNotPresent in the
+  # follow-up commit that bumps the chart tag to 0.1.1.
+  pullPolicy: Always
 
 podAnnotations:
   prometheus.io/scrape: "true"
