@@ -77,6 +77,24 @@ spec:
       ports:
         - protocol: TCP
           port: 4191
+    # Linkerd proxy INBOUND port :4143. When a meshed caller connects
+    # to this service, the connection arrives as proxy-to-proxy mTLS on
+    # :4143 (iptables PREROUTING redirects all inbound TCP to :4143),
+    # NOT on the app port. The CNI enforces this NetworkPolicy on the
+    # destination port it observes (4143), so WITHOUT this rule the
+    # proxy-to-proxy connection is dropped before it reaches the proxy
+    # and the app sees "connection was closed in the middle of
+    # operation". Namespace-scoped because the 4143 stream is opaque
+    # mTLS the NetworkPolicy cannot attribute to a caller; Linkerd's
+    # mTLS identity + policy controller is the real authz on 4143. The
+    # app-port rules above keep their per-caller L4 restriction.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: etradie-system
+      ports:
+        - protocol: TCP
+          port: 4143
     {{- if .Values.postgres.metrics.enabled }}
     # postgres-exporter :9187 scraped by Prometheus.
     - from:
@@ -172,6 +190,15 @@ spec:
       ports:
         - protocol: TCP
           port: 4191
+    # Linkerd proxy INBOUND port :4143 (meshed proxy-to-proxy mTLS).
+    # See the postgres NetworkPolicy above for the full rationale.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: etradie-system
+      ports:
+        - protocol: TCP
+          port: 4143
     {{- if .Values.redis.metrics.enabled }}
     # redis-exporter :9121 scraped by Prometheus.
     - from:
@@ -349,6 +376,15 @@ spec:
       ports:
         - protocol: TCP
           port: 4191
+    # Linkerd proxy INBOUND port :4143 (meshed proxy-to-proxy mTLS).
+    # See the postgres NetworkPolicy above for the full rationale.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: etradie-system
+      ports:
+        - protocol: TCP
+          port: 4143
   egress:
     # Linkerd control plane.
     - to:
