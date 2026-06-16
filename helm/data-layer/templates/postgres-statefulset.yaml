@@ -99,12 +99,14 @@ spec:
               KEY_FILE=$CERT_DIR/server.key
               CONFIG=/etc/postgres-tls-init/openssl.cnf
               VALIDITY_DAYS={{ .Values.postgres.tls.certValidityDays | default 3650 }}
-              # Make sure the certs dir is writable + owned by the
-              # postgres user. fsGroup: 70 on the pod sets the group;
-              # explicit chown handles ownership for the case where
-              # the init container created the dir as root.
-              chown 70:70 "$CERT_DIR"
-              chmod 0750 "$CERT_DIR"
+              # No chown/chmod of $CERT_DIR is required: the emptyDir is
+              # mounted with the pod's fsGroup: 70, which makes the
+              # kubelet set the directory group to 70 and apply the SGID
+              # bit. Files written inside by uid 70 (via su-exec below)
+              # inherit group 70 automatically, and umask 077 + explicit
+              # chmod handle the file modes. A chown attempt would also
+              # fail under our capabilities.drop: [ALL] posture (root
+              # without CAP_CHOWN cannot change ownership).
               # Idempotency: regenerate only when the cert is missing
               # OR will expire in <30 days. This check runs BEFORE the
               # apk install so a rolling-restart on the same node
