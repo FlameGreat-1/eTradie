@@ -48,6 +48,21 @@ spec:
       ports:
         - protocol: TCP
           port: 4191
+    # Linkerd proxy INBOUND port :4143. edge-ingress is meshed, so the
+    # edge-ingress -> envoy:8080 hop arrives as proxy-to-proxy mTLS on
+    # envoy:4143 (iptables redirect), NOT :8080; the CNI enforces this
+    # NetworkPolicy on :4143. Without this rule the north-south hop is
+    # dropped and public traffic dies at envoy. Scoped to the caller's
+    # namespace (edge-ingress-system); the 4143 stream is opaque mTLS
+    # the NetworkPolicy cannot attribute further, and Linkerd mTLS
+    # identity + policy controller is the real authz on 4143.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.edgeIngressNamespace | default "edge-ingress-system" }}
+      ports:
+        - protocol: TCP
+          port: 4143
     {{- with .Values.networkPolicy.extraIngress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

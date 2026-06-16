@@ -53,6 +53,22 @@ spec:
       ports:
         - protocol: TCP
           port: 4191
+    # Linkerd proxy INBOUND port :4143. The cloudflared pod (same
+    # namespace, meshed as part of this chart) dials edge-ingress:443,
+    # which arrives as proxy-to-proxy mTLS on edge-ingress:4143
+    # (iptables redirect), NOT :443; the CNI enforces this NetworkPolicy
+    # on :4143. Without this rule the tunnel -> edge-ingress hop is
+    # dropped and ALL public traffic dies at the ingress. Scoped to the
+    # caller's namespace (this namespace, where cloudflared runs); the
+    # 4143 stream is opaque mTLS, and Linkerd mTLS identity + policy
+    # controller is the real authz on 4143.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "edge-ingress.namespace" . }}
+      ports:
+        - protocol: TCP
+          port: 4143
   egress:
     # The injected Linkerd proxy must reach the control plane in the
     # linkerd namespace (identity, destination, policy) or it never
