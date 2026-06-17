@@ -54,38 +54,40 @@ spec:
       {{- end }}
       {{- if .Values.postgres.tls.enabled }}
       # tls-cert-init: generate a self-signed RSA server cert + key at
-      # first boot. Reuses the postgres:16-alpine image (already cached
-      # on the node; postgres user uid 70 is native). The openssl CLI
-      # is NOT in the base image (libssl is, but not /usr/bin/openssl),
-      # so the init container installs it via `apk add --no-cache
-      # openssl` first, then drops privileges with `su-exec` to uid 70
-      # before actually generating the cert. The resulting key + cert
-      # files end up owned by uid 70 — the strict-mode owner postgres
-      # checks at startup (`FATAL: private key file has group or world
-      # access` otherwise).
+      # first boot. Uses nginx:1.27-alpine because that image ships
+      # /usr/bin/openssl AND /bin/sh natively (postgres:16-alpine only
+      # ships libssl, not the openssl CLI; an earlier iteration used
+      # `apk add openssl` at runtime which failed under our tight
+      # NetworkPolicy egress posture). nginx-alpine is small (~25MB),
+      # official, and the cert-generation init pattern with this image
+      # is industry-standard.
       #
-      # Security posture (Tier 9 / PSS):
-      #   - The namespace is PSS warn+audit only (no enforce, owned by
-      #     helm/data-layer/templates/namespace.yaml); a root init
-      #     container is admitted under the same posture Linkerd's
-      #     proxy-init already runs (NET_ADMIN + NET_RAW for iptables).
-      #   - allowPrivilegeEscalation: false retained.
-      #   - capabilities.drop: [ALL] retained.
-      #   - readOnlyRootFilesystem MUST be false here because apk writes
-      #     to /lib/apk and /usr/bin. The MAIN postgres container is
-      #     unchanged (also readOnlyRootFilesystem: false because it
-      #     writes the unix socket at /var/run/postgresql).
-      #   - The actual cert generation runs as uid 70 via su-exec, so
-      #     the only privileged step is the apk install itself.
+      # Writes to the certs emptyDir; postgres container mounts it
+      # read-only at /var/lib/postgresql/certs/. Idempotent: skips
+      # regeneration if a valid cert with >30d to expiry already exists.
+      #
+      # Security posture (Tier 9 / PSS restricted-tier compliant):
+      #   - runAsUser: 70 (postgres user, native to the certs emptyDir
+      #     via fsGroup: 70 on the pod). nginx-alpine has no uid 70
+      #     entry in /etc/passwd, but the kernel does not require an
+      #     /etc/passwd entry for a process to run as a given uid;
+      #     openssl req only reads the config and writes files, neither
+      #     of which needs username lookup.
+      #   - runAsNonRoot: true.
+      #   - readOnlyRootFilesystem: true.
+      #   - capabilities.drop: [ALL].
+      #   - allowPrivilegeEscalation: false.
+      #   - No outbound network egress required.
       initContainers:
         - name: tls-cert-init
-          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
-          imagePullPolicy: {{ .Values.postgres.image.pullPolicy | default "IfNotPresent" }}
+          image: "nginx:1.27-alpine"
+          imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            runAsNonRoot: false
-            runAsUser: 0
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
             capabilities:
               drop:
                 - ALL
@@ -99,25 +101,12 @@ spec:
               KEY_FILE=$CERT_DIR/server.key
               CONFIG=/etc/postgres-tls-init/openssl.cnf
               VALIDITY_DAYS={{ .Values.postgres.tls.certValidityDays | default 3650 }}
-              # No chown/chmod of $CERT_DIR is required: the emptyDir is
-              # mounted with the pod's fsGroup: 70, which makes the
-              # kubelet set the directory group to 70 and apply the SGID
-              # bit. Files written inside by uid 70 (via su-exec below)
-              # inherit group 70 automatically, and umask 077 + explicit
-              # chmod handle the file modes. A chown attempt would also
-              # fail under our capabilities.drop: [ALL] posture (root
-              # without CAP_CHOWN cannot change ownership).
               # Idempotency: regenerate only when the cert is missing
-              # OR will expire in <30 days. This check runs BEFORE the
-              # apk install so a rolling-restart on the same node
-              # (cert already present) skips the install entirely.
-              # Use the system 'test' for the file checks; openssl
-              # comes later only if we need to inspect the cert.
+              # OR will expire in <30 days. Rolling restart on the same
+              # node reuses the same cert; pod recreate (new emptyDir)
+              # generates fresh. Operator rotation is `rm -f $CERT_FILE
+              # $KEY_FILE && delete pod`.
               if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
-                # Install openssl JUST to run the expiry check + log
-                # subject/dates. This is cheap (~3MB, <2s) and only
-                # needed if a regeneration path is possible.
-                apk add --no-cache openssl >/dev/null 2>&1
                 if openssl x509 -in "$CERT_FILE" -noout -checkend 2592000 >/dev/null 2>&1; then
                   echo "[tls-cert-init] existing cert is valid for >30d; skipping regeneration"
                   echo "[tls-cert-init] subject: $(openssl x509 -in "$CERT_FILE" -noout -subject)"
@@ -126,17 +115,12 @@ spec:
                 fi
                 echo "[tls-cert-init] existing cert expires within 30d; regenerating"
               else
-                echo "[tls-cert-init] no cert present; installing openssl and generating fresh self-signed cert"
-                apk add --no-cache openssl >/dev/null 2>&1
+                echo "[tls-cert-init] no cert present; generating fresh self-signed cert"
               fi
-              # Drop privileges to uid 70 for the actual cert
-              # generation. su-exec is shipped by the official
-              # postgres:16-alpine image (the entrypoint uses it to
-              # drop root before exec'ing postgres). umask 077 means
-              # both files are created mode 0600 by default; we then
-              # chmod the cert to 0644 explicitly.
+              # umask 077 makes both files mode 0600 by default; the
+              # explicit chmod after lifts the cert to 0644.
               umask 077
-              su-exec 70:70 openssl req \
+              openssl req \
                 -x509 \
                 -new \
                 -nodes \
@@ -144,11 +128,6 @@ spec:
                 -config "$CONFIG" \
                 -keyout "$KEY_FILE" \
                 -out "$CERT_FILE"
-              # postgres refuses to start unless ssl_key_file is owner
-              # postgres + mode 0600. su-exec made the files owned by
-              # uid 70; umask 077 made them 0600. Explicit chmod on the
-              # cert lifts it to 0644 (world-readable certs are fine;
-              # only the key needs to be owner-only).
               chmod 0600 "$KEY_FILE"
               chmod 0644 "$CERT_FILE"
               echo "[tls-cert-init] cert written: $(openssl x509 -in "$CERT_FILE" -noout -subject -dates)"
