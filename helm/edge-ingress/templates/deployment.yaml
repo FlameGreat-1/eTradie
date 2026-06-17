@@ -99,6 +99,19 @@ spec:
           volumeMounts:
             - name: geoip-data
               mountPath: /data/geoip
+            # The MaxMind geoipupdate v6 binary internally creates
+            # /tmp/geoipupdate as a lock/staging directory at startup.
+            # readOnlyRootFilesystem: true blocks any write to the root
+            # filesystem, so the init container needs a writable /tmp
+            # via the pod's already-declared `tmp` emptyDir volume
+            # (same volume the main edge-ingress container mounts at
+            # /tmp). Without this mount the init container crashes with
+            # `mkdir: can't create directory '/tmp/geoipupdate':
+            # Read-only file system` -> CrashLoopBackOff -> pod never
+            # reaches Ready -> Service has no endpoint -> cloudflared
+            # returns 502 to the public path.
+            - name: tmp
+              mountPath: /tmp
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
