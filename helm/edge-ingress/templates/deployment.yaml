@@ -95,7 +95,7 @@ spec:
         # for the in-pod conditional; the official geoipupdate image is
         # still used by the scheduled CronJob refresh.
         - name: geoip-downloader
-          image: "{{ .Values.geoip.bootstrapInitImage | default \"busybox:1.36\" }}"
+          image: {{ .Values.geoip.bootstrapInitImage | quote }}
           imagePullPolicy: {{ .Values.geoip.initContainer.pullPolicy | default "IfNotPresent" }}
           command:
             - /bin/sh
