@@ -13,14 +13,17 @@ tls:
   cert_reload_interval:
     secs: 3600
     nanos: 0
-  # Cloudflare Authenticated Origin Pulls (mTLS). Mandatory.
-  # Any TLS connection that does not present a client certificate
-  # signed by the Cloudflare AOP CA fails at ServerHello, before any
-  # HTTP byte is parsed. Pairs with the origin firewall (which
-  # restricts TCP/443 to Cloudflare's published IP ranges) for two
-  # independent layers of upstream-identity proof.
+  # Cloudflare Authenticated Origin Pulls (mTLS).
+  # required: false because this single-node production deploy uses
+  # Cloudflare Tunnel (helm/edge-ingress/values-production.yaml::
+  # cloudflareTunnel). cloudflared cannot present a client cert.
+  # Direct-internet / public-LB production deployments would set
+  # required: true and rely on Cloudflare's edge AOP client cert
+  # presentation, paired with an origin firewall restricting TCP/443
+  # to Cloudflare's published IP ranges.
   client_auth:
     ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
+    required: false
   certificates:
     - hostname: "api.exoper.com"
       cert_path: "/etc/edge-ingress/certs/api.exoper.com.crt"

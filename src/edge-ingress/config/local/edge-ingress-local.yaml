@@ -13,13 +13,14 @@ tls:
   cert_reload_interval:
     secs: 300
     nanos: 0
-  # Local dev exercises the same mTLS code path as production. The
-  # docker-compose mounts deployments/cloudflare/origin-pull at
-  # /etc/edge-ingress/cloudflare in the container, so this path is
-  # identical across all environments (only the bytes behind it
-  # differ: dev-aop-ca in dev, Cloudflare AOP CA in staging/prod).
+  # Local dev exercises the strict mTLS code path (required: true).
+  # The docker-compose `edge` profile mounts deployments/cloudflare/
+  # origin-pull at /etc/edge-ingress/cloudflare; a dev-only CA + client
+  # cert are produced by generate-dev-certs.sh. Test client must
+  # present dev-client.crt/.key to authenticate.
   client_auth:
     ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
+    required: true
   certificates:
     - hostname: "localhost"
       cert_path: "./certs/localhost.crt"
@@ -48,4 +49,4 @@ retry:
   backoff_ms: 50
 
 geoip:
-  database_path: "./data/geoip/GeoLite2-City.mmdb"
+  database_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"

@@ -13,12 +13,19 @@ tls:
   cert_reload_interval:
     secs: 1800
     nanos: 0
-  # Cloudflare Authenticated Origin Pulls (mTLS). Mandatory.
-  # Staging mirrors production enforcement: there is no soft-launch
-  # state. Either upstream identity is proven by a Cloudflare-signed
-  # client cert or the handshake fails.
+  # Cloudflare Authenticated Origin Pulls (mTLS).
+  # required: false because staging runs behind Cloudflare Tunnel
+  # (cloudflared as the connector). cloudflared has no field in its
+  # originRequest schema to present a client cert, so mandatory mTLS
+  # at edge-ingress would fail every handshake. Defense in depth in
+  # staging: Cloudflare DDoS/WAF + origin IP not in public DNS + ufw
+  # inbound deny + tunnel JWT + server-side TLS to edge-ingress with
+  # internal CA verify + Linkerd mesh mTLS + gateway trusted-proxy
+  # CIDR (10.42.0.0/16, see helm/gateway/values-staging.yaml) honors
+  # CF-Connecting-IP for per-IP rate limiting.
   client_auth:
     ca_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
+    required: false
   certificates:
     - hostname: "staging-api.exoper.com"
       cert_path: "/etc/edge-ingress/certs/staging-api.exoper.com.crt"
