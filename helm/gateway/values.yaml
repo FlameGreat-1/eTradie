@@ -45,6 +45,16 @@ podAnnotations:
   # the wait-for-deps init container dials meshed postgres/redis/engine.
   linkerd.io/inject: enabled
   config.linkerd.io/proxy-enable-native-sidecar: "true"
+  # CALLER-SIDE opaque-ports. REQUIRED for the meshed postgres (5432)
+  # and redis (6379) hops. Linkerd 2.14 opaque-ports is a two-sided
+  # contract: postgres/redis pods declare these ports opaque on their
+  # INBOUND side, and the caller MUST declare them opaque here so its
+  # OUTBOUND proxy opens an opaque raw-TCP mTLS tunnel instead of
+  # running L7 protocol detection over the pg SSLRequest / RESP
+  # preamble. Without this the outbound proxy resets the connection
+  # mid-handshake -> `tls error: read: connection reset by peer` on the
+  # startup db ping. (phase10.6 RCA 2026-06-17.) mTLS preserved.
+  config.linkerd.io/opaque-ports: "5432,6379"
   # OTLP traces egress to the un-meshed OTel Collector
   # (etradie-observability, no linkerd inject) on 4317. Skip the proxy
   # on that port so the gRPC export bypasses protocol-detection and is

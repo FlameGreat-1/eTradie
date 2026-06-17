@@ -47,12 +47,22 @@ podAnnotations:
   prometheus.io/path: "/metrics"
   # Join the Linkerd mesh so billing's HTTP calls to postgres/redis and
   # its inbound from envoy (webhooks) + gateway (/internal/*) are mTLS'd.
-  # billing speaks HTTP/RESP/postgres on well-known ports; the proxy
-  # handles HTTP natively and auto-marks the server-first datastore
-  # ports. Run the proxy as a native sidecar so it is Ready before the
-  # wait-for-deps init container dials meshed postgres/redis.
+  # billing speaks HTTP to peers and the postgres/RESP wire protocols to
+  # the datastores. Run the proxy as a native sidecar so it is Ready
+  # before the wait-for-deps init container dials meshed postgres/redis.
   linkerd.io/inject: enabled
   config.linkerd.io/proxy-enable-native-sidecar: "true"
+  # CALLER-SIDE opaque-ports. REQUIRED for the meshed postgres (5432)
+  # and redis (6379) hops. Linkerd 2.14 opaque-ports is a two-sided
+  # contract: the caller's OUTBOUND proxy does NOT auto-mark the
+  # destination's server-first ports as opaque (the previous comment
+  # here was wrong). Declaring them opaque makes the outbound proxy open
+  # an opaque raw-TCP mTLS tunnel instead of running L7 protocol
+  # detection over the pg SSLRequest / RESP preamble, which otherwise
+  # resets the connection mid-handshake -> `tls error: read: connection
+  # reset by peer` on the startup db ping. (phase10.6 RCA 2026-06-17.)
+  # mTLS preserved.
+  config.linkerd.io/opaque-ports: "5432,6379"
 
 podSecurityContext:
   runAsNonRoot: true
