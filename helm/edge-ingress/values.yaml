@@ -327,10 +327,23 @@ geoip:
 # pointer to the Vault path that needs populating.
 aopCaPreflight:
   enabled: true
-  # Tiny alpine image with the openssl CLI. Pinned by tag (no
-  # :latest). Air-gapped clusters can mirror this and override the
+  # Official OpenSSL Software Foundation image on Docker Hub. Same
+  # image the data-layer chart's tls-cert-init initContainer uses
+  # (helm/data-layer/templates/postgres-statefulset.yaml), pinned by
+  # the SAME SHA-256 digest for byte-identical reproducibility across
+  # both charts and across re-pulls (cache eviction, new node, ArgoCD
+  # sync after node drain). Current digest corresponds to OpenSSL
+  # 3.5.7 (verified with `docker run alpine/openssl version` in
+  # commit 520b29ce when this pinning decision was originally made
+  # for the data-layer chart). Bumping the digest is a deliberate
+  # operator action visible in a commit diff; matches the
+  # data-layer chart's pinning rationale verbatim. The previous tag
+  # `alpine/openssl:3.3` did not exist on Docker Hub (the alpine/openssl
+  # repository uses numeric tags like 3.4.0 / 3.5.0 / 3.5.7, not
+  # minor-version aliases) and caused ImagePullBackOff at first sync.
+  # Air-gapped clusters can mirror this image and override the
   # repository here.
-  image: "alpine/openssl:3.3"
+  image: "alpine/openssl@sha256:923270611179f81b420bfb5bb5c18bf07fd59d84ed4163ac04cb371faa6d150f"
   pullPolicy: IfNotPresent
   resources:
     requests:
