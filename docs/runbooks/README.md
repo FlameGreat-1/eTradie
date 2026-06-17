@@ -3088,6 +3088,257 @@ Vault path, AND the PVC — StatefulSet GC does not cascade to the PVC).
 
 ---
 
+## Environment & Identity Reference (READ FIRST when picking up an in-flight deploy)
+
+> The eTradie platform is split across three providers (Cloudflare DNS/Tunnel, Contabo VPS for K3s, Vercel for the SPA), one third-party identity provider (Google OAuth), and two git remotes (GitHub canonical + GitLab MCP mirror). This section is the operator's single index of every URL, hostname, account, and credential file the deploy depends on — organised by category. Every entry cites the chart value, Vault path, or commit where the configuration lives so a new operator can verify state from the repo rather than from memory.
+
+### Registrable domain + zone
+
+| Item | Value | Source of truth |
+|---|---|---|
+| Registrable domain | `exoper.com` | DNS registrar |
+| Domain registrar | Porkbun | (account: operator personal) |
+| Authoritative DNS | Cloudflare | (zone added to operator's Cloudflare account; nameservers delegated from Porkbun to Cloudflare's `ns1.cloudflare.com` / `ns2.cloudflare.com`) |
+| Cloudflare account ID | recorded in `PROGRESS.md` Phase 6 per-deploy values | dashboard URL |
+| Cloudflare zone ID for `exoper.com` | recorded in `PROGRESS.md` Phase 6 | `GET /zones?name=exoper.com` |
+
+### Cloudflare DNS records (read top-to-bottom; proxy state matters)
+
+The `exoper.com` zone holds the following records. **Proxy state** is the critical operational attribute — do NOT flip it without understanding the impact.
+
+| Record name | Type | Target | Proxy | Purpose |
+|---|---|---|---|---|
+| `exoper.com` (apex) | A | `76.76.21.21` | DNS only | Vercel SPA apex; serves the production SPA build |
+| `app.exoper.com` | CNAME | `cname.vercel-dns.com` | DNS only | Vercel SPA production user-facing host |
+| `www.exoper.com` | CNAME | `cname.vercel-dns.com` | DNS only | Vercel SPA www alias |
+| `staging.exoper.com` | CNAME | `<vercel-project-id>.vercel-dns-NNN.com` | DNS only | Vercel SPA staging hostname — currently configured as a 307 alias that redirects to `app.exoper.com` (preserves path+query). See "Vercel project model" below. |
+| `api.exoper.com` | (not yet) | — | — | Production backend tunnel — **not deployed yet** (no production K3s cluster exists). Will be added when production deploy starts. |
+| `staging-api.exoper.com` | CNAME | `<tunnel-uuid>.cfargotunnel.com` | **Proxied** | Staging backend Cloudflare Argo Tunnel — auto-created by `PUT /accounts/<id>/cfd_tunnel/<id>/configurations` during Phase 6.2.3. Routes through Cloudflare edge → cloudflared connector in the K3s cluster → edge-ingress on `edge-ingress.edge-ingress-system.svc.cluster.local:443`. **MUST stay Proxied** — the entire tunnel transport depends on Cloudflare's anycast network terminating the public TLS. |
+| `_acme-challenge.exoper.com` | TXT | (two entries) | DNS only | Let's Encrypt ACME validation tokens; used by Vercel for TLS cert provisioning. Do not delete. |
+| `_vercel.exoper.com` | TXT | `vc-domain-verify=staging.exoper.com,<id>,dc` | DNS only | Vercel domain-ownership verification record — required for `staging.exoper.com` custom domain to validate in Vercel. |
+| `exoper.com` | TXT | `v=spf1 include:_spf.porkbun.com ~all` | DNS only | SPF record — authorises Porkbun's mail-forward servers to send email From: `@exoper.com`. |
+| `exoper.com` | MX (prio 10) | `fwd1.porkbun.com` | DNS only | Porkbun email forwarding |
+| `exoper.com` | MX (prio 20) | `fwd2.porkbun.com` | DNS only | Porkbun email forwarding backup |
+
+**Mixing proxy modes within one zone is intentional and correct**:
+- `staging-api.exoper.com` is Proxied (the tunnel itself depends on Cloudflare terminating TLS)
+- All Vercel-fronted records are DNS-only (Vercel terminates its own TLS via Let's Encrypt; double-proxying would break cert chains)
+- `_acme-challenge` / `_vercel` / `MX` / SPF records are DNS-only (validation + email; proxy is meaningless for non-HTTP records)
+
+### Cloudflare Tunnel (`etradie-staging`)
+
+| Item | Value | Source |
+|---|---|---|
+| Tunnel name | `etradie-staging` | Created in Phase 6.1 via Cloudflare Zero Trust UI |
+| Tunnel UUID | recorded in `PROGRESS.md` Phase 6 "Deploy-specific values captured" | dashboard URL `/cfd_tunnel/<UUID>` |
+| Ingress public hostname | `staging-api.exoper.com` | `PUT /accounts/<id>/cfd_tunnel/<id>/configurations` (Phase 6.2.3) |
+| Origin service URL | `https://edge-ingress.edge-ingress-system.svc.cluster.local:443` | same |
+| Connector | `cloudflared` Deployment in `edge-ingress-system` namespace | `helm/edge-ingress/templates/cloudflared-deployment.yaml` |
+| Tunnel JWT token | Vault path `etradie/services/edge-ingress/staging/cloudflare/tunnel`, key `tunnel_token` | `kubectl -n vault exec ... vault kv get` |
+| Workstation backup of token | `~/cloudflare-staging-tunnel-token.txt` (mode 0600) | Phase 6.1 capture |
+| Production tunnel | not yet created | will be `etradie-production` when production deploy starts |
+
+### Contabo VPS (the K3s host)
+
+| Item | Value | Source |
+|---|---|---|
+| Provider | Contabo (account: operator personal) | https://my.contabo.com |
+| VPS profile | VPS 30 NVMe (8 vCPU / 24 GB / 200 GB NVMe) | `BUDGET.md` Table 2B |
+| Public IP | recorded in `PROGRESS.md` Phase 1 | Contabo dashboard |
+| Hostname | `vmi3362776` | `hostname` on the box |
+| OS | Ubuntu 24.04.4 LTS | recorded in Phase 2 status |
+| Kernel | `6.8.0-124-generic` (post Phase 1.3 apt upgrade + reboot) | `uname -r` |
+| Operator SSH user | `etradie` (passwordless sudo) | Phase 1.1 |
+| Root SSH | **disabled** (`PermitRootLogin no` in sshd hardening drop-in) | `/etc/ssh/sshd_config.d/10-etradie-hardening.conf` |
+| Emergency recovery | Contabo VNC console (browser-based, password from welcome email) | Phase 1 "Emergency SSH recovery" |
+| Workstation SSH key | `~/.ssh/id_ed25519` (passphrase-protected; ssh-agent loaded per WSL boot) | Phase 1 measure 2 |
+| VPS firewall | ufw default-deny inbound + `22/tcp LIMIT IN` only | Phase 1.6 |
+| K3s API access | SSH local-forward `ssh -N -L 6443:127.0.0.1:6443 etradie@<vps-ip>` (dedicated terminal) | Phase 2.3 |
+| Workstation kubeconfig | `~/.kube/etradie-contabo.yaml` (mode 0600; `server: https://127.0.0.1:6443`) | Phase 2.3 |
+
+### Backend hostnames (HTTP/HTTPS endpoints)
+
+| Hostname | Environment | State | Where the chart points |
+|---|---|---|---|
+| `staging-api.exoper.com` | staging | **LIVE** | `helm/edge-ingress/values-staging.yaml`; gateway CORS `allowedOrigins` in `helm/gateway/values-staging.yaml` matches the SPA hosts that reach it |
+| `api.exoper.com` | production | **NOT YET DEPLOYED** | `helm/edge-ingress/values-production.yaml` references this hostname; tunnel + DNS will be added when production cluster is provisioned |
+
+Both hosts answer the same surfaces when live:
+- `/healthz` → envoy direct_response 200 (synthetic edge probe)
+- `/health` → gateway `handleHealth` (always 200, no deps)
+- `/readiness` → gateway `handleReadiness` (200 only when redis + engine HTTP + own gRPC are all reachable)
+- `/auth/*` → gateway public auth routes (login, register, refresh, logout, password reset, OAuth start/callback)
+- `/api/v1/*` → gateway protected dashboard routes (require JWT cookie + CSRF header)
+- `/webhooks/paddle` → envoy direct route to billing service
+- `/webhooks/lemonsqueezy` → envoy direct route to billing service
+
+### Frontend hostnames (Vercel SPA)
+
+| Hostname | Vercel domain config | What loads in the browser |
+|---|---|---|
+| `app.exoper.com` | Custom domain on the (only) Vercel project | The SPA build (Vite-bundled React) |
+| `staging.exoper.com` | Custom domain on the same Vercel project, configured as **307 redirect to `app.exoper.com`** preserving path + query | Browser redirected immediately to `app.exoper.com`; SPA loads from app.exoper.com |
+| `www.exoper.com` | Custom domain on the same project, 307 redirect to `app.exoper.com` | Same redirect behaviour |
+| `exoper.com` (apex) | Custom domain on the same project, 307 redirect to `app.exoper.com` | Same |
+| `<project>.vercel.app` | Default Vercel hostname for the project | The SPA build (used for previews / fallback) |
+
+This is a deliberate "one Vercel project, multiple domain aliases" model. The SPA is built **once** with the env vars set in the Vercel project's Production environment, and the resulting bundle is served at every aliased host. The 307 redirects collapse all user-facing entry points to the canonical `app.exoper.com`.
+
+**Implication**: the bundle's `VITE_API_URL` is one value. While staging is the current live environment, that value is set to `https://staging-api.exoper.com`. When production is later deployed, the same project's env var flips to `https://api.exoper.com` and the next Vercel build picks up the change.
+
+### Vercel project
+
+| Item | Value | Source |
+|---|---|---|
+| Provider | Vercel (account: operator personal) | https://vercel.com/dashboard |
+| Repository connected | `FlameGreat-1/eTradie` (GitHub) | Vercel project settings → Git |
+| Project root directory | `cotradee/` (the SPA lives in a subdirectory of the monorepo) | Vercel project settings → General |
+| Framework preset | Vite | auto-detected |
+| Build command | `npm run build` (Vite default) | `cotradee/package.json` |
+| Output directory | `dist` (Vite default) | same |
+| Environment variables | see below — set per Vercel "Production" environment scope | Vercel project settings → Environment Variables |
+
+**Vercel environment variables (Production scope) — staging-aligned (current live state):**
+
+| Variable | Current value | Audit ref |
+|---|---|---|
+| `VITE_API_URL` | `https://staging-api.exoper.com` | `cotradee/src/config/env.ts` reads it via `import.meta.env.VITE_API_URL` |
+| `VITE_API_WS_URL` | `wss://staging-api.exoper.com` | same |
+| `VITE_GOOGLE_OAUTH_ENABLED` | `true` | `cotradee/src/config/env.ts::googleOAuthEnabled` |
+| `VITE_OAUTH_CALLBACK_PATH` | `/auth/callback/google` | `cotradee/src/config/env.ts::oauthCallbackPath` |
+
+**When production deploy runs**, these flip to `https://api.exoper.com` / `wss://api.exoper.com`. The OAuth flag + callback path stay the same.
+
+### CSP (Content Security Policy) header
+
+The SPA's `vercel.json` defines a CSP header for every response Vercel serves. Current `connect-src` directive (per commit `71ddecf1`):
+
+```
+connect-src 'self' https://api.exoper.com wss://api.exoper.com https://staging-api.exoper.com wss://staging-api.exoper.com
+```
+
+The single CSP covers BOTH production and staging backend origins so the same bundle can be served at the same Vercel project regardless of which environment's `VITE_API_URL` it was built with. Other CSP directives (`script-src 'self'`, `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`, `frame-ancestors 'none'`, etc.) are environment-independent.
+
+### Email + identity
+
+| Item | Value | Source |
+|---|---|---|
+| Email forwarding | Porkbun (registrar service) | MX records in zone |
+| Admin email | `admin@exoper.com` | gateway `handleRegister` seeded value |
+| Admin username | `admin` | `auth_users.username` row |
+| Admin password | rotated to a 4-of-4-char-class value during Phase 14.5 admin-seed step; stored in Vault `etradie/services/gateway/staging` key `auth_admin_password` and on workstation at `~/etradie-staging-creds.txt` (mode 0600) | Phase 14.5; PROGRESS gotcha #44 |
+| SPF | `v=spf1 include:_spf.porkbun.com ~all` (covers Porkbun forwarding) | DNS TXT record on zone apex |
+
+### Google OAuth 2.0 client
+
+| Item | Value | Source |
+|---|---|---|
+| Provider | Google Cloud Console | https://console.cloud.google.com/apis/credentials |
+| Client name | `Exoper` | GCP Console |
+| Client type | OAuth 2.0 Client ID (Web application) | GCP Console |
+| Client ID | stored in Vault at `etradie/services/gateway/staging` key `google_client_id`; format: `<numeric>-<random>.apps.googleusercontent.com` (~72 chars) | Phase 14 frontend connection step 3 |
+| Client Secret | stored in Vault at `etradie/services/gateway/staging` key `google_client_secret`; format: `GOCSPX-<28 chars>` | same |
+| Authorised JavaScript origins (in GCP Console) | `http://localhost:5173` (dev), `https://exoper.com`, `https://www.exoper.com`, `https://app.exoper.com`, `https://staging.exoper.com` | GCP Console |
+| Authorised redirect URIs (in GCP Console) | `http://localhost:5173/auth/callback/google` and `/settings/oauth/callback/google` (dev); `https://exoper.com/auth/callback/google` and `/settings/...`; same pattern for `www.exoper.com`, `app.exoper.com`, `staging.exoper.com` | GCP Console |
+| Sign-in redirect URI sent to Google (staging deploy) | `https://app.exoper.com/auth/callback/google` | Vault key `google_redirect_uri`; rendered into K8s Secret as `AUTH_GOOGLE_REDIRECT_URI`. The browser ends up at app.exoper.com (not staging.exoper.com) because the staging.exoper.com 307 collapses to app.exoper.com. |
+| Link-account redirect URI (staging) | `https://app.exoper.com/settings/oauth/callback/google` | Vault key `google_link_redirect_uri`; rendered as `AUTH_GOOGLE_LINK_REDIRECT_URI`. Must differ from the sign-in URI per `src/auth/config.go::validate()`. |
+| Gateway OAuth toggle | `helm/gateway/values-staging.yaml::config.auth.googleOAuthEnabled: "true"` | rendered into ConfigMap as `AUTH_GOOGLE_OAUTH_ENABLED` |
+
+### Git remotes
+
+| Remote | URL | Purpose |
+|---|---|---|
+| `origin` (canonical) | `https://github.com/FlameGreat-1/eTradie.git` | ArgoCD reads chart manifests from THIS remote; Vercel watches THIS remote for SPA rebuilds |
+| `gitlab` (MCP mirror) | `https://gitlab.com/exoper2/exoper.git` | The MCP integration's authoring target for docs commits (PROGRESS.md, README.md). Operator manually `git pull --rebase gitlab main` to fold MCP commits back, then `git push origin main` to land them where ArgoCD + Vercel will see them. |
+
+**Load-bearing rule**: every chart change OR SPA change MUST end up on GitHub `origin` to take effect. PROGRESS gotcha #15 records this.
+
+### Container registry (GHCR — GitHub Container Registry)
+
+| Item | Value | Source |
+|---|---|---|
+| Registry | `ghcr.io/flamegreat-1` | GitHub account that owns the packages |
+| Image base | `ghcr.io/flamegreat-1/etradie` (5 service images) + `ghcr.io/flamegreat-1/etradie-mt-node` (hosted-MT Wine image) | `ci.yml` `IMAGE_BASE`; `helm/mt-node/values-image.yaml::image.repository` |
+| Package visibility | **Private** | per Phase 10.0 pre-flight decision |
+| Push PAT | `~/.ghcr_pat` (workstation, mode 0600) — GitHub classic PAT with `repo + write:packages` scope | Phase 0.2; consumed by Phase 2.5 `docker push` and by the GitHub Actions CI build |
+| Pull PAT | `~/.ghcr_pull_pat` (workstation, mode 0600) — GitHub classic PAT with `read:packages` ONLY (separation of duties) | Phase 10.0.3 |
+| In-cluster pull Secret | `ghcr-pull` in `etradie-system` AND `edge-ingress-system` namespaces (`type: kubernetes.io/dockerconfigjson`) | Phase 10.0.4; referenced by each chart's `imagePullSecrets: [{name: ghcr-pull}]` |
+
+### Vault (the canonical secret store)
+
+| Item | Value | Source |
+|---|---|---|
+| Vault location | In-cluster: `vault-0` StatefulSet pod in `vault` namespace | Phase 3 |
+| Unseal model | Shamir 5-of-3 (`-key-shares=5 -key-threshold=3`) | Phase 3.2 |
+| Unseal keys file | `~/vault-init.txt` (workstation, mode 0600) | Phase 3.2 |
+| Root token | extract via `awk '/Initial Root Token:/ {print $NF}' ~/vault-init.txt`; format: `hvs.<24 chars>` = 28 chars total | Phase 3.2 |
+| KV-v2 mount | `etradie` (canonical) and `secret` (dev/test — not used by charts) | Phase 3.4.1b |
+| Path schema | every path lives directly under the mount (single-prefix). PROGRESS gotcha #23 (corrected by gotcha #9 inline note) records the ESO `buildPath` behaviour that drives this layout. | `infrastructure/cluster/vault-paths/main.tf` |
+| Audit log | **disabled** (was enabled mid-Phase-10 debug; disabled post-cleanup; gotcha #29) | `vault audit list` returns "No audit devices are enabled." |
+
+**Vault paths the operator interacts with most often** (all under the `etradie` mount):
+
+| Path | What it holds |
+|---|---|
+| `data-layer/postgres/staging` | `postgres_user`, `postgres_db`, `postgres_password` |
+| `data-layer/redis/staging` | `redis_password` |
+| `data-layer/chromadb/staging` | `auth_token` (read by both chromadb server AND engine — single source of truth) |
+| `platform/linkerd/production` | `trust_anchor_pem`, `issuer_tls_crt`, `issuer_tls_key` (mesh CA — PROGRESS gotcha #10 explains why `/production` is canonical even on a staging box) |
+| `services/gateway/staging` | 16 keys: 6 postgres + 6 auth (`auth_database_url`, `auth_jwt_secret`, `auth_admin_password`, `engine_internal_shared_secret`, `billing_internal_shared_secret`, `gateway_redis_url`) + 4 Google OAuth (`google_client_id`, `google_client_secret`, `google_redirect_uri`, `google_link_redirect_uri`) |
+| `services/engine/staging` | 15 keys: postgres + redis + KEK + JWT + LLM API keys (twelvedata, fred, anthropic, openai, gemini, metaapi, cftc) |
+| `services/execution/staging` | 6 keys |
+| `services/management/staging` | 6 keys |
+| `services/billing/staging` | 18 keys (postgres + Paddle + LemonSqueezy; staging holds placeholder Paddle/LS creds per Phase 0 decision) |
+| `services/edge-ingress/staging/tls` | 7 TLS PEMs (`staging_api_cert/key`, `staging_wildcard_cert/key`, plus 3 internal certs) |
+| `services/edge-ingress/staging/cloudflare/tunnel` | `tunnel_token` |
+| `services/edge-ingress/staging/cloudflare/aop_ca` | `aop_ca` (Cloudflare AOP CA bundle) |
+| `services/edge-ingress/staging/maxmind` | `license_key`, `account_id` |
+| `services/mt-node/staging` | `default_zmq_auth_token` (platform fallback for the hosted-MT ZMQ EA) |
+| `tenants/mt-node/<sa>` | Per-tenant hosted-MT credentials — written by engine `HostedProvisioner` at user-broker-connect time; one path per tenant ServiceAccount. No paths exist until a user provisions a hosted MT account. |
+
+**Workstation operator credential safety net**: `~/etradie-staging-creds.txt` (mode 0600) holds plaintext copies of the §8.2-generated secrets (DB_PASS, REDIS_PASS, JWT_SECRET, BROKER_KEY, CHROMA_TOKEN, ADMIN_PASS, ENGINE_SHARED, BILLING_SHARED, MT_DEFAULT_ZMQ) AND the Google OAuth client id + secret. This is the operator-side fallback in case Vault becomes unreachable. Vault is the runtime source of truth; this file is the bootstrap reference.
+
+### Cookie + CORS topology (cross-subdomain auth)
+
+The SPA at `app.exoper.com` (or any other host that 307s to it) calls the backend at `staging-api.exoper.com`. For cookies to flow across the subdomain boundary the gateway is configured with:
+
+| Setting | Value | Source |
+|---|---|---|
+| `AUTH_COOKIE_DOMAIN` | `.exoper.com` (leading dot = registrable-domain scope) | `helm/gateway/values-staging.yaml::config.auth.cookieDomain` |
+| `AUTH_COOKIE_SAMESITE` | `None` (required for cross-site cookie attachment) | same |
+| `AUTH_COOKIE_SECURE` | `true` (browsers reject SameSite=None without Secure) | same |
+| `AUTH_RETURN_TOKENS_IN_BODY` | `false` (cookie-only auth; JWTs are NOT echoed in the JSON response body — PROGRESS gotcha #46) | same |
+| `GATEWAY_ALLOWED_ORIGINS` | `https://staging.exoper.com,https://app.exoper.com` (both SPA hosts that may reach the backend; pre-redirect + post-redirect origins) | same (commit `07457e51`) |
+| CSRF header name | `X-CSRF-Token` | same; SPA sends the cookie's value back in this header on every mutating method |
+
+Result: when the SPA at `app.exoper.com` POSTs `/auth/login` to `staging-api.exoper.com`, the gateway responds with 3 cookies (`access_token`, `refresh_token`, `__Secure-csrf_token`), all scoped to `Domain=.exoper.com; SameSite=None; Secure; HttpOnly` (the CSRF one is JS-readable to enable the double-submit pattern). Browsers attach them automatically to every subsequent request to `staging-api.exoper.com` AND `staging.exoper.com` AND `app.exoper.com` (anything under the registrable domain).
+
+### Per-deploy parameters (current live state)
+
+Mirrors `PROGRESS.md` per-deploy parameters table for quick lookup:
+
+| Parameter | Value |
+|---|---|
+| Target environment | `staging` |
+| VPS host | Contabo VPS 30 NVMe (Ubuntu 24.04) |
+| K3s version | `v1.30.4+k3s1` |
+| Backend public hostname | `staging-api.exoper.com` |
+| Frontend public hostname (user-facing) | `staging.exoper.com` (307 alias) → `app.exoper.com` (where the SPA actually loads) |
+| Vercel staging-vs-production model | Single Vercel project; multiple custom domains; one build with `VITE_API_URL=https://staging-api.exoper.com` while staging is the live posture |
+| Admin user (logged-in surface) | `admin` / `admin@exoper.com` / role=`admin` |
+| GHCR owner / image base | `FlameGreat-1` / `ghcr.io/flamegreat-1/etradie` |
+| Linkerd mesh | ON for: postgres, redis, chromadb, edge-ingress, envoy. OFF (temporary, staging-only) for: engine, gateway, execution, management, billing per [`PHASE10.6-MESH-DISABLED-CHECKPOINT.md`](PHASE10.6-MESH-DISABLED-CHECKPOINT.md) |
+| Linkerd mesh on cloudflared | NEVER (cloudflared dials Cloudflare edge over QUIC; mesh injection would break the QUIC handshake) |
+
+### When a future operator picks this up
+
+1. **Read `PROGRESS.md` from the bottom first** — the most recent operator entries are at the tail and reflect the current live state.
+2. **Then this section** — gives you the URLs, accounts, and credential locations you need to verify state.
+3. **Then [`PHASE10.6-MESH-DISABLED-CHECKPOINT.md`](PHASE10.6-MESH-DISABLED-CHECKPOINT.md)** — the one outstanding production-blocking debt before this staging deploy is fully promotable.
+4. **For the workstation operator routine** (tunnel + KUBECONFIG + ArgoCD CLI login) re-read the `Daily operator routine` section near the top of this README.
+
+---
+
 ## Reference
 
 - Resource profile + capacity: `BUDGET.md` (Table 2B)
