@@ -42,17 +42,41 @@ impl Default for TlsConfig {
             cert_reload_interval: Duration::from_secs(CERT_RELOAD_INTERVAL_SECS),
             // Default has an empty ca_path on purpose: any production-bound
             // config that forgets to set it fails validate() with a clear
-            // error rather than silently disabling mTLS.
+            // error rather than silently disabling mTLS. `required: true`
+            // matches the chart base default and the direct-origin AOP
+            // design; tunnel deployments override both in their overlay.
             client_auth: ClientAuthConfig {
                 ca_path: PathBuf::new(),
+                required: true,
             },
         }
     }
 }
 
-/// TLS client certificate authentication. The presence of this struct
-/// in TlsConfig is mandatory; the only knob is which CA bundle signs
-/// valid client certs.
+/// TLS client certificate authentication.
+///
+/// Two modes, selected by `required`:
+///
+/// * `required: true`  (chart base default): every TLS handshake MUST
+///   present a client cert signed by the CA bundle at `ca_path`. Fits
+///   direct-internet deployments where Cloudflare's edge dials the
+///   origin and presents its AOP client cert (the canonical Authenticated
+///   Origin Pulls posture).
+///
+/// * `required: false`: the CA bundle is loaded and any presented client
+///   cert is verified against it, but handshakes that do NOT present a
+///   client cert are also accepted. Fits Cloudflare Tunnel deployments
+///   where cloudflared cannot present an AOP client cert (no such field
+///   exists in its originRequest schema). The trust boundary in tunnel
+///   mode is the tunnel JWT + ufw + downstream Linkerd mesh.
+///
+/// In both modes the bundle at `ca_path` must be a parseable PEM with
+/// at least one cert; an empty / missing / malformed `ca_path` is a
+/// startup failure when `required` is true, and is permitted (with the
+/// verifier configured for allow-unauthenticated) when `required` is
+/// false but a non-empty path is configured. When `required` is false
+/// AND `ca_path` is empty, no client-cert verifier is wired at all and
+/// every handshake is accepted at the rustls layer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientAuthConfig {
     /// Path to a PEM-encoded CA bundle that signs valid client certs.
@@ -60,6 +84,20 @@ pub struct ClientAuthConfig {
     /// /etc/edge-ingress/cloudflare/origin-pull-ca.pem mounted from the
     /// `cloudflare-aop-ca` Secret.
     pub ca_path: PathBuf,
+
+    /// When true, every TLS handshake must present a valid client cert
+    /// or it fails at ServerHello. When false, client certs are
+    /// optional. Default is `true`: any config that omits the field
+    /// (legacy configs, missing chart values) gets the strict posture.
+    #[serde(default = "default_client_auth_required")]
+    pub required: bool,
+}
+
+/// Serde default for `ClientAuthConfig::required`. Strict-by-default so
+/// a config that omits the field (older configs, mistakenly-deleted
+/// chart value) does not silently disable mTLS.
+fn default_client_auth_required() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,9 +160,13 @@ impl TlsConfig {
             ));
         }
 
-        if self.client_auth.ca_path.as_os_str().is_empty() {
+        // ca_path is required only when the deployment enforces mTLS.
+        // For tunnel deployments (client_auth.required = false), an
+        // empty ca_path is permitted: no client-cert verifier is wired
+        // at the rustls layer (see build_server_config below).
+        if self.client_auth.required && self.client_auth.ca_path.as_os_str().is_empty() {
             return Err(EdgeError::Configuration(
-                "tls.client_auth.ca_path must be set; mTLS is mandatory"
+                "tls.client_auth.ca_path must be set when tls.client_auth.required = true"
                     .to_string(),
             ));
         }
@@ -178,25 +220,72 @@ pub fn build_server_config(
     min_tls_version: &str,
     client_auth: &ClientAuthConfig,
 ) -> Result<Arc<ServerConfig>> {
-    let roots = load_client_auth_roots(&client_auth.ca_path)?;
-    let verifier = rustls::server::WebPkiClientVerifier::builder(Arc::new(roots))
-        .build()
-        .map_err(|e| {
-            EdgeError::Configuration(format!(
-                "Failed to build WebPkiClientVerifier from {}: {}",
-                client_auth.ca_path.display(),
-                e
-            ))
-        })?;
+    // Three rustls server configurations are possible:
+    //
+    //   required=true, ca_path set:    .with_client_cert_verifier(builder.build())
+    //                                  -> handshake fails without a valid client cert.
+    //   required=false, ca_path set:   .with_client_cert_verifier(builder.allow_unauthenticated().build())
+    //                                  -> handshake accepts no cert OR a cert that
+    //                                     verifies against ca_path. Invalid cert still fails.
+    //   required=false, ca_path empty: .with_no_client_auth()
+    //                                  -> handshake accepts every client; no
+    //                                     verifier is wired at all.
+    //
+    // The required=true + ca_path empty case is rejected by validate()
+    // before this function is reached.
 
-    tracing::info!(
-        ca_path = %client_auth.ca_path.display(),
-        "client cert authentication (mTLS) enforced"
-    );
+    let mut config_builder = ServerConfig::builder();
 
-    let mut config = ServerConfig::builder()
-        .with_client_cert_verifier(verifier)
-        .with_cert_resolver(cert_resolver);
+    let mut config = if client_auth.ca_path.as_os_str().is_empty() {
+        // required=false implied (required=true would have failed
+        // validate). No verifier; every client accepted.
+        tracing::warn!(
+            "client cert authentication DISABLED (tls.client_auth.ca_path empty); \
+             every TLS handshake will be accepted. Use only for tunnel topologies \
+             where the trust boundary is upstream (e.g. Cloudflare Tunnel JWT)."
+        );
+        config_builder
+            .with_no_client_auth()
+            .with_cert_resolver(cert_resolver)
+    } else {
+        let roots = load_client_auth_roots(&client_auth.ca_path)?;
+        let verifier_builder = rustls::server::WebPkiClientVerifier::builder(Arc::new(roots));
+
+        let verifier = if client_auth.required {
+            verifier_builder.build().map_err(|e| {
+                EdgeError::Configuration(format!(
+                    "Failed to build WebPkiClientVerifier from {}: {}",
+                    client_auth.ca_path.display(),
+                    e
+                ))
+            })?
+        } else {
+            verifier_builder.allow_unauthenticated().build().map_err(|e| {
+                EdgeError::Configuration(format!(
+                    "Failed to build WebPkiClientVerifier (allow_unauthenticated) from {}: {}",
+                    client_auth.ca_path.display(),
+                    e
+                ))
+            })?
+        };
+
+        if client_auth.required {
+            tracing::info!(
+                ca_path = %client_auth.ca_path.display(),
+                "client cert authentication (mTLS) ENFORCED"
+            );
+        } else {
+            tracing::info!(
+                ca_path = %client_auth.ca_path.display(),
+                "client cert authentication (mTLS) OPTIONAL; accepts handshakes \
+                 without a client cert. Used in Cloudflare Tunnel topology."
+            );
+        }
+
+        config_builder
+            .with_client_cert_verifier(verifier)
+            .with_cert_resolver(cert_resolver)
+    };
 
     match min_tls_version {
         "1.2" => {
@@ -261,7 +350,7 @@ mod tests {
 
     /// Build a TlsConfig that satisfies validate(): one default cert and
     /// a non-empty ca_path. Used by every test that expects validate() to
-    /// succeed.
+    /// succeed. Default `required` stays true (strict mTLS).
     fn tls_config_with_aop() -> TlsConfig {
         let mut cfg = TlsConfig::default();
         cfg.certificates.push(CertificateConfig {
@@ -274,15 +363,105 @@ mod tests {
         cfg
     }
 
+    /// Build a TlsConfig for the tunnel-mode case: required=false. Both
+    /// the empty-ca_path variant and the non-empty-ca_path variant must
+    /// validate cleanly.
+    fn tls_config_tunnel_mode(with_ca_path: bool) -> TlsConfig {
+        let mut cfg = TlsConfig::default();
+        cfg.certificates.push(CertificateConfig {
+            hostname: "example.com".to_string(),
+            cert_path: PathBuf::from("/path/to/cert.pem"),
+            key_path: PathBuf::from("/path/to/key.pem"),
+            is_default: true,
+        });
+        cfg.client_auth.required = false;
+        if with_ca_path {
+            cfg.client_auth.ca_path =
+                PathBuf::from("/etc/edge-ingress/cloudflare/origin-pull-ca.pem");
+        }
+        cfg
+    }
+
     #[test]
     fn test_default_tls_config_is_invalid() {
-        // Default must be invalid: no certs and no ca_path.
+        // Default must be invalid: no certs and no ca_path. Default
+        // `required` is true (strict-by-default), so the empty ca_path
+        // is a startup failure.
         let config = TlsConfig::default();
         assert_eq!(config.min_tls_version, "1.2");
         assert_eq!(config.preferred_tls_version, "1.3");
         assert!(config.enable_sni);
         assert!(config.client_auth.ca_path.as_os_str().is_empty());
+        assert!(config.client_auth.required, "required must default to true");
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_tunnel_mode_with_ca_path_ok() {
+        // required=false + non-empty ca_path: optional mTLS. Should pass
+        // validate().
+        let cfg = tls_config_tunnel_mode(true);
+        assert!(cfg.validate().is_ok(),
+            "tunnel-mode config with ca_path should validate");
+    }
+
+    #[test]
+    fn test_validate_tunnel_mode_without_ca_path_ok() {
+        // required=false + empty ca_path: no client-cert verifier at all.
+        // Should pass validate() because the rustls path uses
+        // .with_no_client_auth() for this case.
+        let cfg = tls_config_tunnel_mode(false);
+        assert!(cfg.validate().is_ok(),
+            "tunnel-mode config without ca_path should validate");
+    }
+
+    #[test]
+    fn test_validate_required_true_empty_ca_path_rejects() {
+        // required=true + empty ca_path: explicit operator error.
+        let mut cfg = TlsConfig::default();
+        cfg.certificates.push(CertificateConfig {
+            hostname: "example.com".to_string(),
+            cert_path: PathBuf::from("/path/to/cert.pem"),
+            key_path: PathBuf::from("/path/to/key.pem"),
+            is_default: true,
+        });
+        // ca_path stays empty; required stays true (default).
+        let err = cfg.validate().unwrap_err();
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("ca_path") && msg.contains("required = true"),
+            "expected ca_path-with-required-true error, got: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_client_auth_required_default_is_true_when_field_missing() {
+        // Deserialise a TlsConfig YAML that OMITS the required field.
+        // Serde must apply default_client_auth_required() = true.
+        let yaml = r#"
+min_tls_version: "1.2"
+preferred_tls_version: "1.3"
+handshake_timeout:
+  secs: 10
+  nanos: 0
+enable_sni: true
+cert_reload_interval:
+  secs: 3600
+  nanos: 0
+certificates:
+  - hostname: example.com
+    cert_path: /path/to/cert.pem
+    key_path: /path/to/key.pem
+    is_default: true
+client_auth:
+  ca_path: /etc/edge-ingress/cloudflare/origin-pull-ca.pem
+"#;
+        let cfg: TlsConfig = serde_yaml::from_str(yaml).expect("valid YAML");
+        assert!(
+            cfg.client_auth.required,
+            "omitted `required` must deserialize to true (strict-by-default)"
+        );
     }
 
     #[test]
