@@ -52,6 +52,13 @@ podAnnotations:
   # before the wait-for-deps init container dials meshed postgres/redis.
   linkerd.io/inject: enabled
   config.linkerd.io/proxy-enable-native-sidecar: "true"
+  # TEMPORARY (STAGING ONLY, phase10.6 diagnostic 2026-06-17): mesh
+  # disabled to isolate whether the meshed OUTBOUND proxy path is the
+  # cause of the postgres `connection reset by peer` (the un-meshed
+  # engine connects to the same TLS postgres cleanly). REMOVE this line
+  # once the test conclusion is recorded. Production overlay is
+  # untouched and stays meshed.
+  linkerd.io/inject: "disabled"
 
 podSecurityContext:
   runAsNonRoot: true
