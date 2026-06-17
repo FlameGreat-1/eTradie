@@ -21,7 +21,20 @@ spec:
       port: {{ .Values.postgres.service.port | default 5432 }}
       targetPort: postgres
       protocol: TCP
-      appProtocol: postgresql
+      # NO appProtocol here. The postgres POD carries
+      # config.linkerd.io/opaque-ports: "5432" (raw-TCP mTLS tunnel).
+      # If this Service declared appProtocol: postgresql (as it did
+      # before phase10.6 RCA 2026-06-17), the Linkerd 2.14 destination
+      # controller advertises an L7 protocol to meshed callers; their
+      # OUTBOUND proxy then opens an L7 connection while postgres's
+      # INBOUND proxy expects an opaque tunnel. That mismatch, on top
+      # of the pg driver's native SSLRequest->TLS preamble, resets the
+      # connection mid-handshake -> `tls error: read: connection reset
+      # by peer` on the meshed gateway/execution/management/billing
+      # startup ping. Leaving appProtocol unset lets opaque-ports:5432
+      # govern the hop end-to-end (identical posture to chromadb, see
+      # chromadb-service.yaml). The un-meshed engine was never affected
+      # because no outbound proxy touches its connection.
     {{- if .Values.postgres.metrics.enabled }}
     - name: metrics
       port: {{ .Values.postgres.metrics.exporter.port | default 9187 }}
@@ -50,5 +63,8 @@ spec:
       port: {{ .Values.postgres.service.port | default 5432 }}
       targetPort: postgres
       protocol: TCP
-      appProtocol: postgresql
+      # NO appProtocol (see ClusterIP Service above): opaque-ports:5432
+      # on the postgres pod governs this hop. Declaring
+      # appProtocol: postgresql here breaks the meshed client->postgres
+      # opaque mTLS TLS handshake (phase10.6 RCA 2026-06-17).
 {{- end }}
