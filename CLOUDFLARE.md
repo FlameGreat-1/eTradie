@@ -233,26 +233,5 @@ Which do you prefer — add a card for R2, or set the bypass secret?
 
 
 
-# 1. Make sure the SSH tunnel is still alive (in your dedicated tunnel terminal).
-#    If not, in a separate terminal:
-ssh-add ~/.ssh/id_ed25519
-ssh -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173
 
-# 2. KUBECONFIG sanity in THIS shell
-export KUBECONFIG=~/.kube/etradie-contabo.yaml
-kubectl get nodes
-kubectl -n argocd port-forward svc/argocd-server 8080:443
 
-# expect: vmi3362776   Ready   control-plane,master   ...   v1.30.4+k3s1
-
-#    If you already have one running and it's still alive, skip this step.
-#    Verify quickly:
-curl -sk -o /dev/null -w 'argocd port-forward HTTP %{http_code}\n' https://127.0.0.1:8080/healthz
-
-# 3. Login
-ADMIN_ARGO_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
-  -o jsonpath='{.data.password}' | base64 -d)
-argocd login 127.0.0.1:8080 --username admin --password "$ADMIN_ARGO_PWD" --insecure
-unset ADMIN_ARGO_PWD
-argocd account list 2>&1 | head -3
-# expect: NAME ... admin  true  login
