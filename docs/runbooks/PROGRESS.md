@@ -1827,6 +1827,27 @@ Do these in sequence; each item resolves a specific blocker before the next.
 
 ---
 
+## ⚠️ Phase 10.6 mesh-disabled checkpoint — see PHASE10.6-MESH-DISABLED-CHECKPOINT.md
+
+> **LIVE checkpoint for any future operator:** Linkerd mesh is currently
+> DISABLED on 5 staging workloads (`etradie-engine`, `etradie-gateway`,
+> `etradie-execution`, `etradie-management`, `etradie-billing`). The
+> canonical record of WHAT is disabled, WHY, HOW to verify, and HOW to
+> re-enable is in
+> [`PHASE10.6-MESH-DISABLED-CHECKPOINT.md`](PHASE10.6-MESH-DISABLED-CHECKPOINT.md).
+> **READ THAT FILE FIRST** before re-enabling mesh on any of those
+> workloads or before promoting any of these chart changes to production.
+>
+> The sections below this banner are the ORIGINAL debug-arc audit
+> trail (NetworkPolicy 4143 fixes, chromadb opaque-ports, OpenTelemetry
+> version bumps, postgres TLS bring-up, engine RAG bootstrap defects,
+> Linkerd 2.14 outbound-discovery hypothesis testing). They are kept
+> intact so a future operator can trace what was tried and why it
+> didn't fully work — do NOT re-attempt the dead-end paths listed in
+> them. The current operational state lives in the checkpoint file.
+
+---
+
 ## Phase 10.6 in-flight checkpoint — 2026-06-15 (engine RAG bootstrap defect; debugging in progress)
 
 **SUPERSEDES every prior "Phase 10.6 closeout TODO" block above for this in-flight defect.** Once this defect is resolved and engine reaches `2/2 Running` stable, the prior closeout TODOs (vault-auth token_reviewer_jwt, audit log disable, etc.) apply again.
