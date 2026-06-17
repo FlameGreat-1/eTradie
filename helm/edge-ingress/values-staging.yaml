@@ -144,6 +144,20 @@ config:
   retry:
     backoffMs: 75
 
+# GeoIP: persistent cache + daily refresh inherited from the base
+# values.yaml geoip block (single-node staging, BUDGET.md Table 2B).
+# The PVC uses the K3s local-path default StorageClass. Explicitly
+# pinned here for operator visibility; values match the base defaults.
+geoip:
+  persistence:
+    enabled: true
+    createPvc: true
+    size: "200Mi"
+    storageClassName: ""
+  refresh:
+    enabled: true
+    schedule: "0 3 * * *"
+
 serviceMonitor:
   interval: "15s"
   scrapeTimeout: "10s"

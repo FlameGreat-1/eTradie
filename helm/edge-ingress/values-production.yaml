@@ -91,6 +91,21 @@ tolerations:
     value: "edge"
     effect: "NoSchedule"
 
+# GeoIP: persistent cache + daily refresh inherited from the base
+# values.yaml geoip block (single-node production, BUDGET.md Table 2B).
+# A multi-node move (BUDGET.md Table 5) would require an RWX volume
+# (Longhorn/NFS CSI) or a per-node hostPath/DaemonSet refresh instead
+# of this RWO PVC; revisit geoip.persistence at that cutover.
+geoip:
+  persistence:
+    enabled: true
+    createPvc: true
+    size: "200Mi"
+    storageClassName: ""
+  refresh:
+    enabled: true
+    schedule: "0 3 * * *"
+
 serviceMonitor:
   labels:
     prometheus: kube-prometheus
