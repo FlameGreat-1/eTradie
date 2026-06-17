@@ -1,11 +1,27 @@
 {{- /*
-TLS client authentication is mandatory. Fail rendering when ca_path is
-empty rather than producing an edge-ingress that fails at boot with an
-opaque error.
+TLS client authentication (mTLS via Cloudflare AOP) is OPTIONAL.
+
+Render the client_auth block only when .Values.config.tls.clientAuth.caPath
+is non-empty. Choice depends on the deployment topology:
+
+  - Direct-internet (Service.type=LoadBalancer, Cloudflare proxying to
+    a public IP origin): set caPath to the AOP CA bundle path. The
+    Rust binary will require + verify a client cert against that CA.
+    This is the default in helm/edge-ingress/values.yaml.
+
+  - Cloudflare Tunnel (service.cloudProvider=cloudflare-tunnel,
+    cloudflared as the connector): leave caPath empty. cloudflared
+    has NO client-cert-presentation field in its originRequest
+    schema (verified against cloudflared 2024.10.1 docs), so AOP
+    cannot work with a tunnel connector regardless of the zone's
+    global / zone-level / per-hostname AOP toggles (all three
+    control Cloudflare's standard origin-pull HTTPS path, not
+    tunnel-routed traffic).
+
+With caPath empty, the tunnel JWT + ufw remain the trust boundary.
+Do NOT regress this to a hard-fail without first confirming the
+deployment is direct-internet, not tunnel-fronted.
 */}}
-{{- if not .Values.config.tls.clientAuth.caPath }}
-{{- fail "helm/edge-ingress: .Values.config.tls.clientAuth.caPath is required (mTLS is mandatory). Set it to the in-pod path of the Cloudflare AOP CA bundle, e.g. /etc/edge-ingress/cloudflare/origin-pull-ca.pem." -}}
-{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -31,8 +47,10 @@ data:
       cert_reload_interval:
         secs: {{ .Values.config.tls.certReloadIntervalSecs | default 3600 }}
         nanos: 0
+      {{- if .Values.config.tls.clientAuth.caPath }}
       client_auth:
         ca_path: {{ .Values.config.tls.clientAuth.caPath | quote }}
+      {{- end }}
       certificates:
         {{- range .Values.config.tls.certificates }}
         - hostname: {{ .hostname | quote }}

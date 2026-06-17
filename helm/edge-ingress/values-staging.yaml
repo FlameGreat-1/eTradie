@@ -93,6 +93,13 @@ config:
   tls:
     handshakeTimeoutSecs: 8
     certReloadIntervalSecs: 1800
+    # Cloudflare Tunnel deployment: cloudflared (the tunnel connector)
+    # has no field for presenting a client certificate to the origin,
+    # so AOP-style mTLS at edge-ingress cannot work on this path.
+    # The tunnel JWT + ufw are the trust boundary instead. Production
+    # may keep this set (its base default points at the AOP CA).
+    clientAuth:
+      caPath: ""
     certificates:
       - hostname: "staging-api.exoper.com"
         certPath: "/etc/edge-ingress/certs/staging-api.exoper.com.crt"
