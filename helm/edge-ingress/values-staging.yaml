@@ -8,6 +8,11 @@ replicaCount: 1
 
 image:
   tag: "staging-v0.1.0"
+  # Staging re-uses the same tag after each CI rebuild. Always re-pull
+  # so a new layer pushed to GHCR is picked up on the next pod recreate.
+  # Production overlay keeps the chart base default `IfNotPresent`
+  # because production rolls with explicit tag bumps.
+  pullPolicy: Always
 
 resources:
   requests:
