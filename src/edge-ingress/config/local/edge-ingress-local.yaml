@@ -49,4 +49,4 @@ retry:
   backoff_ms: 50
 
 geoip:
-  database_path: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
+  database_path: "./data/geoip/GeoLite2-City.mmdb"
