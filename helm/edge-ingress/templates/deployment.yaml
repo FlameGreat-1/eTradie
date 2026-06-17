@@ -67,6 +67,98 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
+        # tls-cert-init: generate a self-signed RSA server cert + key at
+        # first boot for the in-cluster DNS name
+        # `edge-ingress.edge-ingress-system.svc.cluster.local`. Phase 6.2.3
+        # of docs/runbooks/README.md configures cloudflared to dial this
+        # exact cluster DNS name with strict TLS verify (noTLSVerify:
+        # false, Tier 11 mandatory). The chart's other TLS certs are
+        # Cloudflare Origin Certs valid for the PUBLIC hostnames
+        # (staging-api.exoper.com / api.exoper.com), so they cannot
+        # satisfy the hostname check on the cluster-DNS hop. A
+        # Cloudflare-issued cert for *.svc.cluster.local is not
+        # obtainable (the public-PKI contract excludes non-public
+        # hostnames). The cleanest answer is the same pattern the
+        # data-layer chart uses for postgres TLS (commit 97cd47d0):
+        # an init container that self-generates a long-lived
+        # self-signed cert into a pod-local emptyDir at first boot.
+        # SNI selection at edge-ingress's TLS engine picks this cert
+        # when cloudflared specifies the cluster DNS name; the
+        # Cloudflare Origin Certs continue to be presented for
+        # connections asking for the public hostnames.
+        #
+        # Image: SAME SHA-256 digest the data-layer chart's
+        # tls-cert-init initContainer uses (alpine/openssl 3.5.7,
+        # verified pullable on this cluster). Pinning by digest makes
+        # both charts byte-identical and reproducible across re-pulls.
+        #
+        # PSS restricted-tier compliant: runAsUser matches the main
+        # container (1000), runAsNonRoot, readOnlyRootFilesystem,
+        # allowPrivilegeEscalation: false, capabilities.drop: [ALL].
+        # No outbound network egress required.
+        - name: tls-cert-init
+          image: "alpine/openssl@sha256:923270611179f81b420bfb5bb5c18bf07fd59d84ed4163ac04cb371faa6d150f"
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              CERT_DIR=/etc/edge-ingress/internal-cert
+              CERT_FILE=$CERT_DIR/server.crt
+              KEY_FILE=$CERT_DIR/server.key
+              VALIDITY_DAYS=3650
+              CN=edge-ingress.edge-ingress-system.svc.cluster.local
+              # Idempotency: regenerate only when the cert is missing
+              # OR will expire in <30 days. Rolling restart on the same
+              # node reuses the same cert (emptyDir is pod-scoped, so
+              # an in-place container restart sees the existing files);
+              # pod recreate (new emptyDir) generates fresh.
+              if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
+                if openssl x509 -in "$CERT_FILE" -noout -checkend 2592000 >/dev/null 2>&1; then
+                  echo "[tls-cert-init] existing internal cert is valid for >30d; skipping regeneration"
+                  echo "[tls-cert-init] subject: $(openssl x509 -in "$CERT_FILE" -noout -subject)"
+                  echo "[tls-cert-init] not after: $(openssl x509 -in "$CERT_FILE" -noout -enddate)"
+                  exit 0
+                fi
+                echo "[tls-cert-init] existing internal cert expires within 30d; regenerating"
+              else
+                echo "[tls-cert-init] no internal cert present; generating fresh self-signed cert for $CN"
+              fi
+              umask 077
+              openssl req -x509 -newkey rsa:2048 -nodes \
+                -days "$VALIDITY_DAYS" \
+                -subj "/CN=$CN" \
+                -addext "subjectAltName=DNS:edge-ingress.edge-ingress-system.svc.cluster.local,DNS:edge-ingress.edge-ingress-system.svc,DNS:edge-ingress" \
+                -keyout "$KEY_FILE" \
+                -out "$CERT_FILE"
+              chmod 0644 "$CERT_FILE"
+              chmod 0600 "$KEY_FILE"
+              echo "[tls-cert-init] generated internal cert:"
+              openssl x509 -in "$CERT_FILE" -noout -subject -dates -ext subjectAltName
+          volumeMounts:
+            - name: internal-cert
+              mountPath: /etc/edge-ingress/internal-cert
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: {{ .Values.podSecurityContext.runAsUser | default 1000 }}
+            runAsGroup: {{ .Values.podSecurityContext.runAsGroup | default 1000 }}
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
         # GeoIP database downloader. Uses the official MaxMind
         # geoipupdate v6 image, identical to the local docker-compose
         # `edge-geoip-init` service so cluster + local share one
@@ -224,6 +316,9 @@ spec:
             - name: cloudflare-aop-ca
               mountPath: /etc/edge-ingress/cloudflare
               readOnly: true
+            - name: internal-cert
+              mountPath: /etc/edge-ingress/internal-cert
+              readOnly: true
             - name: geoip-data
               mountPath: /data/geoip
               readOnly: true
@@ -296,6 +391,14 @@ spec:
         - name: geoip-data
           emptyDir:
             sizeLimit: {{ .Values.volumes.geoipData.sizeLimit | default "200Mi" }}
+        - name: internal-cert
+          # Pod-local emptyDir holding the self-signed TLS cert for the
+          # in-cluster DNS name (generated by the tls-cert-init init
+          # container at first boot). Never leaves the pod; not stored
+          # in Vault, not stored in a K8s Secret. 32Mi is the floor for
+          # a 2KB cert + 2KB key + filesystem overhead.
+          emptyDir:
+            sizeLimit: 32Mi
         - name: tmp
           emptyDir:
             sizeLimit: {{ .Values.volumes.tmp.sizeLimit | default "64Mi" }}
