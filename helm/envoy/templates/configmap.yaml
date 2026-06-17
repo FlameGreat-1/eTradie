@@ -173,6 +173,45 @@ data:
                                   "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.BufferPerRoute
                                   buffer:
                                     max_request_bytes: {{ .Values.config.envoy.webhookRoute.maxRequestBytes | default 262144 | int64 }}
+                            # Static /healthz route. edge-ingress's upstream
+                            # health-check (src/edge-ingress/crates/upstream/
+                            # src/health.rs) hits envoy at `/healthz` on a
+                            # fixed interval; we answer it locally with a
+                            # direct_response 200 instead of forwarding to
+                            # gateway, because the probe's purpose is
+                            # "is envoy reachable", not "is gateway up".
+                            # envoy's own http_health_check on gateway_cluster
+                            # (config.envoy.cluster.healthCheck.path) tests
+                            # the envoy->gateway hop independently. Must
+                            # come BEFORE the catch-all `prefix: /` below
+                            # because envoy matches routes in declared order.
+                            - match:
+                                path: "/healthz"
+                              direct_response:
+                                status: 200
+                                body:
+                                  inline_string: "OK"
+                              # No body, no rate limit, no buffer needed on
+                              # this route. Filter overrides explicitly
+                              # disabled so they don't gate the probe.
+                              typed_per_filter_config:
+                                {{- if .Values.config.envoy.localRateLimit.enabled }}
+                                envoy.filters.http.local_ratelimit:
+                                  "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                                  stat_prefix: http_local_rate_limiter_healthz
+                                  token_bucket:
+                                    max_tokens: {{ .Values.config.envoy.localRateLimit.maxTokens }}
+                                    tokens_per_fill: {{ .Values.config.envoy.localRateLimit.tokensPerFill }}
+                                    fill_interval: {{ printf "%ds" (int .Values.config.envoy.localRateLimit.fillIntervalSeconds) }}
+                                  filter_enabled:
+                                    default_value:
+                                      numerator: 0
+                                      denominator: HUNDRED
+                                  filter_enforced:
+                                    default_value:
+                                      numerator: 0
+                                      denominator: HUNDRED
+                                {{- end }}
                             - match:
                                 prefix: "/"
                               route:
