@@ -6,6 +6,19 @@
 
 replicaCount: 1
 
+# Drop the chart's default PSS enforce tier (restricted) on the
+# edge-ingress-system namespace. Linkerd's auto-injected linkerd-init
+# initContainer requires NET_ADMIN + NET_RAW to install iptables rules
+# for proxy interception; PSS restricted-tier forbids those capabilities
+# and admission rejects every meshed pod creation. Baseline tier admits
+# the init container while still blocking privileged containers,
+# hostNetwork, hostPID, hostIPC, and root-without-runAsNonRoot.
+# Same posture every other meshed namespace on this cluster already
+# uses (etradie-system, envoy-system, linkerd). Audit ref:
+# PROGRESS gotcha #35.
+namespace:
+  podSecurityStandard: "baseline"
+
 image:
   tag: "staging-v0.1.0"
 
