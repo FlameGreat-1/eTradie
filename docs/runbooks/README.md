@@ -2646,10 +2646,15 @@ unset ADMIN_ARGO_PWD
 
 **IMPORTANT: `root-app.yaml` cascades immediately.** Once applied,
 ArgoCD reconciles every YAML under `deployments/argocd/children/`
-as its own Application. Staging children have
-`automated.{prune:true, selfHeal:true}` so they start auto-sync at
-once; production children stay `OutOfSync` until manually synced
-inside the AppProject's business-hours window (13:00 UTC Mon-Fri).
+as its own Application. On a staging cluster that is the 11
+`*-staging` Applications (`automated.{prune:true, selfHeal:true}`,
+so they start auto-sync at once) plus the 3 shared
+`linkerd-*-production` Applications (manual sync). The
+`*-production` app-workload Applications are NOT under `children/`
+— they are parked under `deployments/argocd/environments/production/`
+so root-app does not create them on this cluster (see that
+directory's README). There are therefore no production
+app-workload children to sync here.
 
 **Staging children pods will hang in Pending until §10.5 syncs the
 Linkerd Applications** (their proxy sidecars cannot be injected
@@ -2872,7 +2877,20 @@ cd ../../..
 
 ## Phase 12 — Sync the platform in dependency order
 
-Production children are manual-sync (`automated.{prune:false,selfHeal:false}`). Sync in EXACT order; wait for Synced+Healthy before the next.
+> **This phase is for a DEDICATED PRODUCTION CLUSTER.** On the
+> staging box this runbook targets, Phase 10 already brought the
+> 11 `*-staging` Applications to Synced/Healthy; there is nothing
+> to do here. The `*-production` app-workload Applications are
+> parked under `deployments/argocd/environments/production/`
+> (NOT under `children/`), so a staging cluster's root-app never
+> creates them. To run this phase you must be on a production
+> cluster whose root-app sources `environments/production/` + the
+> shared `linkerd-*` apps (see
+> `deployments/argocd/environments/production/README.md` for how
+> to wire that). The `linkerd-*-production` apps are shared and
+> live in `children/` on every cluster.
+
+Production Applications are manual-sync (`automated.{prune:false,selfHeal:false}`). Sync in EXACT order; wait for Synced+Healthy before the next.
 
 | Order | Application | Wave |
 |---|---|---|
@@ -2898,7 +2916,7 @@ for app in linkerd-identity-production linkerd-crds-production \
   argocd app wait "$app" --health --timeout 600
 done
 ```
-> The `*-staging` children also exist in `children/`. On a production box, sync ONLY the `*-production` + three `linkerd-*` apps. Do NOT sync `*-staging` on the same cluster (identical namespace/release names).
+> On a production cluster you sync the 11 `*-production` Applications (sourced from `environments/production/`) + the three shared `linkerd-*` apps. The `*-staging` Applications are parked off that cluster (they live under `children/` only on the staging cluster). Never co-resident staging + production on one cluster — they share identical namespace/release names (BUDGET.md Table 2B).
 
 ---
 

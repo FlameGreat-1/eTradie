@@ -11,22 +11,50 @@ platform is cluster-agnostic).
 deployments/argocd/
   appproject.yaml             AppProject scoping RBAC + allowed sources/destinations
   root-app.yaml               App-of-Apps: points at children/ recursively
-  children/
+  children/                   ON SWITCH: every file here is reconciled by root-app
     data-layer-staging.yaml         (sync wave -2)
-    data-layer-production.yaml      (sync wave -2)
     engine-staging.yaml             (sync wave -1)
-    engine-production.yaml          (sync wave -1)
     gateway-staging.yaml            (sync wave 0)
-    gateway-production.yaml         (sync wave 0)
     execution-staging.yaml          (sync wave 0)
-    execution-production.yaml       (sync wave 0)
     management-staging.yaml         (sync wave 0)
-    management-production.yaml      (sync wave 0)
     envoy-staging.yaml              (sync wave 5)
-    envoy-production.yaml           (sync wave 5)
     edge-ingress-staging.yaml       (sync wave 10)
+    monitoring-stack-staging.yaml   (sync wave -7)
+    observability-logs-staging.yaml (sync wave -2)
+    mt-node-staging.yaml            (sync wave -1)
+    billing-staging.yaml            (sync wave 1)
+    linkerd-identity-production.yaml      (sync wave -6)
+    linkerd-crds-production.yaml          (sync wave -5)
+    linkerd-control-plane-production.yaml (sync wave -4)
+  environments/production/    PARKED: the *-production app-workload Applications.
+                              NOT under children/, so root-app does NOT create
+                              them on a staging cluster (see that dir's README).
+    data-layer-production.yaml      (sync wave -2)
+    engine-production.yaml          (sync wave -1)
+    gateway-production.yaml         (sync wave 0)
+    execution-production.yaml       (sync wave 0)
+    management-production.yaml      (sync wave 0)
+    envoy-production.yaml           (sync wave 5)
     edge-ingress-production.yaml    (sync wave 10)
+    billing-production.yaml         (sync wave 1)
+    monitoring-stack-production.yaml
+    observability-logs-production.yaml
+    mt-node-production.yaml
+  optional/                   PARKED: optional add-ons (e.g. linkerd-viz)
 ```
+
+The three `linkerd-*-production` Applications stay under `children/`
+because the Linkerd mesh runs ONCE per cluster regardless of which
+environment posture the cluster hosts (the CA path is hardcoded to
+`/production` in `deployments/linkerd/values.yaml`; there is no
+`*-staging` linkerd variant). They are correct on a staging OR a
+production cluster. Only the 11 *app-workload* `*-production`
+Applications are parked under `environments/production/`.
+
+Presence under `children/` is the on switch; presence under
+`environments/production/` (or `optional/`) is the off switch. This is
+the same pattern documented in `optional/README.md` and
+`environments/production/README.md`.
 
 ## Bootstrap
 
@@ -80,6 +108,16 @@ ConfigMap/Service -> Deployment/StatefulSet -> NetworkPolicy).
   `targetRevision: main`. Production rollouts require a maintainer
   to click Sync inside the AppProject's business-hours sync window
   (13:00 UTC Mon-Fri, 8h).
+
+  Production app-workload Applications live under
+  `environments/production/`, NOT under `children/`, so the
+  staging cluster's root-app never creates them (staging and
+  production are not meant to co-reside on one cluster per
+  BUDGET.md Table 2B). On a dedicated production cluster, point
+  that cluster's root-app at a source path that includes
+  `environments/production/` plus the shared `linkerd-*` apps.
+  See `environments/production/README.md` for the full rationale
+  and the production-cluster deploy procedure.
 
 There is no `helm install` or `argocd app set --helm-set` in CI.
 Image tags are pinned per chart in `values.yaml` and bumped with
