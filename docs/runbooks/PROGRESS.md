@@ -38,7 +38,7 @@
 | 7 | Generate Linkerd mesh CA | ✅ DONE |
 | 8 | Bootstrap Vault paths + populate every secret | ✅ DONE |
 | 9 | Build + inject envoy WASM filter | ✅ DONE |
-| 10 | ArgoCD + AppProjects + root app | 🟡 in progress (control plane HEALTHY; staging children OutOfSync/Missing — diagnosis TBC) |
+| 10 | ArgoCD + AppProjects + root app | ✅ DONE (staging public path GREEN end-to-end; 5 staging workloads on mesh-disabled posture per [PHASE10.6-MESH-DISABLED-CHECKPOINT.md](PHASE10.6-MESH-DISABLED-CHECKPOINT.md) — re-enable before production) |
 | 11 | Provision mt-node tenant Vault infrastructure | ⏸ pending |
 | 12 | Sync the platform in dependency order | ⏸ pending |
 | 13 | Database migrations (auto via engine init) | ⏸ pending |
@@ -2523,3 +2523,127 @@ which is out of scope for in-cluster TLS where Linkerd already
 provides identity. See `src/engine/shared/db/connection.py::
 _translate_sslmode_for_asyncpg` for the full asyncpg ssl-kwarg
 mapping documentation.
+
+---
+
+## Phase 10 — DONE 2026-06-17 (staging public path GREEN end-to-end)
+
+Phase 10 closes with the staging public path verified end-to-end. A
+`curl https://staging-api.exoper.com/healthz` returns HTTP 200 in
+~600ms p50, traversing Browser → Cloudflare edge → cloudflared tunnel
+→ edge-ingress (TLS, mTLS-optional in tunnel mode) → envoy (`/healthz`
+served by a direct_response 200 route) → gateway/billing on the
+catch-all route. edge-ingress's upstream health-check on envoy shows
+`status:"200 OK" is_healthy:true` with `consecutive_successes`
+climbing past 20 — the upstream pool is stable.
+
+### The four blocker fixes that closed the path
+
+| # | Issue | Fix | Commits |
+|---|---|---|---|
+| 1 | edge-ingress mTLS hardcoded mandatory — cloudflared cannot present a client cert over tunnel (no field in cloudflared 2024.10.1 `originRequest` schema), so every cloudflared→edge-ingress TLS handshake failed at `peer sent no certificates`. | Rust: new `client_auth.required: bool` config field in `src/edge-ingress/crates/tls/src/config.rs` (defaults to `true` via `#[serde(default)]`); `build_server_config` branches between `WebPkiClientVerifier::Builder.build()` (required mTLS) and `.allow_unauthenticated().build()` (optional). Charts: staging + production overlays set `clientAuth.required: false` because both deploy under Cloudflare Tunnel; chart base default stays `true` so a future direct-internet deployment inherits the secure default. | `369f83aa`, `dbc534e9`, `cf4bb689`, `cceadfd3` |
+| 2 | Helm `\| default true` swallowed `false` overrides — the staging overlay's `required: false` was silently rewritten back to `true` in the rendered ConfigMap (Go treats `false` as falsy in pipelines, so `false \| default true` evaluates to `true`). | Drop the `\| default` pipeline; render the value verbatim. The chart base values.yaml already declares `clientAuth.required: true` so the field is never nil at template time. Also relax the top-of-file template-time `fail` guard so an empty `caPath` is accepted when `required: false`. | `402480d7` |
+| 3 | Staging `imagePullPolicy: IfNotPresent` (chart base default) meant the kubelet kept serving the cached old edge-ingress image after each CI rebuild, even when the chart values were updated. | `imagePullPolicy: Always` in `helm/edge-ingress/values-staging.yaml`. Matches the same fix applied to the engine chart earlier in Phase 10.6 (commit `f033386b`). Production overlay keeps `IfNotPresent` because production rolls with explicit tag bumps. | `a3633434` |
+| 4 | envoy had no `/healthz` route in its `local_route` virtual host — the path fell through the catch-all `prefix: /` to `gateway_cluster`, and gateway's health endpoint is `/health` (not `/healthz`), so every probe returned 404. edge-ingress (which probes `/healthz` hardcoded in `src/edge-ingress/crates/upstream/src/health.rs::check_endpoint`) marked envoy as unhealthy after 3 consecutive failures and tore every public request down with 502. | `direct_response: status: 200` route on envoy at `path: "/healthz"`, declared BEFORE the catch-all `prefix: "/"` so envoy matches it first. Filter overrides explicitly disable rate-limiting on this route. Pure chart change — no Rust rebuild required. | `34a01588` |
+
+### Deploy-specific outcomes
+
+- **Cloudflare AOP per-hostname cert was uploaded mid-session.** The
+  Per-hostname Authenticated Origin Pulls flow at `dash.cloudflare.com/
+  → SSL/TLS → Origin Server → Per-hostname` was completed with a
+  custom client cert signed by an operator-generated CA, and the cert
+  was associated with `staging-api.exoper.com`. **It does nothing in
+  tunnel mode** — Cloudflare's edge does not present the AOP client
+  cert on tunnel-routed traffic, only on standard proxy-mode traffic
+  to a public-IP origin. The upload is harmless (no security impact)
+  but can be deleted in the Cloudflare dashboard whenever convenient.
+  The matching Vault `aop_ca` property at
+  `etradie/services/edge-ingress/staging/cloudflare/aop_ca` was
+  overwritten with the operator CA during the same arc; harmless for
+  now because `client_auth.required: false` means edge-ingress ignores
+  the CA bundle on the tunnel path. Restore the Cloudflare canonical
+  AOP CA bytes if Phase 12 production switches off tunnel.
+- **Live `kubectl patch` of mesh injection on 4 Go services** is
+  documented in [`PHASE10.6-MESH-DISABLED-CHECKPOINT.md`](PHASE10.6-MESH-DISABLED-CHECKPOINT.md).
+  This drift is staging-only; production overlays are clean.
+
+### Phase 10 closeout TODOs (carried into Phase 11+ for operational follow-up)
+
+These are operational hygiene items, NOT staging blockers. Phase 11+
+proceeds without them resolved; they should be cleared before any
+production cutover.
+
+1. **Re-enable mesh on the 5 disabled staging workloads.** Plan in
+   [`PHASE10.6-MESH-DISABLED-CHECKPOINT.md`](PHASE10.6-MESH-DISABLED-CHECKPOINT.md).
+   Includes: chart-side commitment of the 4 Go services' disable (or
+   removal of the disable after the app-side retry-with-backoff fix
+   in their startup paths), control-plane restart, per-service
+   re-enable sequence, mesh-telemetry verification.
+2. **Mint a non-expiring legacy Secret-bound token for the `vault-auth`
+   ServiceAccount** and replace the 24h TTL `token_reviewer_jwt` on
+   Vault's `kubernetes/config` (operator gotcha #28 from the Phase 10
+   continuation entries above).
+3. **Disable the Vault audit log at `/tmp/vault-audit.log`** (operator
+   gotcha #29).
+4. **Delete the 14 doubled-prefix Vault entries** under
+   `etradie/data/etradie/<rest>` once all apps have been stable for
+   one full reconcile cycle (operator gotcha #23 — the entries are
+   harmless residue from an early Phase 8 mis-prefix; the canonical
+   single-prefix paths at `etradie/data/<rest>` are what charts read).
+5. **Optional: clean up the workstation `~/cf-aop-staging/` directory
+   and the Cloudflare dashboard per-hostname AOP cert.** Pure cosmetic
+   cleanup of the mid-Phase-10.6 cert-generation arc.
+
+### Phase 10 operator gotchas added by this closeout
+
+**40. cloudflared has NO field in its `originRequest` schema to present
+a client certificate to the origin.** Verified against cloudflared
+2024.10.1 and the live tunnel `configurations` API response. Cloudflare
+Authenticated Origin Pulls (Global / Zone-level / Per-hostname AOP
+from the SSL/TLS → Origin Server dashboard) applies ONLY to standard
+proxy-mode traffic where Cloudflare's edge dials a public-IP origin
+over the internet. Tunnel-routed traffic uses a completely different
+origin-presentation code path; the AOP toggles have no effect on the
+cloudflared→origin hop. Any deployment that puts Cloudflare Tunnel
+between Cloudflare and the origin must accept that the AOP
+client-cert verification cannot engage, and rely on the tunnel JWT +
+origin firewall + Linkerd mesh (for cluster-internal hops) as the
+trust boundaries instead.
+
+**41. Helm `\| default <bool>` pipelines silently swallow `false`
+overrides.** `false \| default true` evaluates to `true` because Helm
+(via Sprig and Go's `text/template`) treats `false` as falsy in the
+pipeline truth test. A staging overlay that legitimately sets a bool
+field to `false` will be rewritten back to `true` by the template if
+the template uses `| default true`. The safe pattern is to declare the
+field in the base `values.yaml` with the desired default value and
+render it verbatim in the template (no `| default`), so the field is
+never nil at render time and overrides flow through unchanged. The
+edge-ingress `client_auth.required` field is the case where this bit
+us (commit `402480d7`).
+
+**42. The `imagePullPolicy: IfNotPresent` chart base default means
+staging deployments that re-use the same image tag (e.g.
+`staging-v0.1.0`) keep serving the kubelet's CACHED image even after
+the CI rebuilds it.** Until the chart bumps the tag (e.g. to
+`staging-v0.1.1`), the kubelet never re-pulls, so a Rust / Go code
+change behind the same tag never actually deploys. The fix is
+`imagePullPolicy: Always` in the staging overlay (only). Production
+overlays keep `IfNotPresent` because production should always use
+explicit tag bumps, not in-place rebuilds. Audit reference:
+edge-ingress `f033386b` (engine, earlier) and `a3633434`
+(edge-ingress, this phase).
+
+**43. envoy `prefix: /` is a catch-all that hides 404s from health-
+checks.** When envoy's `route_config.virtual_hosts[].routes` ends with
+`prefix: "/"` pointing at an upstream cluster, ANY path not matched
+earlier in the list is forwarded to that cluster. If the upstream
+returns 404 on a health-check path, edge-ingress (or any other
+health-checker) sees that 404 and marks the upstream unhealthy —
+which is correct semantically but surprising in practice because the
+404 came from the upstream, not from envoy itself. Use a
+`direct_response: 200` route on envoy for health-check paths so
+envoy answers its own probe locally without depending on the upstream
+being route-aware. envoy has its own separate `http_health_check`
+on each cluster (config.envoy.cluster.healthCheck.path) for the
+upstream side. Audit reference: `34a01588`.
