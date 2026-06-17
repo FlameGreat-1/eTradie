@@ -168,10 +168,20 @@ kubectl apply -f ../../../deployments/argocd/appproject.yaml
 kubectl apply -f ../../../deployments/argocd/root-app.yaml
 ```
 
-ArgoCD then reconciles the 14 child Applications. With
-`syncPolicy.automated` disabled on production children, the
-first rollout requires an explicit operator click in the ArgoCD
-UI — deliberate.
+ArgoCD then reconciles every Application under
+`deployments/argocd/children/` (`directory.recurse: true`). On a
+staging cluster that is the 11 `*-staging` app-workload
+Applications (auto-sync: `automated.{prune:true, selfHeal:true}`)
+plus the 3 shared `linkerd-*-production` Applications (manual
+sync). The `*-production` app-workload Applications are parked
+under `deployments/argocd/environments/production/` (outside
+`children/`), so root-app does NOT create them here — see
+`deployments/argocd/environments/production/README.md`. On a
+dedicated production cluster, point root-app at a source path that
+includes `environments/production/` + the `linkerd-*` apps; those
+production Applications have `syncPolicy.automated` disabled, so
+their first rollout requires an explicit operator click in the
+ArgoCD UI — deliberate.
 
 ## 9. Install the Cluster Autoscaler (OKE / cloud-managed pools only)
 
