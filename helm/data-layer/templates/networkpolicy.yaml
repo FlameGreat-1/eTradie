@@ -47,6 +47,17 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.postgres.service.port | default 5432 }}
+    # Billing (subscription + idempotency tables). Without this rule
+    # the billing pod's connection to postgres is dropped by this
+    # destination ingress policy under namespace default-deny, and
+    # billing's wait-for-deps init never passes (RCA 2026-06-17).
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-billing
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgres.service.port | default 5432 }}
     # Backup CronJob.
     - from:
         - podSelector:
@@ -176,6 +187,16 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: etradie-management
+      ports:
+        - protocol: TCP
+          port: {{ .Values.redis.service.port | default 6379 }}
+    # Billing (rate-limit + idempotency cache). Without this rule the
+    # billing pod's connection to redis is dropped by this destination
+    # ingress policy under namespace default-deny (RCA 2026-06-17).
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: etradie-billing
       ports:
         - protocol: TCP
           port: {{ .Values.redis.service.port | default 6379 }}
