@@ -2798,6 +2798,41 @@ kubectl -n monitoring get pods
 #         kube-prometheus-stack-prometheus-node-exporter-* 1/1 Running (DaemonSet, one per node)
 ```
 
+### 10.7 — Phase 10 closeout (after staging public path verified GREEN)
+
+After the kube-prometheus-stack + the chart-render unblocks of
+Phase 10.6 land, the staging public path needs end-to-end
+verification BEFORE Phase 10 is declared done:
+
+```bash
+for i in 1 2 3; do
+  curl -sS -o /dev/null -w 'attempt %{http_code} in %{time_total}s\n' \
+    https://staging-api.exoper.com/healthz
+done
+# expect: 3x HTTP 200 in ~0.5–1.0s. The path traverses
+# Browser → Cloudflare edge → cloudflared tunnel → edge-ingress
+# (TLS, mTLS-optional in tunnel mode per the chart’s
+# client_auth.required: false on staging+production overlays)
+# → envoy (/healthz answered by direct_response 200) → gateway.
+```
+
+If the probe returns 502 / a Cloudflare error page / Argo Tunnel
+"error 1033", consult the Troubleshooting table at the bottom of
+this runbook (specifically the four `Phase 10 closeout` rows for
+edge-ingress mTLS, Helm `| default` falsy, kubelet image cache,
+and envoy `/healthz` 404).
+
+**Residual staging posture on Phase 10 closeout.** This bring-up
+left Linkerd mesh DISABLED on 5 staging workloads (engine + the 4
+Go services: gateway, execution, management, billing). The
+canonical record of WHAT is disabled, WHY, HOW to verify, and HOW
+to re-enable is in [PHASE10.6-MESH-DISABLED-CHECKPOINT.md](PHASE10.6-MESH-DISABLED-CHECKPOINT.md).
+The data layer (postgres / redis / chromadb), edge-ingress, and
+envoy stay meshed. cloudflared is intentionally never meshed.
+Production overlays are UNTOUCHED — production must run mesh-on.
+Re-enable on staging is operational follow-up, not a Phase 11+
+blocker.
+
 **Now the 10 staging children's next reconcile finds the CRDs and
 clears their dry-run.** Force the reconcile sooner if you don't
 want to wait 3 minutes:
@@ -3045,6 +3080,10 @@ Vault path, AND the PVC — StatefulSet GC does not cascade to the PVC).
 | meshed pods never Ready | K3s < 1.29 (no native sidecar) | reinstall K3s >= 1.29 |
 | envoy app won't render | WASM bytes missing | complete Phase 9 |
 | staging children `OutOfSync/Missing`, `argocd app get` shows `the server could not find the requested resource` for `monitoring.coreos.com/ServiceMonitor` or `PrometheusRule` | kube-prometheus-stack CRDs missing on the cluster | complete Phase 10.6 (REQUIRED per BUDGET.md Table 2B); staging children auto-sync on the next reconcile |
+| Phase 10 closeout: public probe of `https://<env>-api.exoper.com/healthz` returns `502` from a Cloudflare anycast IP; edge-ingress log shows `TLS handshake failed ... peer sent no certificates` from cloudflared peer IP (e.g. `10.42.0.x`) | edge-ingress is enforcing mTLS (Cloudflare AOP client-cert verification) but cloudflared has no field in its `originRequest` schema to present a client cert. AOP toggles in the Cloudflare dashboard (Global / Zone-level / Per-hostname) apply only to standard proxy-mode traffic; tunnel-routed traffic ignores them. | Set `clientAuth.required: false` in `helm/edge-ingress/values-<env>.yaml` (both staging and production overlays in this repo do this because both use Cloudflare Tunnel). Rust binary supports the field via `config.tls.clientAuth.required: bool` (`src/edge-ingress/crates/tls/src/config.rs`); chart renders it verbatim in the configmap. CI rebuild required. Trust boundary becomes the tunnel JWT + ufw + Linkerd mesh on cluster-internal hops + the gateway's trusted-proxy-CIDR honor of `CF-Connecting-IP`. |
+| Phase 10 closeout: chart overlay sets `clientAuth.required: false` but rendered ConfigMap still shows `required: true` and edge-ingress still demands the cert | Helm `\| default true` pipeline silently swallows the `false` override — Go's pipeline truth test treats `false` as falsy. The template renders `false \| default true` → `true`. | Drop the `\| default` from the template; render verbatim. The chart base `values.yaml` already declares the field with the desired default so it is never nil. Audit ref: `helm/edge-ingress/templates/configmap.yaml`, commit `402480d7`. |
+| Phase 10 closeout: staging chart change + CI rebuild succeeded, but pod still runs the OLD code (`docker manifest inspect` shows a new digest in GHCR; the live pod's `imageID` is the old one) | Staging chart base default `imagePullPolicy: IfNotPresent` means the kubelet keeps the cached image as long as the tag string is unchanged. Staging re-uses the same tag (`staging-v0.1.0`) across rebuilds. | Set `image.pullPolicy: Always` in `helm/<service>/values-staging.yaml`. Production overlay keeps `IfNotPresent` because production rolls with explicit tag bumps. Audit ref: edge-ingress `a3633434`, engine `f033386b`. |
+| Phase 10 closeout: edge-ingress logs `health check completed status:404 Not Found is_healthy:false` against envoy on every interval; cluster eventually 502s the public path | envoy has no `/healthz` route in its `route_config.virtual_hosts[].routes`; the path falls through the catch-all `prefix: "/"` to `gateway_cluster`, and gateway's health endpoint is `/health` (not `/healthz`). edge-ingress hardcodes `/healthz` in its upstream health-checker (`src/edge-ingress/crates/upstream/src/health.rs::check_endpoint`). | Add a `direct_response: status: 200` route on envoy at `path: "/healthz"`, declared BEFORE the catch-all so envoy matches it first. envoy answers its own probe locally without depending on the upstream being route-aware; envoy retains its own separate `http_health_check` on each cluster (e.g. `gateway_cluster` probes gateway's `/readiness`) for the upstream side. Audit ref: `helm/envoy/templates/configmap.yaml`, commit `34a01588`. |
 | Go service pods (gateway/execution/management/billing) `1/2 CrashLoopBackOff` with `tls error: read tcp ...: connection reset by peer` or `server does not support SSL, but SSL was required` at first DB call | postgres pod does not serve TLS but every app config enforces `sslmode=require` in prod/staging (src/auth/config.go, src/billing/config/config.go, src/execution/internal/config/config.go, src/engine/config.py). Verify with `kubectl -n etradie-system exec postgres-0 -c postgres -- psql -U etradie -d etradie -c 'SHOW ssl;'` — must return `on`, not `off`. | confirm `helm/data-layer/values.yaml::postgres.tls.enabled=true` is rendered; check the `tls-cert-init` initContainer in `postgres-0` ran to completion; the postgres container args MUST include `-c ssl=on -c ssl_cert_file=... -c ssl_key_file=...`. After postgres comes up TLS-enabled, force-restart the Go service pods so they re-handshake against the now-TLS server. Engine pods also need `config.database.nativeTls: "true"` in their overlay so asyncpg switches from MESH mode (ssl=False) to NATIVE mode (ssl='require'). |
 
 ---
