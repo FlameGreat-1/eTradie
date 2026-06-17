@@ -3056,6 +3056,293 @@ Vault path, AND the PVC — StatefulSet GC does not cascade to the PVC).
 
 ---
 
+## Phase 14.6 — Google OAuth 2.0 sign-in ("Continue with Google")
+
+> This phase is **optional**. If `AUTH_GOOGLE_OAUTH_ENABLED=false` (chart base default), the SPA's social-sign-in button stays hidden and the gateway's `/auth/oauth/google/*` routes return 404. Username + password sign-in works without any of the work below. Run this phase when the operator wants users to be able to sign in with Google.
+
+### 14.6.0 — What you're wiring
+
+The full OAuth 2.0 sign-in chain has six independent pieces that ALL have to align byte-for-byte:
+
+1. **GCP OAuth Client** (Google Cloud Console) — holds the client ID, client secret, list of Authorized JavaScript Origins, list of Authorized Redirect URIs. Single source of truth for what redirects Google will accept.
+2. **Vault** (`etradie/services/gateway/<env>`) — holds 4 keys: `google_client_id`, `google_client_secret`, `google_redirect_uri`, `google_link_redirect_uri`. The two URIs MUST exist as Authorized Redirect URIs in GCP or token exchange fails with `redirect_uri_mismatch`.
+3. **Gateway ConfigMap** (`AUTH_GOOGLE_OAUTH_ENABLED=true`) — the non-secret enable toggle. Off-by-chart-base; flipped on per-environment overlay (`helm/gateway/values-<env>.yaml::config.auth.googleOAuthEnabled: "true"`).
+4. **Gateway NetworkPolicy egress** — the gateway must reach `oauth2.googleapis.com:443`, `www.googleapis.com:443` (JWKS), and `accounts.google.com:443`. The chart base ships an `ipBlock: 0.0.0.0/0` rule with `except` for K3s pod + service CIDRs (10.42.0.0/16, 10.43.0.0/16) on ports 80/443. Without this rule the gateway's outbound HTTPS is dropped and the SPA shows `connection refused` on the callback.
+5. **SPA env vars** (Vercel project Environment Variables): `VITE_GOOGLE_OAUTH_ENABLED=true` + `VITE_OAUTH_CALLBACK_PATH=/auth/callback/google`. The flag controls whether the "Continue with Google" button renders; the path controls what URL the SPA's router serves.
+6. **CSP header** (`vercel.json::headers[*].Content-Security-Policy::connect-src`) — must include the backend origin the SPA POSTs the callback to. Already covers `https://staging-api.exoper.com` AND `https://api.exoper.com` (broadened in commit `71ddecf1` for both environments).
+
+If any one of the six is misaligned, the flow fails with a confusing error in either the gateway log or the browser console. The verification block at the end of this phase tests all six.
+
+### 14.6.1 — GCP OAuth Client setup (one-time per Google account)
+
+The Google Cloud Console OAuth Client is provider-side configuration that ANY environment of this platform shares. Local dev + staging + production all use the SAME client object; what differs is the list of authorized URIs.
+
+1. Open <https://console.cloud.google.com/apis/credentials> in a browser logged in as the GCP project owner.
+2. If a client doesn't exist: **Create Credentials → OAuth Client ID → Web Application**. Pick a clear name (e.g. `Exoper`).
+3. **Authorized JavaScript origins** — add one entry per public SPA host that calls `gapi.signIn()`-style endpoints. For this platform:
+   - `http://localhost:5173` (local dev with the Vite proxy)
+   - `https://exoper.com`, `https://www.exoper.com`, `https://app.exoper.com` (production SPA hosts)
+   - `https://staging.exoper.com` (staging SPA alias; harmless to include even though traffic 307s to app.exoper.com immediately)
+4. **Authorized redirect URIs** — add `/auth/callback/google` AND `/settings/oauth/callback/google` under EACH of the SPA host origins above. Two URIs per host because the sign-in flow and the link-account flow have distinct redirect targets (per `src/auth/config.go::validate` which refuses to start the gateway with the two URIs equal).
+5. **Save**. Google warns "It may take 5 minutes to a few hours for settings to take effect" — in practice usually under 60 seconds.
+6. Copy the **Client ID** (long string ending in `.apps.googleusercontent.com`) and **Client Secret** (`GOCSPX-...`, 35 chars) from the client's detail view. Keep these tab open while you run 14.6.3.
+
+### 14.6.2 — Decide which redirect URI Vault should hold
+
+This is the single biggest operator trap. The Vault `google_redirect_uri` value MUST be the URL Google will redirect the BROWSER to, NOT the URL the operator typed into the browser address bar. If the Vercel project is configured with a 307 redirect from one SPA host to another (e.g. `staging.exoper.com` 307-redirects to `app.exoper.com`), then:
+
+- User types `https://staging.exoper.com/` → Vercel 307s to `https://app.exoper.com/`
+- Browser sees `app.exoper.com` as its origin throughout the OAuth flow
+- When the user clicks "Continue with Google", the SPA POSTs `/auth/oauth/google/start` to the backend; the gateway returns an authorize URL with `redirect_uri=<the value from Vault>`
+- Google redirects the browser back to that exact URI on the consent grant
+- The browser must land at a URL where a SPA route exists AND that matches an Authorized Redirect URI in GCP
+
+Verify what the Vercel domain config actually does:
+
+```bash
+curl -sS -L --max-redirs 5 -D - -o /dev/null \
+  -w '\nFINAL: code=%{http_code} url=%{url_effective}\n' \
+  'https://<staging-host>/auth/callback/google?code=TEST&state=TEST' 2>&1 \
+  | grep -iE '^HTTP|^location|^FINAL'
+```
+
+- If `FINAL.url` equals `https://<staging-host>/auth/callback/google?code=TEST&state=TEST` (no redirect) → use `<staging-host>` in Vault.
+- If `FINAL.url` equals `https://<redirect-target>/auth/callback/google?code=TEST&state=TEST` (307 preserves path+query) — the case for this staging deploy — use `<redirect-target>` in Vault. The browser will only ever land at the redirect target, so the GCP Authorized Redirect URI must be the redirect-target form, and Vault must match.
+- If `FINAL.url` equals `https://<redirect-target>/` (path+query stripped on redirect) — the OAuth flow is broken with this Vercel configuration; either remove the redirect (assign the staging host to a separate Vercel project) or change Vercel's redirect rule to preserve path+query.
+
+The current staging deploy uses the middle case: `staging.exoper.com` 307-preserves path+query to `app.exoper.com`. Vault therefore holds `https://app.exoper.com/auth/callback/google`.
+
+### 14.6.3 — Write the 4 OAuth keys into Vault
+
+Vault path: `etradie/services/gateway/<env>`. The 4 keys are added on top of the 12 existing gateway keys via `vault kv patch` (preserves the rest). Copy the Client ID and Client Secret from the GCP Console tab (14.6.1 step 6) and paste at the `read` prompts so they never appear in shell history:
+
+```bash
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+ROOT_TOKEN=$(awk '/Initial Root Token:/ {print $NF}' ~/vault-init.txt)
+
+read -p "Paste GOOGLE_CLIENT_ID: " GOOGLE_CLIENT_ID
+read -s -p "Paste GOOGLE_CLIENT_SECRET (input hidden): " GOOGLE_CLIENT_SECRET
+echo
+echo "  Client ID length:     ${#GOOGLE_CLIENT_ID} (expect ~72 ending in .apps.googleusercontent.com)"
+echo "  Client Secret length: ${#GOOGLE_CLIENT_SECRET} (expect 35 starting with GOCSPX-)"
+
+# Choose the redirect-URI host per 14.6.2 above.
+REDIRECT_HOST=https://app.exoper.com
+
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv patch -mount=etradie services/gateway/<env> \
+  google_client_id="$GOOGLE_CLIENT_ID" \
+  google_client_secret="$GOOGLE_CLIENT_SECRET" \
+  google_redirect_uri="${REDIRECT_HOST}/auth/callback/google" \
+  google_link_redirect_uri="${REDIRECT_HOST}/settings/oauth/callback/google"
+
+# Verify (no values echoed)
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -mount=etradie -format=json services/gateway/<env> \
+  | jq -r '.data.data | keys | length as $n | "gateway/<env> now has \($n) keys (was 12, expect 16)"'
+
+unset ROOT_TOKEN GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET REDIRECT_HOST
+history -c 2>/dev/null || true
+```
+
+### 14.6.4 — Flip the chart-side toggle in the staging overlay
+
+```yaml
+# helm/gateway/values-<env>.yaml
+config:
+  auth:
+    # ... existing keys ...
+    googleOAuthEnabled: "true"
+```
+
+Commit, push to GitHub (`origin`), sync ArgoCD, restart the gateway pod so it picks up the new env vars from the regenerated K8s Secret:
+
+```bash
+git add helm/gateway/values-<env>.yaml
+git commit -m "gateway(<env>): enable Google OAuth"
+git push origin main
+
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+argocd app sync gateway-<env> --grpc-web --timeout 300
+kubectl -n etradie-system annotate externalsecret etradie-gateway-secrets \
+  force-sync=$(date +%s) --overwrite
+sleep 8
+kubectl -n etradie-system rollout restart deploy/etradie-gateway
+kubectl -n etradie-system rollout status deploy/etradie-gateway --timeout=180s
+```
+
+### 14.6.5 — Update Vercel env vars + rebuild the SPA
+
+In the Vercel project's **Settings → Environment Variables** (Production scope), add or confirm:
+
+```
+VITE_API_URL=https://<env>-api.exoper.com   # or https://api.exoper.com for production
+VITE_API_WS_URL=wss://<env>-api.exoper.com
+VITE_GOOGLE_OAUTH_ENABLED=true
+VITE_OAUTH_CALLBACK_PATH=/auth/callback/google
+```
+
+Then trigger a rebuild (push any commit OR Settings → Deployments → ⋯ on latest → **Redeploy**). Wait 60-120 seconds for Vercel to publish.
+
+### 14.6.6 — Verify the chain end-to-end (canonical 9-hop trace)
+
+This is the single block that verifies all six pieces from 14.6.0 are aligned. Paste each line and check the pass criterion. Substitute `<env>` and `<staging-host>` / `<redirect-target>` per your deploy.
+
+```bash
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+ROOT_TOKEN=$(awk '/Initial Root Token:/ {print $NF}' ~/vault-init.txt)
+
+echo "=== HOP 1: Browser → Cloudflare → tunnel → edge-ingress → envoy ==="
+for path in /healthz /health /readiness; do
+  code=$(curl -sS -o /dev/null -w '%{http_code}' "https://<env>-api.exoper.com${path}")
+  printf '  %-15s %s\n' "$path" "$code"
+done
+# Pass: all three 200.
+
+echo
+echo "=== HOP 2: gateway pod env vars + NetworkPolicy ==="
+GW_POD=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-gateway \
+  --field-selector=status.phase=Running -o jsonpath='{.items[-1].metadata.name}')
+kubectl -n etradie-system exec "$GW_POD" -- env 2>/dev/null \
+  | grep -E '^AUTH_GOOGLE' | awk -F= '{print "    " $1}' | sort
+kubectl -n etradie-system get networkpolicy etradie-gateway-network-policy -o json \
+  | jq -r '.spec.egress[] | select(.to[]?.ipBlock? != null) | "    ipBlock=\(.to[0].ipBlock.cidr) except=\(.to[0].ipBlock.except) ports=\(.ports | map("\(.protocol):\(.port)") | join(","))"'
+# Pass: 5 AUTH_GOOGLE_* env vars + ipBlock 0.0.0.0/0 with except [10.42.0.0/16, 10.43.0.0/16] on TCP:443,TCP:80.
+
+echo
+echo "=== HOP 3: gateway pod can reach Google endpoints ==="
+kubectl -n etradie-system exec "$GW_POD" -c gateway -- nslookup oauth2.googleapis.com 2>&1 | head -8
+# Pass: resolves to two IPs (one IPv4 in 142.251.0.0/16, one IPv6 in 2a00:1450::/32).
+# Full reachability test (probe pod):
+# Run a curl probe pod with the gateway's labels so the same NetworkPolicy applies:
+#   kubectl run gw-probe -n etradie-system --rm -i --restart=Never --image=curlimages/curl:8.7.1 \
+#     --labels='app.kubernetes.io/name=etradie-gateway,probe=true' \
+#     --command -- sh -c 'curl -sS -m 10 -o /dev/null -w "%{http_code}\n" https://oauth2.googleapis.com/token; curl -sS -m 10 -o /dev/null -w "%{http_code}\n" https://www.googleapis.com/oauth2/v3/certs'
+# Pass: 404 (correct GET reject from token endpoint) and 200 (JWKS).
+
+echo
+echo "=== HOP 4: Vault holds correct OAuth values ==="
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv get -mount=etradie -format=json services/gateway/<env> \
+  | jq -r '.data.data | {
+      google_redirect_uri,
+      google_link_redirect_uri,
+      google_client_id_suffix: (.google_client_id | tostring | (length as $l | .[($l-32):]))
+    }'
+# Pass: redirect URIs end with /auth/callback/google and /settings/oauth/callback/google;
+# client_id ends with .apps.googleusercontent.com.
+
+echo
+echo "=== HOP 5: OAuth start endpoint builds valid authorize URL ==="
+RESP=$(curl -sS -X POST 'https://<env>-api.exoper.com/auth/oauth/google/start' \
+  -H 'Content-Type: application/json' \
+  -H 'Origin: https://<redirect-target>' \
+  -d '{"return_to":"/"}')
+AUTHURL=$(echo "$RESP" | jq -r '.authorize_url')
+REDIR_URI=$(echo "$AUTHURL" | grep -oE 'redirect_uri=[^&]*' | cut -d= -f2 \
+  | python3 -c "import urllib.parse, sys; print(urllib.parse.unquote(sys.stdin.read().strip()))")
+echo "  Authorize URL host:  $(echo "$AUTHURL" | awk -F'?' '{print $1}')"
+echo "  redirect_uri:        $REDIR_URI"
+echo "  state length:        $(echo "$RESP" | jq -r '.state | length')"
+# Pass: host = https://accounts.google.com/o/oauth2/v2/auth;
+# redirect_uri = https://<redirect-target>/auth/callback/google; state length = 43.
+
+echo
+echo "=== HOP 6: Vercel SPA at <redirect-target> → backend ==="
+curl -sS -D - -o /dev/null https://<redirect-target>/ 2>/dev/null \
+  | grep -i 'content-security-policy' | tr ';' '\n' | grep -i connect-src | head -1
+HTML=$(curl -sS -L https://<redirect-target>/ 2>/dev/null)
+JS_FILE=$(echo "$HTML" | grep -oE '/assets/index[^"]*\.js' | head -1)
+curl -sS -L "https://<redirect-target>${JS_FILE}" 2>/dev/null \
+  | grep -oE '(staging-api\.exoper\.com|api\.exoper\.com)' | sort -u
+# Pass: CSP includes both backends; bundle references the env-correct backend host.
+
+echo
+echo "=== HOP 7: Vercel 307 preserves OAuth callback URL ==="
+curl -sS -L --max-redirs 5 -D - -o /dev/null \
+  -w '\n  FINAL: code=%{http_code} url=%{url_effective}\n' \
+  'https://<staging-host>/auth/callback/google?code=TESTCODE&state=TESTSTATE' 2>&1 \
+  | grep -iE '^HTTP|^location|^  FINAL'
+# Pass: FINAL url is https://<redirect-target>/auth/callback/google?code=TESTCODE&state=TESTSTATE
+# (path AND query preserved).
+
+echo
+echo "=== HOP 8: Cookie cross-subdomain attributes ==="
+# Use the admin password to test the cookie path (any valid login works)
+ADMIN_PASS=$(grep ^ADMIN_PASS ~/etradie-<env>-creds.txt | cut -d= -f2-)
+BODY=$(jq -nc --arg u admin --arg p "$ADMIN_PASS" '{username:$u, password:$p}')
+JAR=$(mktemp)
+curl -sS -c "$JAR" -X POST https://<env>-api.exoper.com/auth/login \
+  -H 'Origin: https://<redirect-target>' \
+  -H 'Content-Type: application/json' -d "$BODY" \
+  -D - -o /dev/null 2>&1 \
+  | grep -i 'set-cookie:' \
+  | sed -E 's/(access_token|refresh_token|csrf_token)=[^;]+/\1=<value>/g' \
+  | sed 's/^/    /'
+rm -f "$JAR"
+unset ADMIN_PASS BODY JAR
+# Pass: 3 Set-Cookie headers, all with Domain=exoper.com (or .exoper.com); Secure; SameSite=None; HttpOnly
+# on the access/refresh cookies; the csrf_token cookie is JS-readable (no HttpOnly).
+
+echo
+echo "=== HOP 9: gateway log shows recent OAuth attempts ==="
+kubectl -n etradie-system logs "$GW_POD" --since=15m 2>&1 \
+  | grep -iE 'oauth|google|token request|callback' | tail -20
+# Pass after a real sign-in test: log shows oauth_flow_started → oauth_token_exchanged →
+# oauth_user_resolved → oauth_session_created. Empty = no attempts yet.
+
+unset ROOT_TOKEN GW_POD RESP AUTHURL REDIR_URI HTML JS_FILE
+```
+
+### 14.6.7 — Browser test (the actual end-to-end sign-in)
+
+1. Open a **fresh incognito window** (avoids stale cookies / localStorage).
+2. Open **DevTools → Network tab** BEFORE navigating; check "**Preserve log**" so cross-document redirects don't wipe the log.
+3. Navigate to `https://<staging-host>/`. Browser receives 307 → lands at `https://<redirect-target>/`.
+4. SPA loads. Login page renders with the **"Continue with Google"** button visible.
+5. Click the button. Watch the Network tab:
+   - `POST https://<env>-api.exoper.com/auth/oauth/google/start` `{return_to:"/"}` → `200` with JSON `{authorize_url, state, expires_in:600}`.
+   - SPA navigates browser to `https://accounts.google.com/o/oauth2/v2/auth?...` (the `authorize_url` from the response).
+   - Google account picker appears — select your account.
+   - Google redirects browser to `https://<redirect-target>/auth/callback/google?code=<authcode>&state=<state>`.
+   - SPA's `OAuthCallbackPage` mounts; extracts code+state from URL.
+   - `POST https://<env>-api.exoper.com/auth/oauth/google/callback` `{code, state}` → `200` with `{user:{...,role:"etradie",auth_provider:"google",...}, return_to:"/"}` AND 3 `Set-Cookie` headers (access_token, refresh_token, csrf_token), all with `Domain=exoper.com; SameSite=None; Secure`.
+   - SPA redirects to `/` (the dashboard).
+   - `GET https://<env>-api.exoper.com/auth/me` (cookies attached automatically by the browser) → `200` with the same user JSON.
+6. Dashboard loads with the signed-in user.
+
+### 14.6.8 — Promote OAuth-signed-in user to admin (operator-only)
+
+The `/auth/register` and `/auth/oauth/google/callback` endpoints both default to `role='etradie'` for newly-created users; promoting to `role='admin'` is direct SQL (no privilege-escalation API surface):
+
+```bash
+kubectl -n etradie-system exec postgres-0 -c postgres -- \
+  psql -U etradie -d etradie -c "
+    UPDATE auth_users
+    SET role='admin'
+    WHERE email='<your-google-email>'
+    RETURNING username, email, role, auth_provider, email_verified, created_at;"
+```
+
+The new JWT picks up `role='admin'` on the user's next sign-in (or on the next refresh_token rotation — access tokens are short-lived, 15 min default).
+
+### 14.6.9 — Phase 14.6 closeout TODOs
+
+The staging deploy that produced this section closed at the end of step 7 with a working sign-in. Outstanding operational follow-ups for any production cutover:
+
+1. Repeat 14.6.1-14.6.5 for the production environment (production-specific Vault path `etradie/services/gateway/production`, production Vercel project's env vars, production GCP Authorized origins/URIs). The gateway chart's egress rule from this commit is environment-independent so no production-specific NetworkPolicy work is needed.
+2. Consider configuring a production-only GCP OAuth Client separate from staging's, OR (simpler) use the same client with both staging + production Authorized URIs listed. Single-client model is the current posture per the GCP `Exoper` client's URI list.
+3. The signed-in user's profile picture, email-verified status, and Google subject ID are written to the `auth_oauth_identities` table. Inspect for debugging:
+   ```sql
+   SELECT u.username, u.email, u.role, u.auth_provider, oi.provider_subject, oi.picture, oi.email_verified
+   FROM auth_users u
+   LEFT JOIN auth_oauth_identities oi ON u.id = oi.user_id
+   ORDER BY u.created_at;
+   ```
+4. If the gateway log shows `oauth: token exchange failed: status=401 error=invalid_client`, the Vault `google_client_secret` is wrong or stale. Re-paste from GCP Console; in extreme cases (operator suspects compromise) reset the client secret in GCP Console and re-write Vault.
+
+---
+
 ## Phase 15 — Post-deploy operational notes
 
 - **Disabled toggles (BUDGET.md Table 2B re-enable index):** HPAs, PDBs, Linkerd `highAvailability`, Linkerd viz, per-service `linkerdPolicy`, snapshotter are intentionally OFF. Each has its re-enable pointer in BUDGET.md. Do not re-enable ad hoc on this box.
@@ -3085,6 +3372,10 @@ Vault path, AND the PVC — StatefulSet GC does not cascade to the PVC).
 | Phase 10 closeout: staging chart change + CI rebuild succeeded, but pod still runs the OLD code (`docker manifest inspect` shows a new digest in GHCR; the live pod's `imageID` is the old one) | Staging chart base default `imagePullPolicy: IfNotPresent` means the kubelet keeps the cached image as long as the tag string is unchanged. Staging re-uses the same tag (`staging-v0.1.0`) across rebuilds. | Set `image.pullPolicy: Always` in `helm/<service>/values-staging.yaml`. Production overlay keeps `IfNotPresent` because production rolls with explicit tag bumps. Audit ref: edge-ingress `a3633434`, engine `f033386b`. |
 | Phase 10 closeout: edge-ingress logs `health check completed status:404 Not Found is_healthy:false` against envoy on every interval; cluster eventually 502s the public path | envoy has no `/healthz` route in its `route_config.virtual_hosts[].routes`; the path falls through the catch-all `prefix: "/"` to `gateway_cluster`, and gateway's health endpoint is `/health` (not `/healthz`). edge-ingress hardcodes `/healthz` in its upstream health-checker (`src/edge-ingress/crates/upstream/src/health.rs::check_endpoint`). | Add a `direct_response: status: 200` route on envoy at `path: "/healthz"`, declared BEFORE the catch-all so envoy matches it first. envoy answers its own probe locally without depending on the upstream being route-aware; envoy retains its own separate `http_health_check` on each cluster (e.g. `gateway_cluster` probes gateway's `/readiness`) for the upstream side. Audit ref: `helm/envoy/templates/configmap.yaml`, commit `34a01588`. |
 | Go service pods (gateway/execution/management/billing) `1/2 CrashLoopBackOff` with `tls error: read tcp ...: connection reset by peer` or `server does not support SSL, but SSL was required` at first DB call | postgres pod does not serve TLS but every app config enforces `sslmode=require` in prod/staging (src/auth/config.go, src/billing/config/config.go, src/execution/internal/config/config.go, src/engine/config.py). Verify with `kubectl -n etradie-system exec postgres-0 -c postgres -- psql -U etradie -d etradie -c 'SHOW ssl;'` — must return `on`, not `off`. | confirm `helm/data-layer/values.yaml::postgres.tls.enabled=true` is rendered; check the `tls-cert-init` initContainer in `postgres-0` ran to completion; the postgres container args MUST include `-c ssl=on -c ssl_cert_file=... -c ssl_key_file=...`. After postgres comes up TLS-enabled, force-restart the Go service pods so they re-handshake against the now-TLS server. Engine pods also need `config.database.nativeTls: "true"` in their overlay so asyncpg switches from MESH mode (ssl=False) to NATIVE mode (ssl='require'). |
+| Phase 14.6: SPA shows `Sign-in failed: google oauth: token request transport: Post "https://oauth2.googleapis.com/token": dial tcp <ip>:443: connect: connection refused` after clicking "Continue with Google" | Gateway NetworkPolicy egress permits only intra-cluster traffic (linkerd, postgres, redis, internal services); the gateway has no outbound HTTPS path to Google's OAuth/OIDC endpoints. Same root cause as the earlier engine egress fix `aff0e645`. | Add `ipBlock: 0.0.0.0/0` egress rule with `except` for the K3s pod CIDR (10.42.0.0/16) and service CIDR (10.43.0.0/16) on ports 80/443 to `helm/gateway/values.yaml::networkPolicy.egress`. NetworkPolicy changes take effect immediately on the next reconcile — no pod restart needed. Audit ref: Phase 14.6 ; commit that landed this for the gateway. |
+| Phase 14.6: Google sign-in returns `redirect_uri_mismatch` from Google's consent page | The `google_redirect_uri` value in Vault does not match any URI in the GCP OAuth Client's Authorized Redirect URIs list. Vercel's 307 redirects (e.g. staging.exoper.com → app.exoper.com) mean the BROWSER lands at the post-redirect host, so the Vault URI must be the post-redirect host AND that exact URI must be Authorized in GCP. | Confirm where Vercel actually lands the browser with `curl -L /auth/callback/google?code=TEST&state=TEST` and read the FINAL url. Update Vault `google_redirect_uri` and `google_link_redirect_uri` to match that host. Add the matching URIs to GCP Console → Credentials → OAuth Client → Authorized redirect URIs. Audit ref: Phase 14.6.2. |
+| Phase 14.6: SPA's "Continue with Google" button does not render even though VITE_GOOGLE_OAUTH_ENABLED=true is set in Vercel | Vercel hasn't rebuilt the SPA bundle with the new env var. Vite bakes env vars in at build time, not at runtime. | Trigger a Vercel rebuild: Settings → Deployments → ⋯ on latest → Redeploy, OR push any trivial commit to main. Wait 60-120 seconds. Verify the new bundle name (in `<head>`) is different from before. |
+| Phase 14.6: Gateway pod won't start with `GOOGLE_CLIENT_ID must be set when GOOGLE_OAUTH_ENABLED=true` (or `_SECRET` / `_REDIRECT_URI` / `_LINK_REDIRECT_URI` variant) | Chart toggle is on (`googleOAuthEnabled: "true"` in values overlay) but Vault is missing one or more of the 4 required OAuth keys; ESO renders an empty value into the K8s Secret; `src/auth/config.go::validate()` rejects the pod start. | Re-run the Vault patch (14.6.3) ensuring all 4 keys are non-empty; force-refresh ESO; restart the gateway pod. |
 
 ---
 
