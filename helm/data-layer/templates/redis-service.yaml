@@ -19,15 +19,7 @@ spec:
       port: {{ .Values.redis.service.port | default 6379 }}
       targetPort: redis
       protocol: TCP
-      # NO appProtocol here. The redis POD carries
-      # config.linkerd.io/opaque-ports: "6379" (raw-TCP mTLS tunnel).
-      # Declaring appProtocol: redis made meshed callers' OUTBOUND
-      # proxy attempt L7 RESP handling while redis's INBOUND proxy
-      # expects an opaque tunnel -> connection reset on the meshed
-      # client->redis hop (same class as the postgres appProtocol bug,
-      # phase10.6 RCA 2026-06-17). Leaving appProtocol unset lets
-      # opaque-ports:6379 govern the hop end-to-end. Identical posture
-      # to postgres + chromadb.
+      appProtocol: redis
     {{- if .Values.redis.metrics.enabled }}
     - name: metrics
       port: {{ .Values.redis.metrics.exporter.port | default 9121 }}
@@ -56,8 +48,5 @@ spec:
       port: {{ .Values.redis.service.port | default 6379 }}
       targetPort: redis
       protocol: TCP
-      # NO appProtocol (see ClusterIP Service above): opaque-ports:6379
-      # on the redis pod governs this hop. Declaring appProtocol: redis
-      # here breaks the meshed client->redis opaque mTLS path
-      # (phase10.6 RCA 2026-06-17).
+      appProtocol: redis
 {{- end }}
