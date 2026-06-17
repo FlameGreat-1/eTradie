@@ -477,6 +477,35 @@ networkPolicy:
           port: 53
         - protocol: TCP
           port: 53
+    # Outbound HTTPS to the public internet for OAuth/OIDC provider
+    # endpoints (when AUTH_GOOGLE_OAUTH_ENABLED=true):
+    #   - oauth2.googleapis.com:443  (token exchange POST /token)
+    #   - www.googleapis.com:443     (JWKS GET /oauth2/v3/certs)
+    #   - accounts.google.com:443    (issuer; reachable for any future
+    #                                 direct call)
+    # plus any future public-internet HTTPS consumer in the gateway
+    # (Sentry, HIBP breach check, OCSP/CRL lookups).
+    #
+    # `namespaceSelector: {}` matches ONLY in-cluster pods and silently
+    # drops external HTTPS; the engine NetworkPolicy hit exactly this
+    # bug (commit aff0e645). Industry-standard fix: explicit ipBlock
+    # for 0.0.0.0/0 with `except` for the K3s pod CIDR (10.42.0.0/16)
+    # and service CIDR (10.43.0.0/16) so this rule does NOT widen any
+    # east-west posture the per-service rules above already govern.
+    # Only ports 80/443 permitted outbound; everything else stays
+    # denied. The OAuth client carries its bearer auth on the HTTPS
+    # body; this rule is the L4 envelope.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.42.0.0/16
+              - 10.43.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
 
 serviceMonitor:
   enabled: true
