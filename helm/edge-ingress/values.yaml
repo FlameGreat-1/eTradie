@@ -311,12 +311,52 @@ geoip:
   # (space-separated list).
   editionIds: "GeoLite2-City"
   initContainer:
-    # Official MaxMind geoipupdate image. Same image as the local
-    # docker-compose `edge-geoip-init` service (docker-compose.yml).
-    # v6+ is required because MaxMind deprecated the legacy
-    # license-key-only download URL alongside the v6 client release.
+    # Official MaxMind geoipupdate image. Used by the scheduled
+    # geoip-refresh CronJob (geoip-refresh-cronjob.yaml). v6+ is
+    # required because MaxMind deprecated the legacy license-key-only
+    # download URL alongside the v6 client release.
     image: "maxmindinc/geoipupdate:v6.0"
     pullPolicy: IfNotPresent
+  # Image for the in-pod bootstrap init container in deployment.yaml.
+  # busybox (guaranteed /bin/sh + wget + tar) runs the cache-aware,
+  # fault-tolerant download conditional; it does NOT shell-wrap the
+  # geoipupdate image (which would assume that image's shell).
+  bootstrapInitImage: "busybox:1.36"
+  # Persistent cache for the GeoLite2 DB. emptyDir (persistence
+  # disabled) re-downloads on every pod recreate and can exhaust the
+  # MaxMind daily download cap under churn -> HTTP 429 -> the init
+  # CrashLoops -> the pod never reaches Ready -> 502 on the public
+  # path. Persistence + the daily refresh CronJob eliminate that.
+  persistence:
+    enabled: true
+    # createPvc=true makes this chart own the PVC. Set false to BYO an
+    # existing claim named <release>-geoip-cache (e.g. RWX on a
+    # multi-node cluster backed by Longhorn/NFS).
+    createPvc: true
+    size: "200Mi"
+    # "" => cluster default StorageClass (K3s local-path), matching
+    # every other PVC in this repo. RWO; single-node profile.
+    storageClassName: ""
+  # Out-of-band daily refresh CronJob (geoip-refresh-cronjob.yaml).
+  # MaxMind publishes GeoLite2 twice weekly, so daily is ample and
+  # stays well under the per-key download cap. The CronJob is the only
+  # scheduled MaxMind caller in steady state.
+  refresh:
+    enabled: true
+    schedule: "0 3 * * *"   # 03:00 UTC daily
+    startingDeadlineSeconds: 600
+    activeDeadlineSeconds: 300
+    backoffLimit: 2
+    ttlSecondsAfterFinished: 86400
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
 
 # Preflight init-container that validates the Cloudflare AOP CA Secret
 # is present, non-empty, and parseable as PEM before the main

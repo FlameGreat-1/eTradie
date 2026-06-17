@@ -67,24 +67,89 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
-        # GeoIP database downloader. Uses the official MaxMind
-        # geoipupdate v6 image, identical to the local docker-compose
-        # `edge-geoip-init` service so cluster + local share one
-        # credential model and one binary. Reads BOTH account_id and
-        # license_key from the maxmind-credentials Secret synthesised
-        # by templates/externalsecret-maxmind.yaml. Runs once
-        # (GEOIPUPDATE_FREQUENCY=0) and exits 0; the main container
-        # then mmaps the .mmdb at the same in-pod path the Rust
-        # binary expects (/data/geoip/GeoLite2-City.mmdb).
+        # GeoIP database bootstrap (idempotent + fault-tolerant).
+        #
+        # The GeoLite2-City DB lives on the persistent geoip-cache PVC
+        # (see geoip-pvc.yaml) and is refreshed daily out-of-band by
+        # the geoip-refresh CronJob (see geoip-refresh-cronjob.yaml).
+        # This init container exists ONLY to guarantee the DB is on
+        # disk before the Rust binary starts (config_loader.rs
+        # validate() + server.rs build_geoip_lookup() hard-fail on a
+        # missing .mmdb). It is therefore cache-aware:
+        #
+        #   * cached .mmdb present  -> SKIP download (steady-state pod
+        #     restart makes ZERO MaxMind calls; this is what stops the
+        #     daily-download-cap exhaustion -> 429 -> CrashLoop -> 502
+        #     failure mode);
+        #   * .mmdb missing (cold)  -> download once (self-sufficient
+        #     first boot, even before the CronJob has ever run);
+        #   * download fails but a cached .mmdb exists -> warn + proceed
+        #     (resilient to MaxMind 429 / outage / rate-limit);
+        #   * download fails and NO .mmdb exists       -> exit 1 (the
+        #     binary genuinely cannot run without it).
+        #
+        # Implemented on busybox (guaranteed /bin/sh + wget + tar)
+        # against the MaxMind direct download API, identical endpoint +
+        # flow to src/edge-ingress/scripts/download-geoip.sh. This
+        # avoids depending on the maxmindinc/geoipupdate image's shell
+        # for the in-pod conditional; the official geoipupdate image is
+        # still used by the scheduled CronJob refresh.
         - name: geoip-downloader
-          image: "{{ .Values.geoip.initContainer.image }}"
+          image: "{{ .Values.geoip.bootstrapInitImage | default \"busybox:1.36\" }}"
           imagePullPolicy: {{ .Values.geoip.initContainer.pullPolicy | default "IfNotPresent" }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -u
+              DB=/data/geoip/GeoLite2-City.mmdb
+              MIN_BYTES=1000000   # a real GeoLite2-City.mmdb is tens of MB; guard against truncated/empty files
+
+              if [ -s "$DB" ]; then
+                SIZE=$(wc -c < "$DB" 2>/dev/null || echo 0)
+                if [ "$SIZE" -ge "$MIN_BYTES" ]; then
+                  echo "[geoip-bootstrap] cached DB present ($SIZE bytes) at $DB; skipping download"
+                  exit 0
+                fi
+                echo "[geoip-bootstrap] cached DB at $DB is too small ($SIZE bytes); will attempt refresh"
+              else
+                echo "[geoip-bootstrap] no cached DB at $DB (cold start); attempting download"
+              fi
+
+              URL="https://download.maxmind.com/app/geoip_download?edition_id=${GEOIPUPDATE_EDITION_IDS}&license_key=${GEOIPUPDATE_LICENSE_KEY}&suffix=tar.gz"
+              TMP=/tmp/geoip-dl
+              rm -rf "$TMP" && mkdir -p "$TMP"
+
+              if wget -q -O "$TMP/db.tar.gz" "$URL"; then
+                if tar -xzf "$TMP/db.tar.gz" -C "$TMP" 2>/dev/null; then
+                  FOUND=$(find "$TMP" -name 'GeoLite2-City.mmdb' -type f 2>/dev/null | head -n1)
+                  if [ -n "$FOUND" ] && [ -s "$FOUND" ]; then
+                    cp "$FOUND" "$DB.tmp" && mv "$DB.tmp" "$DB"
+                    echo "[geoip-bootstrap] download OK; installed $(wc -c < "$DB") bytes at $DB"
+                    rm -rf "$TMP"
+                    exit 0
+                  fi
+                fi
+                echo "[geoip-bootstrap] WARN: downloaded archive did not contain a valid GeoLite2-City.mmdb" >&2
+              else
+                echo "[geoip-bootstrap] WARN: MaxMind download failed (rate-limit 429 / outage / network)." >&2
+              fi
+              rm -rf "$TMP"
+
+              # Download failed. Tolerate it ONLY if a usable cached DB
+              # is already on the PVC (resilience); otherwise this is a
+              # true cold start with no DB and we must fail so the pod
+              # does not start a binary that will exit(1) anyway.
+              if [ -s "$DB" ]; then
+                SIZE=$(wc -c < "$DB" 2>/dev/null || echo 0)
+                if [ "$SIZE" -ge "$MIN_BYTES" ]; then
+                  echo "[geoip-bootstrap] proceeding with existing cached DB ($SIZE bytes); refresh deferred to the daily CronJob"
+                  exit 0
+                fi
+              fi
+              echo "[geoip-bootstrap] FATAL: no usable GeoIP DB and download failed. The MaxMind daily download cap may be exhausted (resets 00:00 UTC) or the license key/account-id is wrong. The geoip-refresh CronJob will retry on schedule; check the maxmind-credentials Secret." >&2
+              exit 1
           env:
-            - name: GEOIPUPDATE_ACCOUNT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.externalSecrets.maxmind.targetSecretName | default "maxmind-credentials" }}
-                  key: account-id
             - name: GEOIPUPDATE_LICENSE_KEY
               valueFrom:
                 secretKeyRef:
@@ -92,24 +157,12 @@ spec:
                   key: license-key
             - name: GEOIPUPDATE_EDITION_IDS
               value: {{ .Values.geoip.editionIds | default "GeoLite2-City" | quote }}
-            - name: GEOIPUPDATE_FREQUENCY
-              value: "0"
-            - name: GEOIPUPDATE_DB_DIR
-              value: "/data/geoip"
           volumeMounts:
             - name: geoip-data
               mountPath: /data/geoip
-            # The MaxMind geoipupdate v6 binary internally creates
-            # /tmp/geoipupdate as a lock/staging directory at startup.
-            # readOnlyRootFilesystem: true blocks any write to the root
-            # filesystem, so the init container needs a writable /tmp
-            # via the pod's already-declared `tmp` emptyDir volume
-            # (same volume the main edge-ingress container mounts at
-            # /tmp). Without this mount the init container crashes with
-            # `mkdir: can't create directory '/tmp/geoipupdate':
-            # Read-only file system` -> CrashLoopBackOff -> pod never
-            # reaches Ready -> Service has no endpoint -> cloudflared
-            # returns 502 to the public path.
+            # busybox wget/tar stage under /tmp; readOnlyRootFilesystem
+            # blocks the root fs so a writable /tmp emptyDir is required
+            # (same volume the main container mounts at /tmp).
             - name: tmp
               mountPath: /tmp
           securityContext:
@@ -327,8 +380,21 @@ spec:
               - key: internal-cert.key
                 path: internal-cert.key
         - name: geoip-data
+          {{- if .Values.geoip.persistence.enabled }}
+          # Persistent GeoIP cache (geoip-pvc.yaml). Survives pod
+          # restarts so the DB is re-used, not re-downloaded, on every
+          # boot. RWO is correct on the single-node profile (all edge
+          # pods + the refresh CronJob co-locate on one node).
+          persistentVolumeClaim:
+            claimName: {{ include "edge-ingress.fullname" . }}-geoip-cache
+          {{- else }}
+          # Legacy ephemeral cache (opt-out path). NOTE: re-downloads
+          # GeoLite2 on every pod recreate and can exhaust the MaxMind
+          # daily cap under churn; persistence.enabled=true is strongly
+          # preferred.
           emptyDir:
             sizeLimit: {{ .Values.volumes.geoipData.sizeLimit | default "200Mi" }}
+          {{- end }}
         - name: tmp
           emptyDir:
             sizeLimit: {{ .Values.volumes.tmp.sizeLimit | default "64Mi" }}
