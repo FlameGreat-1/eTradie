@@ -1,0 +1,53 @@
+{{- /*
+Persistent cache for the MaxMind GeoLite2-City database.
+
+Replaces the previous emptyDir (which was wiped on every pod recreate
+and forced a fresh MaxMind download on every restart -> daily download
+cap exhaustion -> HTTP 429 -> geoip-downloader CrashLoop -> pod never
+Ready -> 502 on the public path).
+
+Storage model (single-node BUDGET.md Table 2B):
+  - storageClassName "" resolves to the K3s `local-path` cluster
+    default, identical to every other PVC in this repo (data-layer,
+    mt-node). WaitForFirstConsumer binding: the PVC binds to the first
+    pod that mounts it (the refresh CronJob or an edge-ingress pod) and
+    every other pod on the SAME node mounts it too.
+  - ReadWriteOnce is correct on one node: RWO restricts the volume to a
+    single NODE, not a single pod; all co-located edge-ingress pods +
+    the CronJob share it. A multi-node move (BUDGET.md Table 5) would
+    require RWX (Longhorn/NFS CSI) or a per-node hostPath/DaemonSet
+    refresh; out of scope for the single-node profile.
+
+Gated by geoip.persistence.enabled so an operator can revert to the
+legacy emptyDir by setting it false.
+*/}}
+{{- if and .Values.geoip.persistence.enabled .Values.geoip.persistence.createPvc }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "edge-ingress.fullname" . }}-geoip-cache
+  namespace: {{ include "edge-ingress.namespace" . }}
+  labels:
+    {{- include "edge-ingress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: geoip-cache
+  annotations:
+    # The cache holds a freely re-downloadable public dataset, never
+    # operator data. ArgoCD must not try to revert a manual resize, and
+    # the volume is safe to recreate (the init container will re-fetch
+    # on a cold PVC). Kept here for parity with the data-layer chart's
+    # PVC ignoreDifferences posture.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- with .Values.geoip.persistence.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- else }}
+  # Empty string => use the cluster default StorageClass (K3s
+  # local-path). Matches helm/data-layer + helm/mt-node PVCs.
+  storageClassName: ""
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.geoip.persistence.size | default "200Mi" | quote }}
+{{- end }}
