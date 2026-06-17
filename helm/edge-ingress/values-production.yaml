@@ -50,6 +50,14 @@ cloudflareTunnel:
 # only needs the matching config.tls.certificates entry.
 config:
   tls:
+    # Production also runs Cloudflare Tunnel (cloudflareTunnel block
+    # above). cloudflared cannot present an AOP client cert on the
+    # tunnel hop. Trust boundary is the tunnel JWT + ufw + Linkerd
+    # mesh + gateway trust-aware CF-Connecting-IP resolution. If a
+    # future direct-internet production deployment is added, override
+    # this back to true at that overlay.
+    clientAuth:
+      required: false
     certificates:
       - hostname: "api.exoper.com"
         certPath: "/etc/edge-ingress/certs/api.exoper.com.crt"

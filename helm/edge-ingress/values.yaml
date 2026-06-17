@@ -444,10 +444,22 @@ config:
     handshakeTimeoutSecs: 10
     enableSni: true
     certReloadIntervalSecs: 3600
-    # Cloudflare AOP CA path inside the pod. Mandatory; templates fail
-    # rendering if empty.
+    # Cloudflare AOP client-cert verification.
+    #
+    # caPath: PEM bundle that signs valid client certs. For Cloudflare
+    #   AOP this is /etc/edge-ingress/cloudflare/origin-pull-ca.pem
+    #   mounted from the cloudflare-aop-ca Secret.
+    # required: when true (chart base default), every handshake MUST
+    #   present a client cert signed by caPath. Fits direct-internet
+    #   Cloudflare-proxy deployments. When false, handshakes without a
+    #   client cert are accepted; a cert that IS presented is still
+    #   verified. Fits Cloudflare Tunnel deployments where cloudflared
+    #   cannot present a client cert. Both staging AND production
+    #   overlays in this repo set required: false because both use
+    #   Cloudflare Tunnel.
     clientAuth:
       caPath: "/etc/edge-ingress/cloudflare/origin-pull-ca.pem"
+      required: true
     # Default: single-region (api + wildcard). Add api-eu / api-ap
     # entries below AND the matching ExternalSecret entries above
     # when bringing additional regions online.

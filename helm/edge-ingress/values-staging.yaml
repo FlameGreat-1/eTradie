@@ -93,6 +93,17 @@ config:
   tls:
     handshakeTimeoutSecs: 8
     certReloadIntervalSecs: 1800
+    # Tunnel topology: cloudflared cannot present a client cert to
+    # edge-ingress (no field in its originRequest schema). caPath
+    # stays set so any client cert that IS presented is still
+    # verified, but the missing-cert case no longer fails ServerHello.
+    # Defense in depth in staging: Cloudflare DDoS/WAF + origin IP
+    # not in public DNS + ufw inbound deny + tunnel JWT + server-side
+    # TLS to edge-ingress with internal CA verify + Linkerd mesh mTLS
+    # + gateway trusted-proxy-CIDR (10.42.0.0/16) honors
+    # CF-Connecting-IP for per-IP rate limiting.
+    clientAuth:
+      required: false
     certificates:
       - hostname: "staging-api.exoper.com"
         certPath: "/etc/edge-ingress/certs/staging-api.exoper.com.crt"

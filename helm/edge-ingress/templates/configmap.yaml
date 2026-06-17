@@ -33,6 +33,14 @@ data:
         nanos: 0
       client_auth:
         ca_path: {{ .Values.config.tls.clientAuth.caPath | quote }}
+        # `required: true` (chart base default): every TLS handshake
+        # MUST present a client cert signed by ca_path. Direct-internet
+        # / Cloudflare-AOP deployments use this.
+        # `required: false`: client cert is OPTIONAL. Used in Cloudflare
+        # Tunnel deployments where cloudflared cannot present a client
+        # cert; trust boundary is the tunnel JWT + ufw + Linkerd mesh
+        # + the gateway's trusted-proxy-CIDR CF-Connecting-IP honor.
+        required: {{ .Values.config.tls.clientAuth.required | default true }}
       certificates:
         {{- range .Values.config.tls.certificates }}
         - hostname: {{ .hostname | quote }}
