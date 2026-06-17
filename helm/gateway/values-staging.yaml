@@ -27,11 +27,22 @@ config:
     # Distributed tracing ON in staging: export OTLP spans to the
     # in-cluster OTel Collector (helm/observability-logs tracing.enabled).
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
-    # Cross-origin Vercel SPA -> staging API, same topology as
-    # production. Canonical SPA host is staging.exoper.com (the
-    # registrable-domain staging apex on Vercel; matches billing's
-    # publicBaseUrl below).
-    allowedOrigins: "https://staging.exoper.com"
+    # Cross-origin Vercel SPA -> staging API. The Vercel project
+    # serves the SAME SPA build at TWO custom domains:
+    #   - staging.exoper.com  (canonical staging URL; 307-redirects
+    #                          to app.exoper.com per Vercel domain
+    #                          configuration)
+    #   - app.exoper.com      (the redirect target; where the SPA
+    #                          actually loads in the browser)
+    # The 307 preserves path + query, so OAuth callbacks land at
+    # app.exoper.com/auth/callback/google?code=...&state=... after
+    # the redirect, and EVERY subsequent fetch from the SPA carries
+    # Origin: https://app.exoper.com (not staging.exoper.com).
+    # Both origins are allow-listed so the gateway CORS middleware
+    # admits requests from either entry point. corsMiddleware
+    # (src/gateway/internal/server/http_server.go) validates each
+    # entry at startup and refuses to boot with malformed entries.
+    allowedOrigins: "https://staging.exoper.com,https://app.exoper.com"
     billingServiceUrl: "http://billing-service.etradie-system.svc.cluster.local:8082"
     billingClientTimeoutMs: "15000"
   auth:
