@@ -21,17 +21,34 @@ podAnnotations:
   prometheus.io/port: "8000"
   prometheus.io/path: "/metrics"
   tier: staging
-  # NOTE: the previous-session `linkerd.io/inject: "disabled"` override
-  # has been REMOVED. It was a temporary unblock during the data-layer
-  # plaintext-postgres workaround arc (commit 8843f074); the root cause
-  # was that postgres did not serve TLS, which caused asyncpg+mesh
-  # handshake races during FastAPI lifespan startup. With postgres now
-  # serving TLS (data-layer chart, postgres.tls.enabled=true) and the
-  # engine flipped to ENGINE_DB_NATIVE_TLS=true below, the original
-  # failure mode no longer applies. The base values.yaml's mesh
-  # annotations (linkerd.io/inject: enabled, native sidecar, opaque-
-  # ports for mt-node :5555 + chromadb :8000, skip-outbound for OTel
-  # :4317, proxy-await: enabled) now apply to engine end-to-end.
+  # TEMPORARY (STAGING ONLY) — mesh disabled on the engine pod.
+  #
+  # The postgres TLS work in this Phase 10.6 series resolved the
+  # postgres handshake side of the cold-start race (engine asyncpg
+  # uses ENGINE_DB_NATIVE_TLS=true to negotiate TLS against the now-
+  # TLS-serving postgres). The migrate init container succeeds against
+  # TLS postgres in <3 seconds. The remaining failure is the engine →
+  # chromadb outbound mesh hop: even with chromadb's opaque-ports:8000
+  # + no appProtocol on the Service, the engine's outbound proxy keeps
+  # treating chromadb as HTTP/1.1 and gets Connection refused (a
+  # Linkerd 2.14 outbound-discovery race documented in PROGRESS.md
+  # `Phase 10.6 — RESOLVED 2026-06-16 evening`).
+  #
+  # Re-disabling mesh on the engine pod sidesteps the whole class of
+  # failure for staging while keeping every other workload meshed.
+  # Production overlay is UNTOUCHED — production engine stays meshed.
+  #
+  # REVERT PATH (do this BEFORE production cutover):
+  #   1. Add retry-with-backoff in src/engine/main.py::lifespan
+  #      around the first DB / redis / chromadb call (5s of
+  #      Connection-refused jitter tolerance is enough in practice).
+  #   2. Validate against a freshly-rolled linkerd-destination that
+  #      the engine pod can come up with mesh on.
+  #   3. Remove THIS annotation; the rest of the base values.yaml's
+  #      mesh setup (native sidecar, proxy-await, opaque-ports for
+  #      mt-node :5555 + chromadb :8000, skip-outbound for OTel
+  #      :4317) is already correct and will take effect.
+  linkerd.io/inject: "disabled"
 
 config:
   app:
