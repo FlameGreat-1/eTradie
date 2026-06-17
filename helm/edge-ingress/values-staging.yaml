@@ -71,6 +71,17 @@ externalSecrets:
         property: "staging_wildcard_cert"
       - secretKey: "wildcard.staging.exoper.com.key"
         property: "staging_wildcard_key"
+      # Internal cluster-DNS TLS chain (cloudflared <-> edge-ingress
+      # hop). See helm/edge-ingress/values.yaml for the full
+      # rationale; the three property names are environment-
+      # independent and the chart edits are byte-identical between
+      # staging and production.
+      - secretKey: "internal-ca.pem"
+        property: "internal_ca_pem"
+      - secretKey: "internal-cert.crt"
+        property: "internal_cert"
+      - secretKey: "internal-cert.key"
+        property: "internal_key"
   maxmind:
     vaultPath: "etradie/services/edge-ingress/staging/maxmind"
   aopCa:
@@ -90,6 +101,16 @@ config:
       - hostname: "*.staging.exoper.com"
         certPath: "/etc/edge-ingress/certs/wildcard.staging.exoper.com.crt"
         keyPath: "/etc/edge-ingress/certs/wildcard.staging.exoper.com.key"
+        isDefault: false
+      # Cluster-DNS cert presented to cloudflared via SNI selection.
+      # Same paths in values-production.yaml (cluster DNS name is
+      # environment-independent). Cert + key are sourced from Vault
+      # at etradie/services/edge-ingress/staging/tls (properties
+      # internal_cert + internal_key) via ESO into the existing
+      # edge-ingress-tls-certs Secret.
+      - hostname: "edge-ingress.edge-ingress-system.svc.cluster.local"
+        certPath: "/etc/edge-ingress/internal-cert/server.crt"
+        keyPath: "/etc/edge-ingress/internal-cert/server.key"
         isDefault: false
   upstream:
     connectTimeoutSecs: 4

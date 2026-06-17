@@ -224,6 +224,22 @@ spec:
             - name: cloudflare-aop-ca
               mountPath: /etc/edge-ingress/cloudflare
               readOnly: true
+            # The internal-cert mount projects ONLY the leaf cert +
+            # key from the same edge-ingress-tls-certs Secret that
+            # provides the public Cloudflare Origin Certs above.
+            # subPath is used so the public-cert files at
+            # /etc/edge-ingress/certs/ and the internal-cert files
+            # at /etc/edge-ingress/internal-cert/ live at separate
+            # paths even though they come from the same Secret.
+            # See volumes block below for the source.
+            - name: internal-cert
+              mountPath: /etc/edge-ingress/internal-cert/server.crt
+              subPath: internal-cert.crt
+              readOnly: true
+            - name: internal-cert
+              mountPath: /etc/edge-ingress/internal-cert/server.key
+              subPath: internal-cert.key
+              readOnly: true
             - name: geoip-data
               mountPath: /data/geoip
               readOnly: true
@@ -293,6 +309,23 @@ spec:
             # preflight init container also runs as uid 1000 and
             # needs to read the PEM through openssl.
             defaultMode: 0440
+        # Internal cluster-DNS TLS chain. Sourced from the same
+        # Secret as the public certs above (single source of truth
+        # for everything ESO populates from
+        # etradie/services/edge-ingress/${env}/tls). subPath mounts
+        # in the main container (above) select only the leaf cert +
+        # key from this volume; the CA bytes are not mounted into
+        # edge-ingress (only cloudflared trusts them, see
+        # cloudflared-deployment.yaml).
+        - name: internal-cert
+          secret:
+            secretName: {{ .Values.externalSecrets.tlsCerts.targetSecretName | default "edge-ingress-tls-certs" }}
+            defaultMode: 0440
+            items:
+              - key: internal-cert.crt
+                path: internal-cert.crt
+              - key: internal-cert.key
+                path: internal-cert.key
         - name: geoip-data
           emptyDir:
             sizeLimit: {{ .Values.volumes.geoipData.sizeLimit | default "200Mi" }}

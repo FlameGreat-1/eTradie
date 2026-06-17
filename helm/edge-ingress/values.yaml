@@ -383,6 +383,26 @@ externalSecrets:
         property: "wildcard_cert"
       - secretKey: "wildcard.exoper.com.key"
         property: "wildcard_key"
+      # Internal cluster-DNS TLS chain. CA is operator-generated
+      # ONCE per environment (workstation `step` commands documented
+      # in PROGRESS.md) and written to the same Vault path as the
+      # public certs (etradie/services/edge-ingress/${env}/tls).
+      # All three property names are environment-independent;
+      # staging and production use the same names in the same
+      # vault-path layout.
+      #   internal_ca_pem  - CA public cert (cloudflared trusts this)
+      #   internal_cert    - server leaf cert (edge-ingress presents)
+      #   internal_key     - server leaf private key
+      # cloudflared loads internal_ca_pem via originRequest.caPool
+      # on the tunnel ingress at Cloudflare's edge; edge-ingress
+      # mounts the leaf cert + key on disk for SNI selection by the
+      # cluster DNS hostname.
+      - secretKey: "internal-ca.pem"
+        property: "internal_ca_pem"
+      - secretKey: "internal-cert.crt"
+        property: "internal_cert"
+      - secretKey: "internal-cert.key"
+        property: "internal_key"
       # Multi-region. Uncomment and populate the corresponding Vault
       # keys (api_eu_cert / api_eu_key / api_ap_cert / api_ap_key)
       # before enabling. Adding a region also requires adding the

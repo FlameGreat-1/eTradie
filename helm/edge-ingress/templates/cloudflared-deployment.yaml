@@ -115,10 +115,33 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            # CA bundle for the origin TLS hop to edge-ingress. The
+            # tunnel ingress at Cloudflare's edge is configured (via
+            # the operator re-PUT documented in PROGRESS.md) with
+            # `originRequest.caPool: "/etc/cloudflared/ca-pool/ca.pem"`
+            # so cloudflared loads this CA in addition to its system
+            # trust store. With noTLSVerify=false (Tier 11), chain
+            # verification on the cluster-DNS hop now succeeds against
+            # the leaf cert edge-ingress presents (signed by the same
+            # internal CA).
+            - name: internal-ca-pool
+              mountPath: /etc/cloudflared/ca-pool
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 32Mi
+        # Same edge-ingress-tls-certs Secret as the main edge-ingress
+        # Deployment mounts; cloudflared receives ONLY the CA public
+        # bytes (internal_ca_pem -> ca.pem). The leaf cert + key
+        # remain visible only to the edge-ingress container.
+        - name: internal-ca-pool
+          secret:
+            secretName: {{ .Values.externalSecrets.tlsCerts.targetSecretName | default "edge-ingress-tls-certs" }}
+            defaultMode: 0440
+            items:
+              - key: internal-ca.pem
+                path: ca.pem
       dnsPolicy: ClusterFirst
       restartPolicy: Always
 {{- end }}

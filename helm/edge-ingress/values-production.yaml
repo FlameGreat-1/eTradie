@@ -41,6 +41,29 @@ cloudflareTunnel:
   # One tunnel replica on the single-node box.
   replicaCount: 1
 
+# Cluster-DNS cert presented to cloudflared via SNI selection.
+# Sourced from Vault at etradie/services/edge-ingress/production/tls
+# (properties internal_cert + internal_key) via ESO into the existing
+# edge-ingress-tls-certs Secret. The three properties
+# (internal_ca_pem / internal_cert / internal_key) are added to the
+# base values.yaml's externalSecrets.tlsCerts.entries; this overlay
+# only needs the matching config.tls.certificates entry.
+config:
+  tls:
+    certificates:
+      - hostname: "api.exoper.com"
+        certPath: "/etc/edge-ingress/certs/api.exoper.com.crt"
+        keyPath: "/etc/edge-ingress/certs/api.exoper.com.key"
+        isDefault: true
+      - hostname: "*.exoper.com"
+        certPath: "/etc/edge-ingress/certs/wildcard.exoper.com.crt"
+        keyPath: "/etc/edge-ingress/certs/wildcard.exoper.com.key"
+        isDefault: false
+      - hostname: "edge-ingress.edge-ingress-system.svc.cluster.local"
+        certPath: "/etc/edge-ingress/internal-cert/server.crt"
+        keyPath: "/etc/edge-ingress/internal-cert/server.key"
+        isDefault: false
+
 resourceQuota:
   hard:
     requestsCpu: "2"
