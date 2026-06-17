@@ -464,12 +464,26 @@ jobs:
           # ArgoCD CRDs are schema-checked separately. We only confirm
           # the YAML parses and the AppProject + Application docs are
           # syntactically valid Kubernetes manifests.
+          #
+          # Top-level singletons: the three AppProjects + the root
+          # app-of-apps. (monitoring-appproject.yaml was previously
+          # omitted from this list -- fixed here so all three projects
+          # are validated.)
           for f in deployments/argocd/appproject.yaml \
                    deployments/argocd/linkerd-appproject.yaml \
-                   deployments/argocd/root-app.yaml \
-                   deployments/argocd/children/*.yaml; do
+                   deployments/argocd/monitoring-appproject.yaml \
+                   deployments/argocd/root-app.yaml; do
             python3 -c "import yaml,sys; list(yaml.safe_load_all(open('$f')))"
           done
+          # Every child Application under children/ (staging + linkerd)
+          # AND every parked Application under environments/ (production)
+          # is validated recursively, so a file move between those trees
+          # never silently drops a manifest from CI coverage. `find`
+          # (not a single-level glob) covers any directory depth.
+          find deployments/argocd/children deployments/argocd/environments \
+               -type f -name '*.yaml' -print0 \
+            | xargs -0 -I{} python3 -c "import yaml,sys; list(yaml.safe_load_all(open('{}')))"
+          echo "argocd manifests parse: OK"
 
   test:
     runs-on: ubuntu-latest
