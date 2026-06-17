@@ -54,13 +54,16 @@ spec:
       {{- end }}
       {{- if .Values.postgres.tls.enabled }}
       # tls-cert-init: generate a self-signed RSA server cert + key at
-      # first boot. Uses nginx:1.27-alpine because that image ships
-      # /usr/bin/openssl AND /bin/sh natively (postgres:16-alpine only
-      # ships libssl, not the openssl CLI; an earlier iteration used
-      # `apk add openssl` at runtime which failed under our tight
-      # NetworkPolicy egress posture). nginx-alpine is small (~25MB),
-      # official, and the cert-generation init pattern with this image
-      # is industry-standard.
+      # first boot. Uses alpine/openssl (the official OpenSSL Software
+      # Foundation image on Docker Hub) which ships /usr/bin/openssl
+      # natively plus /bin/sh. ~10MB compressed, no `apk add` needed,
+      # no outbound network egress required.
+      #
+      # The image tag is pinned by SHA-256 digest for reproducibility
+      # across re-pulls (cache eviction, new node, ArgoCD sync after
+      # node drain). Bumping the digest is a deliberate operator action.
+      # Current digest corresponds to alpine/openssl 3.5.7 (verified
+      # 2026-06-16 with `docker run alpine/openssl version`).
       #
       # Writes to the certs emptyDir; postgres container mounts it
       # read-only at /var/lib/postgresql/certs/. Idempotent: skips
@@ -80,7 +83,7 @@ spec:
       #   - No outbound network egress required.
       initContainers:
         - name: tls-cert-init
-          image: "nginx:1.27-alpine"
+          image: "alpine/openssl@sha256:923270611179f81b420bfb5bb5c18bf07fd59d84ed4163ac04cb371faa6d150f"
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
