@@ -1,0 +1,132 @@
+{{- /*
+Daily GeoLite2-City refresh CronJob.
+
+Decouples the MaxMind download from the hot pod-start path. MaxMind
+publishes GeoLite2 twice weekly; a daily refresh stays far under the
+per-license-key download cap and keeps the PVC-backed DB fresh without
+any edge-ingress pod ever calling MaxMind in steady state.
+
+The pod:
+  - carries app.kubernetes.io/name=edge-ingress so the existing
+    edge-ingress NetworkPolicy egress (0.0.0.0/0 minus RFC1918 on :443
+    for MaxMind + kube-dns) applies WITHOUT a NetworkPolicy edit;
+  - is `linkerd.io/inject: disabled` because a batch Job must not get a
+    never-terminating mesh sidecar (the Job would never reach Complete);
+  - runs with the same restricted-PSS-compliant securityContext as the
+    deployment's geoip-downloader init container (non-root uid 1000,
+    readOnlyRootFilesystem, drop ALL, seccomp RuntimeDefault) so it is
+    admissible in the warn+audit restricted namespace;
+  - mounts the same geoip-cache PVC the edge-ingress pods read, plus a
+    writable /tmp emptyDir for geoipupdate's lock/staging dir.
+*/}}
+{{- if and .Values.geoip.persistence.enabled .Values.geoip.refresh.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "edge-ingress.fullname" . }}-geoip-refresh
+  namespace: {{ include "edge-ingress.namespace" . }}
+  labels:
+    {{- include "edge-ingress.labels" . | nindent 4 }}
+    app.kubernetes.io/component: geoip-refresh
+spec:
+  schedule: {{ .Values.geoip.refresh.schedule | default "0 3 * * *" | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ .Values.geoip.refresh.startingDeadlineSeconds | default 600 }}
+  successfulJobsHistoryLimit: {{ .Values.geoip.refresh.successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ .Values.geoip.refresh.failedJobsHistoryLimit | default 3 }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "edge-ingress.labels" . | nindent 8 }}
+        app.kubernetes.io/component: geoip-refresh
+    spec:
+      backoffLimit: {{ .Values.geoip.refresh.backoffLimit | default 2 }}
+      # The Job's own pods must finish; bound their lifetime so a stuck
+      # geoipupdate (e.g. MaxMind hang) cannot pile up.
+      activeDeadlineSeconds: {{ .Values.geoip.refresh.activeDeadlineSeconds | default 300 }}
+      ttlSecondsAfterFinished: {{ .Values.geoip.refresh.ttlSecondsAfterFinished | default 86400 }}
+      template:
+        metadata:
+          labels:
+            # Inherit the edge-ingress NetworkPolicy egress allowance
+            # (MaxMind :443 + kube-dns) via this exact selector label.
+            {{- include "edge-ingress.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: geoip-refresh
+          annotations:
+            # A batch Job pod must NOT receive a Linkerd sidecar: the
+            # native-sidecar proxy never exits, so the Job would never
+            # reach Complete and the CronJob would accumulate Running
+            # pods forever.
+            linkerd.io/inject: "disabled"
+        spec:
+          restartPolicy: Never
+          {{- if .Values.priorityClass.enabled }}
+          priorityClassName: {{ .Values.priorityClass.name | default "edge-ingress-critical" }}
+          {{- end }}
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.podSecurityContext.runAsUser | default 1000 }}
+            runAsGroup: {{ .Values.podSecurityContext.runAsGroup | default 1000 }}
+            fsGroup: {{ .Values.podSecurityContext.fsGroup | default 1000 }}
+            seccompProfile:
+              type: RuntimeDefault
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: geoip-refresh
+              image: "{{ .Values.geoip.initContainer.image }}"
+              imagePullPolicy: {{ .Values.geoip.initContainer.pullPolicy | default "IfNotPresent" }}
+              env:
+                - name: GEOIPUPDATE_ACCOUNT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.externalSecrets.maxmind.targetSecretName | default "maxmind-credentials" }}
+                      key: account-id
+                - name: GEOIPUPDATE_LICENSE_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.externalSecrets.maxmind.targetSecretName | default "maxmind-credentials" }}
+                      key: license-key
+                - name: GEOIPUPDATE_EDITION_IDS
+                  value: {{ .Values.geoip.editionIds | default "GeoLite2-City" | quote }}
+                # Run once and exit (the CronJob schedule provides the
+                # cadence, not the geoipupdate daemon frequency).
+                - name: GEOIPUPDATE_FREQUENCY
+                  value: "0"
+                - name: GEOIPUPDATE_DB_DIR
+                  value: "/data/geoip"
+              volumeMounts:
+                - name: geoip-data
+                  mountPath: /data/geoip
+                # geoipupdate v6 creates /tmp/geoipupdate as a
+                # lock/staging dir; readOnlyRootFilesystem blocks the
+                # root fs so it needs a writable /tmp.
+                - name: tmp
+                  mountPath: /tmp
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: {{ .Values.podSecurityContext.runAsUser | default 1000 }}
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                {{- toYaml .Values.geoip.refresh.resources | nindent 16 }}
+          volumes:
+            - name: geoip-data
+              persistentVolumeClaim:
+                claimName: {{ include "edge-ingress.fullname" . }}-geoip-cache
+            - name: tmp
+              emptyDir:
+                sizeLimit: {{ .Values.volumes.tmp.sizeLimit | default "64Mi" }}
+{{- end }}
