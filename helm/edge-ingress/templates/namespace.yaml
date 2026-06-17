@@ -6,10 +6,32 @@ metadata:
   labels:
     name: {{ include "edge-ingress.namespace" . }}
     {{- include "edge-ingress.labels" . | nindent 4 }}
-    pod-security.kubernetes.io/enforce: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
-    pod-security.kubernetes.io/enforce-version: latest
-    pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    # PodSecurity Standard: WARN + AUDIT only at this stage (no enforce).
+    # Canonical platform posture, byte-identical to
+    # helm/data-layer/templates/namespace.yaml. Every meshed namespace
+    # on this cluster (etradie-system, envoy-system) uses this pattern
+    # because Linkerd's auto-injected `linkerd-init` initContainer
+    # requires NET_ADMIN + NET_RAW capabilities to install iptables
+    # rules for proxy interception, and BOTH PSS restricted and PSS
+    # baseline tiers forbid those capabilities. Omitting the `enforce`
+    # label leaves kube-apiserver's PSS admission plugin in audit+warn-
+    # only mode for this namespace — still surfaces restricted-tier
+    # violations in the apiserver audit log for security review,
+    # without blocking the Linkerd init container at admission.
+    #
+    # The enforce cutover is a deliberate, reviewed follow-up MR via
+    # Kyverno + a narrow PolicyException for the linkerd-init
+    # capabilities, planned in
+    # docs/runbooks/PHASE10.6-KYVERNO-PSS-RESTRICTED-PLAN.md. Deferred
+    # to the multi-node BUDGET.md Table 5 cutover when there is
+    # resource headroom for the operator.
+    #
+    # The PSS rule version is pinned to v1.30 so a future minor K8s
+    # upgrade does not silently shift the evaluated surface.
     pod-security.kubernetes.io/warn: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/warn-version: {{ .Values.namespace.podSecurityStandardVersion | default "v1.30" | quote }}
+    pod-security.kubernetes.io/audit: {{ .Values.namespace.podSecurityStandard | default "restricted" }}
+    pod-security.kubernetes.io/audit-version: {{ .Values.namespace.podSecurityStandardVersion | default "v1.30" | quote }}
   annotations:
     description: "eTradie edge-ingress (TLS termination + Cloudflare AOP) namespace"
 {{- end }}
