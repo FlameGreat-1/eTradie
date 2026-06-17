@@ -1,10 +1,17 @@
 {{- /*
-TLS client authentication is mandatory. Fail rendering when ca_path is
-empty rather than producing an edge-ingress that fails at boot with an
-opaque error.
+TLS client authentication.
+
+When `required: true` (chart base default), ca_path MUST be set:
+edge-ingress refuses to start without it, and a template-time fail
+catches the operator error before the pod CrashLoops with a less
+clear runtime error.
+
+When `required: false` (Cloudflare Tunnel deployments), ca_path MAY
+be empty: the Rust binary configures rustls with .with_no_client_auth()
+in that case (no verifier wired at all).
 */}}
-{{- if not .Values.config.tls.clientAuth.caPath }}
-{{- fail "helm/edge-ingress: .Values.config.tls.clientAuth.caPath is required (mTLS is mandatory). Set it to the in-pod path of the Cloudflare AOP CA bundle, e.g. /etc/edge-ingress/cloudflare/origin-pull-ca.pem." -}}
+{{- if and .Values.config.tls.clientAuth.required (not .Values.config.tls.clientAuth.caPath) }}
+{{- fail "helm/edge-ingress: .Values.config.tls.clientAuth.caPath is required when clientAuth.required = true. Set it to the in-pod path of the Cloudflare AOP CA bundle, e.g. /etc/edge-ingress/cloudflare/origin-pull-ca.pem, or set clientAuth.required: false for Cloudflare-Tunnel deployments where cloudflared cannot present a client cert." -}}
 {{- end -}}
 apiVersion: v1
 kind: ConfigMap
@@ -33,14 +40,18 @@ data:
         nanos: 0
       client_auth:
         ca_path: {{ .Values.config.tls.clientAuth.caPath | quote }}
-        # `required: true` (chart base default): every TLS handshake
-        # MUST present a client cert signed by ca_path. Direct-internet
-        # / Cloudflare-AOP deployments use this.
+        # `required: true` (chart base default in values.yaml): every
+        # TLS handshake MUST present a client cert signed by ca_path.
+        # Direct-internet / Cloudflare-AOP deployments use this.
         # `required: false`: client cert is OPTIONAL. Used in Cloudflare
         # Tunnel deployments where cloudflared cannot present a client
         # cert; trust boundary is the tunnel JWT + ufw + Linkerd mesh
         # + the gateway's trusted-proxy-CIDR CF-Connecting-IP honor.
-        required: {{ .Values.config.tls.clientAuth.required | default true }}
+        # Render verbatim (NOT via `| default true`): Helm's `default`
+        # treats `false` as falsy and would silently rewrite an
+        # explicit `required: false` override back to `true`. The base
+        # values.yaml always declares this, so the field is never nil.
+        required: {{ .Values.config.tls.clientAuth.required }}
       certificates:
         {{- range .Values.config.tls.certificates }}
         - hostname: {{ .hostname | quote }}
