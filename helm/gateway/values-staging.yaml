@@ -44,6 +44,17 @@ config:
     csrfHeader: "X-CSRF-Token"
     csrfSigned: "true"
     returnTokensInBody: "false"
+    # Google OAuth 2.0 ON for staging. The four client fields
+    # (id, secret, redirect_uri, link_redirect_uri) MUST be present
+    # in Vault at etradie/services/gateway/staging BEFORE the gateway
+    # pod rolls with this overlay; auth/config.go::validate() fails
+    # the pod start otherwise. The two staging redirect URIs:
+    #   https://staging.exoper.com/auth/callback/google
+    #   https://staging.exoper.com/settings/oauth/callback/google
+    # MUST also be added to the GCP OAuth Client's Authorized
+    # redirect URIs alongside the existing localhost + production
+    # entries (see PROGRESS.md Phase 14 frontend OAuth section).
+    googleOAuthEnabled: "true"
 
 trustChain:
   # List form preferred over scalar for per-entry validation.

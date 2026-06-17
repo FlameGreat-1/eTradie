@@ -176,6 +176,14 @@ config:
     csrfHeader: "X-CSRF-Token"
     csrfSigned: "true"
     returnTokensInBody: "false"
+    # Google OAuth 2.0. OFF by chart base default — overlay flips ON
+    # for environments where the SPA serves the "Continue with Google"
+    # button. The four client fields (id, secret, redirect_uri,
+    # link_redirect_uri) live in Vault under the gateway path; the
+    # ExternalSecret renders them into the K8s Secret. The flag here
+    # is the public on/off toggle; the SPA mirrors it via
+    # VITE_GOOGLE_OAUTH_ENABLED.
+    googleOAuthEnabled: "false"
 
 # Trust-chain (read by src/auth/clientip.go via AUTH_TRUSTED_PROXY_CIDRS
 # and AUTH_TRUST_CLOUDFLARE). Base values match the PRODUCTION posture

@@ -94,6 +94,15 @@ data:
   AUTH_CSRF_SIGNED: {{ .Values.config.auth.csrfSigned | default "true" | quote }}
   AUTH_RETURN_TOKENS_IN_BODY: {{ .Values.config.auth.returnTokensInBody | default "false" | quote }}
 
+  # Google OAuth 2.0 enable flag (the non-secret policy switch). When
+  # true, the auth handler validates the GOOGLE_CLIENT_ID /
+  # GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI / GOOGLE_LINK_REDIRECT_URI
+  # values rendered by the ExternalSecret and exposes /auth/oauth/google/*
+  # routes. When false, the same routes return 503 "OAuth provider not
+  # configured" — the chart base default — and the SPA's flag mirror
+  # (VITE_GOOGLE_OAUTH_ENABLED) should match so the button is hidden.
+  AUTH_GOOGLE_OAUTH_ENABLED: {{ .Values.config.auth.googleOAuthEnabled | default "false" | quote }}
+
   # Trust chain (Cloudflare → edge-ingress → envoy → gateway).
   # trustedProxyCidrs accepts a list (preferred) or a scalar string;
   # this template normalises both to a comma-joined string for the
