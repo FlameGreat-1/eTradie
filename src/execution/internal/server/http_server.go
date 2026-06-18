@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -186,9 +185,18 @@ func NewHTTPServer(
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.Handle("/metrics", promhttp.Handler())
 
+	// No CORS middleware by design. Under the Option B architecture the
+	// SPA talks ONLY to the gateway origin; execution is reached
+	// exclusively via the gateway reverse proxy (server-to-server),
+	// never directly by a browser, so no browser reads a CORS header
+	// from this service. CORS is emitted once at the gateway edge and
+	// the gateway proxy strips any upstream Access-Control-* so the
+	// gateway is the single CORS authority. Re-adding CORS here would
+	// reintroduce the duplicated `Access-Control-Allow-Credentials:
+	// true,true` the browser rejects. Do NOT add it back.
 	s.server = &http.Server{
 		Addr:              fmt.Sprintf(":%d", port),
-		Handler:           corsMiddleware(loadAllowedOrigins(), authCfg.CSRFHeader)(mux),
+		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -196,32 +204,6 @@ func NewHTTPServer(
 	}
 
 	return s
-}
-
-// loadAllowedOrigins reads the credentialed-CORS allow-list from env.
-// Precedence:
-//  1. EXECUTION_ALLOWED_ORIGINS (service-specific override)
-//  2. ALLOWED_ORIGINS           (shared with engine + management)
-func loadAllowedOrigins() map[string]bool {
-	raw := strings.TrimSpace(os.Getenv("EXECUTION_ALLOWED_ORIGINS"))
-	if raw == "" {
-		raw = strings.TrimSpace(os.Getenv("ALLOWED_ORIGINS"))
-	}
-	if raw == "" {
-		return map[string]bool{}
-	}
-	// Validate every entry through the shared builder so a misconfigured
-	// credentialed-CORS origin ("*", "null", non-http(s), path/query) is
-	// DROPPED and logged rather than reflected with
-	// Access-Control-Allow-Credentials: true. Fail safe.
-	allowed, rejected := auth.BuildCORSAllowlist(strings.Split(raw, ","))
-	if len(rejected) > 0 {
-		l := observability.Logger("cors")
-		l.Error().
-			Strs("rejected", rejected).
-			Msg("execution_cors_invalid_origins_dropped")
-	}
-	return allowed
 }
 
 // Start begins serving HTTP. Blocks until the server stops.
@@ -241,43 +223,6 @@ func (s *HTTPServer) Shutdown(ctx context.Context) error {
 	s.settingsLimiter.Close()
 	s.cancelLimiter.Close()
 	return s.server.Shutdown(ctx)
-}
-
-// corsMiddleware emits credentialed-CORS headers backed by an explicit
-// allow-list. The Allow-Headers list includes the configured CSRF
-// header name so renaming AUTH_CSRF_HEADER does not break preflights.
-func corsMiddleware(allowed map[string]bool, csrfHeaderName string) func(http.Handler) http.Handler {
-	csrfHeaderName = strings.TrimSpace(csrfHeaderName)
-	if csrfHeaderName == "" {
-		csrfHeaderName = "X-CSRF-Token"
-	}
-	allowHeaders := strings.Join([]string{
-		"Content-Type",
-		"Authorization",
-		"X-Trace-ID",
-		"X-Requested-With",
-		csrfHeaderName,
-	}, ", ")
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			origin := r.Header.Get("Origin")
-			if origin != "" && allowed[origin] {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", allowHeaders)
-				w.Header().Set("Access-Control-Max-Age", "86400")
-				w.Header().Add("Vary", "Origin")
-			}
-
-			if r.Method == http.MethodOptions {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	}
 }
 
 // GET /api/v1/settings - Read all settings.
