@@ -369,11 +369,15 @@ def create_app() -> FastAPI:
     app.add_middleware(MaxBodySizeMiddleware)
 
     # -- CSRF middleware ---------------------------------------------------
-    # Must be added BEFORE the CORS middleware so the CSRF check runs
-    # on the already-authenticated request (get_current_user populates
-    # request.state.user via the route dependency before the middleware
-    # chain runs in Starlette's order). Internal routes (/internal/*)
-    # are exempt because they use X-Internal-Auth instead.
+    # The CSRF check runs on the already-authenticated request
+    # (get_current_user populates request.state.user via the route
+    # dependency before the middleware chain runs in Starlette's order).
+    # Internal routes (/internal/*) are exempt because they authenticate
+    # with X-Internal-Auth instead of a browser session. Added after the
+    # body-limit middleware (registered above) so an oversized body is
+    # rejected before the CSRF check runs. There is no CORS middleware in
+    # this app by design (see the NOTE below) so CSRF has no CORS
+    # ordering dependency.
     from engine.shared.csrf import CSRFMiddleware
 
     app.add_middleware(CSRFMiddleware)
