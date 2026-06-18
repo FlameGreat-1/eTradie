@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import make_asgi_app
 
 from engine.config import get_rag_config, get_settings
@@ -307,45 +305,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("application_stopped")
 
 
-def _validate_cors_origins(origins) -> list[str]:
-    """Return only the origins that are valid under credentialed CORS.
-
-    An entry is accepted when it is a full origin (scheme://host[:port])
-    with an https scheme, OR an http scheme limited to localhost /
-    127.0.0.1 for local dev. "*", "null", non-http(s) schemes, a missing
-    host, or any path/query/fragment is rejected and logged. Mirrors the
-    Go services' auth.BuildCORSAllowlist so every service validates the
-    shared ALLOWED_ORIGINS the same way.
-    """
-    from urllib.parse import urlparse
-
-    accepted: list[str] = []
-    rejected: list[str] = []
-    for origin in origins:
-        if origin == "*" or origin.lower() == "null":
-            rejected.append(origin)
-            continue
-        parsed = urlparse(origin)
-        if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            rejected.append(origin)
-            continue
-        if parsed.path or parsed.query or parsed.fragment:
-            rejected.append(origin)
-            continue
-        if parsed.scheme == "http":
-            host = (parsed.hostname or "").lower()
-            if host not in ("localhost", "127.0.0.1"):
-                rejected.append(origin)
-                continue
-        accepted.append(f"{parsed.scheme}://{parsed.netloc}")
-    if rejected:
-        logger.warning(
-            "engine_cors_invalid_origins_dropped",
-            extra={"rejected": rejected},
-        )
-    return accepted
-
-
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
@@ -419,42 +378,16 @@ def create_app() -> FastAPI:
 
     app.add_middleware(CSRFMiddleware)
 
-    # -- CORS middleware ---------------------------------------------------
-    allowed_origins_str = os.environ.get(
-        "ALLOWED_ORIGINS",
-        "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173",
-    )
-    # Validate every entry before handing it to CORSMiddleware. With
-    # allow_credentials=True a reflected "*", "null", or malformed
-    # origin is a credentialed-CORS bypass, so invalid entries are
-    # DROPPED (fail safe) and logged loudly — the same posture as the
-    # Go execution/management services' auth.BuildCORSAllowlist.
-    allowed_origins = _validate_cors_origins(
-        origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()
-    )
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allowed_origins,
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        # X-CSRF-Token is added so mutating engine calls from the SPA
-        # (e.g. POST /api/analysis/rerun) pass the CORS preflight when
-        # the axios interceptor attaches the double-submit header.
-        # X-Requested-With is allowed for compatibility with libraries
-        # that add it on XHR. Authorization remains in the list for
-        # CLI / server-to-server callers that still send Bearer tokens.
-        allow_headers=[
-            "Content-Type",
-            "Authorization",
-            "X-CSRF-Token",
-            "X-Trace-ID",
-            # W3C Trace Context header the SPA stamps on every request
-            # (browser = distributed-trace root). Must be allow-listed
-            # or the browser blocks the request at CORS preflight.
-            "traceparent",
-            "X-Requested-With",
-        ],
-        max_age=86400,
-    )
+    # NOTE: no CORS middleware here by design. Under the Option B
+    # architecture the SPA talks ONLY to the gateway origin; the engine
+    # is reached exclusively via the gateway reverse proxy
+    # (server-to-server), never directly by a browser, so no browser
+    # ever reads a CORS header from the engine. CORS is emitted once, at
+    # the gateway edge (src/gateway/internal/server/http_server.go
+    # corsMiddleware), and the gateway proxy strips any upstream
+    # Access-Control-* in ModifyResponse so the gateway is the single
+    # CORS authority. Re-adding CORSMiddleware here would reintroduce the
+    # duplicated `Access-Control-Allow-Credentials: true,true` the
+    # browser rejects. Do NOT add it back.
 
     return app
