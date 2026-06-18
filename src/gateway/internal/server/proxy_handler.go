@@ -173,6 +173,33 @@ func newServiceProxy(name, baseURL string, log zerolog.Logger) (*httputil.Revers
 		// response so the browser receives events without proxy
 		// buffering. It is harmless for normal JSON responses.
 		FlushInterval: -1,
+		// ModifyResponse makes the GATEWAY the single CORS authority.
+		//
+		// Under Option B the SPA talks only to the gateway origin, so
+		// CORS must be emitted exactly once, by the gateway's
+		// corsMiddleware (http_server.go). The proxied upstreams still
+		// carry their own pre-Option-B CORS middleware (engine FastAPI
+		// CORSMiddleware; execution corsMiddleware), both keyed on the
+		// shared ALLOWED_ORIGINS. httputil.ReverseProxy copies upstream
+		// response headers verbatim, so without this hook the client
+		// receives the gateway's Access-Control-* AND the upstream's,
+		// e.g. `Access-Control-Allow-Credentials: true,true`, which the
+		// browser rejects (must be exactly `true` for a credentialed
+		// request). Deleting every Access-Control-* header the upstream
+		// set guarantees the gateway's corsMiddleware is authoritative.
+		//
+		// Vary is intentionally left untouched: corsMiddleware adds
+		// `Vary: Origin` via Header().Add and duplicate Vary tokens are
+		// harmless. ModifyResponse is not invoked for 101 (WebSocket)
+		// upgrades, so the streaming/WS proxy routes are unaffected.
+		ModifyResponse: func(resp *http.Response) error {
+			for name := range resp.Header {
+				if strings.HasPrefix(http.CanonicalHeaderKey(name), "Access-Control-") {
+					resp.Header.Del(name)
+				}
+			}
+			return nil
+		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Error().
 				Str("upstream", name).
