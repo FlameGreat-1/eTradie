@@ -40,12 +40,18 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  {{- with .Values.geoip.persistence.storageClassName }}
-  storageClassName: {{ . | quote }}
-  {{- else }}
-  # Empty string => use the cluster default StorageClass (K3s
-  # local-path). Matches helm/data-layer + helm/mt-node PVCs.
-  storageClassName: ""
+  # Match the repo's StatefulSet volumeClaimTemplate pattern
+  # (helm/data-layer/templates/postgres-statefulset.yaml,
+  # helm/mt-node/templates/statefulset.yaml): set storageClassName ONLY
+  # when an explicit class is configured, otherwise OMIT the field so
+  # the cluster default StorageClass (K3s local-path) provisions the
+  # volume. A LITERAL `storageClassName: ""` must NOT be emitted: in
+  # Kubernetes an empty string disables dynamic provisioning and binds
+  # only to a pre-existing PV, which left this PVC Pending forever
+  # (FailedBinding: "no persistent volumes available ... and no storage
+  # class is set").
+  {{- if .Values.geoip.persistence.storageClassName }}
+  storageClassName: {{ .Values.geoip.persistence.storageClassName | quote }}
   {{- end }}
   resources:
     requests:
