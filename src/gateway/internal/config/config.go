@@ -47,9 +47,12 @@ type Config struct {
 	// Master switch.
 	Enabled bool `envconfig:"ENABLED" default:"true"`
 
-	// Symbols: gateway is the authority for active symbols.
-	// Users are expected to add their own symbols via the dashboard matching their broker's format.
-	DefaultSymbols []string `envconfig:"DEFAULT_SYMBOLS"`
+	// Symbols are NOT configured here. The active-symbol set is sourced
+	// exclusively from the user's connected broker (selected via the
+	// dashboard, validated against the broker catalogue, persisted in
+	// Redis per user). The gateway holds no default basket: a user with
+	// no selection produces no analysis cycle. See
+	// src/gateway/internal/symbolstore/store.go (SYMBOL SOURCE INVARIANT).
 
 	// Cycle timing.
 	// CycleTimeoutSeconds upper bound raised to 900s so operators can
@@ -258,17 +261,6 @@ func (c *Config) validate() error {
 	}
 	if !validLevels[strings.ToUpper(c.LogLevel)] {
 		return fmt.Errorf("LOG_LEVEL must be one of DEBUG/INFO/WARNING/ERROR/CRITICAL, got %q", c.LogLevel)
-	}
-
-	// Symbol bootstrap: the gateway is the authority for the active
-	// symbol set, so refusing to boot without at least one default
-	// symbol prevents a silent no-op cycle loop in production. An
-	// empty or nil slice both indicate a misconfigured deployment
-	// (env var unset, ExternalSecret missing, helm values mis-merge);
-	// failing fast here surfaces the misconfiguration at startup
-	// instead of after the first cycle runs with zero symbols.
-	if len(c.DefaultSymbols) == 0 {
-		return fmt.Errorf("DEFAULT_SYMBOLS must contain at least one symbol; got empty list")
 	}
 
 	// Port bounds.
