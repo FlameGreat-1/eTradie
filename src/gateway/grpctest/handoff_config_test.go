@@ -246,9 +246,11 @@ func TestGRPC_GetActiveSymbols(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // TestGRPC_SetActiveSymbols_Valid verifies that SetActiveSymbols accepts
-// a new symbol list and returns the updated active symbols.
-// Since Redis is unreachable in the test harness, the store falls back
-// to in-memory defaults. The call should still succeed without error.
+// a new symbol list and returns the updated active symbols. The harness
+// uses a real Redis, so the selection persists; the RPC must succeed
+// and return a non-nil active set. (Symbol-vs-broker-catalogue
+// validation lives on the REST PUT /api/v1/symbols path, not this gRPC
+// setter, so arbitrary names are accepted here.)
 func TestGRPC_SetActiveSymbols_Valid(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
@@ -264,8 +266,7 @@ func TestGRPC_SetActiveSymbols_Valid(t *testing.T) {
 	require.NoError(t, err, "SetActiveSymbols should not return gRPC error")
 	require.NotNil(t, resp)
 
-	// The store may or may not persist (Redis unreachable), but the
-	// RPC itself must succeed and return a valid response.
+	// The RPC must succeed and return a valid (non-nil) response.
 	assert.NotNil(t, resp.ActiveSymbols, "active symbols should be returned")
 }
 
