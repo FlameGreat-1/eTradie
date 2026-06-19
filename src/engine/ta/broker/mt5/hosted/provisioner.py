@@ -1328,6 +1328,17 @@ class HostedProvisioner:
         merged_annotations: dict[str, str] = {
             "vault.hashicorp.com/agent-inject": "true",
             "vault.hashicorp.com/role": _VAULT_TENANT_ROLE,
+            # The mt-node-tenant Vault k8s-auth role is created with
+            # audience="vault" (infrastructure/cluster/vault-paths/
+            # mt_node_tenant_secrets.tf). Without this annotation the
+            # injected Vault Agent logs in with the pod's DEFAULT SA
+            # token (aud=https://kubernetes.default.svc) and Vault
+            # rejects it 403 'invalid audience (aud) claim'. This
+            # injects "audience":"vault" into the agent's auto_auth
+            # kubernetes method config so the login JWT carries
+            # aud=vault and matches the role. Mirrors the engine's own
+            # aud=vault projected-token fix.
+            "vault.hashicorp.com/auth-config-audience": "vault",
             "vault.hashicorp.com/agent-pre-populate-only": "false",
             "vault.hashicorp.com/agent-init-first": "true",
             f"vault.hashicorp.com/agent-inject-secret-{_VAULT_SECRETS_FILE}": self._vault_data_path(vault_path),
