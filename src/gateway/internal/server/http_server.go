@@ -115,7 +115,17 @@ func NewHTTPServer(
 	authMiddleware := auth.RequireAuth(tokenService)
 	csrfMiddleware := auth.RequireCSRF(authHandler.AuthConfig())
 
-	mux.Handle("/ws/notifications", authMiddleware(http.HandlerFunc(alert.WebSocketHandler(hub))))
+	// CORS allowlist is validated up-front (failing the deploy loudly on
+	// any malformed entry) so it is available to BOTH the HTTP
+	// corsMiddleware below AND the WebSocket upgrader at
+	// /ws/notifications below. Single source of truth for cross-origin
+	// access across HTTP and WS routes.
+	allowedOrigins, err := buildCORSAllowlist(cfg.AllowedOrigins)
+	if err != nil {
+		return nil, fmt.Errorf("http_server: invalid CORS allowlist: %w", err)
+	}
+
+	mux.Handle("/ws/notifications", authMiddleware(http.HandlerFunc(alert.WebSocketHandler(hub, allowedOrigins))))
 
 	mux.Handle("/events/recent", authMiddleware(csrfMiddleware(http.HandlerFunc(alert.RecentEventsHandler(transport)))))
 	mux.Handle("/events/since", authMiddleware(csrfMiddleware(http.HandlerFunc(alert.EventsSinceHandler(transport)))))
@@ -242,13 +252,9 @@ func NewHTTPServer(
 		killSwitchHandler.RegisterRoutes(mux, authMiddleware, csrfMiddleware)
 	}
 
-	// CORS allowlist is validated at startup so a misconfig fails
-	// the deploy loudly rather than silently producing 403s or, worse,
-	// reflecting an unsafe origin under credentialed-CORS.
-	allowedOrigins, err := buildCORSAllowlist(cfg.AllowedOrigins)
-	if err != nil {
-		return nil, fmt.Errorf("http_server: invalid CORS allowlist: %w", err)
-	}
+	// allowedOrigins built earlier (before the first mux.Handle) so
+	// the WS upgrader at /ws/notifications consumes the same allowlist;
+	// see comment above the /ws/notifications registration.
 
 	s.server = &http.Server{
 		Addr: fmt.Sprintf(":%d", cfg.HTTPPort),

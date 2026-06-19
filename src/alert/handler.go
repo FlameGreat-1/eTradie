@@ -21,37 +21,55 @@ const (
 	maxMessageSize = 512
 )
 
-// upgrader configuration:
+// newUpgrader returns a fresh gorilla/websocket Upgrader configured
+// for the /ws/notifications endpoint. The upgrader's CheckOrigin
+// consults the SAME authoritative allowlist the HTTP corsMiddleware
+// uses (passed in by the caller from
+// src/gateway/internal/server/http_server.go::buildCORSAllowlist),
+// so there is a single source of truth for "which origin may talk
+// to this gateway" across both classic HTTP routes and WebSocket
+// upgrades.
 //
 //   • ReadBufferSize / WriteBufferSize tuned for our event payloads.
-//   • CheckOrigin: localhost during development; for cross-origin
-//     production traffic the gateway is fronted by a reverse proxy
-//     that strips Origin or matches it against the configured
-//     allowlist; here we accept matching Host as well.
-//   • Subprotocols: we MUST advertise "Bearer" so that the browser's
+//   • CheckOrigin policy, in order:
+//       1. Empty Origin -> admit. Non-browser clients (curl, grpc
+//          tooling, src/gateway/e2etest/, Phase 14.5 hosted-MT
+//          verification probes) routinely omit Origin; their auth
+//          is enforced by RequireAuth above this layer.
+//       2. localhost / 127.0.0.1 substring -> admit. Required for
+//          the Vite dev server (env.gatewayWsUrl = ws://localhost:8080
+//          in cotradee dev mode).
+//       3. Otherwise -> exact-match against allowedOrigins (the map
+//          built from helm/gateway/values-<env>.yaml::allowedOrigins).
+//          Exact-match is deliberate: substring matching admits any
+//          attacker-controlled suffix containing the allowed origin
+//          as a prefix, which the previous Host-based code was
+//          subtly vulnerable to.
+//   • Subprotocols: we MUST advertise "Bearer" so the browser's
 //     WebSocket('...', ['Bearer', '<jwt>']) handshake accepts our
-//     101 response. The auth middleware (auth.RequireAuth) reads
-//     and validates the JWT before we ever reach this upgrade call,
-//     so by the time gorilla echoes the subprotocol the token has
-//     already been verified.
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 4096,
-	Subprotocols:    []string{"Bearer"},
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			return true // Non-browser clients (gRPC tools, curl).
-		}
-		if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
-			return true
-		}
-		host := r.Host
-		if host != "" && strings.Contains(origin, host) {
-			return true
-		}
-		return false
-	},
+//     101 response. Browsers in this deploy use the cookie channel
+//     for auth (cookies are attached automatically to the WS
+//     handshake by the browser; HttpOnly access_token cannot be
+//     read into the subprotocol). Non-browser clients still use
+//     the subprotocol channel verbatim. The auth middleware
+//     (auth.RequireAuth) verifies whichever channel the client
+//     used BEFORE we reach this upgrade call.
+func newUpgrader(allowedOrigins map[string]bool) websocket.Upgrader {
+	return websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 4096,
+		Subprotocols:    []string{"Bearer"},
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true
+			}
+			if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
+				return true
+			}
+			return allowedOrigins[origin]
+		},
+	}
 }
 
 // HistoryProvider is the interface for fetching persistent event history.
@@ -66,14 +84,21 @@ type HistoryProvider interface {
 // connections to WebSocket and streams events from the hub.
 // Each connected dashboard client gets its own subscriber.
 //
+// allowedOrigins is the gateway's authoritative CORS allowlist (built
+// by buildCORSAllowlist from helm/gateway/values-<env>.yaml). The WS
+// upgrader's CheckOrigin admits exactly those origins (plus empty-
+// Origin and localhost; see newUpgrader). This is the same map
+// corsMiddleware consumes for HTTP routes - single source of truth.
+//
 // Supports optional severity filtering via query parameter:
 //
 //	ws://host/ws/notifications?severity=WARNING
 //
 // Only events at or above the given severity are delivered.
 // Valid values: INFO, WARNING, ERROR, CRITICAL. Default: all events.
-func WebSocketHandler(hub *Hub) http.HandlerFunc {
+func WebSocketHandler(hub *Hub, allowedOrigins map[string]bool) http.HandlerFunc {
 	log := newLogger("ws_handler")
+	upgrader := newUpgrader(allowedOrigins)
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Auth has already passed (we sit behind RequireAuth) so the
