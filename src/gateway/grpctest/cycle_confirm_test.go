@@ -104,40 +104,39 @@ func TestGRPC_RunCycle_NoCandidates(t *testing.T) {
 	assert.Equal(t, int64(0), h.Engine.ProcessorCalls.Load())
 }
 
-// TestGRPC_RunCycle_EmptySymbols_UsesDefaults verifies that when
-// RunCycle is called with an empty symbols list, the server falls
-// back to the active symbols from the SymbolStore (which falls back
-// to config defaults since Redis is unreachable in tests).
-func TestGRPC_RunCycle_EmptySymbols_UsesDefaults(t *testing.T) {
+// TestGRPC_RunCycle_NoSymbols_FailsPrecondition verifies that when
+// RunCycle is called with no request symbols AND the user has no stored
+// selection, the server refuses with FailedPrecondition instead of
+// dispatching a no-op cycle. Symbols are sourced exclusively from the
+// user's connected broker; there is no operator default basket to fall
+// back to. Mirrors the REST handler (412) and the scheduler skip path.
+func TestGRPC_RunCycle_NoSymbols_FailsPrecondition(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
 	h.Engine.TAResponse = e2e.TAResponseNoCandidates()
 	h.Engine.MacroResponse = e2e.MacroResponseFull()
 
-	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	// A user with no persisted symbol selection.
+	authCtx := h.AuthContext("test-user-nosymbols-001", "testuser", auth.RoleEtradie)
 	ctx, cancel := context.WithTimeout(authCtx, 60*time.Second)
 	defer cancel()
 
-	resp, err := h.Client.RunCycle(ctx, &gatewayv1.RunCycleRequest{
-		Symbols: nil, // Empty: server should use defaults.
-		TraceId: "trace-grpc-defaults-001",
+	_, err := h.Client.RunCycle(ctx, &gatewayv1.RunCycleRequest{
+		Symbols: nil, // Empty: no defaults exist, so the server must refuse.
+		TraceId: "trace-grpc-nosymbols-001",
 	})
 
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.NotEmpty(t, resp.Outputs)
+	require.Error(t, err, "RunCycle with no symbols must return an error")
+	st, ok := status.FromError(err)
+	require.True(t, ok, "error should be a gRPC status")
+	assert.Equal(t, codes.FailedPrecondition, st.Code())
+	assert.Contains(t, st.Message(), "broker catalogue")
 
-	// TA should have been called with the default symbols.
-	taCalls := h.Engine.CallsForPath("/internal/ta/analyze")
-	require.NotEmpty(t, taCalls)
-	taBody := taCalls[0].Body
-	require.NotNil(t, taBody)
-
-	// Default symbols from config: ["EURUSD", "GBPUSD"]
-	taSymbols, ok := taBody["symbols"].([]interface{})
-	require.True(t, ok)
-	assert.Len(t, taSymbols, 2, "should use 2 default symbols")
+	// The engine TA endpoint must NOT have been called — the cycle was
+	// refused before any upstream work.
+	assert.Equal(t, int64(0), h.Engine.TACalls.Load(),
+		"TA must not be called when the cycle is refused")
 }
 
 // TestGRPC_ConfirmSetup_Confirmed calls ConfirmSetup via gRPC and
