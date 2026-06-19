@@ -179,6 +179,16 @@ func (s *GRPCServer) RunCycle(ctx context.Context, req *gatewayv1.RunCycleReques
 		symbols = s.symbolStore.GetActiveSymbols(ctx, userID)
 	}
 
+	// Symbols are sourced exclusively from the user's connected broker.
+	// If the request carried none AND the user has no stored selection,
+	// there is nothing to analyse — refuse rather than dispatch a no-op
+	// cycle. Mirrors the REST handler (handleRunCycle -> 412) and the
+	// scheduler skip path.
+	if len(symbols) == 0 {
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"select at least one symbol from your broker catalogue before running a cycle")
+	}
+
 	outputs := s.orchestrator.RunCycle(ctx, symbols, req.GetTraceId())
 
 	var cycleOutputs []*gatewayv1.CycleOutput
@@ -505,22 +515,28 @@ func (s *GRPCServer) GetActiveSymbols(ctx context.Context, _ *gatewayv1.GetActiv
 	}, nil
 }
 
-// ResetActiveSymbols resets symbol selection to config defaults.
+// ResetActiveSymbols clears the user's symbol selection. There is no
+// operator default basket to restore to: symbols are sourced
+// exclusively from the user's connected broker, so after clearing, the
+// active set is empty until the user picks a symbol from their broker
+// catalogue. The proto RPC name is retained for wire compatibility;
+// its semantics are now "clear", matching the REST /api/v1/symbols/reset
+// handler.
 func (s *GRPCServer) ResetActiveSymbols(ctx context.Context, _ *gatewayv1.ResetActiveSymbolsRequest) (*gatewayv1.ResetActiveSymbolsResponse, error) {
 	userID := auth.UserIDFromContext(ctx)
 	oldSymbols := s.symbolStore.GetActiveSymbols(ctx, userID)
-	ok := s.symbolStore.ResetToDefaults(ctx, userID)
+	ok := s.symbolStore.ClearSelection(ctx, userID)
 	active := s.symbolStore.GetActiveSymbols(ctx, userID)
 
 	if ok {
 		s.transport.Publish(ctx,
 			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityInfo,
-				fmt.Sprintf("Symbols reset to defaults: %s", strings.Join(active, ", "))).
+				"Symbol selection cleared. Pick a symbol from your broker catalogue to resume tracking.").
 				WithUserID(auth.UserIDFromContext(ctx)).
 				WithDetails(map[string]interface{}{
 					"old_symbols": oldSymbols,
 					"new_symbols": active,
-					"source":      "reset_to_defaults",
+					"source":      "clear_selection",
 				}),
 		)
 	}
@@ -557,7 +573,9 @@ func (s *GRPCServer) GetGatewayConfig(ctx context.Context, _ *gatewayv1.GetGatew
 		TaCacheTtlSeconds:    int32(s.cfg.TACacheTTLSeconds),    // #nosec G115
 		MacroCacheTtlSeconds: int32(s.cfg.MacroCacheTTLSeconds), // #nosec G115
 		MaxCycleRetries:      int32(s.cfg.MaxCycleRetries),      // #nosec G115
-		DefaultSymbols:       s.cfg.DefaultSymbols,
+		// DefaultSymbols intentionally left empty: there is no operator
+		// default basket. The proto field is retained for wire
+		// compatibility. Symbols come exclusively from the user's broker.
 		ActiveSymbols:        activeSymbols,
 		ActiveSymbolsSource:  source,
 		ExecutionEnabled:     s.cfg.ExecutionEnabled,
