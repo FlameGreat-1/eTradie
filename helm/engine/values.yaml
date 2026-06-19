@@ -765,6 +765,24 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 5555
+    # HashiCorp Vault (vault namespace, :8200). HostedProvisioner
+    # writes per-tenant MT credentials to Vault KV at runtime FROM the
+    # engine pod (k8s-auth via the engine ServiceAccount, role
+    # 'mt-node-provisioner'). The Vault Service is a ClusterIP in the
+    # service CIDR (10.43.0.0/16), which the external-HTTPS ipBlock rule
+    # above explicitly EXCLUDES, so that rule cannot cover it. Without
+    # this dedicated namespaced rule the provisioner's Vault writes are
+    # dropped by the CNI and every hosted-MT provision fails with
+    # 'vault connection error: Cannot connect to host
+    # vault.vault.svc.cluster.local:8200'. The hosted-recovery sweep
+    # hits the same wall reaching the K8s API VIP (10.43.0.1:443).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vault
+      ports:
+        - protocol: TCP
+          port: 8200
     
 
 serviceMonitor:
