@@ -96,6 +96,26 @@ function newTraceparent(): string {
 export const AUTH_LOGOUT_BROADCAST_KEY = 'etradie:auth:logout';
 
 // ---------------------------------------------------------------------------
+// Session-dead latch (one-shot)
+//
+// When /auth/refresh fails the session is unrecoverable. Without a latch
+// every concurrent 401 (the dashboard fires many parallel queries plus an
+// SSE stream and auto-reconnecting WebSockets) independently runs the
+// refresh->fail->redirect path, and each redirect is an async
+// window.location.assign that does not settle instantly — producing a
+// rapid reload/redirect storm before navigation completes.
+//
+// This module-level flag is flipped the first time the session is known
+// dead. While set:
+//   - broadcastLogoutAndRedirect() is idempotent (redirect exactly once);
+//   - the 401 interceptor short-circuits and rejects WITHOUT attempting
+//     another refresh, stopping the storm.
+// It is reset on a successful refresh so a normal token rotation during
+// an active session is never affected.
+// ---------------------------------------------------------------------------
+let sessionDead = false;
+
+// ---------------------------------------------------------------------------
 // Multi-tab refresh lock
 //
 // When two tabs both receive a 401 simultaneously, only one should call
@@ -246,6 +266,12 @@ function readCSRFCookie(): string {
  */
 export function broadcastLogoutAndRedirect(reason: 'user' | 'session-expired'): void {
   if (typeof window === 'undefined') return;
+  // One-shot: collapse N concurrent unrecoverable-401 redirects into a
+  // single navigation. Subsequent calls (from other in-flight queries,
+  // query retries, or SSE/WS reconnects) are no-ops until a full page
+  // load clears module state.
+  if (sessionDead) return;
+  sessionDead = true;
   try {
     window.localStorage.setItem(
       AUTH_LOGOUT_BROADCAST_KEY,
@@ -501,6 +527,15 @@ function createClient(baseURL: string): AxiosInstance {
         return Promise.reject(error);
       }
 
+      // Session already known dead: a prior /auth/refresh failed and the
+      // single redirect to /login is in flight. Reject this 401
+      // IMMEDIATELY without another refresh attempt so concurrent
+      // dashboard queries, query retries, and SSE/WS reconnects cannot
+      // re-trigger the refresh->fail->redirect storm.
+      if (sessionDead) {
+        return Promise.reject(error);
+      }
+
       // Skip refresh loop for auth endpoints: a 401 on /auth/login or
       // /auth/refresh is a permanent failure, not something we retry.
       if (original.url?.startsWith('/auth/')) {
@@ -536,6 +571,10 @@ function createClient(baseURL: string): AxiosInstance {
           return Promise.reject(error);
         }
 
+        // Recovered: a transient 401 was healed by a successful token
+        // rotation. Clear the latch so a LATER genuine expiry can again
+        // trigger exactly one redirect.
+        sessionDead = false;
         processQueue();
         // Re-stamp the originating request's CSRF header from the
         // newly-rotated cookie before redispatching it.
