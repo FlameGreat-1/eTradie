@@ -139,7 +139,6 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 
 	cfg := &config.Config{
 		Enabled:                       true,
-		DefaultSymbols:                []string{"EURUSD", "GBPUSD"},
 		CycleIntervalSeconds:          60,
 		CycleTimeoutSeconds:           300,
 		MaxConcurrentSymbols:          4,
@@ -200,7 +199,7 @@ func newMgmtHandoffHarness(t *testing.T, mgmtSuccess bool, mgmtTradeID string, m
 	var symStore *symbolstore.Store
 	var settStore *settingsstore.Store
 	if redisWrapper != nil {
-		symStore = symbolstore.NewStore(redisWrapper, cfg)
+		symStore = symbolstore.NewStore(redisWrapper)
 		settStore = settingsstore.NewStore(redisWrapper)
 	}
 
