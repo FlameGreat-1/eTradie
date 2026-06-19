@@ -2,18 +2,190 @@ package takeprofit
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/flamegreat-1/etradie/src/management/internal/broker"
-	"github.com/flamegreat-1/etradie/src/management/internal/broker/mock"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 	"github.com/flamegreat-1/etradie/src/management/internal/journal"
 	"github.com/flamegreat-1/etradie/src/management/pkg/types"
 )
+
+// =============================================================================
+// fakeBroker - in-test broker.Port for the takeprofit package
+//
+// Independent copy of the in-test fake from monitoring/manager_test.go.
+// Go does not allow two test packages to share a type declared in an
+// internal _test.go without exporting it into non-test production code,
+// which would re-introduce a production-visible mock. The duplication
+// is intentional and matches the pattern already used by
+// src/execution/internal/state (state_test.go + reconciler_test.go
+// each carry their own fakeBroker).
+// =============================================================================
+
+type fakeBroker struct {
+	mu        sync.RWMutex
+	positions map[string]*broker.PositionInfo
+	prices    map[string]*broker.TickPrice
+	symbols   map[string]*broker.SymbolInfo
+}
+
+func newFakeBroker() *fakeBroker {
+	return &fakeBroker{
+		positions: make(map[string]*broker.PositionInfo),
+		prices:    make(map[string]*broker.TickPrice),
+		symbols:   make(map[string]*broker.SymbolInfo),
+	}
+}
+
+func (b *fakeBroker) AddPosition(pos *broker.PositionInfo) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.positions[pos.Ticket] = pos
+}
+
+func (b *fakeBroker) GetTickPrice(_ context.Context, symbol string) (*broker.TickPrice, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if tp, ok := b.prices[symbol]; ok {
+		return tp, nil
+	}
+	return &broker.TickPrice{Bid: 1.08000, Ask: 1.08020}, nil
+}
+
+func (b *fakeBroker) GetAccountInfo(_ context.Context) (*broker.AccountInfo, error) {
+	return &broker.AccountInfo{
+		Balance:    10000.0,
+		Equity:     10000.0,
+		Margin:     0.0,
+		FreeMargin: 10000.0,
+		Currency:   "USD",
+	}, nil
+}
+
+func (b *fakeBroker) GetPosition(_ context.Context, ticket string) (*broker.PositionInfo, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	pos, ok := b.positions[ticket]
+	if !ok {
+		return nil, fmt.Errorf("position %s not found", ticket)
+	}
+	return pos, nil
+}
+
+func (b *fakeBroker) GetSymbolInfo(_ context.Context, symbol string) (*broker.SymbolInfo, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if si, ok := b.symbols[symbol]; ok {
+		return si, nil
+	}
+	return &broker.SymbolInfo{
+		Symbol:         symbol,
+		Point:          0.00001,
+		Digits:         5,
+		TradeTickValue: 1.0,
+		TradeTickSize:  0.00001,
+	}, nil
+}
+
+func (b *fakeBroker) GetPositions(_ context.Context) ([]broker.PositionInfo, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	list := make([]broker.PositionInfo, 0, len(b.positions))
+	for _, p := range b.positions {
+		list = append(list, *p)
+	}
+	return list, nil
+}
+
+func (b *fakeBroker) GetHistory(_ context.Context, _ int) ([]broker.HistoryDealInfo, error) {
+	return []broker.HistoryDealInfo{}, nil
+}
+
+func (b *fakeBroker) WatchPositions(
+	ctx context.Context,
+	interval time.Duration,
+) (<-chan []broker.PositionInfo, <-chan error) {
+	positions := make(chan []broker.PositionInfo, 1)
+	errors := make(chan error, 1)
+	if interval <= 0 {
+		interval = time.Second
+	}
+	go func() {
+		defer close(positions)
+		defer close(errors)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		emit := func() {
+			snap, _ := b.GetPositions(ctx)
+			select {
+			case positions <- snap:
+			case <-ctx.Done():
+			default:
+				select {
+				case <-positions:
+				default:
+				}
+				select {
+				case positions <- snap:
+				case <-ctx.Done():
+				}
+			}
+		}
+		emit()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				emit()
+			}
+		}
+	}()
+	return positions, errors
+}
+
+func (b *fakeBroker) ModifyPosition(_ context.Context, ticket string, newSL, newTP float64) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	pos, ok := b.positions[ticket]
+	if !ok {
+		return fmt.Errorf("position %s not found", ticket)
+	}
+	pos.StopLoss = newSL
+	pos.TakeProfit = newTP
+	return nil
+}
+
+func (b *fakeBroker) ClosePartial(_ context.Context, ticket string, volumeToClose float64) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	pos, ok := b.positions[ticket]
+	if !ok {
+		return fmt.Errorf("position %s not found", ticket)
+	}
+	if volumeToClose > pos.Volume {
+		return fmt.Errorf("cannot close %.2f lots on position with %.2f lots", volumeToClose, pos.Volume)
+	}
+	pos.Volume -= volumeToClose
+	return nil
+}
+
+func (b *fakeBroker) ClosePosition(_ context.Context, ticket string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if _, ok := b.positions[ticket]; !ok {
+		return fmt.Errorf("position %s not found", ticket)
+	}
+	delete(b.positions, ticket)
+	return nil
+}
 
 // testPool creates a pgxpool connected to the running PostgreSQL container.
 // Falls back gracefully if DB is unavailable (journal errors are logged, not fatal).
@@ -43,7 +215,6 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	if err != nil {
 		t.Fatalf("PostgreSQL connection failed: %v", err)
 	}
-	// Verify connection.
 	if err := pool.Ping(context.Background()); err != nil {
 		pool.Close()
 		t.Fatalf("PostgreSQL ping failed: %v", err)
@@ -52,12 +223,12 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// newTestExecutor creates an executor with the mock broker and real journal.
-func newTestExecutor(t *testing.T, mb *mock.Broker) *Executor {
+// newTestExecutor creates an executor with the local fakeBroker and real journal.
+func newTestExecutor(t *testing.T, fb *fakeBroker) *Executor {
 	t.Helper()
 	pool := testPool(t)
 	repo := journal.NewRepository(pool)
-	return NewExecutor(mb, repo)
+	return NewExecutor(fb, repo)
 }
 
 // newLongTrade creates a standard EURUSD BUY trade for testing.
@@ -89,8 +260,6 @@ func newLongTrade() *types.Trade {
 }
 
 // newShortTrade creates a GBPUSD SELL trade for testing.
-// Entry: 1.27000, SL: 1.27500 (50 pip risk), lot: 0.10
-// TP1: 1.26500, TP2: 1.26000, TP3: 1.25500
 func newShortTrade() *types.Trade {
 	return &types.Trade{
 		TradeID:          "TMG-test-tp-short",
@@ -124,9 +293,9 @@ func floatClose(a, b, tolerance float64) bool {
 // =============================================================================
 
 func TestEvaluate_NoTPHit_PriceBelowTP1(t *testing.T) {
-	mb := mock.NewBroker()
-	mb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
-	exec := newTestExecutor(t, mb)
+	fb := newFakeBroker()
+	fb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
+	exec := newTestExecutor(t, fb)
 
 	trade := newLongTrade()
 	// Price at 1.10400 - just below TP1 at 1.10500.
@@ -153,9 +322,9 @@ func TestEvaluate_NoTPHit_PriceBelowTP1(t *testing.T) {
 // =============================================================================
 
 func TestEvaluate_TP1Hit_Long(t *testing.T) {
-	mb := mock.NewBroker()
-	mb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
-	exec := newTestExecutor(t, mb)
+	fb := newFakeBroker()
+	fb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
+	exec := newTestExecutor(t, fb)
 
 	trade := newLongTrade()
 	// Price at 1.10550 - above TP1 at 1.10500.
@@ -193,9 +362,9 @@ func TestEvaluate_TP1Hit_Long(t *testing.T) {
 // =============================================================================
 
 func TestEvaluate_TP2Skipped_WhenTP1NotHit(t *testing.T) {
-	mb := mock.NewBroker()
-	mb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
-	exec := newTestExecutor(t, mb)
+	fb := newFakeBroker()
+	fb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
+	exec := newTestExecutor(t, fb)
 
 	trade := newLongTrade()
 	// Price above TP2 but TP1 not yet hit - should only trigger TP1.
@@ -216,9 +385,9 @@ func TestEvaluate_TP2Skipped_WhenTP1NotHit(t *testing.T) {
 }
 
 func TestEvaluate_TP2Hit_AfterTP1(t *testing.T) {
-	mb := mock.NewBroker()
-	mb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
-	exec := newTestExecutor(t, mb)
+	fb := newFakeBroker()
+	fb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
+	exec := newTestExecutor(t, fb)
 
 	trade := newLongTrade()
 
@@ -260,9 +429,9 @@ func TestEvaluate_TP2Hit_AfterTP1(t *testing.T) {
 // =============================================================================
 
 func TestEvaluate_TP3Hit_FullClose(t *testing.T) {
-	mb := mock.NewBroker()
-	mb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
-	exec := newTestExecutor(t, mb)
+	fb := newFakeBroker()
+	fb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
+	exec := newTestExecutor(t, fb)
 
 	trade := newLongTrade()
 
@@ -306,8 +475,8 @@ func TestEvaluate_TP3Hit_FullClose(t *testing.T) {
 // =============================================================================
 
 func TestEvaluate_AllTPsAlreadyHit(t *testing.T) {
-	mb := mock.NewBroker()
-	exec := newTestExecutor(t, mb)
+	fb := newFakeBroker()
+	exec := newTestExecutor(t, fb)
 
 	trade := newLongTrade()
 	trade.TP1Hit = true
@@ -330,9 +499,9 @@ func TestEvaluate_AllTPsAlreadyHit(t *testing.T) {
 // =============================================================================
 
 func TestEvaluate_BrokerError_Propagated(t *testing.T) {
-	mb := mock.NewBroker()
+	fb := newFakeBroker()
 	// Don't add the position - ClosePartial will return "not found".
-	exec := newTestExecutor(t, mb)
+	exec := newTestExecutor(t, fb)
 
 	trade := newLongTrade()
 	_, err := exec.Evaluate(context.Background(), trade, 1.10550)
@@ -340,10 +509,7 @@ func TestEvaluate_BrokerError_Propagated(t *testing.T) {
 		t.Fatal("expected broker error to propagate")
 	}
 	// executor.go wraps every TP error with "%s close: %w" where the
-	// label is TP1/TP2/TP3. The wording was tightened from the old
-	// "partial close" / "full close" split when the branch was
-	// unified to handle both. The contract we still want to verify
-	// is: the broker error surfaces with the TP label attached.
+	// label is TP1/TP2/TP3.
 	expectedMsg := "TP1 close"
 	if !contains(err.Error(), expectedMsg) {
 		t.Fatalf("error should mention TP1 close, got: %v", err)
@@ -355,9 +521,9 @@ func TestEvaluate_BrokerError_Propagated(t *testing.T) {
 // =============================================================================
 
 func TestEvaluate_TP1Hit_Short(t *testing.T) {
-	mb := mock.NewBroker()
-	mb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-002", Volume: 0.10})
-	exec := newTestExecutor(t, mb)
+	fb := newFakeBroker()
+	fb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-002", Volume: 0.10})
+	exec := newTestExecutor(t, fb)
 
 	trade := newShortTrade()
 	// For SELL: TP1 at 1.26500, price drops to 1.26450 (below TP1).
@@ -383,9 +549,9 @@ func TestEvaluate_TP1Hit_Short(t *testing.T) {
 }
 
 func TestEvaluate_NoTPHit_Short_PriceAboveTP1(t *testing.T) {
-	mb := mock.NewBroker()
-	mb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-002", Volume: 0.10})
-	exec := newTestExecutor(t, mb)
+	fb := newFakeBroker()
+	fb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-002", Volume: 0.10})
+	exec := newTestExecutor(t, fb)
 
 	trade := newShortTrade()
 	// For SELL: TP1 at 1.26500, price at 1.26600 (above TP1, not hit).
@@ -403,9 +569,9 @@ func TestEvaluate_NoTPHit_Short_PriceAboveTP1(t *testing.T) {
 // =============================================================================
 
 func TestEvaluate_TP1Hit_PnLEstimate(t *testing.T) {
-	mb := mock.NewBroker()
-	mb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
-	exec := newTestExecutor(t, mb)
+	fb := newFakeBroker()
+	fb.AddPosition(&broker.PositionInfo{Ticket: "TKT-TP-001", Volume: 0.10})
+	exec := newTestExecutor(t, fb)
 
 	trade := newLongTrade()
 	// TP1 at 1.10500, close at 1.10500 exactly = 1R.
