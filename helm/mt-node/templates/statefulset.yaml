@@ -55,6 +55,11 @@ spec:
         # without it the agent uses the pod default-audience SA token and
         # Vault rejects the login 403 'invalid audience (aud) claim'.
         vault.hashicorp.com/auth-config-audience: "vault"
+        # Point the Vault Agent at the projected aud=vault token (mounted
+        # at /var/run/secrets/vault from the vault-token volume below) so
+        # its kubernetes-auth login JWT carries aud=vault; the default
+        # SA token's audience is the API server and Vault 403s on it.
+        vault.hashicorp.com/auth-config-token-path: "/var/run/secrets/vault/token"
         vault.hashicorp.com/agent-init-first: "true"
         vault.hashicorp.com/agent-pre-populate-only: "false"
         vault.hashicorp.com/agent-inject-secret-{{ .Values.vault.fileName }}: {{ include "mt-node.vaultTenantPath" . | quote }}
@@ -169,6 +174,11 @@ spec:
               mountPath: /tmp
             - name: var-tmp
               mountPath: /var/tmp
+            # aud=vault projected token (volume defined below); the Vault
+            # Agent reads it via the auth-config-token-path annotation.
+            - name: vault-token
+              mountPath: /var/run/secrets/vault
+              readOnly: true
         {{- if .Values.sidecar.watchdog.enabled }}
         - name: watchdog
           image: {{ include "mt-node.image" . | quote }}
@@ -226,6 +236,17 @@ spec:
         - name: var-tmp
           emptyDir:
             sizeLimit: 64Mi
+        # Projected SA token scoped to audience=vault so the injected
+        # Vault Agent presents an aud=vault JWT (the mt-node-tenant role
+        # requires audience=vault). Mirrors the engine's vault-token
+        # projection in helm/engine/templates/deployment.yaml.
+        - name: vault-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: vault
+                  expirationSeconds: 3600
       dnsPolicy: ClusterFirst
       restartPolicy: Always
   {{- if .Values.persistence.enabled }}
