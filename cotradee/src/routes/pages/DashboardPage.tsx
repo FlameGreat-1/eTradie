@@ -3,12 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { useExecutionState } from '@/features/execution/api/brokerAccount';
 import { useActiveBrokerConnection } from '@/features/broker/api/brokerConnections';
-import { useSymbols } from '@/features/symbols/api/symbols';
 import { useManagedTrades } from '@/features/journal/api/journal';
 import {
   TradingChart,
   type ActiveTrade,
 } from '@/features/chart/components/TradingChart';
+import { useActiveSymbol } from '@/features/chart/hooks/useActiveSymbol';
 import { WelcomeSetupCard } from '@/features/tradingsystem/components/WelcomeSetupCard';
 import { useOnboardingProgress } from '@/features/tradingsystem/hooks/useOnboardingProgress';
 import { useAuth } from '@/features/auth/context/AuthContext';
@@ -27,8 +27,8 @@ import { useAuth } from '@/features/auth/context/AuthContext';
  * floats over every authenticated route.
  */
 
-/** localStorage keys — must match Header.tsx */
-const SYMBOL_KEY = 'active_symbol';
+/** Timeframe localStorage key. The symbol selection is owned by
+ * useActiveSymbol, which persists to localStorage itself. */
 const TF_KEY = 'active_tf';
 
 function normalizeSymbol(s: string | undefined | null): string {
@@ -38,12 +38,8 @@ function normalizeSymbol(s: string | undefined | null): string {
 export default function DashboardPage() {
   useAuth();
 
-
-  const { data: symbolData } = useSymbols();
   const { data: execState } = useExecutionState();
   const { data: managed } = useManagedTrades();
-
-  const symbols = symbolData?.symbols ?? [];
 
   // Onboarding: fresh users (no broker + no symbols) are auto-redirected
   // to the full-screen /onboarding wizard. Users who "skipped" the wizard
@@ -54,8 +50,6 @@ export default function DashboardPage() {
 
   const noBroker = !broker.isLoading && !broker.data;
 
-
-
   // Show WelcomeSetupCard for users who skipped onboarding (no broker)
   const needsOnboarding = noBroker;
 
@@ -64,51 +58,51 @@ export default function DashboardPage() {
   const showResumeSetupPill =
     !needsOnboarding && !onboarding.loading && !onboarding.ready;
 
-  // Chart state from URL (synced with Header controls).
-  // On login redirect the URL has no params, so we fall back to the
-  // last-viewed instrument persisted in localStorage — exactly how
-  // TradingView restores your chart on every visit.
+  // Chart symbol is owned by the shared useActiveSymbol hook.
+  // Resolution order (see hook docstring):
+  //   URL ?symbol= -> broker-valid localStorage -> active connection's
+  //   mt5_symbol -> first broker-catalog entry -> '' (Select prompt).
+  // The hook never falls back to gateway DEFAULT_SYMBOLS, which was the
+  // root cause of the chart trying EURUSD on brokers that publish
+  // EURUSDm / EURUSD.x.
+  const { symbol: activeSymbol, setActiveSymbol } = useActiveSymbol();
+
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeSymbol =
-    searchParams.get('symbol') || localStorage.getItem(SYMBOL_KEY) || '';
   const timeframe =
     searchParams.get('tf') || localStorage.getItem(TF_KEY) || 'H1';
 
-  // One-time mount sync: push the resolved symbol/tf into the URL so
-  // Header, WatchlistSidebar, and any other URL-readers stay in sync.
+  // One-time mount sync: when the hook has resolved a symbol but the
+  // URL does not yet carry ?symbol=, push the value into the URL so
+  // WatchlistSidebar / Header and any other URL-readers stay in sync.
+  // setActiveSymbol writes URL + localStorage atomically; this guard
+  // prevents an infinite loop with the hook's own resolution.
   const didSyncRef = useRef(false);
   useEffect(() => {
     if (didSyncRef.current) return;
+    if (!activeSymbol) return;
 
     const urlHasSymbol = searchParams.has('symbol');
     const urlHasTf = searchParams.has('tf');
 
-    if (activeSymbol && (!urlHasSymbol || !urlHasTf)) {
+    if (!urlHasSymbol || !urlHasTf) {
       didSyncRef.current = true;
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        if (!urlHasSymbol) next.set('symbol', activeSymbol);
-        if (!urlHasTf) next.set('tf', timeframe);
-        return next;
-      }, { replace: true });
+      if (!urlHasSymbol) {
+        setActiveSymbol(activeSymbol);
+      }
+      if (!urlHasTf) {
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev);
+            next.set('tf', timeframe);
+            return next;
+          },
+          { replace: true },
+        );
+      }
     } else {
       didSyncRef.current = true;
     }
-  }, [activeSymbol, timeframe, searchParams, setSearchParams]);
-
-  // Fallback for first-time users with nothing in localStorage:
-  // once the symbols API resolves, auto-select the first instrument.
-  useEffect(() => {
-    if (!activeSymbol && symbols.length > 0) {
-      const firstSymbol = symbols[0];
-      localStorage.setItem(SYMBOL_KEY, firstSymbol);
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.set('symbol', firstSymbol);
-        return next;
-      });
-    }
-  }, [activeSymbol, symbols, setSearchParams]);
+  }, [activeSymbol, timeframe, searchParams, setSearchParams, setActiveSymbol]);
 
   // Live broker positions for the active symbol. These are the source
   // of truth while a trade is open (broker may have adjusted SL/TP).
