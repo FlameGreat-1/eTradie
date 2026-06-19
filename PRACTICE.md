@@ -402,3 +402,5 @@ kubectl top pods -A --sort-by=memory | head -30
 ```bash
 df -h /
 ```
+
+
