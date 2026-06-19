@@ -1136,6 +1136,10 @@ class HostedProvisioner:
                 client.V1VolumeMount(name="mt-cache", mount_path="/home/mt/.cache"),
                 client.V1VolumeMount(name="tmp", mount_path="/tmp"),  # nosec B108
                 client.V1VolumeMount(name="var-tmp", mount_path="/var/tmp"),  # nosec B108
+                # aud=vault projected token (volume defined in pod_spec).
+                # The Vault Agent reads it via the auth-config-token-path
+                # annotation so its login JWT carries aud=vault.
+                client.V1VolumeMount(name="vault-token", mount_path="/var/run/secrets/vault", read_only=True),
             ],
         )
 
@@ -1361,6 +1365,12 @@ class HostedProvisioner:
             # aud=vault and matches the role. Mirrors the engine's own
             # aud=vault projected-token fix.
             "vault.hashicorp.com/auth-config-audience": "vault",
+            # Point the agent at the projected aud=vault token (mounted
+            # at /var/run/secrets/vault from the vault-token volume) so
+            # its kubernetes-auth login presents aud=vault, matching the
+            # mt-node-tenant role. Without this the agent reads the
+            # default API-server SA token and Vault 403s on audience.
+            "vault.hashicorp.com/auth-config-token-path": "/var/run/secrets/vault/token",
             "vault.hashicorp.com/agent-pre-populate-only": "false",
             "vault.hashicorp.com/agent-init-first": "true",
             f"vault.hashicorp.com/agent-inject-secret-{_VAULT_SECRETS_FILE}": self._vault_data_path(vault_path),
