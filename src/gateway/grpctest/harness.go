@@ -100,7 +100,6 @@ func NewHarness(t *testing.T) *Harness {
 	// Config matching the E2E harness.
 	cfg := &config.Config{
 		Enabled:                       true,
-		DefaultSymbols:                []string{"EURUSD", "GBPUSD"},
 		CycleIntervalSeconds:          60,
 		CycleTimeoutSeconds:           300,
 		MaxConcurrentSymbols:          4,

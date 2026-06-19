@@ -151,7 +151,6 @@ func NewHarness(t *testing.T) *Harness {
 	// Points the engine URL at our mock server.
 	cfg := &config.Config{
 		Enabled:                       true,
-		DefaultSymbols:                []string{"EURUSD", "GBPUSD"},
 		CycleIntervalSeconds:          60,
 		CycleTimeoutSeconds:           300,
 		MaxConcurrentSymbols:          4,
