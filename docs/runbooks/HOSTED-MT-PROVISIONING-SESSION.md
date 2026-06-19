@@ -133,40 +133,74 @@ unset ROOT_TOKEN
 
 ---
 
-## RESUME HERE — current step: verify commit 5 (K8s API egress) and re-provision
+## RESUME HERE — current step: roll engine image with defect 7+8 fix, then re-provision
 
-### Step A — pull mirror + sync engine
+**Why we wait:** defects 7+8 (tenant pod Vault `aud=vault`) live in
+`src/engine/ta/broker/mt5/hosted/provisioner.py` (the runtime that stamps
+the tenant pod spec). They only take effect once CI builds a NEW engine
+image carrying those commits and ArgoCD rolls it. The Helm/infra fixes
+(1,4,5,6) are already live. The chart copies of 7+8 are in
+`helm/mt-node/templates/statefulset.yaml` for the by-hand/platform path.
+
+### Step A — confirm the new engine image has rolled
 
 ```bash
-cd ~/eTradie
-git stash push -u -m wip 2>/dev/null || true
-git pull --rebase gitlab main
-git stash pop 2>/dev/null || true
-git log --oneline -6   # confirm the 5 fix commits are present
-
 export KUBECONFIG=~/.kube/etradie-contabo.yaml
-argocd app sync engine-staging --grpc-web
-argocd app wait engine-staging --health --timeout 300
+# GitHub main must include the latest provisioner commits (defect 7+8):
+git ls-remote https://github.com/FlameGreat-1/eTradie.git main
+# The engine deployment image SHA must be NEWER than
+# ghcr.io/flamegreat-1/etradie/engine:2e4aba9f... (the last pre-fix image)
+kubectl -n etradie-system get deploy etradie-engine \
+  -o jsonpath='{.spec.template.spec.containers[?(@.name=="engine")].image}{"\n"}'
+kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine -o wide  # AGE fresh after roll
 ```
+If the image SHA has NOT changed, CI has not built/bumped it yet. Wait
+(or check the GitHub Actions pipeline). Do NOT re-provision until the
+engine pod runs the new image, or the tenant pod will lack the projected
+aud=vault token and loop on Vault 403 again.
 
-> NOTE: there are leftover git stashes (`git stash list`) from earlier in
-> the session. Review/clean them when convenient; they are not needed for
-> provisioning.
-
-### Step B — verify the API-server egress fix is live
+### Step B — (one-time, already done this session) verify infra fixes live
 
 ```bash
-kubectl -n etradie-system get networkpolicy etradie-engine-network-policy -o yaml | grep -B2 -A4 '10.43.0.1'
-GW=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine -o jsonpath='{.items[0].metadata.name}')
+# K8s API egress (defect 6): both should print OPEN.
+GW=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine \
+  --field-selector=status.phase=Running -o jsonpath='{.items[-1].metadata.name}')
 kubectl -n etradie-system exec "$GW" -c engine -- python3 -c "
 import socket
-s=socket.socket(); s.settimeout(5)
-try: s.connect(('10.43.0.1',443)); print('API 443 OPEN')
-except Exception as e: print('BLOCKED:', e)
-finally: s.close()
-"
+for h,p in [('10.43.0.1',443),('13.140.164.173',6443)]:
+    s=socket.socket(); s.settimeout(5)
+    try: s.connect((h,p)); print(h,p,'OPEN')
+    except Exception as e: print(h,p,type(e).__name__,e)
+    finally: s.close()"
+# RBAC (defect 7-infra): configmaps must include create.
+kubectl -n etradie-system get role etradie-engine \
+  -o jsonpath='{range .rules[?(@.resources[0]=="configmaps")]}{.resources}{" -> "}{.verbs}{"\n"}{end}'
 ```
-Expect: rule present + `API 443 OPEN`.
+Expect: `10.43.0.1 443 OPEN`, `13.140.164.173 6443 OPEN`, and configmaps
+verbs include `create,update,patch,delete`.
+
+### Step B2 — DECISIVE: verify the tenant pod's Vault Agent authenticates
+
+After the new engine image is live, delete the stuck connection from the
+dashboard, re-create, then:
+
+```bash
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+CONN=$(kubectl -n etradie-system exec -i postgres-0 -c postgres -- psql -U etradie -d etradie -t -A -c \
+  "SELECT left(id::text,12) FROM broker_connections ORDER BY created_at DESC LIMIT 1;")
+echo "CONN=$CONN"
+# The agent's auto_auth config must show token_path=/var/run/secrets/vault/token:
+kubectl -n etradie-system get pod etradie-mt-${CONN}-0 \
+  -o jsonpath='{.spec.initContainers[?(@.name=="vault-agent-init")].env[?(@.name=="VAULT_CONFIG")].value}' \
+  | base64 -d | python3 -m json.tool | grep -A5 auto_auth
+# And the init log must show authentication SUCCESS (not 403 / no-such-file):
+kubectl -n etradie-system logs etradie-mt-${CONN}-0 -c vault-agent-init --tail=15
+```
+Expect: `token_path` = `/var/run/secrets/vault/token`, and
+`agent.auth.handler: authentication successful` (NOT
+`invalid audience (aud) claim` and NOT `no such file or directory`).
+Once that passes, the pod leaves `Init` -> `ContainerCreating` (Wine
+pull) -> `3/3 Ready`. Proceed to Step C/D/E.
 
 ### Step C — confirm the prior fixes are STILL live (regression guard)
 
