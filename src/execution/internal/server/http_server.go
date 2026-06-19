@@ -179,7 +179,17 @@ func NewHTTPServer(
 
 	// WebSocket notifications (auth only; the WS handshake is GET and
 	// the dashboard's WS client never POSTs, so CSRF is N/A here).
-	mux.Handle("/ws/notifications", authMw(http.HandlerFunc(alert.WebSocketHandler(transport.LocalHub()))))
+	//
+	// allowedOrigins is intentionally nil. Under Option B the execution
+	// service is reached EXCLUSIVELY via the gateway reverse proxy
+	// (server-to-server), never directly by a browser (see the "No CORS
+	// middleware by design" comment immediately below). Server-to-server
+	// WS clients omit Origin and hit the empty-Origin admit branch in
+	// alert.newUpgrader; a stray browser request would have a non-empty
+	// Origin and allowedOrigins[origin] on a nil map returns false,
+	// correctly rejecting the upgrade. Fail-closed posture for an
+	// internal-only endpoint.
+	mux.Handle("/ws/notifications", authMw(http.HandlerFunc(alert.WebSocketHandler(transport.LocalHub(), nil))))
 
 	// Ops endpoints (public).
 	mux.HandleFunc("/health", s.handleHealth)
