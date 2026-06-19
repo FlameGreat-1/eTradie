@@ -901,7 +901,12 @@ class Container:
 
         For MetaAPI connections, uses the platform-level token from
         the MT5_METAAPI_TOKEN env var (NOT a per-row encrypted token).
-        For EA connections, decrypts the EA auth token from the DB row.
+        For EA and HOSTED connections, decrypts the per-connection auth
+        token from the DB row's ea_auth_token_encrypted column. Hosted
+        connections store their per-tenant ZMQ token there at provision
+        time (the create router generates it and the provisioner re-seals
+        the same value in Vault), so the hosted ZmqClient build needs it
+        decrypted exactly like the EA path.
         """
         try:
             from engine.processor.storage.repositories.broker_connection_repository import (
@@ -918,9 +923,14 @@ class Container:
                 _logger.debug("no_active_broker_connection_in_db", extra={"user_id": user_id})
                 return None
 
-            # Decrypt EA auth token if applicable.
+            # Decrypt the per-connection auth token if applicable. Both
+            # 'ea' and 'hosted' persist a token in ea_auth_token_encrypted
+            # (hosted = the per-tenant ZMQ token generated at provision
+            # time); create_mt5_broker_from_connection() requires it
+            # non-empty for the hosted ZmqClient build, so decrypt it for
+            # both types. MetaAPI never stores a per-row token.
             ea_auth_token = ""  # nosec B105
-            if row.connection_type == "ea" and row.ea_auth_token_encrypted:
+            if row.connection_type in ("ea", "hosted") and row.ea_auth_token_encrypted:
                 ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
 
             # Platform-level MetaAPI token from env (never from DB).
