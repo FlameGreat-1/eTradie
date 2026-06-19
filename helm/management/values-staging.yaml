@@ -15,7 +15,11 @@ config:
   app:
     env: "staging"
   management:
-    brokerMode: "mock"
+    # Staging runs the real engine MT5 bridge end-to-end. Until a user
+    # provisions a demo or live broker via the dashboard, the engine's
+    # /internal/broker/* endpoints return their own no-broker response
+    # and the management dashboard surfaces (journal, performance,
+    # active trades) reflect that empty state truthfully.
     logLevel: "DEBUG"
     logJson: "true"
     # Distributed tracing ON in staging.

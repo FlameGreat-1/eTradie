@@ -17,10 +17,11 @@ type Config struct {
 	GRPCPort int `envconfig:"GRPC_PORT" default:"50054"`
 	HTTPPort int `envconfig:"HTTP_PORT" default:"8083"`
 
-	// Broker selection: "mock" or "mt5".
-	BrokerMode string `envconfig:"BROKER_MODE" default:"mock"`
-
-	// MT5 broker bridge (same Python FastAPI service used by Execution).
+	// Broker bridge (same Python FastAPI service used by Execution). The
+	// management service has a single broker.Port implementation - the
+	// mt5 bridge - which dispatches every call to the engine. The engine
+	// resolves the per-user MT4 or MT5 connection from broker_connections
+	// at request time, so the bridge itself is platform-agnostic.
 	BrokerBridgeURL string `envconfig:"BROKER_BRIDGE_URL" default:"http://localhost:8000"`
 	BrokerTimeoutMs int    `envconfig:"BROKER_TIMEOUT_MS" default:"5000"`
 
@@ -31,9 +32,10 @@ type Config struct {
 	// engine.shared.internal_auth.verify_internal_auth, which compares
 	// the X-Internal-Auth header against ENGINE_INTERNAL_SHARED_SECRET
 	// in constant time. Must match the engine's value. Minimum length
-	// 32 characters. Required in production/staging when
-	// BROKER_MODE=mt5; optional (with a startup warning) in
-	// development.
+	// 32 characters. Required unconditionally in production / staging
+	// because the mt5 bridge is the only broker implementation;
+	// optional in development where every bridge call returns 401
+	// until configured.
 	EngineInternalSecret string `envconfig:"ENGINE_INTERNAL_SHARED_SECRET"`
 
 	// Application environment. Mirrors the engine's APP_ENV to flip
@@ -44,9 +46,6 @@ type Config struct {
 	// generally export only root APP_ENV, so validate() falls back to
 	// os.Getenv("APP_ENV") when this field is empty.
 	AppEnv string `envconfig:"APP_ENV" default:""`
-
-	// Mock broker starting balance (only used when BrokerMode=mock).
-	MockBrokerBalance float64 `envconfig:"MOCK_BROKER_BALANCE" default:"10000.0"`
 
 	// Tick polling interval for live price monitoring (milliseconds).
 	TickPollIntervalMs int `envconfig:"TICK_POLL_INTERVAL_MS" default:"1000"`
@@ -105,14 +104,10 @@ func (c *Config) validate() error {
 		return fmt.Errorf("GRPC_PORT and HTTP_PORT must differ (both are %d)", c.GRPCPort)
 	}
 
-	mode := strings.ToLower(c.BrokerMode)
-	if mode != "mock" && mode != "mt5" {
-		return fmt.Errorf("BROKER_MODE must be mock or mt5, got %q", c.BrokerMode)
-	}
-	c.BrokerMode = mode
-
-	if mode == "mt5" && c.BrokerBridgeURL == "" {
-		return fmt.Errorf("BROKER_BRIDGE_URL must not be empty when BROKER_MODE=mt5")
+	// The mt5 bridge is the sole broker.Port implementation, so the
+	// bridge URL and timeout are always required.
+	if strings.TrimSpace(c.BrokerBridgeURL) == "" {
+		return fmt.Errorf("BROKER_BRIDGE_URL must not be empty")
 	}
 	if c.BrokerTimeoutMs < 500 || c.BrokerTimeoutMs > 30000 {
 		return fmt.Errorf("BROKER_TIMEOUT_MS must be 500..30000, got %d", c.BrokerTimeoutMs)
@@ -138,21 +133,19 @@ func (c *Config) validate() error {
 	if c.EngineInternalSecret == "" {
 		c.EngineInternalSecret = strings.TrimSpace(os.Getenv("ENGINE_INTERNAL_SHARED_SECRET"))
 	}
-	if mode == "mt5" {
-		if c.EngineInternalSecret == "" {
-			if isProdLike {
-				return fmt.Errorf(
-					"ENGINE_INTERNAL_SHARED_SECRET must be set in %s when BROKER_MODE=mt5; "+
-						"the value must match the engine's ENGINE_INTERNAL_SHARED_SECRET",
-					env,
-				)
-			}
-		} else if len(c.EngineInternalSecret) < 32 {
+	if c.EngineInternalSecret == "" {
+		if isProdLike {
 			return fmt.Errorf(
-				"ENGINE_INTERNAL_SHARED_SECRET must be at least 32 characters, got %d",
-				len(c.EngineInternalSecret),
+				"ENGINE_INTERNAL_SHARED_SECRET must be set in %s; "+
+					"the value must match the engine's ENGINE_INTERNAL_SHARED_SECRET",
+				env,
 			)
 		}
+	} else if len(c.EngineInternalSecret) < 32 {
+		return fmt.Errorf(
+			"ENGINE_INTERNAL_SHARED_SECRET must be at least 32 characters, got %d",
+			len(c.EngineInternalSecret),
+		)
 	}
 	c.AppEnv = env
 
@@ -208,11 +201,6 @@ func (c *Config) validate() error {
 	c.LogLevel = strings.ToUpper(c.LogLevel)
 
 	return nil
-}
-
-// IsMT5Mode returns true when the broker is configured for MT5.
-func (c *Config) IsMT5Mode() bool {
-	return c.BrokerMode == "mt5"
 }
 
 // IsProdLike reports whether the service is running in production or

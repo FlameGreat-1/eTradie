@@ -22,7 +22,6 @@ import (
 	"github.com/flamegreat-1/etradie/src/auth"
 	"github.com/flamegreat-1/etradie/src/management/internal/analytics"
 	"github.com/flamegreat-1/etradie/src/management/internal/broker"
-	"github.com/flamegreat-1/etradie/src/management/internal/broker/mock"
 	"github.com/flamegreat-1/etradie/src/management/internal/config"
 	"github.com/flamegreat-1/etradie/src/management/internal/constants"
 	"github.com/flamegreat-1/etradie/src/management/internal/eod"
@@ -50,7 +49,7 @@ func main() {
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
 		Int("http_port", cfg.HTTPPort).
-		Str("broker_mode", cfg.BrokerMode).
+		Str("broker_bridge_url", cfg.BrokerBridgeURL).
 		Msg("management_engine_starting")
 
 	// -- Auth configuration -----------------------------------------------
@@ -120,17 +119,19 @@ func main() {
 	tokenService = tokenService.WithEpochResolver(userStore)
 
 	// -- Broker implementation ---------------------------------------------
-	var bp broker.Port
-	if cfg.IsMT5Mode() {
-		bp = broker.NewMT5Broker(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs, cfg.EngineInternalSecret)
-		log.Info().
-			Str("url", cfg.BrokerBridgeURL).
-			Bool("internal_auth_configured", cfg.EngineInternalSecret != "").
-			Msg("broker_mt5_bridge_configured")
-	} else {
-		bp = mock.NewBroker()
-		log.Info().Msg("broker_mock_configured")
-	}
+	// The mt5 bridge is the sole broker.Port implementation. Every call
+	// is dispatched to the Python engine's /internal/broker/* surface,
+	// which resolves the per-user MT4 or MT5 broker connection from the
+	// database (see src/engine/ta/broker/mt5/factory.py).
+	//
+	// EngineInternalSecret is validated by Config.validate(): required
+	// unconditionally in production / staging (>=32 chars); optional in
+	// development where every bridge call returns 401 until configured.
+	var bp broker.Port = broker.NewMT5Broker(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs, cfg.EngineInternalSecret)
+	log.Info().
+		Str("url", cfg.BrokerBridgeURL).
+		Bool("internal_auth_configured", cfg.EngineInternalSecret != "").
+		Msg("broker_mt5_bridge_configured")
 
 	// -- Redis Connection (for shared alerts) ------------------------------
 	opts, err := redis.ParseURL(cfg.RedisURL)

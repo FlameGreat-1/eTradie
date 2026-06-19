@@ -18,10 +18,11 @@ data:
   # Source of truth: src/management/internal/config/config.go.
   MANAGEMENT_GRPC_PORT: {{ .Values.config.management.grpcPort | quote }}
   MANAGEMENT_HTTP_PORT: {{ .Values.config.management.httpPort | quote }}
-  MANAGEMENT_BROKER_MODE: {{ .Values.config.management.brokerMode | quote }}
+  # Broker bridge. The mt5 bridge is the sole broker.Port implementation
+  # on the Go side; the engine resolves the per-user MT4 or MT5
+  # connection per request via _resolve_user_broker.
   MANAGEMENT_BROKER_BRIDGE_URL: {{ .Values.config.management.brokerBridgeURL | quote }}
   MANAGEMENT_BROKER_TIMEOUT_MS: {{ .Values.config.management.brokerTimeoutMs | quote }}
-  MANAGEMENT_MOCK_BROKER_BALANCE: {{ .Values.config.management.mockBrokerBalance | quote }}
   MANAGEMENT_TICK_POLL_INTERVAL_MS: {{ .Values.config.management.tickPollIntervalMs | quote }}
   MANAGEMENT_CANDLE_POLL_INTERVAL_SECS: {{ .Values.config.management.candlePollIntervalSecs | quote }}
   MANAGEMENT_RECONCILE_INTERVAL_SECS: {{ .Values.config.management.reconcileIntervalSecs | default "60" | quote }}

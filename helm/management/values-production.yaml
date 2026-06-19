@@ -23,7 +23,10 @@ config:
   app:
     env: "production"
   management:
-    brokerMode: "mt5"
+    # The mt5 bridge is the sole broker.Port implementation. Every
+    # call is forwarded to the Python engine's /internal/broker/*
+    # surface, which resolves the per-user MT4 or MT5 broker
+    # connection from broker_connections at request time.
     logLevel: "INFO"
     logJson: "true"
     # Distributed tracing ON.

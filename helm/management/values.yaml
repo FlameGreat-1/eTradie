@@ -118,11 +118,13 @@ config:
   management:
     grpcPort: "50054"
     httpPort: "8083"
-    # Audit ref: X-10, MG-M1.
-    brokerMode: ""
+    # The mt5 bridge is the sole broker.Port implementation in the Go
+    # service. Every call is forwarded to the Python engine's
+    # /internal/broker/* surface, which resolves the per-user MT4 or
+    # MT5 connection from broker_connections at request time. The
+    # bridge URL must always point at the engine in-cluster service.
     brokerBridgeURL: "http://engine.etradie-system.svc.cluster.local:8000"
     brokerTimeoutMs: "5000"
-    mockBrokerBalance: "10000.0"
     tickPollIntervalMs: "1000"
     candlePollIntervalSecs: "60"
     reconcileIntervalSecs: "60"
