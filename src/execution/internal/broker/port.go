@@ -7,14 +7,16 @@ import (
 )
 
 // Port is the abstracted broker interface. Module B depends on this
-// abstraction per Dependency Inversion. Concrete implementations
-// (MT5 gRPC bridge, mock) are injected at startup.
+// abstraction per Dependency Inversion. The sole concrete
+// implementation is the mt5 bridge (src/execution/internal/broker/mt5),
+// which is injected at startup by cmd/execution/main.go.
 //
-// The MT5 bridge implementation calls the Python MT5 service at
-// src/engine/ta/broker/mt5/ via gRPC. That service already handles
-// MT5 initialization, authentication, and connection management.
-// Module B extends it with trading operations (account info,
-// positions, order placement) that the TA broker doesn't expose.
+// The mt5 bridge calls the Python engine's /internal/broker/* HTTP
+// surface. The engine resolves the per-user MT4 or MT5 broker
+// connection from the broker_connections table at request time, so
+// the bridge itself is platform-agnostic. Module B extends the
+// engine's TA broker with trading operations (account info,
+// positions, order placement) that the TA layer doesn't expose.
 type Port interface {
 	// GetAccountInfo returns live account balance, equity, margin.
 	GetAccountInfo(ctx context.Context) (*models.AccountInfo, error)
