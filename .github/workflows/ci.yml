@@ -846,3 +846,84 @@ jobs:
         run: |
           docker pull ${{ env.IMAGE_BASE }}/engine:${{ github.sha }}
           docker run --rm ${{ env.IMAGE_BASE }}/engine:${{ github.sha }} python -c "import engine; print('OK')"
+
+  # ---------------------------------------------------------------------------
+  # deploy-bump: immutable-tag GitOps for STAGING.
+  #
+  # After every service image for this commit is built, pushed, and signed
+  # (needs: build), pin each STAGING overlay's image.tag to the immutable
+  # github.sha that CI just published. Committing the SHA back to main gives
+  # ArgoCD a real manifest diff so it rolls staging deterministically onto
+  # the exact bytes built here -- eliminating the mutable-tag + IfNotPresent
+  # "synced but stale" failure mode that previously required a manual
+  # kubectl rollout restart.
+  #
+  # PRODUCTION OVERLAYS ARE DELIBERATELY NOT TOUCHED: production rolls on
+  # human-reviewed RELEASE_TAG bumps, never automatically on a main merge.
+  #
+  # Loop-safe: the bump commit message carries [skip ci]; the job also
+  # no-ops (git diff --quiet) when the overlays already pin this SHA, so a
+  # re-run cannot create an empty commit or a build loop.
+  # ---------------------------------------------------------------------------
+  deploy-bump:
+    name: Pin staging overlays to the built image SHA (GitOps)
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    env:
+      IMAGE_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Check out main at its tip with full credentials so we can push
+          # the bump commit back. fetch-depth 0 keeps the ref pushable.
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Install yq (mikefarah)
+        run: |
+          YQ_VERSION=v4.44.3
+          curl -fsSL -o /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          chmod +x /usr/local/bin/yq
+          yq --version
+      - name: Pin staging overlays to the built SHA
+        run: |
+          set -eu
+          # Every service whose image CI builds + that runs in staging.
+          # data-layer is upstream charts (postgres/redis/chromadb), no
+          # in-repo image, so it is intentionally excluded.
+          for svc in gateway engine execution management billing edge-ingress; do
+            f="helm/${svc}/values-staging.yaml"
+            if [ ! -f "$f" ]; then
+              echo "FATAL: ${f} not found"; exit 1
+            fi
+            # Set .image.tag to the immutable commit SHA. yq preserves the
+            # rest of the document (comments may be reflowed by yq v4, which
+            # is acceptable for a machine-managed tag line).
+            yq -i ".image.tag = \"${IMAGE_SHA}\"" "$f"
+            echo "pinned ${f} -> image.tag: ${IMAGE_SHA}"
+          done
+      - name: Commit and push the staging SHA bump
+        run: |
+          set -eu
+          git config user.name  "etradie-ci[bot]"
+          git config user.email "ci-bot@users.noreply.github.com"
+          # No-op cleanly if nothing changed (e.g. a re-run for the same SHA),
+          # so the job never creates an empty commit or loops.
+          if git diff --quiet -- helm/; then
+            echo "staging overlays already pinned to ${IMAGE_SHA}; nothing to commit"
+            exit 0
+          fi
+          git add helm/gateway/values-staging.yaml \
+                  helm/engine/values-staging.yaml \
+                  helm/execution/values-staging.yaml \
+                  helm/management/values-staging.yaml \
+                  helm/billing/values-staging.yaml \
+                  helm/edge-ingress/values-staging.yaml
+          # [skip ci] prevents this push from re-triggering the workflow,
+          # which would otherwise rebuild identical images and re-bump.
+          git commit -m "ci: pin staging image tags to ${IMAGE_SHA} [skip ci]"
+          git push origin main
