@@ -285,6 +285,21 @@ config:
         interval: "10s"
         unhealthyThreshold: 3
         healthyThreshold: 2
+    # WebSocket upgrade allow-list. Envoy's HCM rejects any HTTP/1.1
+    # Upgrade request with 403 + upstream_host:null + duration_ms:0
+    # by default; the upgrade type must be listed in upgrade_configs
+    # for the router to be invoked. The platform's first-class WS
+    # endpoints (/ws/notifications on the gateway,
+    # /api/broker/stream-ticks + /api/broker/stream-positions proxied
+    # to the engine) all run over this HCM, so the upgrade has to be
+    # permitted here. Only "websocket" is listed -- h2c, CONNECT, and
+    # every other upgrade type stay forbidden (envoy continues to 403
+    # them). The webhook routes and the /healthz direct-response route
+    # override this with their own upgrade_configs:[] (see
+    # configmap.yaml) so a payment webhook or the static healthz can
+    # never be tricked into upgrading.
+    websocketUpgrade:
+      enabled: true
     route:
       timeout: "30s"
       idleTimeout: "60s"

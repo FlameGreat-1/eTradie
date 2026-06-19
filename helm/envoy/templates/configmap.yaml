@@ -56,6 +56,23 @@ data:
                     # per-route request-BODY cap (max_request_bytes) is
                     # set via typed_per_filter_config on each route below.
                     max_request_headers_kb: {{ .Values.config.envoy.maxRequestHeadersKb | default 64 | int64 }}
+                    {{- if (((.Values.config.envoy).websocketUpgrade).enabled) }}
+                    # HCM-level WebSocket upgrade allow-list. Without
+                    # this, envoy rejects every HTTP/1.1 Upgrade
+                    # request with 403 + upstream_host:null +
+                    # duration_ms:0 BEFORE invoking the router. That
+                    # was the root cause of the staging /ws/notifications
+                    # + /api/broker/stream-* failures (gateway pod
+                    # log showed zero hits; envoy access log showed
+                    # local-rejection 403s). Only "websocket" is
+                    # admitted; other upgrade types stay forbidden.
+                    # Per-route upgrade_configs on /\* mirrors this
+                    # for explicit self-documentation; webhook + /healthz
+                    # routes override with an empty list to keep them
+                    # WS-disabled (defence-in-depth for webhook integrity).
+                    upgrade_configs:
+                      - upgrade_type: "websocket"
+                    {{- end }}
                     route_config:
                       name: local_route
                       virtual_hosts:
@@ -223,6 +240,22 @@ data:
                                   num_retries: {{ .Values.config.envoy.route.numRetries | default 2 }}
                                   per_try_timeout: {{ .Values.config.envoy.route.perTryTimeout | default "10s" }}
                                   retriable_status_codes: [503]
+                                {{- if (((.Values.config.envoy).websocketUpgrade).enabled) }}
+                                # Per-route mirror of the HCM-level
+                                # upgrade_configs. envoy intersects HCM
+                                # and per-route allow-lists; listing
+                                # "websocket" in both makes the route
+                                # self-documenting and protects against
+                                # a future refactor that tightens one
+                                # without the other. /ws/notifications
+                                # (gateway alert hub) and the engine
+                                # /api/broker/stream-* upgrades both
+                                # land on this catch-all route and now
+                                # complete the 101 handshake instead of
+                                # being 403'd at the HCM.
+                                upgrade_configs:
+                                  - upgrade_type: "websocket"
+                                {{- end }}
                               # TIER4 A2b: gateway-route request-body cap.
                               # Sized with margin above the engine 8 MiB
                               # body cap; the heavy east-west engine
