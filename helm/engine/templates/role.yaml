@@ -83,11 +83,20 @@ rules:
     resources: ["secrets"]
     verbs: ["get", "list", "delete"]
 
-  # Downward config reads (broker-server allowlist, symbol-suffix
-  # rules). Engine does NOT mutate ConfigMaps - chart owns them.
+  # Per-release watchdog ConfigMap ('<release>-watchdog-config').
+  # HostedProvisioner._upsert_watchdog_configmap creates one per hosted
+  # connection (create + 409 read/replace) so the runtime-provisioned
+  # mt-node + watchdog containers feed their watchdog from a ConfigMap
+  # with the same wire shape as the chart-rendered platform path; it is
+  # deleted again in delete_account / gc_orphans / _best_effort_cleanup.
+  # create/update/patch/delete are therefore REQUIRED. (The engine still
+  # does not mutate its OWN chart-managed ConfigMap - that one is owned
+  # by ArgoCD; this grant is for the per-tenant watchdog CMs the engine
+  # itself creates and owns.) get/list/watch also cover downward-config
+  # reads (broker-server allowlist, symbol-suffix rules).
   - apiGroups: [""]
     resources: ["configmaps"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
   # Events: engine reads K8s Events for the mt-node StatefulSet so
   # the dashboard can show 'ImagePullBackOff', 'OOMKilled' etc.
