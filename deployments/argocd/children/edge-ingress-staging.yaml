@@ -25,9 +25,17 @@ spec:
         - values-staging.yaml
       # Image tag is pinned in values-staging.yaml. Cloud-LB strategy
       # is `cloudflare-tunnel` (default) so no per-promotion ARN or
-      # cloud-specific override is needed. CI rewrites this file's
-      # targetRevision to the new SHA on each merge to main; ArgoCD
-      # reconciles from there.
+      # cloud-specific override is needed.
+      #
+      # DEPLOY MECHANISM (canonical, implemented in .github/workflows/
+      # ci.yml `deploy-bump`): on every push to main, after the image is
+      # built + signed, CI writes the immutable github.sha into
+      # helm/edge-ingress/values-staging.yaml::image.tag and commits it.
+      # ArgoCD's targetRevision stays `main` and rolls this app whenever
+      # its image.tag changes. This is per-service (edge-ingress rolls
+      # only when ITS image changed), unlike rewriting targetRevision
+      # which would couple every app to one SHA. Do NOT add a
+      # targetRevision-rewrite path; it would conflict with this one.
       parameters: []
 
   destination:
