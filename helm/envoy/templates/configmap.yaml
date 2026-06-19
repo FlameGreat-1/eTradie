@@ -256,16 +256,39 @@ data:
                                 upgrade_configs:
                                   - upgrade_type: "websocket"
                                 {{- end }}
-                              # TIER4 A2b: gateway-route request-body cap.
-                              # Sized with margin above the engine 8 MiB
-                              # body cap; the heavy east-west engine
-                              # traffic does NOT traverse this Envoy, so
-                              # this never clips the analysis pipeline.
+                              # TIER4 A2b: request-body cap. Previously a
+                              # per-route BufferPerRoute set a 10 MiB cap
+                              # via the buffer filter here. That broke WS
+                              # upgrades: the buffer filter waits for the
+                              # request body's end-of-stream before
+                              # forwarding, but a WS handshake is a GET
+                              # with no body and no Content-Length, so
+                              # envoy held the stream open until
+                              # stream_idle_timeout fired at 60s, then
+                              # returned 408 with response_flags: "SI"
+                              # (StreamIdleTimeout). Observed live in the
+                              # staging envoy access log after !149
+                              # landed the upgrade_configs:
+                              #   path=/ws/notifications response_code=408
+                              #   upstream_host=null duration_ms=60000
+                              #   response_flags="SI" upstream=gateway
+                              # The chain-level envoy.filters.http.buffer
+                              # (declared in http_filters below) ALREADY
+                              # enforces the SAME 10 MiB ceiling via
+                              # maxRequestBytesChainCeiling, so disabling
+                              # the per-route buffer on the catch-all `/`
+                              # route does not weaken body-size protection
+                              # -- it just removes the duplicate engagement
+                              # that was incompatible with WS upgrades.
+                              # Webhook routes keep their own per-route
+                              # 256 KiB cap; /healthz is a direct_response
+                              # with no body forwarding. Audit ref: TIER4
+                              # A2b body-cap policy is unchanged on every
+                              # route that holds user-sourced bodies.
                               typed_per_filter_config:
                                 envoy.filters.http.buffer:
-                                  "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.BufferPerRoute
-                                  buffer:
-                                    max_request_bytes: {{ .Values.config.envoy.route.maxRequestBytes | default 10485760 | int64 }}
+                                  "@type": type.googleapis.com/envoy.config.route.v3.FilterConfig
+                                  disabled: true
                     http_filters:
                       - name: envoy.filters.http.wasm
                         typed_config:
