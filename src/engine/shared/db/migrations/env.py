@@ -8,6 +8,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from alembic import context
 from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import inspect, pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -138,8 +139,16 @@ def _reconcile_unversioned_schema(connection) -> bool:  # type: ignore[no-untype
     # Present-but-unversioned: the schema is materially complete but the
     # bookmark is gone. Stamp to head so subsequent boots are no-ops and
     # no CREATE TABLE collides with the existing objects.
-    head_rev = context.get_context().script.get_current_head()  # type: ignore[union-attr]
-    context.stamp(context.get_context()._migrations_fn and None or migration_ctx, head_rev)  # noqa: SLF001
+    #
+    # MigrationContext.stamp() takes the ScriptDirectory and the target
+    # revision and writes the alembic_version row using the same
+    # version-table semantics Alembic uses everywhere else. We resolve
+    # the single head from the configured script location; a multi-head
+    # tree would raise here, which is the correct fail-loud behaviour
+    # (an ambiguous head must be resolved by an operator, not guessed).
+    script = ScriptDirectory.from_config(config)
+    head_rev = script.get_current_head()
+    migration_ctx.stamp(script, head_rev)
     return True
 
 
