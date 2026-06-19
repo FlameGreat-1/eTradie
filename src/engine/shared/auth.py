@@ -156,6 +156,21 @@ def _get_jwt_issuer() -> str:
     return os.environ.get("AUTH_ISSUER", "etradie")
 
 
+def _get_jwt_audience() -> str:
+    """Read the expected JWT audience claim.
+
+    MUST match the Go auth service's AUTH_AUDIENCE (src/auth/config.go,
+    default "etradie-api"), which stamps `aud` on every access and
+    service token (src/auth/token.go). PyJWT raises InvalidAudienceError
+    when a token carries an `aud` claim but decode() is given no audience
+    to validate it against, so this value is REQUIRED for the engine to
+    accept gateway-issued tokens. The default mirrors the Go default so
+    no engine env var is needed unless an operator overrides AUTH_AUDIENCE
+    on the Go side (in which case set the same value here).
+    """
+    return os.environ.get("AUTH_AUDIENCE", "etradie-api")
+
+
 def _verify_token(token: str) -> AuthenticatedUser:
     """Verify a JWT token and extract the authenticated user.
 
@@ -180,20 +195,32 @@ def _verify_token(token: str) -> AuthenticatedUser:
             secret,
             algorithms=["HS256"],
             issuer=_get_jwt_issuer(),
+            audience=_get_jwt_audience(),
             options={
                 # `status` is REQUIRED: it is a security gate (active /
                 # suspended / deactivated), not optional metadata. This
                 # mirrors the Go gateway's VerifyAccessToken, which fails
                 # closed on a missing status claim. Audit ref: A1.
-                "require": ["sub", "username", "role", "exp", "iat", "status"],
+                #
+                # `aud` is REQUIRED + verified so the engine enforces the
+                # SAME audience the Go auth service stamps on every token
+                # (src/auth/token.go -> "aud": cfg.Audience, default
+                # "etradie-api"). Without verify_aud + a matching
+                # audience= above, PyJWT raises InvalidAudienceError for
+                # any token that carries an aud claim, which 401'd every
+                # proxied engine route. Fail-closed, same posture as iss.
+                "require": ["sub", "username", "role", "exp", "iat", "status", "aud"],
                 "verify_exp": True,
                 "verify_iss": True,
+                "verify_aud": True,
             },
         )
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidIssuerError:
         raise HTTPException(status_code=401, detail="Invalid token issuer")
+    except jwt.InvalidAudienceError:
+        raise HTTPException(status_code=401, detail="Invalid token audience")
     except jwt.InvalidTokenError as exc:
         logger.warning("jwt_verification_failed", extra={"error": str(exc)})
         raise HTTPException(status_code=401, detail="Invalid token")
