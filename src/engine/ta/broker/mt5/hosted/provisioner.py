@@ -1371,6 +1371,13 @@ class HostedProvisioner:
             # mt-node-tenant role. Without this the agent reads the
             # default API-server SA token and Vault 403s on audience.
             "vault.hashicorp.com/auth-config-token-path": "/var/run/secrets/vault/token",
+            # The injector-created vault-agent-init/sidecar containers do
+            # not mount our custom vault-token projected volume by
+            # default, so the agent cannot read the aud=vault token at
+            # the token-path above. Copy the mt-node container's volume
+            # mounts (which include /var/run/secrets/vault) onto the
+            # agent containers so the token file is visible to them.
+            "vault.hashicorp.com/agent-copy-volume-mounts": "mt-node",
             "vault.hashicorp.com/agent-pre-populate-only": "false",
             "vault.hashicorp.com/agent-init-first": "true",
             f"vault.hashicorp.com/agent-inject-secret-{_VAULT_SECRETS_FILE}": self._vault_data_path(vault_path),
