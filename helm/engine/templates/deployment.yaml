@@ -232,6 +232,15 @@ spec:
             # this dir). Required because readOnlyRootFilesystem=true.
             - name: model-cache
               mountPath: /home/etradie/.cache
+            {{- if .Values.config.vault.saToken.enabled }}
+            # Projected SA token scoped to audience="vault" so the
+            # HostedProvisioner's Vault k8s-auth login presents an
+            # aud=vault JWT (the mt-node-provisioner role requires it).
+            # readOnly: the kubelet writes/rotates the token.
+            - name: vault-token
+              mountPath: {{ .Values.config.vault.saToken.mountPath | quote }}
+              readOnly: true
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir:
@@ -239,5 +248,17 @@ spec:
         - name: model-cache
           emptyDir:
             sizeLimit: {{ .Values.volumes.modelCache.emptyDir.sizeLimit | default "2Gi" }}
+        {{- if .Values.config.vault.saToken.enabled }}
+        # ServiceAccountToken projection with the Vault audience. The
+        # kubelet mints + rotates this token bound to the pod; Vault
+        # validates its `aud` claim against the role's audience="vault".
+        - name: vault-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: {{ .Values.config.vault.saToken.fileName | quote }}
+                  audience: {{ .Values.config.vault.saToken.audience | quote }}
+                  expirationSeconds: {{ .Values.config.vault.saToken.expirationSeconds }}
+        {{- end }}
       dnsPolicy: ClusterFirst
       restartPolicy: Always

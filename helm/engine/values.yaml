@@ -352,7 +352,31 @@ config:
     kvMount: "etradie"
     k8sAuthPath: "kubernetes"
     k8sAuthRole: "mt-node-provisioner"
-    saTokenPath: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    # The Vault k8s-auth role 'mt-node-provisioner' is created with
+    # audience="vault" (infrastructure/cluster/vault-paths/
+    # mt_node_tenant_secrets.tf). Vault validates the presented SA
+    # token's `aud` claim against that audience. The DEFAULT projected
+    # token at /var/run/secrets/kubernetes.io/serviceaccount/token has
+    # audience https://kubernetes.default.svc (the API server), which
+    # Vault rejects with 403. We therefore project a SECOND token
+    # scoped to audience="vault" and point the Vault client at it via
+    # saTokenPath below. The deployment renders the projected volume +
+    # mount from these saToken.* values; set saToken.enabled=false in
+    # dev/docker-compose (no in-cluster Vault) to fall back to the
+    # default token path.
+    saToken:
+      enabled: true
+      audience: "vault"
+      # Projected-token expiration (seconds). The kubelet rotates the
+      # token well before expiry; 3600 is the conventional value.
+      expirationSeconds: 3600
+      mountPath: "/var/run/secrets/vault"
+      fileName: "token"
+    # Path the Vault client reads the k8s-auth JWT from. MUST match the
+    # projected token mount above when saToken.enabled=true. When
+    # saToken.enabled=false this should be the default API-server token
+    # path (dev only; Vault auth is not exercised there).
+    saTokenPath: "/var/run/secrets/vault/token"
     tokenRenewSafetySecs: "60"
   postgres:
     host: "postgres.etradie-system.svc.cluster.local"
