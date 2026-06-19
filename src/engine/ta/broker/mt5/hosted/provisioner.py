@@ -1284,6 +1284,28 @@ class HostedProvisioner:
                     name="var-tmp",
                     empty_dir=client.V1EmptyDirVolumeSource(size_limit="64Mi"),
                 ),
+                # Projected ServiceAccountToken scoped to audience="vault"
+                # so the injected Vault Agent presents an aud=vault JWT
+                # (the mt-node-tenant role requires audience="vault").
+                # The Vault Agent is pointed at this file via the
+                # vault.hashicorp.com/auth-config-token-path annotation
+                # below. Mirrors the engine's vault-token projection in
+                # helm/engine/templates/deployment.yaml. The kubelet mints
+                # + rotates the token bound to the pod.
+                client.V1Volume(
+                    name="vault-token",
+                    projected=client.V1ProjectedVolumeSource(
+                        sources=[
+                            client.V1VolumeProjection(
+                                service_account_token=client.V1ServiceAccountTokenProjection(
+                                    path="token",
+                                    audience="vault",
+                                    expiration_seconds=3600,
+                                ),
+                            ),
+                        ],
+                    ),
+                ),
             ],
             priority_class_name=_PRIORITY_CLASS_NAME_RAW or None,
             tolerations=tolerations_raw,
