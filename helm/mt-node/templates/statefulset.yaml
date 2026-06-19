@@ -48,6 +48,13 @@ spec:
         # pod restart on the next file source.
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: {{ include "mt-node.vaultRole" . | quote }}
+        # The mt-node-tenant Vault k8s-auth role requires audience=vault
+        # (infrastructure/cluster/vault-paths/mt_node_tenant_secrets.tf).
+        # This injects audience:vault into the Vault Agent auto_auth
+        # kubernetes method config so the login JWT carries aud=vault;
+        # without it the agent uses the pod default-audience SA token and
+        # Vault rejects the login 403 'invalid audience (aud) claim'.
+        vault.hashicorp.com/auth-config-audience: "vault"
         vault.hashicorp.com/agent-init-first: "true"
         vault.hashicorp.com/agent-pre-populate-only: "false"
         vault.hashicorp.com/agent-inject-secret-{{ .Values.vault.fileName }}: {{ include "mt-node.vaultTenantPath" . | quote }}
