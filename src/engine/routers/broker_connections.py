@@ -608,10 +608,15 @@ async def test_broker_connection(
     if row is None:
         raise HTTPException(status_code=404, detail="Connection not found")
 
-    # Decrypt credentials and create a temporary broker client.
+    # Decrypt credentials and create a temporary broker client. Both
+    # 'ea' and 'hosted' store a per-connection token in
+    # ea_auth_token_encrypted (hosted = the per-tenant ZMQ token from
+    # provision time), and create_mt5_broker_from_connection() requires
+    # it non-empty for the hosted ZmqClient build, so decrypt it for
+    # both. MetaAPI uses the platform token from env, never a per-row one.
     ea_auth_token = ""  # nosec B105
     platform_token = ""  # nosec B105
-    if row.connection_type == "ea" and row.ea_auth_token_encrypted:
+    if row.connection_type in ("ea", "hosted") and row.ea_auth_token_encrypted:
         ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
     if row.connection_type == "metaapi":
         platform_token = os.environ.get("MT5_METAAPI_TOKEN", "")
