@@ -7,7 +7,6 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/constants"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/observability"
@@ -43,14 +42,10 @@ type Store struct {
 	log   zerolog.Logger
 }
 
-// NewStore creates a SymbolStore backed by Redis.
-//
-// The cfg argument is accepted but currently unused: the store no
-// longer carries any operator-seeded default symbols. It is retained
-// on the signature for one commit to keep this change isolated; a
-// follow-up wiring commit drops it from both this signature and every
-// call site.
-func NewStore(redis *infra.RedisClient, _ *config.Config) *Store {
+// NewStore creates a SymbolStore backed by Redis. The store carries no
+// operator-seeded default symbols (see SYMBOL SOURCE INVARIANT above),
+// so it needs nothing from the gateway config.
+func NewStore(redis *infra.RedisClient) *Store {
 	return &Store{
 		redis: redis,
 		log:   observability.Logger("symbol_store"),

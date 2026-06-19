@@ -147,7 +147,7 @@ func New(
 	processor := infra.NewHTTPProcessorAdapter(engineHTTP)
 
 	// Symbol Store (Redis-backed, survives restarts).
-	symStore := symbolstore.NewStore(redisClient, cfg)
+	symStore := symbolstore.NewStore(redisClient)
 
 	// Settings Store (Redis-backed, survives restarts).
 	settStore := settingsstore.NewStore(redisClient)

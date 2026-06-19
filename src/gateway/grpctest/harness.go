@@ -179,7 +179,7 @@ func NewHarness(t *testing.T) *Harness {
 	var symStore *symbolstore.Store
 	var settStore *settingsstore.Store
 	if redisWrapper != nil {
-		symStore = symbolstore.NewStore(redisWrapper, cfg)
+		symStore = symbolstore.NewStore(redisWrapper)
 		settStore = settingsstore.NewStore(redisWrapper)
 	}
 
