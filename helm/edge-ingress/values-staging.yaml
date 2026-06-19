@@ -6,13 +6,12 @@
 
 replicaCount: 1
 image:
-  # tag is overwritten on every push to main by the CI `deploy-bump`
-  # job with the immutable git SHA (see .github/workflows/ci.yml); the
-  # literal below is only the value between pushes. IfNotPresent is
-  # correct because each push produces a NEW tag (the SHA), so ArgoCD
-  # always sees a real diff and the node always pulls the new bytes.
   tag: "89229a1300e9a9dbe8ec965cbed3c11959090592"
-  pullPolicy: IfNotPresent
+  # Staging re-uses the same tag after each CI rebuild. Always re-pull
+  # so a new layer pushed to GHCR is picked up on the next pod recreate.
+  # Production overlay keeps the chart base default `IfNotPresent`
+  # because production rolls with explicit tag bumps.
+  pullPolicy: Always
 resources:
   requests:
     cpu: 150m
