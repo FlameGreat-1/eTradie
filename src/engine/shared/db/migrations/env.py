@@ -7,7 +7,8 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from alembic import context
-from sqlalchemy import pool
+from alembic.runtime.migration import MigrationContext
+from sqlalchemy import inspect, pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Schema imports — Alembic needs these so table metadata registers on
@@ -106,9 +107,49 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+# Sentinel table created by the very first migration (0001). Its presence
+# means the schema has already been applied at least up to the baseline,
+# even if the alembic_version bookmark is missing.
+_BASELINE_SENTINEL_TABLE = "central_bank_events"
+
+
+def _reconcile_unversioned_schema(connection) -> bool:  # type: ignore[no-untyped-def]
+    """Auto-stamp a present-but-unversioned database to head.
+
+    Returns True if reconciliation was performed (and the caller should
+    skip the upgrade for this run), False for the normal path.
+
+    Guards against the DuplicateTableError crash-loop that occurs when
+    alembic_version is empty/absent but the schema already exists (e.g.
+    a restore that did not carry alembic_version). In that state Alembic
+    would otherwise re-run 0001+ and collide with existing tables.
+    """
+    migration_ctx = MigrationContext.configure(connection)
+    current_rev = migration_ctx.get_current_revision()
+    if current_rev is not None:
+        # Normally versioned DB: nothing to reconcile.
+        return False
+
+    schema_present = inspect(connection).has_table(_BASELINE_SENTINEL_TABLE)
+    if not schema_present:
+        # Genuinely fresh DB: let the normal migration path create it.
+        return False
+
+    # Present-but-unversioned: the schema is materially complete but the
+    # bookmark is gone. Stamp to head so subsequent boots are no-ops and
+    # no CREATE TABLE collides with the existing objects.
+    head_rev = context.get_context().script.get_current_head()  # type: ignore[union-attr]
+    context.stamp(context.get_context()._migrations_fn and None or migration_ctx, head_rev)  # noqa: SLF001
+    return True
+
+
 def do_run_migrations(connection):  # type: ignore[no-untyped-def]
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
+        if _reconcile_unversioned_schema(connection):
+            # Schema was present but unversioned; we stamped to head.
+            # Skip the upgrade for this run (it would be a no-op anyway).
+            return
         context.run_migrations()
 
 
