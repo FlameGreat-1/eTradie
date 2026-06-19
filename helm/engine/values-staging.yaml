@@ -13,7 +13,7 @@ image:
   # literal below is only the value between pushes. IfNotPresent is
   # correct because each push produces a NEW tag (the SHA), so ArgoCD
   # always sees a real diff and the node always pulls the new bytes.
-  tag: "89229a1300e9a9dbe8ec965cbed3c11959090592"
+  tag: "8a0f9af64207eaf35410e69d730be4b477d22a52"
   pullPolicy: IfNotPresent
 podAnnotations:
   prometheus.io/scrape: "true"
