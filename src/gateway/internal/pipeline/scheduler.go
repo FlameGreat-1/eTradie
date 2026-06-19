@@ -407,8 +407,19 @@ func (s *Scheduler) executeUserCycle(ctx context.Context, user *auth.User, userL
 		}
 	}
 
-	// Load this user's symbol selection from Redis.
+	// Load this user's symbol selection from Redis. The set is sourced
+	// exclusively from the user's connected broker (see symbolstore
+	// SYMBOL SOURCE INVARIANT); there is no operator default basket.
 	symbols := s.symbolStore.GetActiveSymbols(userCtx, user.ID)
+
+	// No selection -> nothing to analyse. A user who has not connected a
+	// broker (or not yet picked a symbol from its catalogue) has an empty
+	// set. Skip the cycle entirely rather than burning the TA + Macro +
+	// RAG + processor path (and platform-key LLM quota) on zero symbols.
+	if len(symbols) == 0 {
+		userLog.Info().Msg("user_cycle_skipped_no_symbols")
+		return
+	}
 
 	// Enforce 1-symbol limit dynamically for Free tier users regardless of what is in Redis
 	// This prevents downgrade bypasses and default config bypasses.
