@@ -35,6 +35,22 @@ spec:
       kind: Secret
       jsonPointers:
         - /data
+    # ESO writes refresh-time + secret-resource-version annotations and
+    # may normalize spec.refreshInterval ("1h" -> "3600s") on refresh.
+    # Narrow pointers so a real chart-level change to secretStoreRef /
+    # target / data mappings still surfaces as OutOfSync.
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jsonPointers:
+        - /metadata/annotations
+        - /spec/refreshInterval
+    # Prometheus operator normalizes spec.endpoints (sorts relabelings,
+    # fills defaults). Same narrow-pointer policy: a chart change to
+    # selector / jobLabel / namespaceSelector still surfaces.
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+      jsonPointers:
+        - /spec/endpoints
 
   syncPolicy:
     automated:
