@@ -10,7 +10,6 @@ export interface SystemConfig {
   ta_cache_ttl_seconds: number;
   macro_cache_ttl_seconds: number;
   max_cycle_retries: number;
-  default_symbols: string[];
   active_symbols: string[];
   active_symbols_source: string;
   execution_enabled: boolean;
