@@ -10,7 +10,6 @@ import (
 func validConfig() *Config {
 	return &Config{
 		Enabled:                       true,
-		DefaultSymbols:                []string{"EURUSD", "GBPUSD"},
 		CycleIntervalSeconds:          14400,
 		CycleTimeoutSeconds:           300,
 		MaxConcurrentSymbols:          4,
@@ -648,44 +647,9 @@ func TestValidate_Ports_DifferentValues_Passes(t *testing.T) {
 	}
 }
 
-// --- Default Symbols ---
-
-func TestValidate_DefaultSymbols_Empty_Fails(t *testing.T) {
-	cfg := validConfig()
-	cfg.DefaultSymbols = []string{}
-	err := cfg.validate()
-	if err == nil {
-		t.Fatal("empty default symbols should fail validation")
-	}
-	if !strings.Contains(err.Error(), "DEFAULT_SYMBOLS") {
-		t.Fatalf("error should mention DEFAULT_SYMBOLS, got: %v", err)
-	}
-}
-
-func TestValidate_DefaultSymbols_Nil_Fails(t *testing.T) {
-	cfg := validConfig()
-	cfg.DefaultSymbols = nil
-	err := cfg.validate()
-	if err == nil {
-		t.Fatal("nil default symbols should fail validation")
-	}
-}
-
-func TestValidate_DefaultSymbols_SingleSymbol_Passes(t *testing.T) {
-	cfg := validConfig()
-	cfg.DefaultSymbols = []string{"XAUUSD"}
-	if err := cfg.validate(); err != nil {
-		t.Fatalf("single symbol should be valid, got: %v", err)
-	}
-}
-
-func TestValidate_DefaultSymbols_AllEightPairs(t *testing.T) {
-	cfg := validConfig()
-	cfg.DefaultSymbols = []string{
-		"EURUSD", "GBPUSD", "USDJPY", "USDCHF",
-		"AUDUSD", "NZDUSD", "USDCAD", "XAUUSD",
-	}
-	if err := cfg.validate(); err != nil {
-		t.Fatalf("all 8 default pairs should be valid, got: %v", err)
-	}
-}
+// (The former "--- Default Symbols ---" section and its four
+// TestValidate_DefaultSymbols_* tests were removed: the gateway no
+// longer carries a default-symbol basket or a boot guard requiring one.
+// Symbols are sourced exclusively from the user's connected broker; the
+// empty/no-selection state is the correct runtime state and is exercised
+// at the scheduler, REST (412) and gRPC (FailedPrecondition) layers.)
