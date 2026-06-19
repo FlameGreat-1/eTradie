@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -54,7 +55,7 @@ const (
 //     the subprotocol channel verbatim. The auth middleware
 //     (auth.RequireAuth) verifies whichever channel the client
 //     used BEFORE we reach this upgrade call.
-func newUpgrader(allowedOrigins map[string]bool) websocket.Upgrader {
+func newUpgrader(allowedOrigins map[string]bool, log zerolog.Logger) websocket.Upgrader {
 	return websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 4096,
@@ -67,7 +68,30 @@ func newUpgrader(allowedOrigins map[string]bool) websocket.Upgrader {
 			if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
 				return true
 			}
-			return allowedOrigins[origin]
+			if allowedOrigins[origin] {
+				return true
+			}
+
+			// TEMPORARY DIAGNOSTIC (WS-NOTIFICATIONS-INVESTIGATION.md):
+			// CheckOrigin rejected. Dump the byte-exact received Origin
+			// (quoted so trailing whitespace / case differences are
+			// visible) plus its length and the full sorted allowlist key
+			// set, so we can tell whether envoy/cloudflared mangled the
+			// Origin header in transit vs. the map genuinely missing the
+			// key. REVERT once captured.
+			keys := make([]string, 0, len(allowedOrigins))
+			for k := range allowedOrigins {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			log.Warn().
+				Str("received_origin", origin).
+				Str("received_origin_quoted", strconv.Quote(origin)).
+				Int("received_origin_len", len(origin)).
+				Strs("allowlist_keys", keys).
+				Int("allowlist_size", len(allowedOrigins)).
+				Msg("ws_checkorigin_rejected_debug")
+			return false
 		},
 	}
 }
@@ -98,7 +122,7 @@ type HistoryProvider interface {
 // Valid values: INFO, WARNING, ERROR, CRITICAL. Default: all events.
 func WebSocketHandler(hub *Hub, allowedOrigins map[string]bool) http.HandlerFunc {
 	log := newLogger("ws_handler")
-	upgrader := newUpgrader(allowedOrigins)
+	upgrader := newUpgrader(allowedOrigins, log)
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Auth has already passed (we sit behind RequireAuth) so the
