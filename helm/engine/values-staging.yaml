@@ -8,12 +8,13 @@
 
 replicaCount: 1
 image:
+  # tag is overwritten on every push to main by the CI `deploy-bump`
+  # job with the immutable git SHA (see .github/workflows/ci.yml); the
+  # literal below is only the value between pushes. IfNotPresent is
+  # correct because each push produces a NEW tag (the SHA), so ArgoCD
+  # always sees a real diff and the node always pulls the new bytes.
   tag: "89229a1300e9a9dbe8ec965cbed3c11959090592"
-  # TEMPORARY: pullPolicy Always so the CI-rebuilt 0.1.0 engine image
-  # (lifespan + OTel fixes) is fetched on next ArgoCD sync even though
-  # the tag string is unchanged. Reverts back to IfNotPresent in the
-  # follow-up commit that bumps the chart tag to 0.1.1.
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8000"
