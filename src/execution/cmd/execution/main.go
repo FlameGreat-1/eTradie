@@ -22,7 +22,6 @@ import (
 	billingstore "github.com/flamegreat-1/etradie/src/billing/store"
 	"github.com/flamegreat-1/etradie/src/execution/internal/audit"
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker"
-	mockbroker "github.com/flamegreat-1/etradie/src/execution/internal/broker/mock"
 	"github.com/flamegreat-1/etradie/src/execution/internal/broker/mt5"
 	"github.com/flamegreat-1/etradie/src/execution/internal/config"
 	"github.com/flamegreat-1/etradie/src/execution/internal/constants"
@@ -52,7 +51,7 @@ func main() {
 	log.Info().
 		Int("grpc_port", cfg.GRPCPort).
 		Int("http_port", cfg.HTTPPort).
-		Str("broker_mode", cfg.BrokerMode).
+		Str("broker_bridge_url", cfg.BrokerBridgeURL).
 		Str("execution_mode", cfg.DefaultExecutionMode).
 		Int("max_concurrent", cfg.MaxConcurrentTrades).
 		Msg("execution_engine_starting")
@@ -123,21 +122,20 @@ func main() {
 	tokenService = tokenService.WithEpochResolver(userStore)
 
 	// ── Broker implementation ──────────────────────────────────────────────
-	var bp broker.Port
-	if cfg.IsMT5Mode() {
-		// EngineInternalSecret is validated by Config.validate(): in
-		// production/staging it is required, in development an empty
-		// value is allowed but the bridge logs a warning at construction.
-		bridge := mt5.NewBridge(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs, cfg.EngineInternalSecret)
-		bp = bridge
-		log.Info().
-			Str("url", cfg.BrokerBridgeURL).
-			Bool("internal_auth_configured", cfg.EngineInternalSecret != "").
-			Msg("broker_mt5_bridge_configured")
-	} else {
-		bp = mockbroker.NewBroker(cfg.MockBrokerBalance)
-		log.Info().Float64("balance", cfg.MockBrokerBalance).Msg("broker_mock_configured")
-	}
+	// The mt5 bridge is the sole broker.Port implementation. Every call
+	// is dispatched to the Python engine's /internal/broker/* surface,
+	// which resolves the per-user MT4 or MT5 broker connection from the
+	// database (see src/engine/ta/broker/mt5/factory.py).
+	//
+	// EngineInternalSecret is validated by Config.validate(): required
+	// unconditionally in production / staging (>=32 chars); optional in
+	// development where the bridge logs a warning at construction and
+	// every call returns 401 until configured.
+	var bp broker.Port = mt5.NewBridge(cfg.BrokerBridgeURL, cfg.BrokerTimeoutMs, cfg.EngineInternalSecret)
+	log.Info().
+		Str("url", cfg.BrokerBridgeURL).
+		Bool("internal_auth_configured", cfg.EngineInternalSecret != "").
+		Msg("broker_mt5_bridge_configured")
 
 	// ── Redis Connection (for shared alerts) ───────────────────────────────
 	opts, err := redis.ParseURL(cfg.RedisURL)
@@ -470,7 +468,7 @@ func main() {
 	// Gated by cfg.PreloadPositionsOnStart so dev/test environments
 	// where the broker bridge is not available at startup can disable
 	// it without code change.
-	if cfg.PreloadPositionsOnStart && cfg.IsMT5Mode() {
+	if cfg.PreloadPositionsOnStart {
 		preloadCtx, preloadCancel := context.WithTimeout(ctx, 60*time.Second)
 		preloadUsers, preloadErr := userStore.ListActiveUsers(preloadCtx)
 		if preloadErr != nil {
