@@ -367,108 +367,38 @@ That is much bigger than signals.
 
 
 
-
-docker exec etradie-postgres psql -U etradie -d etradie -c "DELETE FROM auth_users;"
-
+#### Checking all services + VPS resources
 
 
-docker exec etradie-postgres psql -U etradie -d etradie -c "UPDATE auth_users SET role = 'admin' WHERE email = 'softverse.com@gmail.com';"
-
-
-
-
-All table names verified. Here is the full, finalized command list with `emex992@gmail.com` substituted as the working example and table names confirmed against the actual schema.
-
-#### Promote a user to pro_managed
-
+**1. All pods across every namespace (health + restarts):**
 ```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "INSERT INTO billing_subscriptions (user_id, tier, status, updated_at) SELECT id, 'pro_managed', 'active', NOW() FROM auth_users WHERE email = 'softverse.com@gmail.com' ON CONFLICT (user_id) DO UPDATE SET tier = EXCLUDED.tier, status = EXCLUDED.status, updated_at = NOW(); UPDATE auth_sessions SET revoked = TRUE WHERE user_id = (SELECT id FROM auth_users WHERE email = 'softverse.com@gmail.com');"
+kubectl get pods -A -o wide | grep -vE 'Completed|Running.*([0-9])/\1' || true
+# simpler: just list everything and we eyeball it
+kubectl get pods -A
 ```
 
-#### Promote a user to pro_byok
-
+**2. Anything NOT healthy (quick triage):**
 ```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "INSERT INTO billing_subscriptions (user_id, tier, status, updated_at) SELECT id, 'pro_byok', 'active', NOW() FROM auth_users WHERE email = 'emex992@gmail.com' ON CONFLICT (user_id) DO UPDATE SET tier = EXCLUDED.tier, status = EXCLUDED.status, updated_at = NOW(); UPDATE auth_sessions SET revoked = TRUE WHERE user_id = (SELECT id FROM auth_users WHERE email = 'emex992@gmail.com');"
+kubectl get pods -A --field-selector=status.phase!=Running | grep -v Completed
 ```
 
-#### Demote back to free
-
+**3. ArgoCD app health for the whole platform:**
 ```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "INSERT INTO billing_subscriptions (user_id, tier, status, updated_at) SELECT id, 'free', 'active', NOW() FROM auth_users WHERE email = 'emex992@gmail.com' ON CONFLICT (user_id) DO UPDATE SET tier = EXCLUDED.tier, status = EXCLUDED.status, updated_at = NOW(); UPDATE auth_sessions SET revoked = TRUE WHERE user_id = (SELECT id FROM auth_users WHERE email = 'emex992@gmail.com');"
+argocd app list --grpc-web -o wide
 ```
 
-#### Verify a user's current tier
-
+**4. VPS node resources — allocatable vs requested (what K8s has committed):**
 ```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "SELECT u.email, u.username, s.tier, s.status, s.updated_at FROM auth_users u LEFT JOIN billing_subscriptions s ON s.user_id = u.id WHERE u.email = 'emex992@gmail.com';"
+kubectl describe node | grep -A12 'Allocated resources'
 ```
 
-#### List all users (use this to grab the exact email before running any of the above)
-
+**5. VPS actual live usage (real CPU/mem consumption):**
 ```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "SELECT id, email, username, created_at FROM auth_users ORDER BY created_at DESC;"
+kubectl top nodes
+kubectl top pods -A --sort-by=memory | head -30
 ```
 
-#### Clear trade journal (closed + active trades and their events) — ALL USERS
-
+**6. Disk (the runbook mentioned 36% of 1006GB used; confirm current):**
 ```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "DELETE FROM management_events; DELETE FROM management_trades;"
+df -h /
 ```
-
-#### Clear trade journal — single user
-
-```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "DELETE FROM management_events WHERE user_id = (SELECT id FROM auth_users WHERE email = 'emex992@gmail.com'); DELETE FROM management_trades WHERE user_id = (SELECT id FROM auth_users WHERE email = 'emex992@gmail.com');"
-```
-
-#### Clear LLM analysis history (dashboard analysis feed) — ALL USERS
-
-```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "DELETE FROM analysis_outputs;"
-```
-
-#### Clear execution audit trail — ALL USERS
-
-```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "DELETE FROM execution_audit_logs;"
-```
-
-#### Clear pending watchers (in-flight orders waiting to fire) — ALL USERS
-
-```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "DELETE FROM execution_pending_watchers;"
-```
-
-#### Clear PnL tracker (daily/weekly aggregates) — ALL USERS
-
-```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "DELETE FROM execution_pnl_tracker;"
-```
-
-#### Nuke EVERYTHING trading-related (full reset, ALL USERS)
-
-Table names verified against the actual `SchemaSQL()` in `src/execution/internal/store/schema.go` and `src/management/internal/journal/repository.go`:
-
-```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "DELETE FROM management_events; DELETE FROM management_trades; DELETE FROM execution_audit_logs; DELETE FROM execution_pnl_tracker; DELETE FROM execution_pending_watchers; DELETE FROM analysis_outputs;"
-```
-
-#### Nuke everything trading-related — single user
-
-```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "DELETE FROM management_events WHERE user_id = (SELECT id FROM auth_users WHERE email = 'emex992@gmail.com'); DELETE FROM management_trades WHERE user_id = (SELECT id FROM auth_users WHERE email = 'emex992@gmail.com'); DELETE FROM execution_audit_logs WHERE user_id = (SELECT id FROM auth_users WHERE email = 'emex992@gmail.com'); DELETE FROM execution_pnl_tracker WHERE user_id = (SELECT id FROM auth_users WHERE email = 'emex992@gmail.com'); DELETE FROM execution_pending_watchers WHERE user_id = (SELECT id FROM auth_users WHERE email = 'emex992@gmail.com');"
-```
-
-Note: `analysis_outputs` is not in the single-user variant because I haven't confirmed it carries a `user_id` column — if it does, append it; if not, leave as-is.
-
-#### Force a user to re-login (revoke only, no tier change)
-
-```bash
-docker exec etradie-postgres psql -U etradie -d etradie -c "UPDATE auth_sessions SET revoked = TRUE WHERE user_id = (SELECT id FROM auth_users WHERE email = 'emex992@gmail.com');"
-```
-
-#### Notes
-
-- Every tier command revokes all active sessions for that user in the same `-c` block. The user must log out and log back in for the new tier to appear in their JWT — or wait up to 15 min for the access token to expire and be refreshed.
-- All execution and management table names above are verified against `src/execution/internal/store/schema.go` and `src/management/internal/journal/repository.go`.
-- Replace `emex992@gmail.com` with whatever email you actually want to operate on. Run the "List all users" command first if you're unsure of the exact email string.
