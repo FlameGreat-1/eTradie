@@ -19,11 +19,11 @@ data:
   EXECUTION_GRPC_PORT: {{ .Values.config.execution.grpcPort | quote }}
   EXECUTION_HTTP_PORT: {{ .Values.config.execution.httpPort | quote }}
 
-  # Broker.
-  EXECUTION_BROKER_MODE: {{ .Values.config.execution.brokerMode | quote }}
+  # Broker bridge. The mt5 bridge is the sole broker.Port implementation
+  # on the Go side; the Python engine resolves the per-user MT4 or MT5
+  # connection per request via _resolve_user_broker.
   EXECUTION_BROKER_BRIDGE_URL: {{ .Values.config.execution.brokerBridgeURL | quote }}
   EXECUTION_BROKER_TIMEOUT_MS: {{ .Values.config.execution.brokerTimeoutMs | quote }}
-  EXECUTION_MOCK_BROKER_BALANCE: {{ .Values.config.execution.mockBrokerBalance | quote }}
   # Section 3: end-to-end latency kill-switch.
   EXECUTION_MAX_ORDER_LATENCY_MS: {{ .Values.config.execution.maxOrderLatencyMs | default "5000" | quote }}
   # Section 3: order idempotency window.

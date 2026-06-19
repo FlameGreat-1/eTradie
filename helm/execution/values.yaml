@@ -102,10 +102,11 @@ config:
   execution:
     grpcPort: "50053"
     httpPort: "8080"
-    # No safe default. Production must set 'mt5'; non-prod environments
-    # explicitly opt-in to 'mock'. Empty string fails validate() so a
-    # fresh deploy with no overlay refuses to boot. Audit ref: X-10, EX-M2.
-    brokerMode: ""
+    # The mt5 bridge is the sole broker.Port implementation in the Go
+    # service. Every call is forwarded to the Python engine's
+    # /internal/broker/* surface, which resolves the per-user MT4 or
+    # MT5 connection from broker_connections at request time. The
+    # bridge URL must always point at the engine in-cluster service.
     brokerBridgeURL: "http://engine.etradie-system.svc.cluster.local:8000"
     brokerTimeoutMs: "5000"
     # Section 3 - end-to-end latency kill-switch.
@@ -147,7 +148,6 @@ config:
     # user before the gRPC listener opens. Set to 'false' in dev/test
     # environments where the broker bridge is not available at startup.
     preloadPositionsOnStart: "true"
-    mockBrokerBalance: "10000.0"
     gatewayAddr: "gateway.etradie-system.svc.cluster.local:50052"
     defaultExecutionMode: "LIMIT"
     minLotSize: "0.01"
