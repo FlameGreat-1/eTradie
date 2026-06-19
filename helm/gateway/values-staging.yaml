@@ -3,18 +3,15 @@
 # 1 replica.
 
 replicaCount: 1
-
 image:
   repository: ghcr.io/flamegreat-1/etradie/gateway
   pullPolicy: IfNotPresent
-  tag: "staging-0.1.0"
-
+  tag: "89229a1300e9a9dbe8ec965cbed3c11959090592"
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8080"
   prometheus.io/path: "/metrics"
   tier: staging
-
 config:
   # Staging is prod-like: arm the same fail-closed guards as
   # production so staging exercises the real posture. Audit ref: A2.
@@ -66,20 +63,17 @@ config:
     # redirect URIs alongside the existing localhost + production
     # entries (see PROGRESS.md Phase 14 frontend OAuth section).
     googleOAuthEnabled: "true"
-
 trustChain:
   # List form preferred over scalar for per-entry validation.
   # Audit ref: G-M2.
   trustedProxyCidrs:
     - "10.42.0.0/16"
   trustCloudflare: "false"
-
 externalSecrets:
   enabled: true
   gateway:
     vaultPath: etradie/services/gateway/staging
     refreshInterval: 1h
-
 resources:
   requests:
     cpu: 250m
@@ -89,23 +83,19 @@ resources:
     cpu: "1"
     memory: 512Mi
     ephemeral-storage: 512Mi
-
 # Single node: HPA pinned OFF (TABLE 2B). Revert with the base values
 # on a multi-node cluster.
 autoscaling:
   enabled: false
   minReplicas: 1
   maxReplicas: 1
-
 # A 1-replica PDB with minAvailable>=1 blocks every node drain forever.
 podDisruptionBudget:
   enabled: false
-
 serviceMonitor:
   enabled: true
   interval: 15s
   scrapeTimeout: 10s
-
 # NOTE: the gateway chart ships no ResourceQuota template; namespace
 # governance (ResourceQuota + LimitRange for etradie-system) is owned
 # solely by the data-layer chart. Values here are documentation-only
@@ -121,11 +111,8 @@ resourceQuota:
     persistentvolumeclaims: "20"
     servicesLoadbalancers: "0"
     servicesNodeports: "0"
-
 nodeSelector: {}
-
 tolerations: []
-
 # GHCR pull credentials. Packages are PRIVATE on GHCR (push posture);
 # K8s containerd needs a docker-registry Secret to pull. The `ghcr-pull`
 # Secret is created per-namespace at Phase 10.0 BEFORE this chart syncs.

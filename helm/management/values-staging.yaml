@@ -5,14 +5,11 @@
 # MUST stay 1. Audit ref: MG-C1.
 
 replicaCount: 1
-
 image:
-  tag: "0.1.0"
+  tag: "89229a1300e9a9dbe8ec965cbed3c11959090592"
   pullPolicy: IfNotPresent
-
 podAnnotations:
   tier: staging
-
 config:
   # Staging is prod-like for the auth/security posture. Audit ref: A2.
   app:
@@ -23,13 +20,11 @@ config:
     logJson: "true"
     # Distributed tracing ON in staging.
     otelEndpoint: "otel-collector.etradie-observability.svc.cluster.local:4317"
-
 externalSecrets:
   enabled: true
   management:
     vaultPath: etradie/services/management/staging
     refreshInterval: 5m
-
 resources:
   requests:
     cpu: 150m
@@ -39,24 +34,19 @@ resources:
     cpu: 500m
     memory: 512Mi
     ephemeral-storage: 128Mi
-
 autoscaling:
   enabled: false
   minReplicas: 1
   maxReplicas: 1
-
 podDisruptionBudget:
   enabled: true
   minAvailable: 0
   unhealthyPodEvictionPolicy: AlwaysAllow
-
 serviceMonitor:
   enabled: true
   interval: 30s
   scrapeTimeout: 10s
-
 terminationGracePeriodSeconds: 30
-
 # GHCR pull credentials. Packages are PRIVATE on GHCR (push posture);
 # K8s containerd needs a docker-registry Secret to pull. The `ghcr-pull`
 # Secret is created per-namespace at Phase 10.0 BEFORE this chart syncs.

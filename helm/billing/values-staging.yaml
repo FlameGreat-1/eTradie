@@ -3,18 +3,15 @@
 # TABLE 2B profile (BUDGET.md): single-node Contabo, 1 replica.
 
 replicaCount: 1
-
 image:
   repository: ghcr.io/flamegreat-1/etradie/billing
   pullPolicy: IfNotPresent
-  tag: "staging-0.1.0"
-
+  tag: "89229a1300e9a9dbe8ec965cbed3c11959090592"
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8082"
   prometheus.io/path: "/metrics"
   tier: staging
-
 config:
   billing:
     logLevel: "DEBUG"
@@ -27,13 +24,11 @@ config:
     checkoutCancelUrl: "https://staging.exoper.com/billing/cancel"
     paddleApiBaseUrl: "https://sandbox-api.paddle.com"
     lemonsqueezyApiBaseUrl: "https://api.lemonsqueezy.com"
-
 externalSecrets:
   enabled: true
   billing:
     vaultPath: etradie/services/billing/staging
     refreshInterval: 1h
-
 resources:
   requests:
     cpu: 150m
@@ -41,24 +36,19 @@ resources:
   limits:
     cpu: 500m
     memory: 512Mi
-
 autoscaling:
   enabled: false
   minReplicas: 1
   maxReplicas: 1
-
 # A 1-replica PDB with minAvailable>=1 blocks every node drain forever.
 podDisruptionBudget:
   enabled: false
-
 serviceMonitor:
   enabled: true
   interval: 15s
   scrapeTimeout: 10s
-
 nodeSelector: {}
 tolerations: []
-
 # GHCR pull credentials. Packages are PRIVATE on GHCR (push posture);
 # K8s containerd needs a docker-registry Secret to pull. The `ghcr-pull`
 # Secret is created per-namespace at Phase 10.0 BEFORE this chart syncs.
