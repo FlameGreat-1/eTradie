@@ -4,7 +4,7 @@
 This is the authoritative resume point for the hosted-MT provisioning
 effort on the **staging** Contabo box (`vmi3362776`).
 
-**Last updated:** 2026-06-19, mid-session.
+**Last updated:** 2026-06-19, late-session (through defect #8).
 
 ---
 
@@ -14,44 +14,83 @@ We are provisioning the **first hosted-MT (Wine) tenant** via the dashboard
 (`connection_type=hosted`). The engine's `HostedProvisioner` runs the
 provisioning at runtime (not ArgoCD). Each dashboard submit creates a
 `broker_connections` row; the engine then writes per-tenant creds to Vault
-and creates a per-tenant StatefulSet + ServiceAccount + Services.
+and creates a per-tenant StatefulSet + ServiceAccount + Services + watchdog
+ConfigMap + PVC. The platform is healthy throughout — only hosted-MT
+provisioning is affected. No outage.
 
-Provisioning was failing in a **cascade of distinct defects**, each one
-revealed after fixing the previous. We have fixed four and are verifying
-the fifth. **The platform itself is healthy throughout — only hosted-MT
-provisioning is affected.** No outage.
+Provisioning failed in a **cascade of 8 distinct defects**, each revealed
+after the previous was fixed. **All 8 are now fixed in code on `main`.**
+The infra fixes (egress, RBAC) are live and verified. The 4 most recent
+fixes are **engine-image (Python) changes** that need CI to build + roll a
+new engine image before the runtime `HostedProvisioner` produces correct
+tenant pods.
+
+### RESUME POINTER (read this first)
+
+- **Last barrier:** tenant pod's Vault Agent login was failing
+  `403 invalid audience` (defect #8). Fix: project an `aud=vault` SA
+  token onto the tenant pod and have the agent read it. Two follow-on
+  errors were fixed in turn:
+  (a) agent pointed at token-path but volume not mounted on the agent
+  container -> `no such file or directory`; fixed with
+  `agent-copy-volume-mounts: "mt-node"`.
+- **What we are waiting on RIGHT NOW:** CI to build a new engine image
+  past `ghcr.io/flamegreat-1/etradie/engine:2e4aba9f...` and bump
+  `helm/engine/values-staging.yaml::image.tag`, then ArgoCD rolls it.
+  The provisioner fix only takes effect once that new engine pod runs.
+- **Then:** delete the stuck connection from the dashboard, re-create,
+  and verify the tenant pod's `vault-agent-init` logs
+  `authentication successful` and the pod reaches `3/3 Ready`.
+  See "RESUME HERE" below for exact commands.
 
 ### Fixes committed to `main` (GitLab mirror -> GitHub `origin` -> ArgoCD/CI)
 
-| # | Commit subject | Layer | Needs image rebuild? | Status |
+| # | Defect | Layer | Needs engine image rebuild? | Status |
 |---|---|---|---|---|
-| 1 | `fix(engine): allow HostedProvisioner egress to Vault + use http scheme` | Helm values | No | DONE, synced, verified (TCP 8200 OPEN, HTTP 200) |
-| 2+3 | `fix(engine/migrations): make migrate idempotent ...` | Engine image | **Yes** | DONE on main; image build via CI; DB already stamped 0033 manually so not blocking |
-| 4 | `fix(engine): project Vault-audience SA token ...` | Helm pod-spec | No | DONE, synced, verified (`aud=['vault']`) |
-| 5 | `fix(engine): allow egress to the Kubernetes API server ...` | Helm values | No | DONE on main; **needs sync + verify (current step)** |
+| 1 | engine egress to Vault `:8200` + `http` scheme | Helm values | No | DONE, live, verified |
+| 2+3 | idempotent alembic migrate + read-path token decrypt for `hosted` (`_load_active_broker_connection` + `test` endpoint) | Engine image | **Yes** | DONE, rolled |
+| 4 | engine projects `aud=vault` SA token (engine->Vault) | Helm pod-spec | No | DONE, live, verified |
+| 5 | engine egress to K8s API (post-DNAT apiserver `:6443`, `0.0.0.0/0:6443`) | Helm values | No | DONE, live, verified (`6443 OPEN`) |
+| 6 | RBAC: engine Role needs `configmaps` `create/update/patch/delete` for the per-tenant watchdog ConfigMap | Helm role | No | DONE, live, verified (`Forbidden` cleared) |
+| 7 | tenant pod Vault Agent `aud=vault`: project token + mount + `auth-config-token-path` + `auth-config-audience` | Engine image (provisioner.py) + chart | **Yes** | DONE on main; **awaiting image roll** |
+| 8 | tenant pod Vault Agent could not read token: `agent-copy-volume-mounts: "mt-node"` so the injector mounts the projected token onto the agent containers | Engine image (provisioner.py) + chart | **Yes** | DONE on main; **awaiting image roll (current step)** |
+
+> NOTE: items 7+8 are the SAME wall (tenant Vault login) fixed in three
+> increments: project aud=vault token -> point agent at it -> copy the
+> mount onto the agent. All committed; they ride the next engine image.
 
 ### The failure cascade (each was a real, separate root cause)
 
-1. **Empty `BROKER_ENCRYPTION_KEY`** — engine Secret rendered the KEK empty
-   (stale ESO render). Fixed live by `force-sync` of the ExternalSecret +
-   engine restart. KEK is `f7f59b...` (64 hex) in Vault at
+1. **Empty `BROKER_ENCRYPTION_KEY`** — stale ESO render. Fixed live
+   (force-sync ESO + engine restart); KEK 64 hex at
    `etradie/services/engine/staging:broker_encryption_key`.
-2. **Alembic crash-loop** — `alembic_version` was empty but tables existed,
-   so `alembic upgrade head` hit `DuplicateTableError` on
-   `central_bank_events`. Fixed live by `alembic stamp head` (DB now at
-   `0033`); fixed permanently in code (commits 2+3, idempotent migrate).
-3. **Vault unreachable** — engine NetworkPolicy egress had no rule to Vault
-   `:8200`. Fixed (commit 1).
-4. **`https://` vs `http://`** — in-cluster Vault serves plain HTTP; engine
-   used `https`. Fixed (commit 1).
-5. **Vault 403** — engine's default SA token has audience
-   `https://kubernetes.default.svc`, but the `mt-node-provisioner` Vault
-   role requires `audience="vault"`. Fixed by projecting an `aud=vault`
-   token (commit 4).
-6. **K8s API unreachable (`10.43.0.1:443`)** — after the Vault write
-   succeeds, the provisioner creates the StatefulSet/SA/Services via the
-   K8s API, which the engine egress blocked (service-CIDR excluded). Fixed
-   (commit 5). **<-- verifying this now.**
+2. **Alembic crash-loop** — empty `alembic_version` but tables existed.
+   Fixed live (`stamp 0033`) + permanently in code (idempotent migrate).
+3. **Vault unreachable** — engine egress had no rule to Vault `:8200`.
+4. **`https` vs `http`** — in-cluster Vault is plain HTTP.
+5. **Engine Vault 403** — default SA token aud was the API server, role
+   needs `audience="vault"`. Fixed by projecting an `aud=vault` token.
+6. **K8s API unreachable** — `10.43.0.1:443` DNATs to the node's
+   apiserver `:6443` BEFORE kube-router egress eval; allowing the VIP
+   never matched. Fixed by egress to `0.0.0.0/0:6443`. (kube-router
+   REJECTs on policy deny, so it presented as `Connection refused`, not
+   a timeout — that misled diagnosis early.)
+7. **K8s API 403 Forbidden on create** — apiserver reachable but the
+   engine Role lacked `create` on `configmaps` (the per-tenant watchdog
+   ConfigMap). Fixed by granting configmaps create/update/patch/delete.
+8. **Tenant pod Vault Agent 403 `invalid audience`** — the injected
+   Vault Agent read the pod's DEFAULT SA token (aud=API server) but the
+   `mt-node-tenant` role requires `audience="vault"`. Fixed (mirroring
+   the engine) by projecting an `aud=vault` token + pointing the agent
+   at it + copying the mount onto the agent containers. **<-- current.**
+
+### Read-path note (separate from provisioning)
+
+Even after a tenant pod is Ready, the dashboard's `GET /api/broker/symbols`
+and positions endpoints raised `Hosted connection has no ea_auth_token`
+because `_load_active_broker_connection` (and the `test` endpoint) only
+decrypted `ea_auth_token_encrypted` for `connection_type=="ea"`. Fixed to
+decrypt for `"hosted"` too (commits 2+3 group). Rides the engine image.
 
 ---
 
