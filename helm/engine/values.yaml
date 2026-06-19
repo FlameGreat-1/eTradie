@@ -770,25 +770,36 @@ networkPolicy:
           port: 443
         - protocol: TCP
           port: 80
-    # Kubernetes API server (K3s default ClusterIP 10.43.0.1:443).
+    # Kubernetes API server (post-DNAT apiserver endpoint, :6443).
     # HostedProvisioner creates the per-tenant ServiceAccount +
     # StatefulSet + Services via kubernetes_asyncio AFTER writing the
-    # credentials to Vault. The external-HTTPS ipBlock rule above
-    # EXCLUDES the service CIDR (10.43.0.0/16), and the API VIP
-    # 10.43.0.1 lives inside it, so without this dedicated rule the
-    # API call is dropped by the CNI and provisioning fails with
-    # 'Cannot connect to host 10.43.0.1:443'. Scoped to a /32 of the
-    # API VIP so the service-CIDR exclusion (which protects east-west
-    # traffic governed by the explicit per-service rules) is preserved.
-    # If a cluster uses a non-default service CIDR, override this in the
-    # overlay; the `kubernetes` Service is always the first IP of the
-    # service CIDR.
+    # credentials to Vault.
+    #
+    # On K3s the kubernetes Service VIP (10.43.0.1:443) is DNAT'd by
+    # kube-proxy to the node's own apiserver endpoint on :6443 BEFORE
+    # the kube-router egress NetworkPolicy is evaluated. A rule allowing
+    # the pre-DNAT VIP (10.43.0.1/32:443) therefore NEVER matches the
+    # post-DNAT destination, so the API call is REJECTed by the CNI
+    # (presenting as 'Connection refused' - a kube-router REJECT, not a
+    # timeout) and every hosted-MT provision fails with
+    # 'Cannot connect to host 10.43.0.1:443'.
+    #
+    # We therefore allow the POST-DNAT target: :6443, the apiserver
+    # port, which is used by no other east-west service in this cluster.
+    # This is node-IP-agnostic so it holds across the staging and
+    # production single-node boxes without hardcoding a per-env address.
+    # Verified live: a policy-free pod on the node reaches 10.43.0.1:443
+    # AND <node-ip>:6443, while the policy-selected engine pod was
+    # REJECTed on both until this rule. Egress only; no inbound surface
+    # is changed. The service-CIDR exclusion on the external-HTTPS rule
+    # above is preserved - this rule is port-scoped to 6443, which that
+    # rule never covered (it permits only 80/443).
     - to:
         - ipBlock:
-            cidr: 10.43.0.1/32
+            cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
-          port: 443
+          port: 6443
 
     # Per-user mt-node Deployments. The engine's ZmqClient dials
     # tcp://<connection-id>.etradie-system.svc.cluster.local:5555
