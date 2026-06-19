@@ -210,9 +210,10 @@ func TestGRPC_GetGatewayConfig(t *testing.T) {
 	assert.Empty(t, resp.DefaultSymbols)
 	assert.True(t, resp.ExecutionEnabled)
 
-	// A user with no persisted selection has an empty (non-nil) active
-	// set — there is no fallback to a default basket.
-	assert.NotNil(t, resp.ActiveSymbols)
+	// A user with no persisted selection has an empty active set — there
+	// is no fallback to a default basket. (proto3 marshals an empty
+	// repeated field as absent, so the client may see nil here; Empty
+	// accepts both nil and empty-slice, which is the correct contract.)
 	assert.Empty(t, resp.ActiveSymbols)
 }
 
@@ -236,8 +237,9 @@ func TestGRPC_GetActiveSymbols(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	// No selection -> empty, non-nil. Symbols come only from the broker.
-	assert.NotNil(t, resp.Symbols)
+	// No selection -> empty. Symbols come only from the broker. (proto3
+	// marshals an empty repeated field as absent, so the client may see
+	// nil here; Empty accepts both nil and empty-slice.)
 	assert.Empty(t, resp.Symbols)
 }
 
@@ -291,8 +293,9 @@ func TestGRPC_ResetActiveSymbols(t *testing.T) {
 	require.NoError(t, err, "ResetActiveSymbols should not return gRPC error")
 	require.NotNil(t, resp)
 
-	// After clear, the active set is empty (non-nil). No default basket.
-	assert.NotNil(t, resp.ActiveSymbols)
+	// After clear, the active set is empty. No default basket. (proto3
+	// marshals an empty repeated field as absent, so the client may see
+	// nil here; Empty accepts both nil and empty-slice.)
 	assert.Empty(t, resp.ActiveSymbols)
 }
 
