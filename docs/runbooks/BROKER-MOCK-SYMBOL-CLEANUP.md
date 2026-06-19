@@ -193,6 +193,109 @@ Rolling back commit 1 alone leaves the build broken (main.go imports a deleted p
 * The `mt-node` image build process itself. See `docker/mt-node/README.md` and the `Makefile.platform` build targets.
 * The engine's `_resolve_user_broker` failover semantics (Stale-While-Revalidate cache). See `src/engine/routers/broker_bridge.py`.
 
+## Server-side symbols cleanup (follow-up series)
+
+**Status:** shipped to `main`.
+**Why this exists:** the original series above fixed the **SPA chart**
+symbol resolution (`useActiveSymbol`) so the chart speaks the broker's
+exact symbol names. It did NOT touch the **gateway server side**, which
+still carried an operator-seeded `DEFAULT_SYMBOLS` basket
+(`EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,NZDUSD,USDCAD,XAUUSD`). That basket
+leaked to users through three server paths even when the user had never
+selected any symbol and had not connected a broker:
+
+1. `GET /api/v1/symbols` (the dashboard **Settings -> Symbols** page) —
+   returned the 8 majors as the user's "active" symbols.
+2. `GET /api/v1/config` — exposed `default_symbols` AND an
+   `active_symbols` that fell back to the same basket.
+3. The analysis **scheduler** — ran 4-hourly LLM cycles against the 8
+   majors for every non-Free user, burning quota on symbols their broker
+   may not even publish.
+
+The write path (`PUT /api/v1/symbols`) ALREADY validated submitted
+symbols against the connected broker's catalogue
+(`/api/broker/symbols`) and already refused when the catalogue was
+empty. The read/fallback paths bypassed that gate. This series removes
+the fallback so the **write-time invariant holds on every path**.
+
+### Architectural invariant this series enforces
+
+**SYMBOL SOURCE INVARIANT:** the active-symbol set is sourced
+EXCLUSIVELY from the user's connected broker. A symbol enters the
+gateway only via `SetActiveSymbols`, gated against the broker catalogue.
+There is no operator default basket anywhere in the gateway. A user with
+no selection (e.g. before completing the broker-connect step of
+onboarding) has an empty active set; reads return `[]`, the scheduler
+skips the cycle, and `POST /api/v1/cycle/run` returns `412`.
+
+This matches the onboarding flow: broker connection is step 1; the
+engine's `HostedProvisioner` resolves the broker-actual symbol via
+`GET_ALL_SYMBOLS` into `broker_connections.mt5_symbol`; that single
+broker-resolved symbol is what the chart, the header, and the Symbols
+Settings page surface. Nothing is shown before a broker is connected.
+
+### File inventory (server-side series)
+
+| File | Action | Why |
+|---|---|---|
+| `src/gateway/internal/symbolstore/store.go` | EDITED | `GetActiveSymbols` returns `[]` (non-nil) instead of defaults; `ResetToDefaults` replaced by `ClearSelection`; `DefaultSymbols()` removed; `NewStore` no longer takes `*config.Config`. |
+| `src/gateway/internal/symbolstore/store_test.go` | REWRITTEN | Asserts empty-on-no-selection + clear-leaves-empty; drops default-fallback tests. |
+| `src/gateway/internal/config/config.go` | EDITED | Removed `DefaultSymbols` field + the boot guard that required a non-empty list. |
+| `src/gateway/internal/pipeline/scheduler.go` | EDITED | `executeUserCycle` skips with `user_cycle_skipped_no_symbols` when the set is empty. |
+| `src/gateway/internal/server/api_handlers.go` | EDITED | `handleRunCycle` returns `412` on empty; `handleResetSymbols` clears instead of restoring defaults; `handleGetConfig` drops `default_symbols`. |
+| `src/gateway/internal/container/container.go` | EDITED | `symbolstore.NewStore(redisClient)` wire-up. |
+| `src/gateway/e2etest/harness.go`, `src/gateway/grpctest/harness.go` | EDITED | Drop `DefaultSymbols` from the test config; drop `cfg` arg from `NewStore`. |
+| `helm/gateway/values.yaml`, `helm/gateway/templates/configmap.yaml` | EDITED | Removed `defaultSymbols` value + `GATEWAY_DEFAULT_SYMBOLS` env key. |
+| `cotradee/src/features/symbols/api/symbols.ts` | EDITED | Removed the unused `useResetSymbols` hook. |
+
+### Operator step: purge orphaned default baskets from Redis
+
+Users who pressed the old "reset" affordance (or whose row was seeded by
+a previous build) may hold a copy of the 8 majors at
+`user:<id>:active_symbols`. The new write validation will not let those
+values be re-saved if they are not in the broker catalogue, but the
+stale rows persist until overwritten and the scheduler will keep
+analysing them. Purge them once, post-deploy:
+
+```bash
+# Staging single-node: the gateway cache namespace prefixes the key.
+# Inspect first (dry run), then delete.
+kubectl -n etradie-system exec -i redis-0 -c redis -- \
+  sh -c 'redis-cli --scan --pattern "*user:*:active_symbols"'
+
+# Delete every persisted active-symbols selection so every user starts
+# from the honest empty state and re-selects from their broker catalogue.
+kubectl -n etradie-system exec -i redis-0 -c redis -- \
+  sh -c 'redis-cli --scan --pattern "*user:*:active_symbols" | xargs -r redis-cli DEL'
+```
+
+This is safe: the only effect is that every user's Settings -> Symbols
+page shows the empty state until they pick a symbol from their connected
+broker, which is the intended behaviour.
+
+### Verification matrix (server-side series)
+
+```bash
+# 1. Gateway configmap no longer carries the default basket.
+kubectl -n etradie-system get cm etradie-gateway-config -o yaml \
+  | grep -i default_symbols && echo "FAIL" || echo "OK: no GATEWAY_DEFAULT_SYMBOLS"
+
+# 2. A freshly-signed-up user with no broker sees an empty symbol set.
+#    GET /api/v1/symbols -> {"symbols":[],"source":"redis"}
+#    GET /api/v1/config  -> active_symbols:[], NO default_symbols key.
+
+# 3. POST /api/v1/cycle/run with no body and no stored selection -> 412.
+
+# 4. Scheduler logs user_cycle_skipped_no_symbols (NOT user_cycle_started
+#    with a hardcoded basket) for a user who has not selected symbols.
+kubectl -n etradie-system logs deploy/etradie-gateway --tail=200 \
+  | grep -E 'user_cycle_skipped_no_symbols|user_cycle_started'
+
+# 5. After connecting a broker and selecting EURUSDm (or any broker-actual
+#    name), GET /api/v1/symbols returns exactly that symbol, the chart
+#    loads it, and the scheduler cycle runs on it.
+```
+
 ## Verification matrix (post-deploy)
 
 ```bash
