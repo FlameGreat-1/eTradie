@@ -264,6 +264,17 @@ func (h *APIHandler) handleRunCycle(w http.ResponseWriter, r *http.Request) {
 		symbols = h.symbolStore.GetActiveSymbols(r.Context(), userID)
 	}
 
+	// Symbols are sourced exclusively from the user's connected broker.
+	// If the request carried none AND the user has no stored selection,
+	// there is nothing to analyse — refuse rather than dispatch a no-op
+	// cycle. The user must select at least one symbol from their broker
+	// catalogue (Settings -> Symbols) first.
+	if len(symbols) == 0 {
+		writeJSONError(w, http.StatusPreconditionFailed,
+			"select at least one symbol from your broker catalogue before running a cycle")
+		return
+	}
+
 	// ------------------------------------------------------------------
 	// LLM quota pre-flight (Audit ref: ADMIN-QUOTA-7).
 	//
@@ -586,30 +597,22 @@ func (h *APIHandler) handleResetSymbols(w http.ResponseWriter, r *http.Request) 
 
 	userID := auth.UserIDFromContext(r.Context())
 	oldSymbols := h.symbolStore.GetActiveSymbols(r.Context(), userID)
-	ok := h.symbolStore.ResetToDefaults(r.Context(), userID)
+	// "Reset" clears the user's customisation. There is no operator
+	// default basket to restore to: symbols are sourced exclusively from
+	// the user's connected broker, so after clearing, the active set is
+	// empty until the user picks a symbol from their broker catalogue.
+	ok := h.symbolStore.ClearSelection(r.Context(), userID)
 	active := h.symbolStore.GetActiveSymbols(r.Context(), userID)
-
-	// Free-tier defense-in-depth: ResetToDefaults writes the full default list
-	// (typically 8 symbols). For a Free non-admin user, persist only the first
-	// symbol so the stored state matches the 1-symbol policy. Without this,
-	// the scheduler truncates at execution time but the persisted state stays
-	// wrong, and any future read path that doesn't truncate inherits the bypass.
-	claims := auth.ClaimsFromContext(r.Context())
-	if ok && claims != nil && claims.Role != "admin" && claims.Tier == "free" && len(active) > 1 {
-		if h.symbolStore.SetActiveSymbols(r.Context(), userID, active[:1]) {
-			active = h.symbolStore.GetActiveSymbols(r.Context(), userID)
-		}
-	}
 
 	if ok {
 		h.transport.Publish(r.Context(),
 			alert.NewEvent(alert.SourceGateway, alert.TypeSymbolsChanged, alert.SeverityInfo,
-				fmt.Sprintf("Symbols reset to defaults: %s", strings.Join(active, ", "))).
+				"Symbol selection cleared. Pick a symbol from your broker catalogue to resume tracking.").
 				WithUserID(userID).
 				WithDetails(map[string]interface{}{
 					"old_symbols": oldSymbols,
 					"new_symbols": active,
-					"source":      "reset_to_defaults",
+					"source":      "clear_selection",
 				}),
 		)
 	}
@@ -650,7 +653,6 @@ func (h *APIHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		"ta_cache_ttl_seconds":    h.cfg.TACacheTTLSeconds,
 		"macro_cache_ttl_seconds": h.cfg.MacroCacheTTLSeconds,
 		"max_cycle_retries":       h.cfg.MaxCycleRetries,
-		"default_symbols":         h.cfg.DefaultSymbols,
 		"active_symbols":          activeSymbols,
 		"active_symbols_source":   source,
 		"execution_enabled":       h.cfg.ExecutionEnabled,
