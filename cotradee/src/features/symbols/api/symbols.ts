@@ -63,14 +63,3 @@ export function useUpdateSymbols() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['symbols'] }),
   });
 }
-
-export function useResetSymbols() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async () => {
-      const { data } = await api.gateway.post('/api/v1/symbols/reset');
-      return data;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['symbols'] }),
-  });
-}
