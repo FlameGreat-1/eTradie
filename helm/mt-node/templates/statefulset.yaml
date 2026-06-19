@@ -60,6 +60,11 @@ spec:
         # its kubernetes-auth login JWT carries aud=vault; the default
         # SA token's audience is the API server and Vault 403s on it.
         vault.hashicorp.com/auth-config-token-path: "/var/run/secrets/vault/token"
+        # The injector-created agent containers do not mount our custom
+        # vault-token projected volume by default; copy the mt-node
+        # container's volume mounts (including /var/run/secrets/vault)
+        # onto the agent so it can read the aud=vault token.
+        vault.hashicorp.com/agent-copy-volume-mounts: "mt-node"
         vault.hashicorp.com/agent-init-first: "true"
         vault.hashicorp.com/agent-pre-populate-only: "false"
         vault.hashicorp.com/agent-inject-secret-{{ .Values.vault.fileName }}: {{ include "mt-node.vaultTenantPath" . | quote }}
