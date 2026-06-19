@@ -321,11 +321,17 @@ config:
       # Webhook bodies are small JSON events; a tight 256 KiB cap is
       # ample. Webhook routes are also EXEMPT from local_ratelimit.
       maxRequestBytes: "262144"
-    # TIER4 A2b: HCM header-size cap + the chain-level buffer ceiling.
-    # The chain-level buffer is effectively the gateway-route value; the
-    # real per-route enforcement is via BufferPerRoute on each route.
+    # TIER4 A2b: HCM header-size cap. The previous
+    # maxRequestBytesChainCeiling key has been removed because the
+    # chain-level envoy.filters.http.buffer filter it sized is no
+    # longer in the chain (it was incompatible with HTTP/1.1 Upgrade
+    # requests; WS handshakes hung 60s waiting for body end-of-stream
+    # that a GET with no Content-Length never produces). Per-route
+    # body caps still exist on the webhook routes via BufferPerRoute,
+    # and the gateway's auth.DecodeJSONStrict caps JSON bodies at the
+    # handler level. See helm/envoy/templates/configmap.yaml header
+    # comment block for the full rationale.
     maxRequestHeadersKb: 64
-    maxRequestBytesChainCeiling: "10485760"
     # TIER4 A2a: coarse per-Envoy-POD L7 rate-limit backstop. Sized
     # generously: 2000 tokens, refilled 2000 every 1s => ~2000 rps per
     # pod steady-state with a 2000 burst. With replicaCount=5 that is a

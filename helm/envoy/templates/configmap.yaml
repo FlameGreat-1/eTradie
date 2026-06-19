@@ -256,39 +256,22 @@ data:
                                 upgrade_configs:
                                   - upgrade_type: "websocket"
                                 {{- end }}
-                              # TIER4 A2b: request-body cap. Previously a
-                              # per-route BufferPerRoute set a 10 MiB cap
-                              # via the buffer filter here. That broke WS
-                              # upgrades: the buffer filter waits for the
-                              # request body's end-of-stream before
-                              # forwarding, but a WS handshake is a GET
-                              # with no body and no Content-Length, so
-                              # envoy held the stream open until
-                              # stream_idle_timeout fired at 60s, then
-                              # returned 408 with response_flags: "SI"
-                              # (StreamIdleTimeout). Observed live in the
-                              # staging envoy access log after !149
-                              # landed the upgrade_configs:
-                              #   path=/ws/notifications response_code=408
-                              #   upstream_host=null duration_ms=60000
-                              #   response_flags="SI" upstream=gateway
-                              # The chain-level envoy.filters.http.buffer
-                              # (declared in http_filters below) ALREADY
-                              # enforces the SAME 10 MiB ceiling via
-                              # maxRequestBytesChainCeiling, so disabling
-                              # the per-route buffer on the catch-all `/`
-                              # route does not weaken body-size protection
-                              # -- it just removes the duplicate engagement
-                              # that was incompatible with WS upgrades.
-                              # Webhook routes keep their own per-route
-                              # 256 KiB cap; /healthz is a direct_response
-                              # with no body forwarding. Audit ref: TIER4
-                              # A2b body-cap policy is unchanged on every
-                              # route that holds user-sourced bodies.
-                              typed_per_filter_config:
-                                envoy.filters.http.buffer:
-                                  "@type": type.googleapis.com/envoy.config.route.v3.FilterConfig
-                                  disabled: true
+                              # No per-route buffer override. The chain-
+                              # level envoy.filters.http.buffer that used
+                              # to gate this route has been removed (see
+                              # http_filters below) because it was
+                              # incompatible with HTTP/1.1 Upgrade requests
+                              # in envoy v1.28: even with FilterConfig
+                              # disabled:true the filter still inspected
+                              # the request and held the stream waiting for
+                              # body end-of-stream that never arrives on
+                              # WS upgrades, producing 60s SI timeouts on
+                              # /ws/notifications and /api/broker/stream-*.
+                              # Body-size protection is now enforced by the
+                              # HCM header cap, the gateway's own
+                              # auth.DecodeJSONStrict body caps in each
+                              # handler, and the per-route BufferPerRoute
+                              # on the webhook routes (unchanged).
                     http_filters:
                       - name: envoy.filters.http.wasm
                         typed_config:
@@ -302,15 +285,33 @@ data:
                                 local:
                                   filename: /etc/envoy/wasm/integration-filter.wasm
                               allow_precompiled: true
-                      # TIER4 A2b: request-body buffer filter. Declared
-                      # here (chain-level, effectively unbounded) and
-                      # constrained per-route via BufferPerRoute in each
-                      # route's typed_per_filter_config above. Must sit
-                      # before the rate-limit + router filters.
-                      - name: envoy.filters.http.buffer
-                        typed_config:
-                          "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.Buffer
-                          max_request_bytes: {{ .Values.config.envoy.maxRequestBytesChainCeiling | default 10485760 | int64 }}
+                      # Chain-level envoy.filters.http.buffer REMOVED.
+                      # It was incompatible with HTTP/1.1 Upgrade requests:
+                      # the filter waited for request-body end-of-stream
+                      # before passing the request to the router, but a
+                      # WS handshake (GET, no body, no Content-Length)
+                      # never reaches end-of-stream, so envoy held the
+                      # stream open until stream_idle_timeout (60s) and
+                      # returned 408 SI without ever dialing upstream.
+                      # The per-route FilterConfig disabled:true override
+                      # on `/` did NOT bypass the filter for upgrades in
+                      # envoy v1.28 (confirmed in staging with !150).
+                      #
+                      # Body-size protection retained at:
+                      #   1. HCM max_request_headers_kb (header cap).
+                      #   2. Webhook routes' own BufferPerRoute
+                      #      (256 KiB on /webhooks/paddle and
+                      #       /webhooks/lemonsqueezy, where the
+                      #      filter still engages because those routes
+                      #      explicitly carry a per-route Buffer config).
+                      #   3. Gateway's auth.DecodeJSONStrict body cap on
+                      #      every JSON handler (src/auth/decode.go).
+                      #
+                      # If a future requirement is a generic listener-wide
+                      # body-size limit that also accepts WS upgrades,
+                      # the correct approach is per-route BufferPerRoute
+                      # on every non-upgrade route individually, NOT a
+                      # chain-level Buffer filter.
                       {{- if .Values.config.envoy.localRateLimit.enabled }}
                       # TIER4 A2a: COARSE per-Envoy-POD L7 rate-limit
                       # backstop. Defense-in-depth ONLY: NOT a substitute
