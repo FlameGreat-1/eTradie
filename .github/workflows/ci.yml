@@ -15,7 +15,7 @@ jobs:
     name: Terraform fmt + validate (all modules)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -40,7 +40,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -61,7 +61,7 @@ jobs:
     name: Helm chart lint + render + schema validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install helm
         uses: azure/setup-helm@v4
         with:
@@ -518,7 +518,7 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       APP_ENV: testing
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -539,7 +539,7 @@ jobs:
     name: Proto codegen drift gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
@@ -616,7 +616,7 @@ jobs:
       GATEWAY_REDIS_URL: redis://localhost:6379/0
       MANAGEMENT_REDIS_URL: redis://localhost:6379/1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
@@ -716,7 +716,7 @@ jobs:
       # ImagePullBackOff's. Bump this in lockstep with the chart pin.
       EDGE_INGRESS_RELEASE_TAG: "0.2.0"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -875,7 +875,7 @@ jobs:
     env:
       IMAGE_SHA: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Check out main at its tip with full credentials so we can push
           # the bump commit back. fetch-depth 0 keeps the ref pushable.
