@@ -205,24 +205,29 @@ func TestGRPC_GetGatewayConfig(t *testing.T) {
 	assert.Equal(t, int32(0), resp.TaCacheTtlSeconds) // Disabled in test config.
 	assert.Equal(t, int32(0), resp.MacroCacheTtlSeconds)
 	assert.Equal(t, int32(1), resp.MaxCycleRetries)
-	assert.Equal(t, []string{"EURUSD", "GBPUSD"}, resp.DefaultSymbols)
+	// No operator default basket exists any more: the field is always
+	// empty. Symbols are sourced exclusively from the user's broker.
+	assert.Empty(t, resp.DefaultSymbols)
 	assert.True(t, resp.ExecutionEnabled)
 
-	// Active symbols should be the defaults (Redis unreachable).
-	assert.NotEmpty(t, resp.ActiveSymbols)
+	// A user with no persisted selection has an empty (non-nil) active
+	// set — there is no fallback to a default basket.
+	assert.NotNil(t, resp.ActiveSymbols)
+	assert.Empty(t, resp.ActiveSymbols)
 }
 
 // ---------------------------------------------------------------------------
 // GetActiveSymbols
 // ---------------------------------------------------------------------------
 
-// TestGRPC_GetActiveSymbols verifies that GetActiveSymbols returns
-// the default symbols when Redis is unreachable.
+// TestGRPC_GetActiveSymbols verifies that a user with no persisted
+// selection gets an empty (non-nil) symbol set — there is no default
+// basket to fall back to.
 func TestGRPC_GetActiveSymbols(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	authCtx := h.AuthContext("test-user-noselection-001", "testuser", auth.RoleEtradie)
 	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
@@ -231,9 +236,9 @@ func TestGRPC_GetActiveSymbols(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	// Falls back to config defaults since Redis is unreachable.
-	assert.Contains(t, resp.Symbols, "EURUSD")
-	assert.Contains(t, resp.Symbols, "GBPUSD")
+	// No selection -> empty, non-nil. Symbols come only from the broker.
+	assert.NotNil(t, resp.Symbols)
+	assert.Empty(t, resp.Symbols)
 }
 
 // ---------------------------------------------------------------------------
@@ -268,13 +273,15 @@ func TestGRPC_SetActiveSymbols_Valid(t *testing.T) {
 // ResetActiveSymbols
 // ---------------------------------------------------------------------------
 
-// TestGRPC_ResetActiveSymbols verifies that ResetActiveSymbols restores
-// the symbol list to config defaults.
+// TestGRPC_ResetActiveSymbols verifies that ResetActiveSymbols clears
+// the user's selection. There is no default basket to restore to, so
+// the post-reset active set is empty until the user re-selects from
+// their broker catalogue.
 func TestGRPC_ResetActiveSymbols(t *testing.T) {
 	h := NewHarness(t)
 	defer h.Close()
 
-	authCtx := h.AuthContext("test-user-001", "testuser", auth.RoleEtradie)
+	authCtx := h.AuthContext("test-user-reset-001", "testuser", auth.RoleEtradie)
 	ctx, cancel := context.WithTimeout(authCtx, 10*time.Second)
 	defer cancel()
 
@@ -283,11 +290,9 @@ func TestGRPC_ResetActiveSymbols(t *testing.T) {
 	require.NoError(t, err, "ResetActiveSymbols should not return gRPC error")
 	require.NotNil(t, resp)
 
-	// After reset, active symbols should match config defaults.
-	assert.Contains(t, resp.ActiveSymbols, "EURUSD")
-	assert.Contains(t, resp.ActiveSymbols, "GBPUSD")
-	assert.Len(t, resp.ActiveSymbols, 2,
-		"should have exactly 2 default symbols after reset")
+	// After clear, the active set is empty (non-nil). No default basket.
+	assert.NotNil(t, resp.ActiveSymbols)
+	assert.Empty(t, resp.ActiveSymbols)
 }
 
 // ---------------------------------------------------------------------------
