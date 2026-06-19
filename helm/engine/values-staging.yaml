@@ -7,15 +7,13 @@
 # helm/engine/values-image.yaml.
 
 replicaCount: 1
-
 image:
-  tag: "0.1.0"
+  tag: "89229a1300e9a9dbe8ec965cbed3c11959090592"
   # TEMPORARY: pullPolicy Always so the CI-rebuilt 0.1.0 engine image
   # (lifespan + OTel fixes) is fetched on next ArgoCD sync even though
   # the tag string is unchanged. Reverts back to IfNotPresent in the
   # follow-up commit that bumps the chart tag to 0.1.1.
   pullPolicy: Always
-
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8000"
@@ -49,7 +47,6 @@ podAnnotations:
   #      mt-node :5555 + chromadb :8000, skip-outbound for OTel
   #      :4317) is already correct and will take effect.
   linkerd.io/inject: "disabled"
-
 config:
   app:
     env: "staging"
@@ -103,7 +100,6 @@ config:
         vault.hashicorp.com/agent-limits-cpu: "250m"
         vault.hashicorp.com/agent-requests-mem: "64Mi"
         vault.hashicorp.com/agent-limits-mem: "128Mi"
-
 externalSecrets:
   enabled: true
   engine:
@@ -115,7 +111,6 @@ externalSecrets:
     # Staging mt-node platform path. Matches
     # helm/mt-node/values-staging.yaml::externalSecrets.platform.vaultPath.
     mtNodeVaultPath: etradie/services/mt-node/staging
-
 resources:
   requests:
     cpu: 250m
@@ -125,26 +120,21 @@ resources:
     cpu: "1"
     memory: 1Gi
     ephemeral-storage: 1Gi
-
 autoscaling:
   enabled: false
   minReplicas: 1
   maxReplicas: 1
-
 # A single-replica deployment cannot satisfy minAvailable=1 during a
 # roll; minAvailable 0 keeps drains and deploys unblocked.
 podDisruptionBudget:
   enabled: true
   minAvailable: 0
   unhealthyPodEvictionPolicy: AlwaysAllow
-
 serviceMonitor:
   enabled: true
   interval: 30s
   scrapeTimeout: 10s
-
 terminationGracePeriodSeconds: 30
-
 # GHCR pull credentials. Packages are PRIVATE on GHCR (push posture);
 # K8s containerd needs a docker-registry Secret to pull. The `ghcr-pull`
 # Secret is created per-namespace at Phase 10.0 BEFORE this chart syncs.

@@ -5,15 +5,13 @@
 # 1 replica.
 
 replicaCount: 1
-
 image:
-  tag: "staging-v0.1.0"
+  tag: "89229a1300e9a9dbe8ec965cbed3c11959090592"
   # Staging re-uses the same tag after each CI rebuild. Always re-pull
   # so a new layer pushed to GHCR is picked up on the next pod recreate.
   # Production overlay keeps the chart base default `IfNotPresent`
   # because production rolls with explicit tag bumps.
   pullPolicy: Always
-
 resources:
   requests:
     cpu: 150m
@@ -21,18 +19,15 @@ resources:
   limits:
     cpu: 750m
     memory: 512Mi
-
 # Single node: HPA pinned OFF (a scale-up cannot add availability on
 # one host). Revert with the base values on a multi-node cluster.
 autoscaling:
   enabled: false
   minReplicas: 1
   maxReplicas: 1
-
 # A 1-replica PDB with minAvailable>=1 blocks every node drain forever.
 podDisruptionBudget:
   enabled: false
-
 # Single-node scheduling: the base chart's REQUIRED hostname
 # anti-affinity + strategy maxSurge:1/maxUnavailable:0 deadlocks every
 # rollout on one node. Drop the required term (null deletes the base
@@ -40,7 +35,6 @@ podDisruptionBudget:
 affinity:
   podAntiAffinity:
     requiredDuringSchedulingIgnoredDuringExecution: null
-
 cloudflareTunnel:
   # One tunnel replica on the single-node box (the second replica only
   # buys node-level redundancy, which one node cannot provide).
@@ -50,11 +44,9 @@ cloudflareTunnel:
     # production path; without this override staging cloudflared would
     # authenticate with the PRODUCTION tunnel token.
     vaultPath: "etradie/services/edge-ingress/staging/cloudflare/tunnel"
-
 logging:
   rustLog: "info,edge_ingress=debug"
   rustBacktrace: "1"
-
 resourceQuota:
   hard:
     requestsCpu: "2"
@@ -63,7 +55,6 @@ resourceQuota:
     limitsMemory: "8Gi"
     servicesLoadbalancers: "1"
     servicesNodeports: "0"
-
 externalSecrets:
   tlsCerts:
     vaultPath: "etradie/services/edge-ingress/staging/tls"
@@ -91,7 +82,6 @@ externalSecrets:
     vaultPath: "etradie/services/edge-ingress/staging/maxmind"
   aopCa:
     vaultPath: "etradie/services/edge-ingress/staging/cloudflare/aop_ca"
-
 config:
   server:
     idleTimeoutSecs: 180
@@ -143,7 +133,6 @@ config:
     intervalSecs: 8
   retry:
     backoffMs: 75
-
 # GeoIP: persistent cache + daily refresh inherited from the base
 # values.yaml geoip block (single-node staging, BUDGET.md Table 2B).
 # The PVC uses the K3s local-path default StorageClass. Explicitly
@@ -157,17 +146,14 @@ geoip:
   refresh:
     enabled: true
     schedule: "0 3 * * *"
-
 serviceMonitor:
   interval: "15s"
   scrapeTimeout: "10s"
   labels:
     prometheus: kube-prometheus
     environment: staging
-
 nodeSelector: {}
 tolerations: []
-
 # GHCR pull credentials. Packages are PRIVATE on GHCR (push posture);
 # K8s containerd needs a docker-registry Secret to pull. The `ghcr-pull`
 # Secret is created per-namespace at Phase 10.0 BEFORE this chart syncs.
