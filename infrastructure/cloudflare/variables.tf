@@ -43,6 +43,29 @@ variable "always_use_https" {
   default     = true
 }
 
+variable "enable_websockets" {
+  description = <<-EOT
+    Whether the zone-level Cloudflare "WebSockets" toggle is on.
+    Required for any proxied hostname that needs to forward HTTP
+    Upgrade: websocket handshakes to origin. With this OFF (the
+    Cloudflare default on lower plans) every WS upgrade is rejected
+    at the edge with a 403 + lock-down CSP page (Content-Length: 0,
+    Upgrade: websocket echoed back, Server: cloudflare), BEFORE the
+    request ever reaches cloudflared/edge-ingress/envoy/the gateway,
+    so no origin log line is produced.
+
+    Default ON: this platform exposes /ws/notifications on the
+    gateway (alert hub) and /api/broker/stream-ticks +
+    /api/broker/stream-positions on the engine, all of which the SPA
+    opens through the same proxied hostname. There is no codepath
+    that wants WS disabled; the default is the production-correct
+    value. An operator who wants to disable WS for a different zone
+    can pass enable_websockets=false.
+  EOT
+  type        = bool
+  default     = true
+}
+
 # ---------------------------------------------------------------------------
 # HSTS (Strict-Transport-Security), emitted at the Cloudflare TLS edge via
 # the response-header transform ruleset in main.tf.

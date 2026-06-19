@@ -26,6 +26,16 @@ resource "cloudflare_zone_settings_override" "this" {
     tls_1_3          = "on"
     always_use_https = var.always_use_https ? "on" : "off"
     ssl              = "strict"
+
+    # Zone-level WebSockets transport toggle. With this off (the
+    # Cloudflare default on lower plans) every proxied hostname
+    # rejects WS upgrades at the edge with a 403 + lock-down CSP
+    # page (Content-Length: 0, Upgrade: websocket echoed back), so
+    # /ws/notifications (gateway) and /api/broker/stream-* (engine)
+    # never reach cloudflared. The auth + CheckOrigin chain at the
+    # gateway only fires when this toggle is on. See variables.tf::
+    # enable_websockets for the full rationale.
+    websockets = var.enable_websockets ? "on" : "off"
   }
 }
 
