@@ -1903,13 +1903,17 @@ unset ENV_TWELVEDATA_API_KEY ENV_FRED_API_KEY ENV_CFTC_APP_TOKEN \
 
 ### 8.9 — Execution + Management paths
 
-**Five properties each** (was four pre-fix). Both services send
+**Six properties each** (was four pre-fix). Both services send
 `ENGINE_SHARED` in `X-Internal-Auth` on every `/internal/broker/*`
-call. Both refuse to boot in staging/production with `BROKER_MODE=mt5`
-if either of the cross-service secrets is empty. The staging overlay
-sets `brokerMode: "mock"` so that guard is dormant in staging, but
-writing the values is still required because the production posture
-flips it to `mt5`.
+call. Both refuse to boot in staging/production if either of the
+cross-service secrets is empty: the mt5 bridge is the sole
+`broker.Port` implementation in each Go service after the
+broker-mock cleanup series, so `validate()` in
+`src/{execution,management}/internal/config/config.go` now requires
+`ENGINE_INTERNAL_SHARED_SECRET` (>=32 chars) UNCONDITIONALLY in
+`production`/`staging`. The earlier `BROKER_MODE=mt5` gate and the
+staging-only `brokerMode: "mock"` escape hatch are gone — the helm
+values overlays no longer carry either key.
 
 **`auth_database_url` AND `auth_admin_password`** are load-bearing:
 the shared `src/auth` package (consumed by gateway + execution +
