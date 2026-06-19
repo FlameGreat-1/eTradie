@@ -198,15 +198,60 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # connections will fail their per-request resolution with the
     # same ConfigurationError, surfacing the misconfig to the
     # dashboard exactly once. Audit ref: CHECKLIST Section 8.
+    # The eager startup sweep is bypass_threshold=True: it reprovisions
+    # every missing / not-Ready hosted StatefulSet immediately rather
+    # than waiting unhealthy_threshold_secs. run_once_at_startup() ->
+    # _sweep -> _reprovision -> HostedProvisioner.provision_account()
+    # BLOCKS on _wait_ready (StatefulSet Ready + ZMQ PING), a ~300s
+    # (_READINESS_TIMEOUT_SECS) gate PER tenant.
+    #
+    # That gate MUST NOT run before yield. If it does, uvicorn never
+    # binds :8000 during the sweep, the engine's /health startup probe
+    # gets connection-refused for the whole window, the kubelet kills
+    # the pod, and the engine crash-loops -- which never gives the
+    # tenant Wine pod a stable parent to finish booting (a layering
+    # inversion: engine readiness must not depend on tenant-pod
+    # readiness). Audit ref: CHECKLIST Section 8 / defect #9.
+    #
+    # So we construct the service and arm the periodic background loop
+    # inline (both instant), but run the eager bypass-threshold sweep
+    # as a fire-and-forget background task via schedule_once(), exactly
+    # mirroring the macro-cache warmup below and the provisioner's own
+    # _catalog_sync_runner wave. The timeout (1800s) comfortably exceeds
+    # the 300s per-tenant readiness gate under the default
+    # max_concurrent_reprovisions so the eager sweep can fully complete,
+    # while still being bounded so a wedged sweep cannot leak. The
+    # engine reaches yield and serves /health immediately, then
+    # converges hosted tenants in the background. The "full system
+    # restart recovery" guarantee is preserved -- the eager sweep still
+    # runs, just not on the blocking boot path. A request landing in
+    # the gap resolves hosted state per-request and the row transitions
+    # provisioning->ready as the background sweep completes.
+    #
+    # Construction failure (missing MT_NODE_CREDENTIAL_ENCRYPTION_KEY
+    # in production/staging) is a configuration error - log and
+    # continue, so the rest of the engine still boots. Hosted
+    # connections will fail their per-request resolution with the
+    # same ConfigurationError, surfacing the misconfig to the
+    # dashboard exactly once. Audit ref: CHECKLIST Section 8.
     try:
         recovery_service = container.hosted_recovery_service
-        startup_summary = await recovery_service.run_once_at_startup()
         recovery_service.start_background_loop(
             coordinator=container.background_tasks,
         )
-        logger.info(
-            "hosted_recovery_startup_complete",
-            extra=startup_summary,
+
+        async def _hosted_recovery_startup_sweep() -> None:
+            startup_summary = await recovery_service.run_once_at_startup()
+            logger.info(
+                "hosted_recovery_startup_complete",
+                extra=startup_summary,
+            )
+
+        await container.background_tasks.schedule_once(
+            "lifespan:hosted_recovery_startup_sweep",
+            _hosted_recovery_startup_sweep,
+            cooldown_s=3600.0,
+            timeout_s=1800.0,
         )
     except Exception as exc:  # noqa: BLE001
         logger.error(
