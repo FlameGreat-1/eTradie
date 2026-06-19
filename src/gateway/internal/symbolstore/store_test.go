@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/flamegreat-1/etradie/src/gateway/internal/config"
 	"github.com/flamegreat-1/etradie/src/gateway/internal/infra"
 )
 
@@ -40,44 +39,35 @@ func testRedis(t *testing.T) *infra.RedisClient {
 	return rc
 }
 
-func testConfig() *config.Config {
-	return &config.Config{
-		DefaultSymbols: []string{"EURUSD", "GBPUSD", "XAUUSD"},
-	}
-}
-
 // =============================================================================
 // GetActiveSymbols
 // =============================================================================
 
-func TestGetActiveSymbols_ReturnsDefaults_WhenEmpty(t *testing.T) {
+// SYMBOL SOURCE INVARIANT: a user with no persisted selection has an
+// EMPTY active set. The store holds no operator-seeded default basket.
+func TestGetActiveSymbols_ReturnsEmpty_WhenNoSelection(t *testing.T) {
 	rc := testRedis(t)
 	// Ensure clean state.
 	rc.Delete(context.Background(), "gateway", activeSymbolsKey(testUserID))
 
-	store := NewStore(rc, testConfig())
+	store := NewStore(rc)
 	symbols := store.GetActiveSymbols(context.Background(), testUserID)
 
-	if len(symbols) != 3 {
-		t.Fatalf("expected 3 default symbols, got %d: %v", len(symbols), symbols)
+	if symbols == nil {
+		t.Fatal("GetActiveSymbols must return a non-nil slice so JSON serialises to []")
 	}
-	if symbols[0] != "EURUSD" || symbols[1] != "GBPUSD" || symbols[2] != "XAUUSD" {
-		t.Fatalf("expected [EURUSD GBPUSD XAUUSD], got %v", symbols)
+	if len(symbols) != 0 {
+		t.Fatalf("expected empty selection, got %d: %v", len(symbols), symbols)
 	}
 }
 
-func TestGetActiveSymbols_DefaultsAreCopy(t *testing.T) {
+func TestGetActiveSymbols_ReturnsEmpty_WhenUserIDBlank(t *testing.T) {
 	rc := testRedis(t)
-	rc.Delete(context.Background(), "gateway", activeSymbolsKey(testUserID))
+	store := NewStore(rc)
 
-	store := NewStore(rc, testConfig())
-
-	symbols1 := store.GetActiveSymbols(context.Background(), testUserID)
-	symbols1[0] = "MUTATED"
-
-	symbols2 := store.GetActiveSymbols(context.Background(), testUserID)
-	if symbols2[0] == "MUTATED" {
-		t.Fatal("GetActiveSymbols should return a copy, not a shared reference")
+	symbols := store.GetActiveSymbols(context.Background(), "")
+	if symbols == nil || len(symbols) != 0 {
+		t.Fatalf("expected empty non-nil slice for blank user id, got %v", symbols)
 	}
 }
 
@@ -87,7 +77,7 @@ func TestGetActiveSymbols_DefaultsAreCopy(t *testing.T) {
 
 func TestSetActiveSymbols_RoundTrip(t *testing.T) {
 	rc := testRedis(t)
-	store := NewStore(rc, testConfig())
+	store := NewStore(rc)
 	ctx := context.Background()
 
 	ok := store.SetActiveSymbols(ctx, testUserID, []string{"USDJPY", "USDCHF"})
@@ -106,7 +96,7 @@ func TestSetActiveSymbols_RoundTrip(t *testing.T) {
 
 func TestSetActiveSymbols_NormalizesToUppercase(t *testing.T) {
 	rc := testRedis(t)
-	store := NewStore(rc, testConfig())
+	store := NewStore(rc)
 	ctx := context.Background()
 
 	store.SetActiveSymbols(ctx, testUserID, []string{"eurusd", "gbpusd"})
@@ -119,7 +109,7 @@ func TestSetActiveSymbols_NormalizesToUppercase(t *testing.T) {
 
 func TestSetActiveSymbols_TrimsWhitespace(t *testing.T) {
 	rc := testRedis(t)
-	store := NewStore(rc, testConfig())
+	store := NewStore(rc)
 	ctx := context.Background()
 
 	store.SetActiveSymbols(ctx, testUserID, []string{" EURUSD ", "\tGBPUSD\n"})
@@ -132,7 +122,7 @@ func TestSetActiveSymbols_TrimsWhitespace(t *testing.T) {
 
 func TestSetActiveSymbols_EmptyList_ReturnsFalse(t *testing.T) {
 	rc := testRedis(t)
-	store := NewStore(rc, testConfig())
+	store := NewStore(rc)
 
 	ok := store.SetActiveSymbols(context.Background(), testUserID, []string{})
 	if ok {
@@ -142,7 +132,7 @@ func TestSetActiveSymbols_EmptyList_ReturnsFalse(t *testing.T) {
 
 func TestSetActiveSymbols_AllWhitespace_ReturnsFalse(t *testing.T) {
 	rc := testRedis(t)
-	store := NewStore(rc, testConfig())
+	store := NewStore(rc)
 
 	ok := store.SetActiveSymbols(context.Background(), testUserID, []string{" ", "\t", ""})
 	if ok {
@@ -152,7 +142,7 @@ func TestSetActiveSymbols_AllWhitespace_ReturnsFalse(t *testing.T) {
 
 func TestSetActiveSymbols_OverwritesPrevious(t *testing.T) {
 	rc := testRedis(t)
-	store := NewStore(rc, testConfig())
+	store := NewStore(rc)
 	ctx := context.Background()
 
 	store.SetActiveSymbols(ctx, testUserID, []string{"EURUSD", "GBPUSD"})
@@ -165,42 +155,49 @@ func TestSetActiveSymbols_OverwritesPrevious(t *testing.T) {
 }
 
 // =============================================================================
-// ResetToDefaults
+// ClearSelection
 // =============================================================================
 
-func TestResetToDefaults_ClearsSelection(t *testing.T) {
+func TestClearSelection_LeavesNextReadEmpty(t *testing.T) {
 	rc := testRedis(t)
-	store := NewStore(rc, testConfig())
+	store := NewStore(rc)
 	ctx := context.Background()
 
-	// Set custom symbols.
+	// Set a custom selection.
 	store.SetActiveSymbols(ctx, testUserID, []string{"USDJPY"})
 
-	// Reset.
-	ok := store.ResetToDefaults(ctx, testUserID)
+	// Clear it.
+	ok := store.ClearSelection(ctx, testUserID)
 	if !ok {
-		t.Fatal("ResetToDefaults should return true")
+		t.Fatal("ClearSelection should return true")
 	}
 
-	// Should fall back to defaults.
+	// The next read must be empty — there is no default to fall back to.
 	symbols := store.GetActiveSymbols(ctx, testUserID)
-	if len(symbols) != 3 {
-		t.Fatalf("expected 3 defaults after reset, got %d: %v", len(symbols), symbols)
-	}
-	if symbols[0] != "EURUSD" {
-		t.Fatalf("expected defaults after reset, got %v", symbols)
+	if symbols == nil || len(symbols) != 0 {
+		t.Fatalf("expected empty selection after clear, got %v", symbols)
 	}
 }
 
-func TestResetToDefaults_WhenAlreadyEmpty(t *testing.T) {
+func TestClearSelection_WhenAlreadyEmpty(t *testing.T) {
 	rc := testRedis(t)
 	rc.Delete(context.Background(), "gateway", activeSymbolsKey(testUserID))
 
-	store := NewStore(rc, testConfig())
+	store := NewStore(rc)
 
-	// Reset when nothing is set should still succeed.
-	ok := store.ResetToDefaults(context.Background(), testUserID)
+	// Clearing when nothing is set should still succeed (idempotent).
+	ok := store.ClearSelection(context.Background(), testUserID)
 	if !ok {
-		t.Fatal("ResetToDefaults on empty state should return true")
+		t.Fatal("ClearSelection on empty state should return true")
+	}
+}
+
+func TestClearSelection_BlankUserID_ReturnsFalse(t *testing.T) {
+	rc := testRedis(t)
+	store := NewStore(rc)
+
+	ok := store.ClearSelection(context.Background(), "")
+	if ok {
+		t.Fatal("ClearSelection with blank user id should return false")
 	}
 }
