@@ -14,6 +14,10 @@ The Dockerfile verifies the SHA256 of each binary at build time via the
 `EA_EX5_SHA256` and `EA_EX4_SHA256` build-args. Pass `skip` for dev builds
 that do not require supply-chain verification.
 
-Note: `ZeroMQ_EA.ex4` is currently absent from the repository. MT4 support
-is therefore non-functional until the `.ex4` binary is compiled and committed.
-MT5 (`.ex5`) is fully functional.
+Both `ZeroMQ_EA.ex5` and `ZeroMQ_EA.ex4` are committed to the repository
+and bundled into the `mt-node` image. MT4 and MT5 are first-class on every
+broker-connection path: hosted (in-cluster mt-node StatefulSet), EA
+self-hosting (user's own Windows terminal), and MetaApi cloud. The
+platform is selected per broker_connections row via the `platform`
+column (`mt4` or `mt5`) and applied at Pod boot by `entrypoint.sh`
+from the `MT_PLATFORM` env var rendered by the engine HostedProvisioner.

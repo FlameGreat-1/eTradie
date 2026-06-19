@@ -387,20 +387,10 @@ def create_mt5_broker_from_connection(
         return client
 
     if row.connection_type == "hosted":
-        # MT4 hosted connections are non-functional because the MT4 EA
-        # binary is not bundled in the mt-node image (see
-        # docker/mt-node/ea/README.md). Fail fast with a clear error.
-        if (row.platform or "mt5").strip().lower() == "mt4":
-            raise ConfigurationError(
-                "platform='mt4' hosted connections are not currently "
-                "supported: the MT4 EA binary is not bundled in the "
-                "mt-node image. Re-create this connection with "
-                "platform='mt5'.",
-                details={
-                    "connection_id": str(row.id),
-                    "platform": row.platform,
-                },
-            )
+        # Both MT4 and MT5 hosted connections are supported. The mt-node
+        # image bundles ZeroMQ_EA.ex4 and ZeroMQ_EA.ex5; the entrypoint
+        # picks the right binary at boot from MT_PLATFORM, and the
+        # ZmqClient speaks the same protocol against either EA.
         if not row.hosted_container_id:
             raise ConfigurationError(
                 "Hosted connection has no container_id. The container may not have been provisioned yet.",
