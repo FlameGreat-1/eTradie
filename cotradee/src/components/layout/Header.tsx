@@ -23,15 +23,12 @@ import {
 import { useRunCycle } from '@/features/analysis/api/analysis';
 import { TimeframeDropdown } from '@/features/chart/components/TimeframeDropdown';
 import { SymbolSearchModal } from '@/features/chart/components/SymbolSearchModal';
+import { useActiveSymbol } from '@/features/chart/hooks/useActiveSymbol';
 import { NotificationsPanel } from '@/features/alerts/components/NotificationsPanel';
 
-// localStorage keys used by this component are UI PREFERENCES ONLY.
-// They persist the user's last-selected trading pair and timeframe so
-// re-entering the dashboard does not feel jarring. No authentication
-// token, refresh token, or anything else security-sensitive is ever
-// written under these keys — those live in HttpOnly cookies set by
-// the gateway and are unreadable from JS (see docs/cookie-auth.md).
-const SYMBOL_KEY = 'active_symbol';
+// Timeframe localStorage key. The symbol selection is owned by
+// useActiveSymbol (which also persists to localStorage) so this
+// component no longer reads or writes the symbol key directly.
 const TF_KEY = 'active_tf';
 
 interface HeaderProps {
@@ -116,34 +113,30 @@ function Header({ onMenuClick }: HeaderProps) {
   };
 
   const onDashboard = location.pathname === '/dashboard';
-  const [persistedSymbol, setPersistedSymbol] = useState(
-    () => localStorage.getItem(SYMBOL_KEY) || '',
-  );
+
+  // Symbol is resolved by the shared useActiveSymbol hook. Order:
+  // URL ?symbol= -> broker-valid localStorage -> active connection's
+  // mt5_symbol -> first broker-catalog entry -> '' (Select Symbol).
+  // The hook also persists to localStorage atomically with the URL.
+  const { symbol, setActiveSymbol } = useActiveSymbol();
+
   const [persistedTf, setPersistedTf] = useState(
     () => localStorage.getItem(TF_KEY) || 'H1',
   );
-
-  const symbol = searchParams.get('symbol') || persistedSymbol;
   const timeframe = searchParams.get('tf') || persistedTf;
 
   useEffect(() => {
-    const sp = searchParams.get('symbol');
     const tp = searchParams.get('tf');
-    if (sp && sp !== persistedSymbol) {
-      localStorage.setItem(SYMBOL_KEY, sp);
-      setPersistedSymbol(sp);
-    }
     if (tp && tp !== persistedTf) {
       localStorage.setItem(TF_KEY, tp);
       setPersistedTf(tp);
     }
-  }, [searchParams, persistedSymbol, persistedTf]);
+  }, [searchParams, persistedTf]);
 
   const updateActive = useCallback(
     (newSymbol?: string, newTf?: string) => {
       if (newSymbol) {
-        localStorage.setItem(SYMBOL_KEY, newSymbol);
-        setPersistedSymbol(newSymbol);
+        setActiveSymbol(newSymbol);
       }
       if (newTf) {
         localStorage.setItem(TF_KEY, newTf);
@@ -151,17 +144,24 @@ function Header({ onMenuClick }: HeaderProps) {
       }
       if (onDashboard) {
         const params = new URLSearchParams(searchParams);
-        if (newSymbol) params.set('symbol', newSymbol);
         if (newTf) params.set('tf', newTf);
         setSearchParams(params, { replace: true });
       } else if (newSymbol || newTf) {
         const params = new URLSearchParams();
-        params.set('symbol', newSymbol || persistedSymbol);
+        params.set('symbol', newSymbol || symbol);
         params.set('tf', newTf || persistedTf);
         navigate(`/?${params.toString()}`);
       }
     },
-    [onDashboard, searchParams, setSearchParams, navigate, persistedSymbol, persistedTf],
+    [
+      onDashboard,
+      searchParams,
+      setSearchParams,
+      navigate,
+      symbol,
+      persistedTf,
+      setActiveSymbol,
+    ],
   );
 
   useEffect(() => {
