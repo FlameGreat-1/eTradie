@@ -21,7 +21,6 @@ data:
   GATEWAY_ENABLED: {{ .Values.config.gateway.enabled | quote }}
   GATEWAY_HTTP_PORT: {{ .Values.config.gateway.httpPort | quote }}
   GATEWAY_GRPC_PORT: {{ .Values.config.gateway.grpcPort | quote }}
-  GATEWAY_DEFAULT_SYMBOLS: {{ .Values.config.gateway.defaultSymbols | quote }}
   GATEWAY_CYCLE_INTERVAL_SECONDS: {{ .Values.config.gateway.cycleIntervalSeconds | quote }}
   GATEWAY_CYCLE_TIMEOUT_SECONDS: {{ .Values.config.gateway.cycleTimeoutSeconds | quote }}
   GATEWAY_MAX_CONCURRENT_SYMBOLS: {{ .Values.config.gateway.maxConcurrentSymbols | quote }}

@@ -109,7 +109,10 @@ config:
     enabled: true
     httpPort: "8080"
     grpcPort: "50052"
-    defaultSymbols: "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,NZDUSD,USDCAD,XAUUSD"
+    # No default-symbol basket: the active-symbol set is sourced
+    # exclusively from each user's connected broker (selected via the
+    # dashboard, validated against the broker catalogue, persisted per
+    # user in Redis). See src/gateway/internal/symbolstore/store.go.
     cycleIntervalSeconds: "14400"
     cycleTimeoutSeconds: "450"
     maxConcurrentSymbols: "4"
