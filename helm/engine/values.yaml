@@ -770,9 +770,25 @@ networkPolicy:
           port: 443
         - protocol: TCP
           port: 80
-    # K8s API Server (usually 10.43.0.1:443 in K3s). The generic HTTPS
-    # rule above already covers 443, but adding explicit IP blocks
-    # if you later restrict the generic rule is wise. For now, 443 is open.
+    # Kubernetes API server (K3s default ClusterIP 10.43.0.1:443).
+    # HostedProvisioner creates the per-tenant ServiceAccount +
+    # StatefulSet + Services via kubernetes_asyncio AFTER writing the
+    # credentials to Vault. The external-HTTPS ipBlock rule above
+    # EXCLUDES the service CIDR (10.43.0.0/16), and the API VIP
+    # 10.43.0.1 lives inside it, so without this dedicated rule the
+    # API call is dropped by the CNI and provisioning fails with
+    # 'Cannot connect to host 10.43.0.1:443'. Scoped to a /32 of the
+    # API VIP so the service-CIDR exclusion (which protects east-west
+    # traffic governed by the explicit per-service rules) is preserved.
+    # If a cluster uses a non-default service CIDR, override this in the
+    # overlay; the `kubernetes` Service is always the first IP of the
+    # service CIDR.
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
 
     # Per-user mt-node Deployments. The engine's ZmqClient dials
     # tcp://<connection-id>.etradie-system.svc.cluster.local:5555
