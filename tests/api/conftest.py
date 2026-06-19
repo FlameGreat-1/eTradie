@@ -30,6 +30,12 @@ from httpx import ASGITransport, AsyncClient
 # so the Python engine's auth module can verify tokens we generate.
 TEST_JWT_SECRET = "test-secret-key-for-jwt-signing-must-be-long-enough-64chars-ok"
 TEST_JWT_ISSUER = "etradie"
+# Must match the engine's expected audience (engine/shared/auth.py
+# _get_jwt_audience default) and the Go auth service's AUTH_AUDIENCE
+# (src/auth/config.go AUDIENCE default). The engine now requires +
+# verifies the aud claim, so test tokens MUST carry it exactly as the
+# real gateway-issued tokens do (src/auth/token.go).
+TEST_JWT_AUDIENCE = "etradie-api"
 
 
 def _make_test_jwt(
@@ -62,6 +68,9 @@ def _make_test_jwt(
         "status": "active",
         "tier": "free",
         "iss": TEST_JWT_ISSUER,
+        # aud is REQUIRED + verified by the engine (engine/shared/auth.py).
+        # Mint it on every test token exactly as the real gateway does.
+        "aud": TEST_JWT_AUDIENCE,
         "iat": now,
         "exp": now + expires_in,
     }
