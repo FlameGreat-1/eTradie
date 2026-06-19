@@ -89,7 +89,7 @@ export function BrokerStep({ onComplete }: Props) {
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand transition-colors appearance-none">
                 <option value="ea">ZeroMQ (EA)</option>
                 <option value="metaapi">MetaAPI</option>
-                <option value="hosted">Exoper Hosted</option>
+                <option value="hosted">Exoper</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-content-faint pointer-events-none" size={14} strokeWidth={3} />
             </div>
