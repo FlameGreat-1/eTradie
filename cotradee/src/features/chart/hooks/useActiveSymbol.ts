@@ -107,10 +107,19 @@ export function useActiveSymbol(): ActiveSymbolState {
   // The active connection row is fetched from the engine and includes
   // mt5_symbol (server-resolved by the hosted provisioner; empty
   // string when the broker has not yet published any symbol).
+  //
+  // useActiveBrokerConnection's queryFn returns an untyped axios
+  // payload, so TanStack infers .data as `{} | null`. Narrow the row
+  // to the single field this hook reads; the field is optional +
+  // nullable to match the real API shape (engine writes "" before
+  // GET_ALL_SYMBOLS has resolved on a freshly-provisioned hosted
+  // connection).
+  const activeConnection = activeConnQuery.data as
+    | { mt5_symbol?: string | null }
+    | null
+    | undefined;
   const activeConnectionSymbol =
-    (activeConnQuery.data?.mt5_symbol as string | null | undefined)
-      ?.toString()
-      .trim() ?? '';
+    activeConnection?.mt5_symbol?.toString().trim() ?? '';
 
   let resolved = '';
   let brokerAware = false;
