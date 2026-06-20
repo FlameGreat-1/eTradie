@@ -160,7 +160,11 @@ if [ -d "$WINE_PREFIX" ]; then
   if [ ! -d "$WINE_PREFIX/drive_c/windows/system32" ] || \
      [ -f "$WINE_PREFIX/.update-timestamp.lock" ]; then
     log WARN "Wine prefix appears corrupted; resetting"
-    rm -rf "$WINE_PREFIX"
+    # $WINE_PREFIX is the PVC mount point: removing the directory
+    # itself fails with "Read-only file system" under
+    # readOnlyRootFilesystem. Clear its CONTENTS (incl. dotfiles)
+    # instead, mirroring the seed block's content-copy semantics.
+    rm -rf "${WINE_PREFIX:?}"/* "${WINE_PREFIX:?}"/.[!.]* "${WINE_PREFIX:?}"/..?* 2>/dev/null || true
   fi
 fi
 # Seed the (PVC-mounted) Wine prefix from the image-baked template on
