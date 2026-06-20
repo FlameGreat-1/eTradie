@@ -196,10 +196,34 @@ RUN set -eux; \
     chown mt:mt /tmp/mt5setup.exe
 
 USER mt
+# Run the MT5 installer under a virtual X display. mt5setup.exe is a
+# GUI web-installer: even with /auto it needs a display to run and to
+# download + lay down terminal64.exe. WITHOUT a display (and with the
+# previous '2>/dev/null || true') it silently no-ops and the image
+# ships with NO MetaTrader install (defect #13). xvfb-run provides the
+# display (the xvfb package is installed above). Errors are NOT
+# swallowed; the assertion below fails the build if terminal64.exe is
+# absent, except in dev 'skip' mode where it only WARNs.
 RUN set -eux; \
-    WINEPREFIX="$WINE_TEMPLATE" wine /tmp/mt5setup.exe /auto 2>/dev/null || true; \
-    WINEPREFIX="$WINE_TEMPLATE" wineserver --wait 2>/dev/null || true; \
-    rm -f /tmp/mt5setup.exe
+    export WINEPREFIX="$WINE_TEMPLATE"; \
+    xvfb-run -a -s "-screen 0 1024x768x16 -nolisten tcp" \
+        wine /tmp/mt5setup.exe /auto; \
+    wineserver --wait; \
+    rm -f /tmp/mt5setup.exe; \
+    MT5_EXE="$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/terminal64.exe"; \
+    if [ "${MT5_INSTALLER_SHA256}" = "skip" ]; then \
+        if [ ! -f "$MT5_EXE" ]; then \
+            echo "WARN: MT5 install produced no terminal64.exe (dev 'skip' mode; image will NOT run a real MT5)." >&2; \
+        else \
+            echo "INFO: MT5 terminal64.exe present after install." >&2; \
+        fi; \
+    else \
+        if [ ! -f "$MT5_EXE" ]; then \
+            echo "FATAL: MT5 install completed but terminal64.exe is missing at '$MT5_EXE'. The installer did not lay down the terminal (defect #13). Failing the build instead of shipping a broken image." >&2; \
+            exit 1; \
+        fi; \
+        echo "INFO: MT5 terminal64.exe verified at '$MT5_EXE'." >&2; \
+    fi
 
 # ── Download + verify MT4 installer ───────────────────────────────────────
 USER root
@@ -219,10 +243,29 @@ RUN set -eux; \
     chown mt:mt /tmp/mt4setup.exe
 
 USER mt
+# Same headless-installer fix as MT5 above: run under xvfb-run, do not
+# swallow errors, and assert terminal.exe exists (MT4 installs into the
+# 32-bit 'Program Files (x86)' tree). Dev 'skip' mode only WARNs.
 RUN set -eux; \
-    WINEPREFIX="$WINE_TEMPLATE" wine /tmp/mt4setup.exe /auto 2>/dev/null || true; \
-    WINEPREFIX="$WINE_TEMPLATE" wineserver --wait 2>/dev/null || true; \
-    rm -f /tmp/mt4setup.exe
+    export WINEPREFIX="$WINE_TEMPLATE"; \
+    xvfb-run -a -s "-screen 0 1024x768x16 -nolisten tcp" \
+        wine /tmp/mt4setup.exe /auto; \
+    wineserver --wait; \
+    rm -f /tmp/mt4setup.exe; \
+    MT4_EXE="$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/terminal.exe"; \
+    if [ "${MT4_INSTALLER_SHA256}" = "skip" ]; then \
+        if [ ! -f "$MT4_EXE" ]; then \
+            echo "WARN: MT4 install produced no terminal.exe (dev 'skip' mode; image will NOT run a real MT4)." >&2; \
+        else \
+            echo "INFO: MT4 terminal.exe present after install." >&2; \
+        fi; \
+    else \
+        if [ ! -f "$MT4_EXE" ]; then \
+            echo "FATAL: MT4 install completed but terminal.exe is missing at '$MT4_EXE'. The installer did not lay down the terminal (defect #13). Failing the build instead of shipping a broken image." >&2; \
+            exit 1; \
+        fi; \
+        echo "INFO: MT4 terminal.exe verified at '$MT4_EXE'." >&2; \
+    fi
 
 # ── EA binaries + watchdog + entrypoint ─────────────────────────
 USER root
