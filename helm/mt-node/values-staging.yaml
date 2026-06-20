@@ -8,6 +8,19 @@
 # LOCKSTEP INVARIANT: resources + persistence MUST mirror
 # helm/engine/values-staging.yaml::config.mtNode.
 
+# Image tag override (staging only). The image.repository stays in
+# helm/mt-node/values-image.yaml (single source of truth, shared with
+# production); this overlay overrides ONLY the tag. CI's deploy-bump
+# job rewrites this to the immutable git SHA on every push to main, so
+# ArgoCD always sees a real diff and the node always pulls fresh bytes
+# (IfNotPresent never serves a stale layer). The literal below is the
+# value between pushes. Production is NOT bumped here: it rolls on the
+# human-reviewed RELEASE_TAG in values-image.yaml. This file is loaded
+# AFTER values-image.yaml by the mt-node-staging ArgoCD child, so this
+# tag wins for the engine-runtime + chart-rendered staging paths.
+image:
+  tag: "0.1.0"
+
 resources:
   requests:
     cpu: 300m

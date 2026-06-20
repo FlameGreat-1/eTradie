@@ -906,6 +906,23 @@ jobs:
             yq -i ".image.tag = \"${IMAGE_SHA}\"" "$f"
             echo "pinned ${f} -> image.tag: ${IMAGE_SHA}"
           done
+          # mt-node is NOT in the loop above: its image.repository lives
+          # in helm/mt-node/values-image.yaml (shared with production),
+          # so staging gets a tag-only override in values-staging.yaml.
+          # Both the chart tag AND the engine's stamped MT_NODE_IMAGE
+          # (config.mtNode.image, read by HostedProvisioner onto every
+          # tenant StatefulSet) must move in LOCKSTEP, or the
+          # chart-rendered and engine-runtime tenant pods would boot
+          # different images.
+          mt_chart="helm/mt-node/values-staging.yaml"
+          eng_overlay="helm/engine/values-staging.yaml"
+          for f in "$mt_chart" "$eng_overlay"; do
+            if [ ! -f "$f" ]; then echo "FATAL: ${f} not found"; exit 1; fi
+          done
+          yq -i ".image.tag = \"${IMAGE_SHA}\"" "$mt_chart"
+          echo "pinned ${mt_chart} -> image.tag: ${IMAGE_SHA}"
+          yq -i ".config.mtNode.image = \"ghcr.io/flamegreat-1/etradie/mt-node:${IMAGE_SHA}\"" "$eng_overlay"
+          echo "pinned ${eng_overlay} -> config.mtNode.image tag: ${IMAGE_SHA}"
       - name: Commit and push the staging SHA bump
         run: |
           set -eu
@@ -922,7 +939,8 @@ jobs:
                   helm/execution/values-staging.yaml \
                   helm/management/values-staging.yaml \
                   helm/billing/values-staging.yaml \
-                  helm/edge-ingress/values-staging.yaml
+                  helm/edge-ingress/values-staging.yaml \
+                  helm/mt-node/values-staging.yaml
           # [skip ci] prevents this push from re-triggering the workflow,
           # which would otherwise rebuild identical images and re-bump.
           git commit -m "ci: pin staging image tags to ${IMAGE_SHA} [skip ci]"
