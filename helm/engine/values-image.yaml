@@ -22,4 +22,4 @@ config:
     # same image). The :tag form is fine for staging; production
     # operators are free to override this to a @sha256:<digest>
     # pin in helm/engine/values-production.yaml.
-    image: "ghcr.io/flamegreat-1/etradie-mt-node:0.1.0"
+    image: "ghcr.io/flamegreat-1/etradie/mt-node:0.1.0"

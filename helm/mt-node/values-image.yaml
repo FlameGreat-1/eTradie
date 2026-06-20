@@ -8,6 +8,6 @@
 # Forks override exactly this one line. Do not duplicate the
 # repository string anywhere else in the chart tree.
 image:
-  repository: ghcr.io/flamegreat-1/etradie-mt-node
+  repository: ghcr.io/flamegreat-1/etradie/mt-node
   tag: "0.1.0"
   pullPolicy: IfNotPresent
