@@ -19,8 +19,7 @@
 # AFTER values-image.yaml by the mt-node-staging ArgoCD child, so this
 # tag wins for the engine-runtime + chart-rendered staging paths.
 image:
-  tag: "0.1.0"
-
+  tag: "2225afbf06c168f430e5c5b8bb07761be9b277bc"
 resources:
   requests:
     cpu: 300m
@@ -30,10 +29,8 @@ resources:
     cpu: 750m
     memory: 768Mi
     ephemeral-storage: 512Mi
-
 persistence:
   size: 2Gi
-
 # TABLE 2B: Vault Agent sidecar tuning. The injector's upstream default
 # request is 250m CPU per tenant pod; the agent is a persistent sidecar
 # (agent-pre-populate-only=false in the StatefulSet template) and idles
@@ -43,24 +40,20 @@ podAnnotations:
   vault.hashicorp.com/agent-limits-cpu: "250m"
   vault.hashicorp.com/agent-requests-mem: "64Mi"
   vault.hashicorp.com/agent-limits-mem: "128Mi"
-
 # A per-tenant 1-replica PDB with minAvailable=1 blocks every node
 # drain forever; on the single-node box a drain is a full outage
 # regardless, so the PDB buys nothing and costs drain operability.
 podDisruptionBudget:
   enabled: false
-
 # OFF (TABLE 2B): K3s local-path storage has no CSI VolumeSnapshot
 # support, so the snapshotter CronJob cannot run on this box. Re-enable
 # only after installing Longhorn (or another snapshot-capable CSI) and
 # setting snapshotter.volumeSnapshotClassName + image.repository.
 snapshotter:
   enabled: false
-
 externalSecrets:
   enabled: true
   platform:
     vaultPath: etradie/services/mt-node/staging
-
 priorityClass:
   create: false
