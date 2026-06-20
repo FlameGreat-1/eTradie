@@ -921,6 +921,14 @@ jobs:
           done
           yq -i ".image.tag = \"${IMAGE_SHA}\"" "$mt_chart"
           echo "pinned ${mt_chart} -> image.tag: ${IMAGE_SHA}"
+          # Idempotent, race-proof: delete ALL existing
+          # config.mtNode.image keys first (collapsing any duplicate a
+          # prior racing run may have appended), then set exactly one.
+          # A bare assignment can create a SECOND image key when the
+          # checked-out tree does not yet have the key at the expected
+          # position (deploy-bump checks out the branch tip, not the
+          # triggering SHA). del-then-set always converges to one key.
+          yq -i 'del(.config.mtNode.image)' "$eng_overlay"
           yq -i ".config.mtNode.image = \"ghcr.io/flamegreat-1/etradie/mt-node:${IMAGE_SHA}\"" "$eng_overlay"
           echo "pinned ${eng_overlay} -> config.mtNode.image tag: ${IMAGE_SHA}"
       - name: Commit and push the staging SHA bump
