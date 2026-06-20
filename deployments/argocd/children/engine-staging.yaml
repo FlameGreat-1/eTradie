@@ -43,7 +43,14 @@ spec:
       allowEmpty: false
     syncOptions:
       - CreateNamespace=true
-      - ApplyOutOfSyncOnly=true
+      # ApplyOutOfSyncOnly is intentionally NOT set. With it enabled,
+      # ArgoCD only applies resources it already considers out of sync,
+      # so a manual out-of-band field mutation (e.g.
+      # `kubectl set env deploy/etradie-engine MT_NODE_IMAGE=<sha>`,
+      # which added an explicit env entry that overrode the ConfigMap
+      # value for multiple sessions) was never reconciled away and
+      # silently persisted across every pod restart. Applying the full
+      # rendered spec every sync makes such drift self-heal.
       - ServerSideApply=true
       - PrunePropagationPolicy=foreground
       - PruneLast=true

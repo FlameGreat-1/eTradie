@@ -73,6 +73,19 @@ podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8000"
   prometheus.io/path: "/metrics"
+  # Auto-roll the engine Deployment whenever its ConfigMap changes.
+  # Stakater Reloader (installed in Phase 5) watches this annotation
+  # and triggers a rollout when etradie-engine-config changes. This is
+  # load-bearing for MT_NODE_IMAGE: the CI deploy-bump job rewrites the
+  # mt-node image SHA into the engine ConfigMap on every push, and the
+  # runtime HostedProvisioner reads MT_NODE_IMAGE from that ConfigMap
+  # at engine boot. Without this annotation the engine pod keeps the
+  # OLD env value until someone manually restarts it, so newly-bumped
+  # tenant images never take effect. The deployment.yaml already stamps
+  # checksum/config, but that only rolls on `helm upgrade`; Reloader
+  # also covers the ESO/ApplyOutOfSyncOnly paths where the ConfigMap
+  # changes without a template-hash change ArgoCD acts on.
+  configmap.reloader.stakater.com/reload: "etradie-engine-config"
   # Join the Linkerd mesh in every environment. Native sidecar so the
   # proxy is Ready before the engine's migrate + wait-for-deps init
   # containers reach meshed postgres/redis. ZeroMQ to mt-node :5555 is
