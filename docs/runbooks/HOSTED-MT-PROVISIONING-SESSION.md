@@ -4,7 +4,89 @@
 This is the authoritative resume point for the hosted-MT provisioning
 effort on the **staging** Contabo box (`vmi3362776`).
 
-**Last updated:** 2026-06-19, late-session (through defect #9).
+**Last updated:** 2026-06-20, session through defect #12 + mt-node GitOps SHA-pin.
+
+> SESSION UPDATE 2026-06-20 (defects #10/#11/#12 + mt-node image
+> delivery GitOps). Read this block FIRST; it supersedes older resume
+> pointers below. Current GitHub `main` image SHA tag after this work:
+> `8deaafc2d54e13ce614498573cd668dc13cd257d` (the mt-node image that
+> carries ALL fixes below). The engine ConfigMap
+> `etradie-engine-config::MT_NODE_IMAGE` already renders this SHA and
+> the engine has rolled to it.
+>
+> WHAT WAS WRONG (cascade continued from #9):
+> - Defect #10 - mt-node never re-pulled (GitOps gap). mt-node was the
+>   ONLY CI-built/staging service NOT wired into the `deploy-bump`
+>   immutable-SHA GitOps. Its image stayed pinned to mutable `0.1.0`
+>   (helm/mt-node/values-image.yaml + engine config.mtNode.image). With
+>   pullPolicy IfNotPresent and 0.1.0 already cached on the node, a
+>   rebuilt image republished as 0.1.0 was NEVER re-pulled; ArgoCD saw
+>   no diff. CI green did NOT mean fix-on-cluster.
+> - Defect #11 - Wine prefix reset hit read-only FS. entrypoint.sh ran
+>   `rm -rf "$WINE_PREFIX"` (the PVC mount point) on the fresh-PVC
+>   "appears corrupted" path; under readOnlyRootFilesystem=true that
+>   failed 'Read-only file system', exit 1, CrashLoopBackOff.
+> - Defect #12 - Wine prefix ownership. After #11, Wine aborted:
+>   `wine: '/home/mt/.wine' is not owned by you`. The PVC mount root is
+>   owned by uid 0 (fsGroup sets group only); Wine requires WINEPREFIX
+>   owned by the running euid (1000). Container is non-root under the
+>   etradie-system RESTRICTED PodSecurity Standard, so NO root chown /
+>   root init-container is possible.
+>
+> FIXES (all merged to `main`; flow GitLab mirror -> GitHub -> CI/ArgoCD):
+> - #10 -> MR !2: wired mt-node into `deploy-bump` (staging-only,
+>   lockstep). Added helm/mt-node/values-staging.yaml::image.tag and
+>   helm/engine/values-staging.yaml::config.mtNode.image; CI rewrites
+>   BOTH to the immutable git SHA each push. Production untouched (still
+>   rolls on values-image.yaml RELEASE_TAG - the intended human-gated
+>   invariant; this is the flagged prod cutover follow-up).
+> - #11 -> MR !1 (commit 2601dbb2): reset the prefix CONTENTS, not the
+>   mount point.
+> - #12 -> MR !3 (commit 2225afbf): point WINEPREFIX at an OWNED
+>   subdirectory /home/mt/.wine/prefix (created by uid 1000) instead of
+>   the root-owned PVC mount root. Pure entrypoint.sh change; both MT4
+>   and MT5 branches derive MT_DIR from $WINE_PREFIX so both are fixed;
+>   no securityContext/PSS change. Permanent + environment-agnostic
+>   (applies to staging AND production, chart + engine-runtime paths).
+> - GitOps follow-ups MR !4 + MR !5: !4 consolidated a duplicate
+>   config.mtNode block in helm/engine/values-staging.yaml (MR !2 had
+>   created a second mtNode mapping). !5 made the CI `deploy-bump`
+>   engine write idempotent/race-proof via `del(.config.mtNode.image)`
+>   then set, so a checkout-timing race can never re-create a duplicate
+>   and any existing GitHub duplicate self-heals on the next bump.
+>
+> >>> RESUME HERE (2026-06-20) <<<
+> 1. ArgoCD is OutOfSync on engine-staging and mt-node-staging
+>    (Healthy). selfHeal is on; confirm both flip to Synced. If they
+>    stick OutOfSync, the engine-values duplicate-key (pre-!5 bump) can
+>    keep ArgoCD detecting drift - the next deploy-bump run (post-!5)
+>    collapses it; or force `argocd app sync engine-staging
+>    mt-node-staging`. Verify after: both Synced + MT_NODE_IMAGE =
+>    8deaafc2... (or a newer SHA if more pushes landed).
+> 2. Confirm the GitOps lockstep is clean (after the next bump):
+>      git show origin/main:helm/engine/values-staging.yaml | grep -c 'mt-node:'   # expect 1
+>      git show origin/main:helm/mt-node/values-staging.yaml | grep -A1 '^image:'  # tag == engine SHA
+> 3. Re-provision the tenant FROM THE DASHBOARD (connection_type=hosted;
+>    NOT via kubectl). Before submitting, clean the prior failed tenant
+>    (last under test: etradie-mt-f7cafe99-07c):
+>      kubectl -n etradie-system delete statefulset etradie-mt-f7cafe99-07c --ignore-not-found
+>      kubectl -n etradie-system exec -i postgres-0 -c postgres -- psql -U etradie -d etradie -c "DELETE FROM broker_connections WHERE status IN ('failed','provisioning') RETURNING id;"
+> 4. Watch the decisive log (expect NO 'Read-only file system' and NO
+>    'is not owned by you'; then Xvfb ready -> Launching terminal64.exe
+>    -> pod climbs to 3/3 Ready, one roll for the symbol two-boot):
+>      CONN=$(kubectl -n etradie-system exec -i postgres-0 -c postgres -- psql -U etradie -d etradie -t -A -c "SELECT left(id::text,12) FROM broker_connections ORDER BY created_at DESC LIMIT 1;")
+>      kubectl -n etradie-system get pod etradie-mt-${CONN}-0 -o jsonpath='{.spec.containers[?(@.name=="mt-node")].image}{"\n"}'   # must be 8deaafc2 (or newer) SHA
+>      kubectl -n etradie-system logs etradie-mt-${CONN}-0 -c mt-node --tail=40 -f
+> 5. Anticipated NEXT walls after Wine launches (not hit this session):
+>    MT5 broker login on Deriv-Demo, EA ZMQ bind on :5555, then the
+>    symbol two-boot (one expected roll). Watchdog /healthz needs
+>    mt5_connected=true AND authenticated=true to go Ready.
+>
+> GIT REMOTES DANCE: merges land on the GitLab mirror;
+> `git pull --rebase gitlab main` then `git pull --rebase origin main`
+> then `git push origin main` propagates to GitHub (which carries the
+> etradie-ci[bot] [skip ci] deploy-bump commit your local lacks). CI
+> runs on GitHub Actions; the GitLab MR page shows no real pipeline.
 
 > SESSION UPDATE (defect #9 + msgpack CVE): the engine image carrying
 > the defect 7+8 fixes rolled (`0b5f2b5e…`) but the new engine pod
