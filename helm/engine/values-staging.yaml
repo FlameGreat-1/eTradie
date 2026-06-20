@@ -49,15 +49,6 @@ podAnnotations:
   #      :4317) is already correct and will take effect.
   linkerd.io/inject: "disabled"
 config:
-  # mt-node image the engine stamps onto runtime-provisioned tenant
-  # StatefulSets (rendered into the engine ConfigMap as MT_NODE_IMAGE,
-  # read verbatim by HostedProvisioner._resolve_image). Overrides the
-  # 0.1.0 pin in values-image.yaml for STAGING ONLY. CI's deploy-bump
-  # rewrites the tag to the immutable git SHA in LOCKSTEP with
-  # helm/mt-node/values-staging.yaml::image.tag, so the chart-rendered
-  # and engine-runtime tenant pods always boot the same fresh image and
-  # IfNotPresent never serves a stale 0.1.0 layer. Production is NOT
-  # bumped here (it rolls on values-image.yaml's RELEASE_TAG).
   app:
     env: "staging"
     debug: "false"
