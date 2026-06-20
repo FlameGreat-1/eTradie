@@ -13,7 +13,7 @@ image:
   # literal below is only the value between pushes. IfNotPresent is
   # correct because each push produces a NEW tag (the SHA), so ArgoCD
   # always sees a real diff and the node always pulls the new bytes.
-  tag: "8deaafc2d54e13ce614498573cd668dc13cd257d"
+  tag: "34a2dabd9010c58de579d8ca259ed62f33c96aad"
   pullPolicy: IfNotPresent
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -80,16 +80,6 @@ config:
   # values (1Gi/1536Mi, pvc 4Gi) are the PRODUCTION-leaning defaults
   # and previously leaked into staging runtime pods.
   mtNode:
-    # mt-node image the engine stamps onto runtime-provisioned tenant
-    # StatefulSets (rendered into the engine ConfigMap as MT_NODE_IMAGE,
-    # read verbatim by HostedProvisioner._resolve_image). Overrides the
-    # 0.1.0 pin in values-image.yaml for STAGING ONLY. CI's deploy-bump
-    # rewrites the tag to the immutable git SHA in LOCKSTEP with
-    # helm/mt-node/values-staging.yaml::image.tag, so the chart-rendered
-    # and engine-runtime tenant pods always boot the same fresh image
-    # and IfNotPresent never serves a stale 0.1.0 layer. Production is
-    # NOT bumped here (it rolls on values-image.yaml's RELEASE_TAG).
-    image: "ghcr.io/flamegreat-1/etradie/mt-node:2225afbf06c168f430e5c5b8bb07761be9b277bc"
     cpuRequest: "300m"
     cpuLimit: "750m"
     memRequest: "512Mi"
@@ -115,7 +105,7 @@ config:
         vault.hashicorp.com/agent-limits-cpu: "250m"
         vault.hashicorp.com/agent-requests-mem: "64Mi"
         vault.hashicorp.com/agent-limits-mem: "128Mi"
-    image: ghcr.io/flamegreat-1/etradie/mt-node:8deaafc2d54e13ce614498573cd668dc13cd257d
+    image: ghcr.io/flamegreat-1/etradie/mt-node:34a2dabd9010c58de579d8ca259ed62f33c96aad
 externalSecrets:
   enabled: true
   engine:
