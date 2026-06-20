@@ -45,7 +45,13 @@ spec:
       allowEmpty: false
     syncOptions:
       - CreateNamespace=true
-      - ApplyOutOfSyncOnly=true
+      # ApplyOutOfSyncOnly is intentionally NOT set. Production runs
+      # selfHeal=false + prune=false (human-gated cutover, by design),
+      # so combined with ApplyOutOfSyncOnly an out-of-band field
+      # mutation (e.g. `kubectl set env deploy/etradie-engine
+      # MT_NODE_IMAGE=<sha>`) would NEVER be reconciled away. Removing
+      # it means a human-triggered `argocd app sync` applies the full
+      # rendered spec and reverts such drift. Mirrors engine-staging.
       - ServerSideApply=true
       - PrunePropagationPolicy=foreground
       - PruneLast=true
