@@ -4,7 +4,37 @@
 This is the authoritative resume point for the hosted-MT provisioning
 effort on the **staging** Contabo box (`vmi3362776`).
 
-**Last updated:** 2026-06-19, late-session (through defect #8).
+**Last updated:** 2026-06-19, late-session (through defect #9).
+
+> SESSION UPDATE (defect #9 + msgpack CVE): the engine image carrying
+> the defect 7+8 fixes rolled (`0b5f2b5e…`) but the new engine pod
+> crash-looped. Root cause was NOT a 7+8 regression (the rendered
+> tenant StatefulSet spec is correct). It is a **new defect #9**: the
+> eager hosted-recovery startup sweep was awaited synchronously BEFORE
+> the lifespan `yield`. `run_once_at_startup() -> _sweep -> _reprovision
+> -> HostedProvisioner.provision_account() -> _wait_ready` blocks up to
+> `_READINESS_TIMEOUT_SECS` (300s) PER tenant on StatefulSet-Ready + ZMQ
+> PING. During that window uvicorn never binds `:8000`, the engine
+> `/health` startup probe gets connection-refused, the kubelet kills the
+> pod, and the engine crash-loops -- which never gives the tenant Wine
+> pod a stable parent to finish booting.
+>
+> FIX (on `main` via MR !157): in `src/engine/main.py` keep
+> `start_background_loop()` + the construction/ConfigurationError guard
+> on the boot path (both instant), but run the eager bypass-threshold
+> sweep as a fire-and-forget background task via
+> `container.background_tasks.schedule_once("lifespan:hosted_recovery_startup_sweep", ..., cooldown_s=3600, timeout_s=1800)`,
+> mirroring the macro-cache warmup and the provisioner's own
+> `_catalog_sync_runner` wave. `timeout_s=1800` comfortably exceeds the
+> 300s per-tenant gate under the default `max_concurrent_reprovisions=4`.
+> The engine now reaches `yield` and serves `/health` immediately, then
+> converges hosted tenants in the background. The "full system restart
+> recovery" guarantee is preserved (the eager sweep still runs, just not
+> on the blocking boot path).
+>
+> ALSO: `requirements/base.txt` bumped `msgpack 1.1.0 -> 1.2.1`
+> (GHSA-6v7p-g79w-8964) to clear the `pip-audit --strict` job
+> (committed directly to `main`).
 
 ---
 
