@@ -127,7 +127,21 @@ if [ -z "${EFFECTIVE_AUTH_TOKEN}" ]; then
 fi
 
 # ── Paths ─────────────────────────────────────────────────────────
-WINE_PREFIX="/home/mt/.wine"
+# WINEPREFIX is a SUBDIRECTORY of the PVC mount point, not the mount
+# point itself. The wine-prefix PVC mounts at /home/mt/.wine; on a
+# fresh PVC the kubelet sets fsGroup (group=1000 + setgid) but the
+# mount-root's OWNER uid stays root (0). Wine refuses a WINEPREFIX not
+# owned by the running euid (1000) -> 'wine: '/home/mt/.wine' is not
+# owned by you'. The container runs as uid 1000 under the
+# etradie-system RESTRICTED PodSecurity Standard, so it can neither
+# chown the mount root nor use a root init-container. Creating the
+# prefix one level down (mkdir as uid 1000) makes the prefix root
+# owned by 1000, which Wine accepts; the PVC still persists it. The
+# mount-point parent is captured separately so the corruption-reset
+# below clears the SUBDIR contents (it owns them), never the parent.
+WINE_PREFIX_MOUNT="/home/mt/.wine"
+WINE_PREFIX="${WINE_PREFIX_MOUNT}/prefix"
+mkdir -p "$WINE_PREFIX"
 # The template is baked into the image at build time by the Dockerfile.
 # Holds a fully-initialised Wine prefix plus the MT5 + MT4 install. The
 # seed-from-template block below copies it into the (PVC-mounted)
@@ -160,10 +174,12 @@ if [ -d "$WINE_PREFIX" ]; then
   if [ ! -d "$WINE_PREFIX/drive_c/windows/system32" ] || \
      [ -f "$WINE_PREFIX/.update-timestamp.lock" ]; then
     log WARN "Wine prefix appears corrupted; resetting"
-    # $WINE_PREFIX is the PVC mount point: removing the directory
-    # itself fails with "Read-only file system" under
-    # readOnlyRootFilesystem. Clear its CONTENTS (incl. dotfiles)
-    # instead, mirroring the seed block's content-copy semantics.
+    # $WINE_PREFIX is a subdirectory the entrypoint owns (uid 1000),
+    # nested inside the PVC mount point. Clear its CONTENTS (incl.
+    # dotfiles); the subdir itself is owned by us so this also works
+    # under readOnlyRootFilesystem (the writable PVC backs it). We
+    # never touch the mount-point parent ($WINE_PREFIX_MOUNT), which
+    # is root-owned and read-only to us.
     rm -rf "${WINE_PREFIX:?}"/* "${WINE_PREFIX:?}"/.[!.]* "${WINE_PREFIX:?}"/..?* 2>/dev/null || true
   fi
 fi
