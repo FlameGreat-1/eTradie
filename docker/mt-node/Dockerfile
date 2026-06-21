@@ -211,8 +211,7 @@ RUN set -eux; \
             exit 1; \
         fi; \
         echo "INFO: MT5 terminal64.exe verified at '$MT5_EXE'." >&2; \
-    fi; \
-    chown -R mt:mt "$WINE_TEMPLATE"
+    fi
 
 # ── Install MT4 from a PRE-INSTALLED PORTABLE artifact ──────────────────────
 # Same deterministic download+verify+unzip as MT5 above. MT4 is a 32-bit
@@ -243,6 +242,10 @@ RUN set -eux; \
         fi; \
         echo "INFO: MT4 terminal.exe verified at '$MT4_EXE'." >&2; \
     fi; \
+    # Single ownership sweep for the whole template: this runs after BOTH
+    # the MT5 and MT4 unzips above, so the runtime 'mt' user (uid 1000)
+    # owns every file under $WINE_TEMPLATE. The entrypoint seeds the
+    # PVC-mounted prefix from here on first boot (see entrypoint.sh).
     chown -R mt:mt "$WINE_TEMPLATE"
 
 # ── EA binaries + watchdog + entrypoint ─────────────────────────
@@ -280,12 +283,9 @@ RUN set -eux; \
     chown -R mt:mt /opt/ea /opt/watchdog; \
     chmod +x /usr/local/bin/entrypoint.sh /opt/watchdog/watchdog.py
 
-# Final ownership sweep on the template so the runtime 'mt' user can
-# read every file produced by the install steps above (the chown -R
-# is cheap because the template is small and only happens once per
-# image build).
-RUN chown -R mt:mt /opt/wine-template
-
+# NOTE: the Wine template ownership sweep is done in the MT4 install step
+# above (it runs after both MT5 and MT4 unzip into $WINE_TEMPLATE), so no
+# separate `chown -R /opt/wine-template` is needed here.
 USER mt
 WORKDIR /home/mt
 
