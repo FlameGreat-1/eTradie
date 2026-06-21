@@ -162,7 +162,7 @@ export default function DashboardPage() {
   }, [execState]);
 
   return (
-    <div className="flex w-full overflow-hidden animate-fade-in bg-surface-1" style={{ height: 'calc(100dvh - var(--header-height))' }}>
+    <div className="flex w-full min-h-[calc(100dvh-var(--header-height))] animate-fade-in bg-surface-1">
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 relative min-h-0">
           {needsOnboarding ? (

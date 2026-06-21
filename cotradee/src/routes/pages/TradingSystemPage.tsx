@@ -352,12 +352,11 @@ export default function TradingSystemPage() {
 
   return (
     <div 
-      className={`flex flex-col bg-app transition-all duration-300 ${
+      className={`flex flex-col min-h-[calc(100dvh-var(--header-height))] bg-app transition-all duration-300 ${
         view === 'system'
           ? 'lg:max-w-7xl lg:mx-auto'
           : 'w-full'
       }`}
-      style={{ height: 'calc(100dvh - var(--header-height))' }}
     >
       <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0">
         <div>
@@ -437,13 +436,13 @@ export default function TradingSystemPage() {
           one is translated to x=0 and the inactive one is parked at
           ±100%. Transform-only animation — no layout, no reflow of
           the parent, so the transition is smooth on slow devices. */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-x-hidden">
         <div
-          className="flex h-full w-[200%] transition-transform duration-300 ease-out"
+          className="flex w-[200%] transition-transform duration-300 ease-out"
           style={{ transform: view === 'system' ? 'translateX(0%)' : 'translateX(-50%)' }}
         >
           {/* Pane 1: existing Trading System summary — tabbed */}
-          <div className="relative h-full w-1/2 shrink-0 overflow-y-auto px-2 sm:px-4 pt-4 pb-20 custom-scrollbar">
+          <div className="relative w-1/2 shrink-0 px-2 sm:px-4 pt-4 pb-20">
             {/* Tab bar (Sticky) */}
             <div className="sticky top-0 z-20 bg-app pb-4 pt-2 -mt-2">
               <div id="system-tab-container" className="flex overflow-x-auto items-center justify-start gap-1 bg-black/5 dark:bg-white/5 p-1 rounded-xl border border-black/5 dark:border-white/5 w-full no-scrollbar">
@@ -502,7 +501,7 @@ export default function TradingSystemPage() {
             </div>
           </div>
           {/* Pane 2: new Trading Plan workbook */}
-          <div className="h-full w-1/2 shrink-0 overflow-y-auto px-2 sm:px-4 pt-4 pb-20">
+          <div className="w-1/2 shrink-0 px-2 sm:px-4 pt-4 pb-20">
             <TradingPlanView />
           </div>
         </div>
