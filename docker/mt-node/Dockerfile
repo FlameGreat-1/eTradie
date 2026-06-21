@@ -255,14 +255,16 @@ COPY watchdog.py /opt/watchdog/watchdog.py
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # ── Bake EA Dependencies into Wine Template ─────────────────────
-COPY ea/deps/mt5/libzmq.dll "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Libraries/libzmq.dll"
-COPY ea/deps/mt4/libzmq.dll "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Libraries/libzmq.dll"
-COPY ea/deps/Include/Zmq/ "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Include/Zmq/"
-COPY ea/deps/Include/Zmq/ "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Include/Zmq/"
-COPY ea/deps/Include/JAson.mqh "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Include/JAson.mqh"
-COPY ea/deps/Include/JAson.mqh "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Include/JAson.mqh"
+COPY ea/deps/ /tmp/ea_deps/
 
 RUN set -eux; \
+    cp /tmp/ea_deps/mt5/libzmq.dll "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Libraries/"; \
+    cp /tmp/ea_deps/mt4/libzmq.dll "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Libraries/"; \
+    cp -r /tmp/ea_deps/Include/Zmq "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Include/"; \
+    cp -r /tmp/ea_deps/Include/Zmq "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Include/"; \
+    cp /tmp/ea_deps/Include/JAson.mqh "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Include/"; \
+    cp /tmp/ea_deps/Include/JAson.mqh "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Include/"; \
+    rm -rf /tmp/ea_deps; \
     if [ ! -f "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Libraries/libzmq.dll" ]; then \
         echo "FATAL: libzmq.dll missing in MT5 template" >&2; \
         exit 1; \
