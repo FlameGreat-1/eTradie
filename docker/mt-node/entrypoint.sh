@@ -316,13 +316,45 @@ Account=${MT_LOGIN}
 Profile=default
 EOF
 else
-  log INFO "MT_SYMBOL is the resolution sentinel; skipping chart template until engine patches the StatefulSet"
+  # Pending-symbol (sentinel) boot. We must STILL attach the EA so it
+  # binds :5555 -- otherwise the startupProbe on :5555 kills the pod
+  # AND the engine can never resolve the real symbol (GET_ALL_SYMBOLS
+  # travels over the EA's ZMQ socket, which requires the EA loaded).
+  #
+  # The EA is a wire-protocol adapter: its header says "Attach to any
+  # chart (symbol doesn't matter)" and OnInit binds tcp://*:5555 with
+  # no reference to the chart symbol. So we attach the EA WITHOUT
+  # specifying any symbol -- the platform is broker-agnostic and a
+  # hardcoded/placeholder symbol would fail for the ~70% of users on
+  # brokers with different symbol formats. MT5 opens a chart on the
+  # broker's OWN default Market Watch symbol and applies the expert
+  # template, loading the EA. The engine then resolves the real
+  # per-tenant symbol via GET_ALL_SYMBOLS and patches MT_SYMBOL
+  # (normal two-boot).
+  log INFO "MT_SYMBOL is the resolution sentinel; attaching EA on the broker's default chart (no symbol pinned) so :5555 binds"
+
+  # Bootstrap chart template: load the EA, do NOT pin a symbol. MT5
+  # applies this template to whatever default chart it opens.
+  cat > "$MT_DIR/$TPL_REL_DST" <<EOF
+<chart>
+period=16385
+<expert>
+name=ZeroMQ_EA
+</expert>
+</chart>
+EOF
+  log INFO "Bootstrap chart template written (no symbol pinned)"
+
   cat > "$INI_FILE" <<EOF
 [Common]
 Login=${MT_LOGIN}
 Password=${MT_PASSWORD}
 Server=${MT_SERVER}
 AutoConfiguration=true
+
+[Charts]
+Period=H1
+Template=expert
 
 [Experts]
 AllowLive=true
