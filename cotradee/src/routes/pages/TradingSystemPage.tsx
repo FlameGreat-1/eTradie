@@ -262,7 +262,7 @@ export default function TradingSystemPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full bg-app">
+      <div className="flex flex-col bg-app" style={{ height: 'calc(100dvh - var(--header-height))' }}>
         <div className="flex-1 flex items-center justify-center lg:max-w-5xl lg:mx-auto lg:w-full">
           <LogoLoader size={48} />
         </div>
@@ -274,7 +274,7 @@ export default function TradingSystemPage() {
 
   if (!isActive && view === 'plan') {
     return (
-      <div className={`flex flex-col h-full bg-app transition-all duration-300 w-full`}>
+      <div className={`flex flex-col bg-app transition-all duration-300 w-full`} style={{ height: 'calc(100dvh - var(--header-height))' }}>
         <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0">
           <div>
             <h1 className="text-base font-semibold text-content">
@@ -351,11 +351,14 @@ export default function TradingSystemPage() {
   const toggleLabel = togglingToPlan ? 'View Trading Plan' : 'View Trading System';
 
   return (
-    <div className={`flex flex-col h-full bg-app transition-all duration-300 ${
-      view === 'system'
-        ? 'lg:max-w-7xl lg:mx-auto'
-        : 'w-full'
-    }`}>
+    <div 
+      className={`flex flex-col bg-app transition-all duration-300 ${
+        view === 'system'
+          ? 'lg:max-w-7xl lg:mx-auto'
+          : 'w-full'
+      }`}
+      style={{ height: 'calc(100dvh - var(--header-height))' }}
+    >
       <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0">
         <div>
           <h1 className="text-base font-semibold text-content">
