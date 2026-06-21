@@ -19,7 +19,7 @@
 # AFTER values-image.yaml by the mt-node-staging ArgoCD child, so this
 # tag wins for the engine-runtime + chart-rendered staging paths.
 image:
-  tag: "2c1bbe182a286fa88c2746e42addc99b3cdcfe28"
+  tag: "484d493f8c69cb33344d160a998b053454dcc084"
 resources:
   requests:
     cpu: 300m
