@@ -334,54 +334,88 @@ EOF
 fi
 log INFO "Startup config written to $INI_FILE"
 
-# ── Disable MT5 LiveUpdate self-restart loop (defect #15) ────────
-# MT5 (build 5836) runs LiveUpdate on every cold boot: it detects a
-# newer build's data on MetaQuotes' servers, downloads it, and
-# self-restarts to apply (exit 143). The supervised loop then
-# relaunches, re-seeds, and re-runs the full recompile + LiveUpdate
-# from scratch -- an infinite, non-convergent loop in which the EA
-# OnInit never runs, MQL5/Logs is never created, and :5555 never
-# binds, so the pod never reaches Ready.
+# ── Disable MetaTrader LiveUpdate self-restart loop (defect #15) ──
+# Both MT5 (terminal64.exe) and MT4 (terminal.exe) run LiveUpdate on
+# every cold boot: the terminal detects a newer build on MetaQuotes'
+# servers, downloads it, and self-restarts to apply (exit 143). The
+# supervised loop then relaunches, re-seeds, and re-runs the full
+# recompile + LiveUpdate from scratch -- an infinite, non-convergent
+# loop in which the EA OnInit never runs, MQL Logs is never created,
+# and :5555 never binds, so the pod never reaches Ready.
 #
-# LiveUpdate is controlled in terminal.ini (NOT common.ini) under the
-# [LiveUpdate] section; LastBuildDataPath tracks the last-known build.
-# Pinning it to the baked terminal build makes MT5 treat itself as
-# current and skip the update + self-restart. Config only; no EA
-# recompile. MT5 path only -- MT4 is not affected by this loop and the
-# [LiveUpdate] section is MT5-specific.
-if [ "$MT_PLATFORM" = "mt5" ]; then
-  # Resolve the baked terminal build so we never pin a stale number.
-  # MT5 records the running build in its journal as
-  # 'MetaTrader 5 x64 build <N> started'; fall back to the known
-  # baked build (5836) if the journal is not yet present (first boot).
-  MT5_BUILD=""
-  MT5_JOURNAL_DIR="$MT_DIR/logs"
-  if [ -d "$MT5_JOURNAL_DIR" ]; then
-    MT5_BUILD=$(grep -ahoE 'build [0-9]+ started' "$MT5_JOURNAL_DIR"/*.log 2>/dev/null \
-      | grep -oE '[0-9]+' | sort -rn | head -n1 || true)
+# This applies to BOTH platforms (the image bakes both MT4 and MT5 EA
+# artifacts). The fix is layered for defence-in-depth:
+#
+#   Layer 1 (config): LiveUpdate is controlled in terminal.ini (NOT
+#   common.ini) under the [LiveUpdate] section; LastBuildDataPath
+#   tracks the last-known build. Pinning it to the baked terminal
+#   build makes the terminal treat itself as current. (Authoritatively
+#   confirmed for the MT5 install; written for MT4 too since the
+#   terminal.ini schema is shared across the MT family.)
+#
+#   Layer 2 (filesystem, build-number-independent): pinning the ini
+#   key alone only marks the build as last-seen -- it does not
+#   guarantee the terminal stops phoning MetaQuotes, downloading a
+#   new build, and applying it. So we ALSO make the terminal's own
+#   directory non-writable to the running user. MetaTrader applies a
+#   LiveUpdate by rewriting terminal64.exe/terminal.exe + its support
+#   files IN PLACE; if the install dir is read-only the apply step
+#   fails and the terminal cannot self-restart into a new build,
+#   regardless of build number. This is the deterministic,
+#   headless/CI industry-standard posture: make the update impossible
+#   to APPLY, not merely tracked.
+#
+# Config + permission only; no EA recompile.
+
+# Resolve the baked terminal build so we never pin a stale number.
+# The terminal records the running build in its journal as
+# 'MetaTrader <4|5> ... build <N> started'; fall back to the known
+# baked MT5 build (5836) if the journal is not yet present (first
+# boot). MT4 journals carry the same 'build <N>' token.
+MT_BUILD=""
+MT_JOURNAL_DIR="$MT_DIR/logs"
+if [ -d "$MT_JOURNAL_DIR" ]; then
+  MT_BUILD=$(grep -ahoE 'build [0-9]+ started' "$MT_JOURNAL_DIR"/*.log 2>/dev/null \
+    | grep -oE '[0-9]+' | sort -rn | head -n1 || true)
+fi
+MT_BUILD="${MT_BUILD:-5836}"
+
+# Layer 1: pin [LiveUpdate] LastBuildDataPath in terminal.ini for the
+# active platform (MT4 and MT5 share this config file + section name).
+TERMINAL_INI="$MT_DIR/config/terminal.ini"
+if [ -f "$TERMINAL_INI" ]; then
+  # Preserve any existing terminal.ini content but replace/append the
+  # [LiveUpdate] section deterministically.
+  if grep -qi '^\[LiveUpdate\]' "$TERMINAL_INI"; then
+    # Drop the existing [LiveUpdate] section (from its header up to the
+    # next section header or EOF), then append a clean one.
+    awk 'BEGIN{skip=0}
+         /^\[[Ll]ive[Uu]pdate\]/{skip=1; next}
+         /^\[/{skip=0}
+         skip==0{print}' "$TERMINAL_INI" > "${TERMINAL_INI}.tmp"
+    mv "${TERMINAL_INI}.tmp" "$TERMINAL_INI"
   fi
-  MT5_BUILD="${MT5_BUILD:-5836}"
-  TERMINAL_INI="$MT_DIR/config/terminal.ini"
-  if [ -f "$TERMINAL_INI" ]; then
-    # Preserve any existing terminal.ini content but replace/append the
-    # [LiveUpdate] section deterministically.
-    if grep -qi '^\[LiveUpdate\]' "$TERMINAL_INI"; then
-      # Drop the existing [LiveUpdate] section (from its header up to
-      # the next section header or EOF), then append a clean one.
-      awk 'BEGIN{skip=0}
-           /^\[[Ll]ive[Uu]pdate\]/{skip=1; next}
-           /^\[/{skip=0}
-           skip==0{print}' "$TERMINAL_INI" > "${TERMINAL_INI}.tmp"
-      mv "${TERMINAL_INI}.tmp" "$TERMINAL_INI"
-    fi
-    printf '\n[LiveUpdate]\nLastBuildDataPath=%s\n' "$MT5_BUILD" >> "$TERMINAL_INI"
-  else
-    cat > "$TERMINAL_INI" <<EOF
+  printf '\n[LiveUpdate]\nLastBuildDataPath=%s\n' "$MT_BUILD" >> "$TERMINAL_INI"
+else
+  cat > "$TERMINAL_INI" <<EOF
 [LiveUpdate]
-LastBuildDataPath=${MT5_BUILD}
+LastBuildDataPath=${MT_BUILD}
 EOF
-  fi
-  log INFO "LiveUpdate pinned to build ${MT5_BUILD} in $TERMINAL_INI (defect #15)"
+fi
+log INFO "LiveUpdate pinned to build ${MT_BUILD} in $TERMINAL_INI ($MT_PLATFORM, defect #15)"
+
+# Layer 2: make the terminal binary + its in-place update targets
+# read-only so a downloaded LiveUpdate cannot be applied (no
+# self-restart) regardless of build number. We chmod only the
+# terminal executable itself; keep config/, logs/, MQL5|MQL4/Logs,
+# and the prefix's writable areas untouched so the terminal still
+# starts, logs, compiles the EA, and the EA can write its own logs.
+# A failed in-place rewrite of the .exe makes MT abandon the apply
+# step rather than self-restart into a new build.
+if [ -f "$MT_DIR/$MT_EXE" ]; then
+  chmod 0555 "$MT_DIR/$MT_EXE" 2>/dev/null \
+    && log INFO "Hardened $MT_DIR/$MT_EXE read-only to block LiveUpdate apply (defect #15)" \
+    || log WARN "Could not chmod $MT_DIR/$MT_EXE read-only; LiveUpdate Layer 2 not enforced (Layer 1 ini pin still active)"
 fi
 
 # ── Supervised MT restart loop ───────────────────────────────────
