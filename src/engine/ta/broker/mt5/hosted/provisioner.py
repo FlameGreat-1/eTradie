@@ -911,6 +911,15 @@ class HostedProvisioner:
             "WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION": "0.5",
             "WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS": "6",
             "WATCHDOG_LIVEZ_GRACE_SECONDS": "60",
+            # Cold-boot grace: MT5 build 5836 does a one-time full
+            # 453-file MQL5 recompilation (~100s) before the EA loads
+            # and binds :5555. Without this window the watchdog SIGTERMs
+            # MT after ~60s of failed HEALTH polls, killing the compile
+            # mid-flight every boot so the EA never comes up. Holds the
+            # in-pod terminate path for the first 180s; the compiled
+            # state then persists on the Wine-prefix PVC and later boots
+            # are fast. Matches docker/mt-node/watchdog.py default.
+            "WATCHDOG_STARTUP_GRACE_SECONDS": "180",
         }
         body = client.V1ConfigMap(
             metadata=client.V1ObjectMeta(
