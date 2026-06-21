@@ -32,6 +32,7 @@ data:
   WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION: {{ .Values.sidecar.watchdog.config.cpuThrottleSoftCapFraction | default "0.5" | quote }}
   WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS: {{ .Values.sidecar.watchdog.config.cpuThrottleConsecutivePolls | default "6" | quote }}
   WATCHDOG_LIVEZ_GRACE_SECONDS: {{ .Values.sidecar.watchdog.config.livezGracePeriodSeconds | quote }}
+  WATCHDOG_STARTUP_GRACE_SECONDS: {{ .Values.sidecar.watchdog.config.startupGraceSeconds | default "180" | quote }}
   WATCHDOG_ZMQ_ENDPOINT: "tcp://127.0.0.1:{{ .Values.service.zmqPort }}"
   WATCHDOG_HTTP_PORT: {{ .Values.service.watchdogPort | quote }}
 {{- end }}
