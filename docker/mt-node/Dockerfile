@@ -280,6 +280,25 @@ RUN set -eux; \
     if [ ! -f "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Libraries/libzmq.dll" ]; then \
         echo "FATAL: libzmq.dll missing in MT4 template" >&2; \
         exit 1; \
+    fi; \
+    # Defect #15: bake LiveUpdate-disabled into the template so a
+    # freshly-seeded prefix ships already-current and never attempts a
+    # self-update/self-restart on first boot. LiveUpdate is controlled
+    # by the [LiveUpdate] LastBuildDataPath key in config/terminal.ini
+    # (confirmed from the actual MT5 install; the MT family shares the
+    # terminal.ini schema). Pin it to the baked MT5 build (5836). The
+    # entrypoint re-pins from the live journal at runtime as a
+    # belt-and-braces follow-up. Config only; no network; no chmod.
+    mkdir -p "$MT5_ROOT/config" "$MT4_ROOT/config"; \
+    printf '[LiveUpdate]\nLastBuildDataPath=5836\n' > "$MT5_ROOT/config/terminal.ini"; \
+    printf '[LiveUpdate]\nLastBuildDataPath=5836\n' > "$MT4_ROOT/config/terminal.ini"; \
+    if ! grep -q 'LastBuildDataPath' "$MT5_ROOT/config/terminal.ini"; then \
+        echo "FATAL: LiveUpdate pin missing in MT5 template terminal.ini" >&2; \
+        exit 1; \
+    fi; \
+    if ! grep -q 'LastBuildDataPath' "$MT4_ROOT/config/terminal.ini"; then \
+        echo "FATAL: LiveUpdate pin missing in MT4 template terminal.ini" >&2; \
+        exit 1; \
     fi
 
 # Verify EA binary SHAs. A backdoored .ex5 that quietly replaces the
