@@ -91,7 +91,7 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
   return (
     <>
       <aside
-        className={`hidden md:flex fixed left-0 top-0 h-screen flex-col z-sidebar transition-all duration-300 ease-out
+        className={`hidden md:flex fixed left-0 top-0 h-[100dvh] flex-col z-sidebar transition-all duration-300 ease-out
                    border-r border-black/10 dark:border-white/10 bg-white dark:bg-black shadow-2xl`}
         style={{ width: isCollapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH }}
         aria-label="Primary navigation"
@@ -144,7 +144,7 @@ function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
             aria-hidden
           />
           <aside
-            className="md:hidden fixed left-0 top-0 h-screen flex flex-col z-modal overflow-hidden
+            className="md:hidden fixed left-0 top-0 h-[100dvh] flex flex-col z-modal overflow-hidden
                        border-r border-black/10 dark:border-white/10 bg-white dark:bg-black rounded-r-[2.5rem] shadow-2xl animate-in slide-in-from-left duration-500"
             style={{ width: 280 }}
             aria-label="Primary navigation"
