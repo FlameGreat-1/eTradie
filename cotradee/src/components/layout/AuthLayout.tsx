@@ -8,7 +8,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
   useTheme();
 
   return (
-    <div className="landing-page min-h-screen flex flex-col-reverse md:flex-row relative overflow-hidden transition-colors duration-500"
+    <div className="landing-page min-h-[100dvh] flex flex-col-reverse md:flex-row relative overflow-hidden transition-colors duration-500"
          style={{ background: 'var(--landing-bg)', color: 'var(--landing-text)' }}>
       <LandingHeader />
 

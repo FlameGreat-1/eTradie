@@ -36,7 +36,7 @@ function DashboardLayout({ children }: Props) {
   const handleMenuClose = useCallback(() => setMobileNavOpen(false), []);
 
   return (
-    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-app text-content select-none">
+    <div className="relative min-h-[100dvh] flex flex-col bg-app text-content select-none">
       <Sidebar
         isMobileOpen={isMobileNavOpen}
         onMobileClose={handleMenuClose}
@@ -44,12 +44,10 @@ function DashboardLayout({ children }: Props) {
       <Header onMenuClick={handleMenuClick} />
 
       <main
-        className="absolute overflow-auto bg-app"
+        className="relative flex-1 bg-app"
         style={{
-          left: 'var(--main-left, 0px)',
-          top: 'var(--header-height)',
-          right: 0,
-          bottom: 0,
+          marginLeft: 'var(--main-left, 0px)',
+          paddingTop: 'var(--header-height)',
         }}
       >
         <style>{`
