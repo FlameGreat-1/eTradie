@@ -120,6 +120,15 @@ _load_vault_secrets_file(_VAULT_SECRETS_FILE)
 # ----- Config from envFrom (ConfigMap) ---------------------------------
 POLL_INTERVAL = float(os.environ.get("WATCHDOG_POLL_INTERVAL_SECONDS", "10"))
 MAX_FAILURES = int(os.environ.get("WATCHDOG_MAX_FAILURES", "6"))
+# Cold MT5 boot under Wine (prefix seed + terminal start + chart load +
+# EA OnInit before :5555 binds) legitimately takes longer than the
+# MAX_FAILURES * POLL_INTERVAL budget. During this grace window after
+# watchdog start, EA-health failures are recorded (metrics + log) but do
+# NOT trigger an in-pod MT SIGTERM, so the watchdog never kills a
+# still-booting terminal. Memory/CPU soft-caps are unaffected. Readiness
+# (/healthz) is unaffected - the pod stays NotReady until the EA reports
+# connected+authenticated. Defect #14a.
+STARTUP_GRACE_SECONDS = float(os.environ.get("WATCHDOG_STARTUP_GRACE_SECONDS", "300"))
 MEMORY_SOFT_CAP_FRACTION = float(os.environ.get("WATCHDOG_MEMORY_SOFT_CAP_FRACTION", "0.8"))
 LIVEZ_GRACE_SECONDS = float(os.environ.get("WATCHDOG_LIVEZ_GRACE_SECONDS", "60"))
 ZMQ_ENDPOINT = os.environ.get("WATCHDOG_ZMQ_ENDPOINT", "tcp://127.0.0.1:5555")
@@ -660,11 +669,12 @@ def maybe_enforce_memory_soft_cap() -> bool:
 def watchdog_loop() -> None:
     global _last_commands_count
     log.info(
-        "watchdog start: endpoint=%s poll=%.1fs max_failures=%d soft_cap=%.2f",
+        "watchdog start: endpoint=%s poll=%.1fs max_failures=%d soft_cap=%.2f startup_grace=%.0fs",
         ZMQ_ENDPOINT,
         POLL_INTERVAL,
         MAX_FAILURES,
         MEMORY_SOFT_CAP_FRACTION,
+        STARTUP_GRACE_SECONDS,
     )
     while True:
         try:
@@ -703,13 +713,23 @@ def watchdog_loop() -> None:
                 else:
                     STATE.consecutive_failures += 1
 
-            if STATE.consecutive_failures >= MAX_FAILURES:
+            within_startup_grace = (time.time() - STATE.start_ts) < STARTUP_GRACE_SECONDS
+            if STATE.consecutive_failures >= MAX_FAILURES and not within_startup_grace:
                 terminate_mt_processes(
                     f"EA semantic failure (connected={connected} authed={authed}) for "
                     f"{STATE.consecutive_failures} consecutive probes"
                 )
                 with STATE.lock:
                     STATE.consecutive_failures = 0
+            elif STATE.consecutive_failures >= MAX_FAILURES and within_startup_grace:
+                log.info(
+                    "EA not ready (connected=%s authed=%s, %d consecutive) but within "
+                    "%.0fs startup grace - not restarting MT yet",
+                    connected,
+                    authed,
+                    STATE.consecutive_failures,
+                    STARTUP_GRACE_SECONDS,
+                )
 
         except Exception as e:  # noqa: BLE001
             M_POLL_FAILS.inc()
@@ -717,10 +737,18 @@ def watchdog_loop() -> None:
                 STATE.consecutive_failures += 1
             log.warning("poll failed: %s (consecutive=%d)", e, STATE.consecutive_failures)
 
-            if STATE.consecutive_failures >= MAX_FAILURES:
+            within_startup_grace = (time.time() - STATE.start_ts) < STARTUP_GRACE_SECONDS
+            if STATE.consecutive_failures >= MAX_FAILURES and not within_startup_grace:
                 terminate_mt_processes(f"HEALTH probe failures: {STATE.consecutive_failures} consecutive")
                 with STATE.lock:
                     STATE.consecutive_failures = 0
+            elif STATE.consecutive_failures >= MAX_FAILURES and within_startup_grace:
+                log.info(
+                    "HEALTH probe failing (%d consecutive) but within %.0fs startup grace "
+                    "- not restarting MT yet (cold Wine boot)",
+                    STATE.consecutive_failures,
+                    STARTUP_GRACE_SECONDS,
+                )
 
         time.sleep(POLL_INTERVAL)
 
