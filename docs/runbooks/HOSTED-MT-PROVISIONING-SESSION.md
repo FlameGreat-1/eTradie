@@ -4,7 +4,181 @@
 This is the authoritative resume point for the hosted-MT provisioning
 effort on the **staging** Contabo box (`vmi3362776`).
 
-**Last updated:** 2026-06-21, session through defect #14 (EA runtime
+**Last updated:** 2026-06-21, session through **defect #15**. READ THE
+DEFECT #15 BLOCK DIRECTLY BELOW FIRST — it supersedes every older block
+(#14, #13, #10-12, #9, etc.), which are all FIXED.
+
+> ============================================================
+> SESSION UPDATE 2026-06-21 — DEFECT #15 (CURRENT, OPEN).
+> READ THIS BLOCK FIRST. Everything below it is already FIXED.
+> ============================================================
+>
+> WHAT IS NOW FIXED (do NOT re-debug these):
+>   - #13 MT terminal binary baked into the image (portable MT5/MT4
+>     zips, build-time terminal64.exe/terminal.exe assertions).
+>   - #14 EA runtime deps baked: libzmq.dll (MT5 MQL5/Libraries +
+>     MT4 MQL4/Libraries), Zmq include tree, JAson.mqh. Verified
+>     present in the image with FATAL build-time assertions.
+>   - #15a LiveUpdate self-restart loop: MT5/MT4 no longer phone
+>     MetaQuotes and self-restart. Pinned via [LiveUpdate]
+>     LastBuildDataPath in config/terminal.ini, BAKED into the image
+>     template (Dockerfile, both program dirs) AND re-pinned at
+>     runtime by entrypoint.sh. PROVEN: journal now shows NO
+>     'LiveUpdate ... is available' line and '0 file(s) compiled'
+>     (compiled state persists on the PVC; no more per-boot recompile
+>     storm). This was MR !10 (merged).
+>
+> CURRENT IMAGE / PINS: mt-node + engine staging overlays pin git SHA
+>   ab1b41d996ad8a65a94af3ab8de334f491839714 (CI commit
+>   42a1136a 'ci: pin staging image tags to ab1b41d9... [skip ci]').
+>   Engine runtime MT_NODE_IMAGE =
+>   ghcr.io/flamegreat-1/etradie/mt-node:ab1b41d996ad8a65a94af3ab8de334f491839714
+>   (verified live). This SHA carries MR !10 (LiveUpdate) AND MR !11
+>   (EA-attach-on-sentinel-boot, no symbol pinned).
+>
+> THE OPEN BLOCKER (#15b — NOT yet fixed): the tenant pod still loops
+>   on `MetaTrader exited with code 143` every ~2.5 min and never
+>   reaches 3/3 Ready (sits 2/3). The kill source is PROVEN: the
+>   mt-node container's startupProbe is `tcp :5555`
+>   (delay=20s period=5s failure=60 => ~320s budget). :5555 never
+>   binds, the probe exhausts, the kubelet SIGTERMs the container
+>   (143), entrypoint relaunches, repeat. (`kubectl describe pod`:
+>   'Startup probe failed: dial tcp <ip>:5555: connect: connection
+>   refused'.) The watchdog is INNOCENT (it stays in its 180s startup
+>   grace, logs 'NOT forcing restart', never Signalling).
+>
+> WHY :5555 NEVER BINDS — the DECISIVE evidence (MT5 journal for the
+>   boot, /home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5/
+>   logs/<date>.log):
+>     MetaTrader 5 x64 build 5836 started
+>     Compiler  full recompilation has been started
+>     Compiler  full recompilation has been finished: 0 file(s) compiled
+>     [ ... and then NOTHING. End of file. ]
+>   There is NO login line, NO 'authorized on Deriv-Demo', NO network
+>   connect, NO chart open, NO Expert load. AND on the running pod:
+>     bases/    -> No such file or directory
+>     profiles/ -> No such file or directory
+>   bases/ and profiles/ are created by MT5 ONLY after it connects to a
+>   broker / loads a profile. Their absence PROVES MT5 never logged in.
+>   => MT5 starts + compiles, then does nothing. It is NOT consuming
+>   startup.ini at all (no auto-login, no [Charts], no [Experts]).
+>   This is why EVERY chart approach failed identically (chart vs no
+>   chart, symbol vs no symbol): none of startup.ini is being honored.
+>
+> WHAT WAS RULED OUT (do NOT chase again):
+>   - NOT LiveUpdate (fixed; gone from journal).
+>   - NOT the watchdog (in grace; never sends SIGTERM here).
+>   - NOT missing libzmq.dll (baked + verified).
+>   - NOT a missing terminal binary (#13 fixed).
+>   - NOT a chart-symbol problem. A bootstrap chart was tried two ways
+>     and BOTH failed because login/startup.ini itself isn't honored:
+>       * MR !11 attaches the EA on the sentinel boot via
+>         [Charts] Template=expert with NO symbol pinned (broker-
+>         agnostic; a hardcoded/placeholder symbol is REJECTED by
+>         design because the platform supports many brokers with many
+>         symbol formats). It did not help -> MT5 opened no chart
+>         because it isn't reading startup.ini.
+>   - A hardcoded bootstrap symbol is OFF THE TABLE: ~70% of users use
+>     different brokers with different symbol formats; it would fail
+>     provisioning for most users.
+>
+> ROOT-CAUSE HYPOTHESIS (NOT yet confirmed — do NOT guess the fix):
+>   MT5 build 5836 under Wine is not honoring the startup config /
+>   auto-login passed via the launch line
+>     wine "$MT_EXE" "/config:$INI_FILE"
+>   (entrypoint.sh writes $INI_FILE =
+>    .../MetaTrader 5/config/startup.ini with [Common] Login/Password/
+>    Server, [Charts], [Experts]). The terminal launches + compiles but
+>    never acts on it. Candidate causes to verify against the ACTUAL
+>    build before changing anything:
+>     1. Wrong flag/format for this build (e.g. needs a bare positional
+>        arg `terminal64.exe <file>.ini`, or `/portable`, vs `/config:`).
+>     2. startup.ini must live at a different path for this build.
+>     3. Auto-login needs creds in a different file (accounts/common.ini)
+>        not [Common] in startup.ini.
+>     4. Some other first-run gate.
+>   The clean precedent: the [LiveUpdate] key was confirmed from the
+>   REAL install before coding. Do the SAME here — confirm the correct
+>   MT5 startup-config / auto-login invocation from the real install,
+>   THEN fix entrypoint.sh. Do NOT iterate blindly.
+>
+> >>> RESUME HERE (2026-06-21, defect #15b) <<<
+> Operator routine: two terminals.
+>   Terminal 1 (leave open):  ssh -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173
+>   Terminal 2:               export KUBECONFIG=~/.kube/etradie-contabo.yaml
+>                             kubectl get nodes   # vmi3362776 Ready -> tunnel live
+>
+> 1. Confirm the engine still runs the ab1b41d9 SHA (the fix image):
+>      kubectl -n etradie-system exec deploy/etradie-engine -c engine -- printenv MT_NODE_IMAGE
+>      # expect ...mt-node:ab1b41d996ad8a65a94af3ab8de334f491839714
+>
+> 2. Resolve the current tenant pod (it ROLLS often; never hardcode it):
+>      POD=$(kubectl -n etradie-system get pods -o name | grep 'etradie-mt-' | head -1 | cut -d/ -f2); echo "$POD"
+>      kubectl -n etradie-system get pods | grep etradie-mt-
+>    If empty, re-provision FROM THE DASHBOARD (connection_type=hosted),
+>    after cleaning the prior failed tenant:
+>      kubectl -n etradie-system delete statefulset,svc,sa,configmap,pvc -l app.kubernetes.io/name=etradie-mt-node --ignore-not-found
+>      kubectl -n etradie-system exec -i postgres-0 -c postgres -- psql -U etradie -d etradie -c "DELETE FROM broker_connections WHERE status IN ('failed','provisioning') RETURNING id;"
+>
+> 3. GATHER THE 3 FACTS that decide the fix (this is exactly where the
+>    session stopped — these had not been captured yet because the pod
+>    kept rolling / the tunnel dropped):
+>      # a) the startup.ini we wrote (login/server populated? path right?)
+>      kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c 'cat "/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5/config/startup.ini"'
+>      # b) the LITERAL launch args MT5 is running with (is /config: even passed?)
+>      kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c 'ps -ef | grep -i terminal64 | grep -v grep'
+>      # c) the MT5 journal for THIS boot (no login line == startup.ini not honored)
+>      kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c 'J="/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5/logs"; f=$(ls -t "$J"/*.log | head -1); echo "=== $f ==="; cat "$f"'
+>
+> 4. CONFIRM the correct MT5 (build 5836) startup-config + auto-login
+>    invocation from the real install (flag/format, file path, creds
+>    location). THEN fix the launch line / config in
+>    docker/mt-node/entrypoint.sh (the `wine "$MT_EXE" "/config:$INI_FILE"`
+>    near the 'Supervised MT restart loop' section). Cover BOTH MT5 and
+>    MT4 (their template paths differ: MT5 Profiles/Templates/expert.tpl,
+>    MT4 templates/expert.tpl; MT4 .tpl syntax differs from MT5 and is
+>    UNPROVEN — verify against an MT4 tenant before claiming MT4 works).
+>
+> 5. After any entrypoint fix: push to GitHub origin (CI source), let CI
+>    rebuild mt-node + bump the staging pins, confirm the new SHA in
+>    MT_NODE_IMAGE, clean the failed tenant, re-provision FROM THE
+>    DASHBOARD, then verify:
+>      POD=$(kubectl -n etradie-system get pods -o name | grep 'etradie-mt-' | head -1 | cut -d/ -f2)
+>      P="/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5"
+>      kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c "cat \"$P/logs/\"*.log"          # expect a LOGIN line now
+>      kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c "ls \"$P/MQL5/Logs\" 2>&1"        # exists => EA OnInit ran
+>      kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c 'cat /proc/net/tcp | grep -i 15B3 && echo ":5555 LISTEN" || echo ":5555 not bound"'
+>      kubectl -n etradie-system get pod "$POD" -o wide                                            # 3/3 Ready
+>    SUCCESS = journal shows broker login/authorized, MQL5/Logs has the
+>    EA '=== eTradie ZeroMQ Bridge Started ===' / 'Endpoint: tcp://*:5555'
+>    line, :5555 LISTEN, watchdog mt5_connected=1 + authenticated=1, pod
+>    3/3 Ready, then exactly ONE roll as the engine patches the resolved
+>    symbol (documented two-boot).
+>
+> GIT REMOTES: merges land on the GitLab mirror (intelli1344225/exoper);
+>   `git stash` (a local NOTE.md keeps dirtying the tree) then
+>   `git pull --rebase gitlab main` then `git pull --rebase origin main`
+>   then `git push origin main` (LOAD-BEARING; CI/ArgoCD build from
+>   GitHub FlameGreat-1/eTradie) then `git push --force-with-lease
+>   gitlab main`. CI runs on GitHub Actions; the deploy-bump commit
+>   `ci: pin staging image tags to <sha> [skip ci]` pins the new image.
+>
+> SEPARATE, NON-BLOCKING ITEM (do not conflate with #15): a GitHub
+>   Actions job 'FATAL: Cloudflare AOP CA fingerprint changed' fails
+>   because deployments/cloudflare/origin-pull/aop-ca.sha256 was never
+>   bootstrapped (placeholder, no fingerprint). Live Cloudflare AOP CA
+>   fingerprint is
+>   9a1ac2b4be15f9f27eee20a734cba4e9898f61001b3bd7c84b69b56a3e25a2b9.
+>   This does NOT gate the mt-node image build (mt-node CI went green
+>   and pinned ab1b41d9). Resolve per docs/architecture/
+>   edge-cloudflare-envoy.md 'Rotation > Cloudflare AOP CA' (verify the
+>   CA is genuinely Cloudflare's, then bootstrap the pin + write the PEM
+>   to Vault etradie/services/edge-ingress/<env>/cloudflare/aop_ca).
+>   Owner-gated; do NOT auto-bump.
+
+**Older blocks below are HISTORICAL (all FIXED). Kept for audit only.**
+
+**Last updated (historical):** 2026-06-21, session through defect #14 (EA runtime
 dependency libzmq.dll missing from the portable MT image). READ THE
 DEFECT #14 BLOCK BELOW FIRST.
 
