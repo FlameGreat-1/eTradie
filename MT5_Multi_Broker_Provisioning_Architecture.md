@@ -238,10 +238,20 @@ the existing generic `mt5-portable.zip`.
 Before a broker entity is marked `active` in the Registry it MUST pass:
 
 ```bash
-strings "<prefix>/drive_c/Program Files/MetaTrader 5/config/servers.dat" \
-  | grep -i "<brand>"
+# servers.dat may live in the program dir OR a per-instance Terminal
+# data dir, so FIND it rather than assuming a fixed path.
+SD=$(find "$WINEPREFIX/drive_c" -iname servers.dat 2>/dev/null | head -1)
+strings "$SD" | grep -i "<brand>"
 # -> must return non-empty broker server entries
 ```
+
+> CRITICAL (proven during the Deriv bake, 2026-06-21): installing the
+> branded installer writes `terminal64.exe` but does NOT write
+> `servers.dat`. MT5 persists `servers.dat` only AFTER the terminal
+> contacts the broker at least once. So the bake REQUIRES an interactive
+> launch that triggers one broker connection (a login attempt is
+> enough; valid credentials are not required) before `servers.dat`
+> exists. See §6 Step 3b.
 
 Same discipline already applied to the WineHQ version pin and the
 `terminal64.exe`/`libzmq.dll` build-time assertions: confirm before
@@ -316,11 +326,21 @@ changes rarely. Files:
 
 ```
 infrastructure/broker-catalog/
-  schema.json                 # JSON Schema; CI validates every entry
-  deriv.yaml                  # one file per brand
-  exness.yaml
+  schema.json                 # JSON Schema; the published contract
+  deriv.json                  # one file per brand (JSON, not YAML)
+  exness.json
   ...
 ```
+
+> FORMAT NOTE (matches merged code, MR !13): catalog entries are JSON,
+> not YAML. PyYAML is not a declared engine dependency; adding one to
+> parse config would be an undeclared-dependency supply-chain risk.
+> orjson (JSON) + Pydantic v2 (validation) are already core deps, so
+> the catalog is `*.json`, validated fail-closed at engine boot by
+> `src/engine/ta/broker/registry.py`. `schema.json` stays the contract;
+> a lockstep test asserts the Pydantic models and `schema.json` never
+> drift. CI does NOT yet validate the catalog dir; the engine-boot load
+> is the real gate (a PR-time CI step is a noted follow-up).
 
 ### 5.2 Per-brand record schema (authoritative)
 
@@ -395,30 +415,88 @@ The filename proves nothing (malware has shipped under the exact name
 domain/path above + the SHA256 you compute here. Never source the
 installer from a mirror/forum/backup link.
 
-### Step 3 — Run the installer to completion (interactive Wine)
+### Step 3a — Run the installer to completion
 
 ```bash
 export WINEPREFIX=~/mt-bake/<brand>/wine
+export WINEDEBUG=-all
 wine wineboot --init; wineserver --wait
-# Run the branded installer. Use interactive X if xvfb-run hangs.
-wine ./<brand>5setup.exe        # complete the install; cosmetic post-install
-                                 # page-faults are fine if files landed.
+# Run the branded installer to completion. It installs terminal64.exe.
+# A cosmetic crash/"X connection broken" AFTER files land is fine.
+wine ~/mt-bake/<brand>/<brand>5setup.exe
 wineserver --wait
+
+# Confirm the terminal binary landed (servers.dat does NOT exist yet —
+# that is expected; see Step 3b):
+MT5_DIR="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
+ls -l "$MT5_DIR/terminal64.exe"
 ```
 
-### Step 4 — Verify servers.dat is populated (the §3.5 gate)
+### Step 3b — REQUIRED: trigger one broker connection on a REAL display
+
+> WHY: the installer does NOT write `servers.dat`. MT5 writes it only
+> after the terminal contacts the broker once. Plain headless Xvfb is
+> NOT enough — the "Find Your Broker" / Login modal blocks on mouse +
+> keyboard you cannot drive without a visible, interactive display
+> (no cursor). You need a REAL interactive screen for this one-time step.
+
+**Option A — VNC desktop on the bake host (works on headless/WSL):**
+```bash
+sudo apt-get update
+sudo apt-get install -y x11vnc xvfb fluxbox novnc websockify
+
+export DISPLAY=:1
+Xvfb :1 -screen 0 1280x900x24 &
+sleep 1
+fluxbox &                       # window manager -> real cursor + focus
+x11vnc -display :1 -nopw -forever -shared -bg -rfbport 5900
+websockify --web=/usr/share/novnc 6080 localhost:5900 &
+# Open http://localhost:6080/vnc.html in a browser. If the host is
+# remote: ssh -L 6080:localhost:6080 <user>@<host>, then open it locally.
+
+# Launch the terminal INTO that display:
+export WINEPREFIX=~/mt-bake/<brand>/wine
+export WINEDEBUG=-all
+export DISPLAY=:1
+MT5_DIR="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
+wine "$MT5_DIR/terminal64.exe" &
+```
+In the visible terminal GUI: File -> Login to Trade Account (or the
+"Find Your Broker" modal on first run) -> select the broker entity ->
+pick a server (e.g. `Deriv-Demo`) -> enter ANY login + password ->
+Login. The connection ATTEMPT forces MT5 to write `servers.dat` (valid
+credentials are NOT required). Wait ~10s, then File -> Exit.
+
+**Option B — bake on a normal Windows/Mac PC, copy servers.dat over:**
+Install the broker's MT5 the ordinary way on Windows/Mac, log in once to
+the demo server, then copy `servers.dat` from the MT5 data folder
+(`C:\Users\<you>\AppData\Roaming\MetaQuotes\Terminal\<HASH>\config\servers.dat`
+or the install dir's `config\servers.dat`) onto the Linux box and drop
+it into `$MT5_DIR/config/servers.dat`. `servers.dat` is portable — it is
+the broker's server list, which is exactly what we bake.
+
+### Step 4 — Verify servers.dat is written + populated (the §3.5 gate)
 
 ```bash
-P="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
-strings "$P/config/servers.dat" | grep -i deriv     # non-empty == pass
-strings "$P/config/servers.dat" | grep -i exness    # non-empty == pass
+# servers.dat may be in the program dir OR a per-instance Terminal dir.
+SD=$(find "$WINEPREFIX/drive_c" -iname servers.dat 2>/dev/null | head -1)
+echo "servers.dat -> $SD"
+test -n "$SD" || { echo "FATAL: no servers.dat written; redo Step 3b"; }
+strings "$SD" | grep -i <brand>     # non-empty == pass
 ```
-If empty, the install did not seed the broker — STOP; do not publish.
+If no `servers.dat` exists, the terminal never connected — redo Step 3b
+on a REAL display. If it exists in a per-instance Terminal/<HASH> dir,
+also copy it to `$MT5_DIR/config/servers.dat` before zipping so the
+baked program dir carries it:
+```bash
+mkdir -p "$MT5_DIR/config"
+cp "$SD" "$MT5_DIR/config/servers.dat"
+```
 
 ### Step 5 — Capture the EXACT server strings (Registry truth)
 
 Read the server names directly from the populated terminal. Either:
-- `strings "$P/config/servers.dat" | grep -i <brand>` and record the
+- `strings "$SD" | grep -i <brand>` and record the
   server tokens verbatim, OR
 - on the same interactive terminal: File → Open an Account → type the
   broker → step into each entity → cancel → File → Login to Trade
@@ -449,9 +527,10 @@ r2://etradie-installers/broker-bundles/<brand>-portable.zip.sha256
 
 ### Step 8 — Write/Update the Registry entry + open a PR
 
-Fill `infrastructure/broker-catalog/<brand>.yaml` per §5.2 with
+Fill `infrastructure/broker-catalog/<brand>.json` per §5.2 with
 `bundle_r2_path`, `bundle_sha256`, the captured `servers.*`, `verified_on`,
-and `status: active`. CI validates against `schema.json`. Merge.
+and `status: active`. The engine validates it fail-closed at boot
+(`registry.py`); the unit tests cover the contract. Merge.
 
 Result: the broker is live for new provisions with zero image rebuild.
 
@@ -463,18 +542,22 @@ Grouped by area, in dependency order. "NEW" = create; "MODIFY" = edit.
 
 ### 7.1 Broker Registry (control plane)
 
-- **NEW** `infrastructure/broker-catalog/schema.json` — JSON Schema for
-  the §5.2 record. CI fails on any non-conforming entry.
-- **NEW** `infrastructure/broker-catalog/deriv.yaml` — first seeded brand.
-- **NEW** `infrastructure/broker-catalog/exness.yaml` — second seeded
-  brand (primary entity only for v1).
-- **NEW** `src/engine/ta/broker/registry.py` — loader + in-memory model:
-  parses the catalog at engine boot, exposes
-  `resolve(brand_id, entity_id) -> {bundle_r2_path, bundle_sha256,
-  servers}` and `list_active()` for the API. Fail-closed if a
-  referenced bundle/sha is missing.
-- **NEW** `tests/engine/ta/broker/test_registry.py` — schema-load,
-  resolution, and unsupported-broker tests.
+- **DONE (MR !13)** `infrastructure/broker-catalog/schema.json` — JSON
+  Schema (Draft 2020-12) for the §5.2 record (the published contract).
+- **DONE (MR !13)** `src/engine/ta/broker/registry.py` — Pydantic v2
+  loader + in-memory model: parses `infrastructure/broker-catalog/*.json`
+  via orjson, validates fail-closed (ConfigurationError) at engine boot,
+  exposes `resolve(brand_id, entity_id) -> ResolvedBroker` and
+  `list_active()`. Fail-closed if an active brand's entity is missing
+  `bundle_r2_path`/`bundle_sha256`/live servers.
+- **DONE (MR !13)** `tests/ta/broker/test_registry.py` — valid load,
+  malformed JSON, schema-violation, unsupported-broker, resolve
+  hit/miss/inactive, active-requires-(bundle+sha+servers), and
+  model⇄schema lockstep tests.
+- **PENDING (Phase 1 bake output)** `infrastructure/broker-catalog/deriv.json`
+  — real Deriv entry from the bake (servers, bundle sha, R2 path).
+- **PENDING (Phase 1 bake output)** `infrastructure/broker-catalog/exness.json`
+  — real Exness primary-entity entry from the bake.
 
 ### 7.2 Engine API (serve the registry to the dashboard)
 
@@ -740,3 +823,70 @@ MT5 binary layer (no such control exists).
 | Blocked as fetch path | any URL containing `download.mql5.com` |
 | Verification gate | `strings "<prefix>/.../config/servers.dat" \| grep -i <brand>` |
 | First two brokers | Deriv (single entity), Exness (primary entity `exness_technologies_ltd`) |
+
+---
+
+## 14. Phase 1 Resume State (live progress — update as you go)
+
+> This section is the authoritative "pick up exactly here" record. Any
+> operator can resume from this without the originating chat context.
+
+### 14.1 Phase 0 — DONE
+- MR **!13** (`feat/broker-registry-phase0`): `schema.json` +
+  `registry.py` + `tests/ta/broker/test_registry.py`. Contract + loader
+  + tests only; NO broker data. Catalog format is JSON (not YAML).
+  Merge !13 if not already merged.
+- Migration `0034` + `broker_id`/`broker_entity_id` columns are
+  DEFERRED to Phase 2 (ship with the provisioner that writes them). DB
+  head is `0033`; the new migration will chain `down_revision="0033"`.
+
+### 14.2 Phase 1 — IN PROGRESS (Deriv first, then Exness)
+
+Workstation: `softverse@Softverse` (WSL/headless Linux), repo at
+`~/eTradie`, bake dir `~/mt-bake/`.
+
+**Deriv — progress so far:**
+- [x] Installer acquired: `~/mt-bake/deriv/deriv5setup.exe` (23 MB).
+- [x] Installer SHA256 (RECORD THIS, item 1 for Deriv):
+      `7083086bcc28413933e09ccea23fde304c848f57f71619bce66e88066108fa41`
+- [x] Installed under `WINEPREFIX=~/mt-bake/deriv/wine`; terminal64.exe
+      present (118 MB) at
+      `~/mt-bake/deriv/wine/drive_c/Program Files/MetaTrader 5/terminal64.exe`.
+- [ ] **BLOCKED HERE:** `config/servers.dat` does NOT exist yet because
+      the terminal was launched and closed WITHOUT connecting to the
+      broker. The "Find Your Broker" modal could not be driven under
+      headless Xvfb (no visible cursor/keyboard).
+- [ ] NEXT ACTION: do **Step 3b** — launch the terminal on a REAL
+      interactive display (VNC Option A, or Windows/Mac copy Option B)
+      and trigger ONE connection to `Deriv-Demo` (any login/password)
+      so `servers.dat` is written. Then Step 4 verify
+      (`find ... -iname servers.dat` + `strings | grep -i deriv`).
+- [ ] Then Step 5 capture servers, Step 6 zip + sha, Step 7 upload to
+      `r2://etradie-installers/broker-bundles/deriv-portable.zip`,
+      Step 8 write `infrastructure/broker-catalog/deriv.json`.
+
+**Exness — not started.** Repeat §6 with
+`acquisition_url=https://download.mql5.com/cdn/web/exness.technologies.ltd/mt5/exness5setup.exe`,
+primary entity `exness_technologies_ltd` only for v1.
+
+### 14.3 Five items to capture per broker (hand back to engineering)
+1. installer `.exe` SHA256
+2. legal entity name(s)
+3. every demo + live server string (verbatim from `servers.dat`)
+4. `<brand>-portable.zip` SHA256
+5. the R2 URL/path
+
+### 14.4 Open decision still needed before Phase 2 provisioner code
+- R2 fetch mechanism: **public anonymous HTTPS** (recommended; matches
+  the existing generic `mt5-portable.zip` hosting) **vs private R2 +
+  credentials**. Determines whether `bundle_r2_path` is an `https://`
+  URL or an `r2://`/S3 reference + how the Phase 2 initContainer auths.
+
+### 14.5 Phase 2+ — NOT STARTED (engineering, after first bake on R2)
+- Engine API `GET /api/broker/registry` + create-path validation (§7.2).
+- Migration `0034` + `broker_id`/`broker_entity_id` columns (§7.3).
+- Provisioner `broker-bundle` initContainer + resolution + annotation (§7.4).
+- `entrypoint.sh` install `servers.dat` before launch (§7.5).
+- Helm chart mirror (§7.6).
+- Dashboard Find Broker → Entity → Server wizard (§7.7).
+- E2E Deriv → verify 3/3 Ready → mark active → repeat for Exness.
