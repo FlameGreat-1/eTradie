@@ -400,7 +400,7 @@ else
 LastBuildDataPath=${MT_BUILD}
 EOF
 fi
-log INFO "LiveUpdate pinned to build ${MT_BUILD} in $TERMINAL_INI ($MT_PLATFORM, defect #15)"
+log INFO "LiveUpdate pinned to build ${MT_BUILD} in $TERMINAL_INI ($MT_PLATFORM)"
 
 # NOTE: LiveUpdate is disabled solely via the [LiveUpdate]
 # LastBuildDataPath pin in terminal.ini above (the mechanism
