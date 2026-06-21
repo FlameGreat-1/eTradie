@@ -258,12 +258,20 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY ea/deps/ /tmp/ea_deps/
 
 RUN set -eux; \
-    cp /tmp/ea_deps/mt5/libzmq.dll "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Libraries/"; \
-    cp /tmp/ea_deps/mt4/libzmq.dll "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Libraries/"; \
-    cp -r /tmp/ea_deps/Include/Zmq "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Include/"; \
-    cp -r /tmp/ea_deps/Include/Zmq "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Include/"; \
-    cp /tmp/ea_deps/Include/JAson.mqh "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Include/"; \
-    cp /tmp/ea_deps/Include/JAson.mqh "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Include/"; \
+    MT5_ROOT="$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5"; \
+    MT4_ROOT="$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4"; \
+    # The portable MT zips are generated from a fresh install that has
+    # not yet created the MQL Libraries/Include trees (the terminal
+    # creates them on first run/compile). Create them so the EA dep
+    # copies below cannot fail with 'No such file or directory'.
+    mkdir -p "$MT5_ROOT/MQL5/Libraries" "$MT5_ROOT/MQL5/Include" \
+             "$MT4_ROOT/MQL4/Libraries" "$MT4_ROOT/MQL4/Include"; \
+    cp /tmp/ea_deps/mt5/libzmq.dll "$MT5_ROOT/MQL5/Libraries/libzmq.dll"; \
+    cp /tmp/ea_deps/mt4/libzmq.dll "$MT4_ROOT/MQL4/Libraries/libzmq.dll"; \
+    cp -r /tmp/ea_deps/Include/Zmq "$MT5_ROOT/MQL5/Include/Zmq"; \
+    cp -r /tmp/ea_deps/Include/Zmq "$MT4_ROOT/MQL4/Include/Zmq"; \
+    cp /tmp/ea_deps/Include/JAson.mqh "$MT5_ROOT/MQL5/Include/JAson.mqh"; \
+    cp /tmp/ea_deps/Include/JAson.mqh "$MT4_ROOT/MQL4/Include/JAson.mqh"; \
     rm -rf /tmp/ea_deps; \
     if [ ! -f "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Libraries/libzmq.dll" ]; then \
         echo "FATAL: libzmq.dll missing in MT5 template" >&2; \
