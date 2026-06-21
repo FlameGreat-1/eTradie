@@ -283,55 +283,28 @@ log INFO "EA .set written to $MT_DIR/$SET_REL_DST"
 # default chart and the EA attaches there; the engine resolves the
 # broker-actual symbol via GET_ALL_SYMBOLS and patches MT_SYMBOL,
 # triggering a single rolling restart with the real value.
-# The EA binds tcp://*:5555 in OnInit(), which runs ONLY when the EA is
-# attached to a chart. MT5's [Experts] block ENABLES experts but does
-# NOT attach one - attachment requires a [Charts] section + a chart
-# template naming the EA. So BOTH the resolved and sentinel boot MUST
-# write a chart template + [Charts], or the EA never runs and :5555
-# never binds (defect #14b). Sentinel boot attaches on a symbol-
-# agnostic bootstrap symbol PURELY to bring :5555 up; SYMBOL_RESOLVED
-# stays false so the engine still runs GET_ALL_SYMBOLS, patches
-# MT_SYMBOL, and the pod rolls once (the symbol two-boot). The socket
-# bind does not depend on the chart symbol.
-MT_BOOTSTRAP_SYMBOL="${MT_BOOTSTRAP_SYMBOL:-EURUSD}"
 INI_FILE="$MT_DIR/config/startup.ini"
 if [ "$SYMBOL_RESOLVED" = "true" ]; then
-  CHART_SYMBOL="$MT_SYMBOL"
-  log INFO "Symbol resolved; attaching EA on $CHART_SYMBOL"
-else
-  CHART_SYMBOL="$MT_BOOTSTRAP_SYMBOL"
-  log INFO "MT_SYMBOL is the resolution sentinel; attaching EA on bootstrap symbol $CHART_SYMBOL so :5555 binds for GET_ALL_SYMBOLS resolution"
-fi
-
-cat > "$MT_DIR/$TPL_REL_DST" <<EOF
+  cat > "$MT_DIR/$TPL_REL_DST" <<EOF
 <chart>
-symbol=${CHART_SYMBOL}
+symbol=${MT_SYMBOL}
 period=16385
 <expert>
 name=ZeroMQ_EA
 </expert>
 </chart>
 EOF
-log INFO "Chart template written ($CHART_SYMBOL)"
+  log INFO "Chart template written ($MT_SYMBOL)"
 
-# LiveUpdate=0 disables MT5's runtime auto-update. Without it the
-# terminal phones MetaQuotes on every boot, downloads a new build +
-# components (observed: build 5833 + mt5onnx64), and does a full
-# ~453-file recompilation - non-deterministic, slow (~100s to usable),
-# a runtime supply-chain pull. The image bakes a pinned build; this
-# keeps it authoritative (defect #14c). NewsEnable=0 stops the news
-# feed dialing out on boot too.
-cat > "$INI_FILE" <<EOF
+  cat > "$INI_FILE" <<EOF
 [Common]
 Login=${MT_LOGIN}
 Password=${MT_PASSWORD}
 Server=${MT_SERVER}
 AutoConfiguration=true
-LiveUpdate=0
-NewsEnable=0
 
 [Charts]
-Symbol=${CHART_SYMBOL}
+Symbol=${MT_SYMBOL}
 Period=H1
 Template=expert
 
@@ -342,7 +315,24 @@ Enabled=true
 Account=${MT_LOGIN}
 Profile=default
 EOF
-log INFO "Startup config written to $INI_FILE (symbol_resolved=$SYMBOL_RESOLVED, chart_symbol=$CHART_SYMBOL, LiveUpdate disabled)"
+else
+  log INFO "MT_SYMBOL is the resolution sentinel; skipping chart template until engine patches the StatefulSet"
+  cat > "$INI_FILE" <<EOF
+[Common]
+Login=${MT_LOGIN}
+Password=${MT_PASSWORD}
+Server=${MT_SERVER}
+AutoConfiguration=true
+
+[Experts]
+AllowLive=true
+AllowDllImport=true
+Enabled=true
+Account=${MT_LOGIN}
+Profile=default
+EOF
+fi
+log INFO "Startup config written to $INI_FILE"
 
 # ── Supervised MT restart loop ───────────────────────────────────
 restart_count=0

@@ -28,7 +28,6 @@ metadata:
 data:
   WATCHDOG_POLL_INTERVAL_SECONDS: {{ .Values.sidecar.watchdog.config.pollIntervalSeconds | quote }}
   WATCHDOG_MAX_FAILURES: {{ .Values.sidecar.watchdog.config.maxFailures | quote }}
-  WATCHDOG_STARTUP_GRACE_SECONDS: {{ .Values.sidecar.watchdog.config.startupGraceSeconds | default "300" | quote }}
   WATCHDOG_MEMORY_SOFT_CAP_FRACTION: {{ .Values.sidecar.watchdog.config.memorySoftCapFraction | quote }}
   WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION: {{ .Values.sidecar.watchdog.config.cpuThrottleSoftCapFraction | default "0.5" | quote }}
   WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS: {{ .Values.sidecar.watchdog.config.cpuThrottleConsecutivePolls | default "6" | quote }}

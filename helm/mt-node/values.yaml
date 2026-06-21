@@ -196,13 +196,6 @@ sidecar:
       pollIntervalSeconds: 10
       # Tolerated consecutive failures before forcing an in-pod restart.
       maxFailures: 6
-      # Cold MT5 boot under Wine takes longer than maxFailures*poll (60s)
-      # to bind :5555 + authenticate. During this grace window after the
-      # watchdog starts, EA-health failures do NOT trigger an in-pod MT
-      # restart (memory/CPU soft-caps still apply; /healthz still gates
-      # readiness). Prevents the watchdog killing a still-booting
-      # terminal. Defect #14a.
-      startupGraceSeconds: 300
       # Memory soft-cap: when the MT5 process RSS exceeds this fraction
       # of the cgroup memory limit, the watchdog triggers a clean
       # in-pod restart BEFORE the kernel OOM-killer kicks in (which
