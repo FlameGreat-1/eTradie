@@ -99,7 +99,7 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends \
         ca-certificates wget gnupg apt-transport-https \
         software-properties-common procps lsof psmisc \
-        xvfb x11-utils \
+        xvfb x11-utils unzip \
         python3-minimal python3-pip python3-zmq python3-psutil python3-prometheus-client \
         tzdata; \
     install -d -m 0755 /etc/apt/keyrings; \
@@ -178,94 +178,72 @@ RUN set -eux; \
     WINEPREFIX="$WINE_TEMPLATE" wineboot --init 2>/dev/null || true; \
     WINEPREFIX="$WINE_TEMPLATE" wineserver --wait 2>/dev/null || true
 
-# ── Download + verify MT5 installer ───────────────────────────────────────
+# ── Install MT5 from a PRE-INSTALLED PORTABLE artifact ──────────────────────
+# MT5_INSTALLER_URL points at a .zip of an already-installed MetaTrader 5
+# directory (generated once on a Wine+Xvfb host and hosted on an anonymous
+# HTTPS bucket, e.g. Cloudflare R2). We do NOT run mtXsetup.exe at build
+# time: that installer is an interactive GUI web-installer that either
+# silently no-ops without a display or HANGS forever under xvfb waiting on a
+# prompt (defect #13). Download -> sha256 verify -> unzip is deterministic,
+# reproducible, and cannot hang. The zip carries a top-level `MetaTrader 5`
+# directory, so unzipping into 'Program Files/' yields
+# 'Program Files/MetaTrader 5/terminal64.exe'.
 USER root
 RUN set -eux; \
     if [ -z "${MT5_INSTALLER_SHA256}" ]; then \
-        echo "FATAL: MT5_INSTALLER_SHA256 build-arg is required. Pass --build-arg MT5_INSTALLER_SHA256=<sha256> for production builds, or 'skip' for dev." >&2; \
+        echo "FATAL: MT5_INSTALLER_SHA256 build-arg is required. Pass --build-arg MT5_INSTALLER_SHA256=<sha256-of-the-portable-zip> for production builds, or 'skip' for dev." >&2; \
         exit 1; \
     fi; \
-    wget -qO /tmp/mt5setup.exe "${MT5_INSTALLER_URL}"; \
-    if [ "${MT5_INSTALLER_SHA256}" != "skip" ]; then \
-        echo "${MT5_INSTALLER_SHA256}  /tmp/mt5setup.exe" > /tmp/mt5setup.exe.sha256; \
-        sha256sum -c /tmp/mt5setup.exe.sha256; \
-        rm -f /tmp/mt5setup.exe.sha256; \
-    else \
-        echo "WARN: MT5 installer SHA check skipped (dev mode)." >&2; \
-    fi; \
-    chown mt:mt /tmp/mt5setup.exe
-
-USER mt
-# Run the MT5 installer under a virtual X display. mt5setup.exe is a
-# GUI web-installer: even with /auto it needs a display to run and to
-# download + lay down terminal64.exe. WITHOUT a display (and with the
-# previous '2>/dev/null || true') it silently no-ops and the image
-# ships with NO MetaTrader install (defect #13). xvfb-run provides the
-# display (the xvfb package is installed above). Errors are NOT
-# swallowed; the assertion below fails the build if terminal64.exe is
-# absent, except in dev 'skip' mode where it only WARNs.
-RUN set -eux; \
-    export WINEPREFIX="$WINE_TEMPLATE"; \
-    xvfb-run -a -s "-screen 0 1024x768x16 -nolisten tcp" \
-        wine /tmp/mt5setup.exe /auto; \
-    wineserver --wait; \
-    rm -f /tmp/mt5setup.exe; \
-    MT5_EXE="$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/terminal64.exe"; \
+    MT5_DEST="$WINE_TEMPLATE/drive_c/Program Files"; \
+    MT5_EXE="$MT5_DEST/MetaTrader 5/terminal64.exe"; \
     if [ "${MT5_INSTALLER_SHA256}" = "skip" ]; then \
-        if [ ! -f "$MT5_EXE" ]; then \
-            echo "WARN: MT5 install produced no terminal64.exe (dev 'skip' mode; image will NOT run a real MT5)." >&2; \
-        else \
-            echo "INFO: MT5 terminal64.exe present after install." >&2; \
-        fi; \
+        echo "WARN: MT5_INSTALLER_SHA256=skip - skipping MT5 portable download/unzip (dev mode; image will NOT run a real MT5)." >&2; \
     else \
+        wget -qO /tmp/mt5-portable.zip "${MT5_INSTALLER_URL}"; \
+        echo "${MT5_INSTALLER_SHA256}  /tmp/mt5-portable.zip" > /tmp/mt5-portable.zip.sha256; \
+        sha256sum -c /tmp/mt5-portable.zip.sha256; \
+        rm -f /tmp/mt5-portable.zip.sha256; \
+        mkdir -p "$MT5_DEST"; \
+        unzip -q -o /tmp/mt5-portable.zip -d "$MT5_DEST"; \
+        rm -f /tmp/mt5-portable.zip; \
         if [ ! -f "$MT5_EXE" ]; then \
-            echo "FATAL: MT5 install completed but terminal64.exe is missing at '$MT5_EXE'. The installer did not lay down the terminal (defect #13). Failing the build instead of shipping a broken image." >&2; \
+            echo "FATAL: MT5 portable unzipped but terminal64.exe is missing at '$MT5_EXE'. The zip layout is wrong (expected a top-level 'MetaTrader 5/' dir). Failing the build instead of shipping a broken image." >&2; \
             exit 1; \
         fi; \
         echo "INFO: MT5 terminal64.exe verified at '$MT5_EXE'." >&2; \
-    fi
+    fi; \
+    chown -R mt:mt "$WINE_TEMPLATE"
 
-# ── Download + verify MT4 installer ───────────────────────────────────────
+# ── Install MT4 from a PRE-INSTALLED PORTABLE artifact ──────────────────────
+# Same deterministic download+verify+unzip as MT5 above. MT4 is a 32-bit
+# app and installs into the 'Program Files (x86)' tree; the zip carries a
+# top-level `MetaTrader 4` dir so unzipping into 'Program Files (x86)/'
+# yields 'Program Files (x86)/MetaTrader 4/terminal.exe'.
 USER root
 RUN set -eux; \
     if [ -z "${MT4_INSTALLER_SHA256}" ]; then \
-        echo "FATAL: MT4_INSTALLER_SHA256 build-arg is required." >&2; \
+        echo "FATAL: MT4_INSTALLER_SHA256 build-arg is required. Pass --build-arg MT4_INSTALLER_SHA256=<sha256-of-the-portable-zip> for production builds, or 'skip' for dev." >&2; \
         exit 1; \
     fi; \
-    wget -qO /tmp/mt4setup.exe "${MT4_INSTALLER_URL}"; \
-    if [ "${MT4_INSTALLER_SHA256}" != "skip" ]; then \
-        echo "${MT4_INSTALLER_SHA256}  /tmp/mt4setup.exe" > /tmp/mt4setup.exe.sha256; \
-        sha256sum -c /tmp/mt4setup.exe.sha256; \
-        rm -f /tmp/mt4setup.exe.sha256; \
-    else \
-        echo "WARN: MT4 installer SHA check skipped (dev mode)." >&2; \
-    fi; \
-    chown mt:mt /tmp/mt4setup.exe
-
-USER mt
-# Same headless-installer fix as MT5 above: run under xvfb-run, do not
-# swallow errors, and assert terminal.exe exists (MT4 installs into the
-# 32-bit 'Program Files (x86)' tree). Dev 'skip' mode only WARNs.
-RUN set -eux; \
-    export WINEPREFIX="$WINE_TEMPLATE"; \
-    xvfb-run -a -s "-screen 0 1024x768x16 -nolisten tcp" \
-        wine /tmp/mt4setup.exe /auto; \
-    wineserver --wait; \
-    rm -f /tmp/mt4setup.exe; \
-    MT4_EXE="$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/terminal.exe"; \
+    MT4_DEST="$WINE_TEMPLATE/drive_c/Program Files (x86)"; \
+    MT4_EXE="$MT4_DEST/MetaTrader 4/terminal.exe"; \
     if [ "${MT4_INSTALLER_SHA256}" = "skip" ]; then \
-        if [ ! -f "$MT4_EXE" ]; then \
-            echo "WARN: MT4 install produced no terminal.exe (dev 'skip' mode; image will NOT run a real MT4)." >&2; \
-        else \
-            echo "INFO: MT4 terminal.exe present after install." >&2; \
-        fi; \
+        echo "WARN: MT4_INSTALLER_SHA256=skip - skipping MT4 portable download/unzip (dev mode; image will NOT run a real MT4)." >&2; \
     else \
+        wget -qO /tmp/mt4-portable.zip "${MT4_INSTALLER_URL}"; \
+        echo "${MT4_INSTALLER_SHA256}  /tmp/mt4-portable.zip" > /tmp/mt4-portable.zip.sha256; \
+        sha256sum -c /tmp/mt4-portable.zip.sha256; \
+        rm -f /tmp/mt4-portable.zip.sha256; \
+        mkdir -p "$MT4_DEST"; \
+        unzip -q -o /tmp/mt4-portable.zip -d "$MT4_DEST"; \
+        rm -f /tmp/mt4-portable.zip; \
         if [ ! -f "$MT4_EXE" ]; then \
-            echo "FATAL: MT4 install completed but terminal.exe is missing at '$MT4_EXE'. The installer did not lay down the terminal (defect #13). Failing the build instead of shipping a broken image." >&2; \
+            echo "FATAL: MT4 portable unzipped but terminal.exe is missing at '$MT4_EXE'. The zip layout is wrong (expected a top-level 'MetaTrader 4/' dir). Failing the build instead of shipping a broken image." >&2; \
             exit 1; \
         fi; \
         echo "INFO: MT4 terminal.exe verified at '$MT4_EXE'." >&2; \
-    fi
+    fi; \
+    chown -R mt:mt "$WINE_TEMPLATE"
 
 # ── EA binaries + watchdog + entrypoint ─────────────────────────
 USER root
