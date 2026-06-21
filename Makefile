@@ -286,16 +286,19 @@ logs: ## Tail logs for all containers
 ps: ## View running eTradie containers
 	docker compose ps
 
-build-mt-node: ## Build the MetaTrader headless Docker image (production CI must export MT5_INSTALLER_SHA256, MT4_INSTALLER_SHA256, EA_EX5_SHA256, EA_EX4_SHA256, WINEHQ_VERSION; pass 'skip' for dev)
+build-mt-node: ## Build the MetaTrader headless Docker image. MT5/MT4_INSTALLER_URL must point at PRE-INSTALLED PORTABLE .zip artifacts (NOT the mtXsetup.exe installer - defect #13); MT5/MT4_INSTALLER_SHA256 are the SHA256 of those zips. Export WINEHQ_VERSION + the SHAs for a real build; pass 'skip' for dev (no MT terminal baked).
 	echo -e "$(BLUE)Building etradie-mt-node...$(NC)"
 	@if [ -z "$${WINEHQ_VERSION:-}" ]; then \
 		echo -e "$(YELLOW)WARN: WINEHQ_VERSION not set - image will NOT be reproducible. Production CI MUST set it. See docker/mt-node/README.md for the discovery snippet.$(NC)"; \
 	fi
+	@if [ -z "$${MT5_INSTALLER_URL:-}" ] && [ "$${MT5_INSTALLER_SHA256:-skip}" != "skip" ]; then \
+		echo -e "$(YELLOW)WARN: MT5_INSTALLER_SHA256 is set but MT5_INSTALLER_URL is not - falling back to the portable-zip default. The build downloads + unzips a PRE-INSTALLED MetaTrader 5 directory; it does NOT run mt5setup.exe (defect #13). Point MT5_INSTALLER_URL at your own mirror for reproducibility.$(NC)"; \
+	fi
 	docker build \
 		--build-arg MT5_INSTALLER_SHA256=$${MT5_INSTALLER_SHA256:-skip} \
 		--build-arg MT4_INSTALLER_SHA256=$${MT4_INSTALLER_SHA256:-skip} \
-		--build-arg MT5_INSTALLER_URL=$${MT5_INSTALLER_URL:-https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe} \
-		--build-arg MT4_INSTALLER_URL=$${MT4_INSTALLER_URL:-https://download.mql5.com/cdn/web/metaquotes.software.corp/mt4/mt4setup.exe} \
+		--build-arg MT5_INSTALLER_URL=$${MT5_INSTALLER_URL:-https://pub-5bdcacdedad6458298e8b8d5435f301a.r2.dev/mt5-portable.zip} \
+		--build-arg MT4_INSTALLER_URL=$${MT4_INSTALLER_URL:-https://pub-5bdcacdedad6458298e8b8d5435f301a.r2.dev/mt4-portable.zip} \
 		--build-arg EA_EX5_SHA256=$${EA_EX5_SHA256:-skip} \
 		--build-arg EA_EX4_SHA256=$${EA_EX4_SHA256:-skip} \
 		--build-arg WINEHQ_VERSION=$${WINEHQ_VERSION:-} \
