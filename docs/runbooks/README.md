@@ -514,9 +514,19 @@ build guard - mt-node"). If those CI secrets are NOT set, the
 provision will `ImagePullBackOff`. Build + push it explicitly here.
 
 > The mt-node image bakes Wine + the MT5 AND MT4 terminals + the ZeroMQ EA
-> into one image. It is large and slow to build (Wine prefix init + two
-> installers). Build it on a machine with Docker and good bandwidth, not on
-> the Contabo box.
+> into one image. It is large and slow to build. Build it on a machine with
+> Docker and good bandwidth, not on the Contabo box.
+>
+> **DEFECT #13 (2026-06-21) — read before building.** The image does NOT run
+> the MetaQuotes `mtXsetup.exe` installer at build time. That installer is an
+> interactive GUI web-installer: under `docker build` it either silently
+> no-ops (no display) or hangs forever under xvfb (waits on a prompt),
+> shipping an image with NO `terminal64.exe`. The Dockerfile instead
+> downloads a PRE-INSTALLED PORTABLE MetaTrader directory (a .zip),
+> sha256-verifies it, and unzips it into the Wine template. `MT5_INSTALLER_URL`
+> / `MT4_INSTALLER_URL` therefore point at the PORTABLE ZIPS, and
+> `MT5_INSTALLER_SHA256` / `MT4_INSTALLER_SHA256` are the SHA256 of those
+> zips (NOT of the .exe). Generate the zips once per 2.5.3 below.
 
 2.5.1 Discover the exact WineHQ apt version to pin (reproducible builds):
 ```bash
@@ -537,32 +547,79 @@ make mt-node-ea-sha
 # Prints EA_EX5_SHA256=<...> and EA_EX4_SHA256=<...> if the .ex4/.ex5 are present.
 ```
 
-2.5.3 Get the MT5 + MT4 installer SHA256s. Either download once from
-MetaQuotes and hash them, OR (recommended for regulated/air-gapped
-environments) mirror the installers to your own artifact store and hash
-the mirrored blobs:
+2.5.3 Generate the PORTABLE MT5 + MT4 artifacts (one-time) and host them.
+The build unzips these; it never runs the installer (defect #13). Do this
+ONCE on any Linux box with Wine + Xvfb (a workstation is fine), then host
+the two zips on an anonymous HTTPS bucket and reuse them across builds.
+
 ```bash
-curl -fsSL -o /tmp/mt5setup.exe https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe
-curl -fsSL -o /tmp/mt4setup.exe https://download.mql5.com/cdn/web/metaquotes.software.corp/mt4/mt4setup.exe
-sha256sum /tmp/mt5setup.exe /tmp/mt4setup.exe
+# Install Wine + Xvfb if absent (Ubuntu 24.04):
+sudo dpkg --add-architecture i386
+sudo apt update && sudo apt install -y --install-recommends wine wine64 wine32 xvfb x11-utils zip
+
+# Install MT5 + MT4 once under a throwaway Wine prefix with a virtual
+# display. The installer's post-install UI may page-fault / print
+# 'X connection broken' - that is COSMETIC; the files land before it.
+export WORK=~/mt-portable WINEPREFIX=~/mt-portable/wine WINEDEBUG=-all
+rm -rf "$WORK" && mkdir -p "$WORK" && cd "$WORK"
+wget -O mt5setup.exe https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe
+wget -O mt4setup.exe https://download.mql5.com/cdn/web/metaquotes.software.corp/mt4/mt4setup.exe
+wine wineboot --init; wineserver --wait
+xvfb-run -a -s "-screen 0 1024x768x24" wine mt5setup.exe /auto; wineserver --wait
+xvfb-run -a -s "-screen 0 1024x768x24" wine mt4setup.exe /auto; wineserver --wait
+
+# Both binaries MUST be found before zipping (if either is empty, the
+# /auto install did not complete headless - finish it once under a VNC
+# display: x11vnc on :99, click through the wizard, then re-check):
+find "$WINEPREFIX/drive_c" -iname terminal64.exe   # .../MetaTrader 5/terminal64.exe
+find "$WINEPREFIX/drive_c" -iname terminal.exe      # .../MetaTrader 4/terminal.exe
+
+# Zip from INSIDE the respective Program Files dir so each zip carries a
+# TOP-LEVEL 'MetaTrader 5' / 'MetaTrader 4' folder (the Dockerfile unzips
+# into Program Files/ and Program Files (x86)/ respectively):
+cd "$WINEPREFIX/drive_c/Program Files"       && zip -rq "$WORK/mt5-portable.zip" "MetaTrader 5"
+cd "$WINEPREFIX/drive_c/Program Files (x86)" && zip -rq "$WORK/mt4-portable.zip" "MetaTrader 4"
+sha256sum "$WORK"/mt5-portable.zip "$WORK"/mt4-portable.zip   # record these -> MT{5,4}_INSTALLER_SHA256
+```
+
+Then upload both zips to an anonymous HTTPS host (Cloudflare R2 / B2 / S3 /
+any static host). The URL must NOT contain `download.mql5.com` (the CI
+production-build guard blocks that substring). The staging deploy used
+Cloudflare R2 (`etradie-installers` bucket, r2.dev public subdomain):
+
+| Artifact | Staging URL | SHA256 |
+|---|---|---|
+| `mt5-portable.zip` (166M) | `https://pub-5bdcacdedad6458298e8b8d5435f301a.r2.dev/mt5-portable.zip` | `32675431e68ab8715ee6e0b45d77d58b206fbbc8f610ad54d71b32c7f821ece3` |
+| `mt4-portable.zip` (41M) | `https://pub-5bdcacdedad6458298e8b8d5435f301a.r2.dev/mt4-portable.zip` | `b2dcd86fcc658a41d677f0fee5d3b725ab8e6aa539929d5199a7d854210b7ff9` |
+
+Verify the hosted zips are byte-correct before building:
+```bash
+curl -fsI "$MT5_INSTALLER_URL" | head -1                  # HTTP/.. 200
+curl -fsSL "$MT5_INSTALLER_URL" | sha256sum               # == MT5_INSTALLER_SHA256
 ```
 
 2.5.4 Build (full supply-chain pinning) and push. `make build-mt-node`
-wraps `docker build docker/mt-node/` with the build args; `push-mt-node`
-builds then pushes:
+wraps `docker build docker/mt-node/` with the build args (it downloads +
+sha256-verifies + unzips the portable zips above); `push-mt-node` builds
+then pushes:
 ```bash
 echo "$GHCR_PAT" | docker login ghcr.io -u flamegreat-1 --password-stdin
-export WINEHQ_VERSION='<from 2.5.1, e.g. 9.0.0.0~noble-1>'
-export MT5_INSTALLER_SHA256='<from 2.5.3>'
-export MT4_INSTALLER_SHA256='<from 2.5.3>'
+export WINEHQ_VERSION='<from 2.5.1, e.g. 11.0.0.0~noble-1>'
+export MT5_INSTALLER_URL='<portable mt5 zip URL from 2.5.3>'
+export MT4_INSTALLER_URL='<portable mt4 zip URL from 2.5.3>'
+export MT5_INSTALLER_SHA256='<sha256 of mt5-portable.zip from 2.5.3>'
+export MT4_INSTALLER_SHA256='<sha256 of mt4-portable.zip from 2.5.3>'
 export EA_EX5_SHA256='<from 2.5.2>'
 export EA_EX4_SHA256='<from 2.5.2 or skip>'
 export MT_NODE_TAG='0.1.0'      # MUST equal helm/mt-node/values-image.yaml tag
 make push-mt-node
 ```
-Air-gapped variant (own installer mirror) — call docker build directly with
-`--build-arg MT5_INSTALLER_URL=` / `MT4_INSTALLER_URL=` pointing at your
-mirror (see `docker/mt-node/README.md` "Air-gapped CI").
+NOTE: in normal operation the mt-node image is built by CI (the `build`
+matrix in `.github/workflows/ci.yml` includes mt-node and plumbs these same
+build-args from GitHub Actions secrets), and CI's `deploy-bump` pins the
+new SHA into the staging overlays. The manual `make push-mt-node` path
+above is for the by-hand / bootstrap case. Either way the URLs point at
+PORTABLE ZIPS, never the `.exe` installer.
 
 2.5.5 **Verify the tag now exists** (Phase 0.4's mt-node check must pass):
 ```bash
