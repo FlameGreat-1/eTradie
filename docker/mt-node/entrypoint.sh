@@ -404,18 +404,49 @@ EOF
 fi
 log INFO "LiveUpdate pinned to build ${MT_BUILD} in $TERMINAL_INI ($MT_PLATFORM, defect #15)"
 
-# Layer 2: make the terminal binary + its in-place update targets
-# read-only so a downloaded LiveUpdate cannot be applied (no
-# self-restart) regardless of build number. We chmod only the
-# terminal executable itself; keep config/, logs/, MQL5|MQL4/Logs,
-# and the prefix's writable areas untouched so the terminal still
-# starts, logs, compiles the EA, and the EA can write its own logs.
-# A failed in-place rewrite of the .exe makes MT abandon the apply
-# step rather than self-restart into a new build.
-if [ -f "$MT_DIR/$MT_EXE" ]; then
-  chmod 0555 "$MT_DIR/$MT_EXE" 2>/dev/null \
-    && log INFO "Hardened $MT_DIR/$MT_EXE read-only to block LiveUpdate apply (defect #15)" \
-    || log WARN "Could not chmod $MT_DIR/$MT_EXE read-only; LiveUpdate Layer 2 not enforced (Layer 1 ini pin still active)"
+# Layer 2: make the WHOLE MetaTrader program directory ROOT
+# non-writable so a downloaded LiveUpdate cannot be applied -- no
+# self-restart -- regardless of build number or update host.
+#
+# MT applies a LiveUpdate by overwriting terminal*.exe AND its
+# top-level support files (DLLs, etc.) IN PLACE at the program-dir
+# root. Locking only the .exe is insufficient (the apply rewrites
+# more than the .exe). Making the program-dir ROOT read-only makes
+# the apply step fail atomically; MT keeps running the baked build.
+#
+# CRITICAL: MT and the EA must still WRITE at runtime to start, log
+# in to the broker, compile, and bind :5555. Those writes go to
+# SUBDIRECTORIES of the program dir (MQL5|MQL4/, config/, logs/,
+# Profiles/), NOT to the root. So we make ONLY the program-dir root
+# node read-only (chmod the directory itself, non-recursively); its
+# child directories keep their own permissions and stay writable.
+# Result: the terminal runs and trades normally; only new files /
+# overwrites AT THE ROOT (i.e. an update dropping a new
+# terminal*.exe) are refused.
+#
+# This touches NO network, so the broker connection (login, quotes,
+# orders -> mt5_connected) is completely unaffected. Config +
+# filesystem only; no EA recompile. Identical for MT4 and MT5.
+if [ -d "$MT_DIR" ]; then
+  # Ensure the runtime-writable subdirs exist and are writable BEFORE
+  # we lock the root, so MT/EA can always write where they need to.
+  if [ "$MT_PLATFORM" = "mt4" ]; then
+    MQL_DIR="MQL4"
+  else
+    MQL_DIR="MQL5"
+  fi
+  for d in "config" "logs" "Profiles" "$MQL_DIR"; do
+    mkdir -p "$MT_DIR/$d" 2>/dev/null || true
+    chmod u+rwx "$MT_DIR/$d" 2>/dev/null || true
+  done
+  # Non-recursive: lock the directory node itself (blocks creating /
+  # replacing entries AT THE ROOT, e.g. a new terminal*.exe) while
+  # leaving every child dir's own permissions intact.
+  if chmod 0555 "$MT_DIR" 2>/dev/null; then
+    log INFO "Hardened program dir root read-only to block LiveUpdate apply: $MT_DIR ($MT_PLATFORM, defect #15)"
+  else
+    log WARN "Could not chmod program dir root read-only; LiveUpdate Layer 2 not enforced (Layer 1 ini pin still active): $MT_DIR"
+  fi
 fi
 
 # ── Supervised MT restart loop ───────────────────────────────────
