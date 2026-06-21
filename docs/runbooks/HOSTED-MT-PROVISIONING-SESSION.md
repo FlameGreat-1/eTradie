@@ -4,8 +4,120 @@
 This is the authoritative resume point for the hosted-MT provisioning
 effort on the **staging** Contabo box (`vmi3362776`).
 
-**Last updated:** 2026-06-21, session through defect #13 (MT terminal binary
-missing from the image -> portable MT5/MT4 artifact build).
+**Last updated:** 2026-06-21, session through defect #14 (EA runtime
+dependency libzmq.dll missing from the portable MT image). READ THE
+DEFECT #14 BLOCK BELOW FIRST.
+
+> SESSION UPDATE 2026-06-21 (defect #14 - EA cannot bind :5555 because
+> its libzmq.dll runtime dependency is NOT in the image). READ THIS
+> BLOCK FIRST; it supersedes the defect #13 block below.
+>
+> WHERE WE ARE: defect #13 is FIXED - the portable MT5/MT4 terminal is
+> now baked into the image (mt-node SHA d8a5b166 then d9425a4a;
+> engine MT_NODE_IMAGE pins it; terminal64.exe runs, no more
+> 'ShellExecuteEx failed: File not found'). But the tenant pod still
+> never reaches 3/3 Ready. It sits at 2/3, mt5_connected=0,
+> authenticated=0, and the watchdog HEALTH poll on tcp://127.0.0.1:5555
+> fails forever ('Resource temporarily unavailable').
+>
+> WHAT WAS WRONG (defect #14 - PROVEN at the filesystem level, not a
+> theory): the ZeroMQ EA is a DLL-import EA. It calls into
+> `libzmq.dll` in OnInit() to create its ZMQ REP socket. That DLL,
+> and the EA's MQL includes, are ABSENT from the baked portable
+> prefix. Verified live on pod etradie-mt-cf6e2e6b-b80-0:
+>     MQL5/Experts/ZeroMQ_EA.ex5     -> PRESENT (129 KB)
+>     libzmq.dll (anywhere)          -> NOT PRESENT
+>     MQL5/Include/Zmq/              -> MISSING
+>     MQL5/Include/JAson.mqh         -> MISSING
+> With no libzmq.dll the EA's OnInit DLL import fails, so the EA never
+> initialises, never binds :5555, and never creates MQL5/Logs/
+> (confirmed: `no MQL5/Logs - no expert ever ran`, `nothing on :5555`).
+> NO chart/entrypoint/watchdog change can fix a missing runtime library.
+>
+> FIRST #14 ATTEMPT - WRONG, ALREADY REVERTED: I theorised the EA was
+> simply not ATTACHED (sentinel boot wrote no [Charts] section) and
+> committed an entrypoint change (attach EA on a bootstrap symbol +
+> LiveUpdate=0) plus a watchdog startup-grace. A LIVE TEST disproved
+> it: writing expert.tpl + [Charts] into the running prefix STILL gave
+> no MQL5/Logs and nothing on :5555, because the real blocker is the
+> missing libzmq.dll, not attachment. Those commits were reverted (see
+> 'revert(mt-node): undo defect #14 ...' on main). Entrypoint +
+> watchdog are back to their pre-#14 state. Do NOT re-apply that
+> approach.
+>
+> SECONDARY OBSERVATION (real but not the blocker): MT5 build 5836
+> runs LiveUpdate + a full 453-file recompilation on EVERY cold boot
+> (journal: 'LiveUpdate new version build 5833', 'mt5onnx64 downloaded',
+> 'full recompilation has been started/finished'). Non-deterministic +
+> slow (~100s to usable) + a runtime MetaQuotes pull. Worth disabling
+> (LiveUpdate=0) as a SEPARATE hardening once the libzmq blocker is
+> fixed - but it is NOT why :5555 is down.
+>
+> THE CORRECT FIX (NOT yet implemented): bake the EA's runtime
+> dependencies into the portable MT image, same class as defect #13
+> (image was missing what the EA needs). Specifically the mt-node image
+> must contain, inside the Wine prefix the entrypoint seeds:
+>   - libzmq.dll on the EA's DLL search path. For MT5 the terminal
+>     loads DLLs from `MQL5/Libraries/` (and the terminal dir); the
+>     64-bit libzmq.dll MUST match MT5 x64 (terminal64.exe). MT4 uses
+>     the 32-bit libzmq.dll under `MQL4/Libraries/`.
+>   - the Zmq MQL include tree (MQL5/Include/Zmq/, MQL4/Include/Zmq/)
+>     and JAson.mqh - REQUIRED to RE-COMPILE the EA from source, but if
+>     we ship a prebuilt .ex5/.ex4 the includes are only needed if MT
+>     recompiles; the .dll is needed at RUNTIME regardless.
+>   - the prebuilt ZeroMQ_EA.ex5/.ex4 MUST be compiled against a build
+>     compatible with the baked terminal (build 5836). An .ex5 from an
+>     incompatible build can silently fail to load. SOURCE lives at
+>     src/engine/ta/broker/mt5/zmq/ZeroMQ_EA.mq5 (+ .mq4); the committed
+>     docker/mt-node/ea/ZeroMQ_EA.ex5 is the prebuilt artifact.
+>
+> OPEN QUESTIONS TO RESOLVE BEFORE COMMITTING THE FIX (do NOT guess):
+>   1. Where does this MT5 build search for import DLLs under Wine -
+>      MQL5/Libraries/ vs the terminal dir? (Determines where to place
+>      libzmq.dll in the prefix / image.)
+>   2. Is the committed ZeroMQ_EA.ex5 compiled for a build compatible
+>      with 5836? If not, it must be recompiled (MetaEditor) against the
+>      baked terminal, or the image must compile it at build time.
+>   3. Which libzmq.dll build/ABI does the EA's #import expect (name +
+>      bitness)? mql-zmq (github.com/dingmaotu/mql-zmq) ships a
+>      libzmq.dll; the EA header references it.
+>   4. Does shipping the .ex5 avoid needing the Zmq/JAson includes at
+>      runtime, or does MT recompile on boot (the observed per-boot
+>      'full recompilation') and thus NEED the includes present too?
+>
+> >>> RESUME HERE (2026-06-21, defect #14) <<<
+> 1. NOTE: a manual probe override is live on the StatefulSet:
+>      kubectl -n etradie-system set env statefulset/etradie-mt-cf6e2e6b-b80 -c watchdog WATCHDOG_MAX_FAILURES=9999
+>    Drop it (or just delete the connection; a re-provision builds a
+>    fresh StatefulSet from the chart):
+>      kubectl -n etradie-system set env statefulset/etradie-mt-cf6e2e6b-b80 -c watchdog WATCHDOG_MAX_FAILURES-
+> 2. Answer the four OPEN QUESTIONS above against mql-zmq + the EA
+>    source + the live MT5 build. Determine the exact libzmq.dll
+>    (name+bitness) and its required prefix location for MT5 (x64) AND
+>    MT4 (x86).
+> 3. Implement the CORRECT fix in docker/mt-node/Dockerfile (and/or the
+>    portable-zip artifacts): place libzmq.dll on the EA DLL search path
+>    in the baked Wine template for BOTH MT5 and MT4, add the Zmq/JAson
+>    includes if recompile-on-boot needs them, and ensure the prebuilt
+>    .ex5/.ex4 is build-compatible (recompile if not). Add a build-time
+>    assertion that libzmq.dll is present (mirror the defect #13
+>    terminal64.exe assertion) so a future image can never ship without
+>    it.
+> 4. Rebuild via CI (portable-zip flow, see defect #13 block), confirm
+>    the new mt-node SHA pins (engine printenv MT_NODE_IMAGE), clean the
+>    failed tenant + rows, re-provision FROM THE DASHBOARD, then verify
+>    on the tenant pod:
+>      kubectl -n etradie-system exec <pod> -c mt-node -- sh -c 'find /home/mt/.wine/prefix -iname libzmq*.dll'   # present
+>      kubectl -n etradie-system exec <pod> -c mt-node -- sh -c 'ls "/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5/MQL5/Logs"'   # EA ran
+>      kubectl -n etradie-system exec <pod> -c mt-node -- sh -c 'ss -ltn | grep 5555'   # EA bound the socket
+>    SUCCESS = MQL5/Logs/ exists with an EA OnInit line, :5555 LISTEN,
+>    watchdog mt5_connected=1 + authenticated=1, pod 3/3 Ready.
+> 5. THEN (separate hardening, not the blocker): disable MT5 LiveUpdate
+>    + per-boot recompile for deterministic fast boots.
+>
+> CLEAN-BASE NOTE: entrypoint.sh + watchdog.py + helm/mt-node
+> configmap-watchdog.yaml + values.yaml were reverted to their pre-#14
+> state in this session. Start the correct fix from that clean base.
 
 > SESSION UPDATE 2026-06-21 (defect #13 - MT terminal binary missing
 > from the mt-node image). READ THIS BLOCK FIRST; it supersedes every
