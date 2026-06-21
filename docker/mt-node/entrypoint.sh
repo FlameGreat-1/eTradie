@@ -343,29 +343,27 @@ log INFO "Startup config written to $INI_FILE"
 # loop in which the EA OnInit never runs, MQL Logs is never created,
 # and :5555 never binds, so the pod never reaches Ready.
 #
-# This applies to BOTH platforms (the image bakes both MT4 and MT5 EA
-# artifacts). The fix is layered for defence-in-depth:
+# Applies to BOTH platforms (the image bakes both MT4 and MT5 EA
+# artifacts). LiveUpdate is disabled by ONE mechanism, confirmed from
+# the actual install: the [LiveUpdate] LastBuildDataPath key in
+# terminal.ini (NOT common.ini). Pinning it to the baked terminal
+# build makes the terminal treat itself as current and skip the
+# update + self-restart. The MT family shares the terminal.ini schema,
+# so the same pin is written for MT4 and MT5.
 #
-#   Layer 1 (config): LiveUpdate is controlled in terminal.ini (NOT
-#   common.ini) under the [LiveUpdate] section; LastBuildDataPath
-#   tracks the last-known build. Pinning it to the baked terminal
-#   build makes the terminal treat itself as current. (Authoritatively
-#   confirmed for the MT5 install; written for MT4 too since the
-#   terminal.ini schema is shared across the MT family.)
+# Defence in depth without side effects: the pin is BAKED into the
+# image template at build time (Dockerfile, both program dirs) so a
+# freshly-seeded prefix ships already-current, AND re-pinned here at
+# runtime so it also holds on the symbol two-boot / any restart where
+# the template is not re-copied.
 #
-#   Layer 2 (filesystem, build-number-independent): pinning the ini
-#   key alone only marks the build as last-seen -- it does not
-#   guarantee the terminal stops phoning MetaQuotes, downloading a
-#   new build, and applying it. So we ALSO make the terminal's own
-#   directory non-writable to the running user. MetaTrader applies a
-#   LiveUpdate by rewriting terminal64.exe/terminal.exe + its support
-#   files IN PLACE; if the install dir is read-only the apply step
-#   fails and the terminal cannot self-restart into a new build,
-#   regardless of build number. This is the deterministic,
-#   headless/CI industry-standard posture: make the update impossible
-#   to APPLY, not merely tracked.
-#
-# Config + permission only; no EA recompile.
+# NO filesystem chmod and NO network block are used. Locking the
+# program dir would risk stopping the terminal from launching (MT
+# writes legitimate files at the program-dir root on startup), and a
+# network block is the only lever that could endanger the broker
+# connection. The ini pin is config-only with zero side effect -- it
+# cannot break the broker, the EA, the ZMQ socket, or startup. No EA
+# recompile.
 
 # Resolve the baked terminal build so we never pin a stale number.
 # The terminal records the running build in its journal as
