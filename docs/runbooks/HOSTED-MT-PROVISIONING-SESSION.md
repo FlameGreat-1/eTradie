@@ -4,7 +4,127 @@
 This is the authoritative resume point for the hosted-MT provisioning
 effort on the **staging** Contabo box (`vmi3362776`).
 
-**Last updated:** 2026-06-20, session through defect #12 + mt-node GitOps SHA-pin.
+**Last updated:** 2026-06-21, session through defect #13 (MT terminal binary
+missing from the image -> portable MT5/MT4 artifact build).
+
+> SESSION UPDATE 2026-06-21 (defect #13 - MT terminal binary missing
+> from the mt-node image). READ THIS BLOCK FIRST; it supersedes every
+> older resume pointer below.
+>
+> WHAT WAS WRONG:
+> - After defects #10/#11/#12 cleared (no more 'Read-only file system'
+>   and no more 'is not owned by you'), the tenant pod's mt-node
+>   container Wine-launched and immediately looped on
+>   `ShellExecuteEx failed: File not found` / `Application could not be
+>   started`, exhausted its 6x in-pod restart budget, and CrashLooped.
+> - Filesystem-confirmed on the running pod: NO `terminal64.exe`
+>   anywhere in `/opt/wine-template` or `/home/mt/.wine/prefix`, and NO
+>   `MetaTrader 5` dir at all in the baked template (only Wine's
+>   built-in stubs: iexplore/wmplayer/wordpad). The MT5/MT4 install
+>   simply never happened during the image build.
+> - ROOT CAUSE: `docker/mt-node/Dockerfile` ran
+>   `wine /tmp/mtXsetup.exe /auto 2>/dev/null || true` at build time
+>   with NO X display and ALL errors swallowed. MetaQuotes' mtXsetup.exe
+>   is an interactive GUI web-installer; even with /auto it needs a
+>   display and does not reliably complete unattended. With no display
+>   and `|| true` it silently no-op'd, the build 'succeeded', and the
+>   image shipped with no terminal. (The prior 'working' builds were an
+>   illusion: the install was ALWAYS a no-op, hidden by `|| true`.)
+>
+> FIRST FIX ATTEMPT (insufficient, do NOT rely on it):
+> - Ran the installer under `xvfb-run`, dropped `|| true`, added a hard
+>   `terminal64.exe`/`terminal.exe` assertion. Result: the build no
+>   longer silently ships broken, but the GUI web-installer HANGS
+>   indefinitely under xvfb (waits on a prompt nobody clicks). CI stuck
+>   30min+ on the MT5 install step. Confirms: running the installer in
+>   `docker build` is the wrong design, period.
+>
+> PERMANENT FIX (in progress): do NOT run the installer in the build.
+> Bake PRE-INSTALLED PORTABLE MT5 + MT4 directories into the image.
+> - Generated once on a workstation with Wine 9.0 + Xvfb:
+>     export WINEPREFIX=~/mt-portable/wine
+>     wine wineboot --init; wineserver --wait
+>     xvfb-run -a -s "-screen 0 1024x768x24" wine mt5setup.exe /auto; wineserver --wait
+>     xvfb-run -a -s "-screen 0 1024x768x24" wine mt4setup.exe /auto; wineserver --wait
+>   (the installer's post-install UI page-faults / 'X connection broken'
+>   are COSMETIC; the files land before that.) Both binaries verified:
+>     .../drive_c/Program Files/MetaTrader 5/terminal64.exe
+>     .../drive_c/Program Files (x86)/MetaTrader 4/terminal.exe
+> - Zipped from inside the respective Program Files dir so each zip has
+>   a top-level `MetaTrader 5` / `MetaTrader 4` folder:
+>     cd "$WINEPREFIX/drive_c/Program Files"       && zip -rq mt5-portable.zip "MetaTrader 5"
+>     cd "$WINEPREFIX/drive_c/Program Files (x86)" && zip -rq mt4-portable.zip "MetaTrader 4"
+> - Artifact sha256 (these are the NEW values for the *_INSTALLER_SHA256
+>   secrets - the pins now fingerprint the PORTABLE ZIPS, not the .exe):
+>     mt5-portable.zip  166M  32675431e68ab8715ee6e0b45d77d58b206fbbc8f610ad54d71b32c7f821ece3
+>     mt4-portable.zip   41M  b2dcd86fcc658a41d677f0fee5d3b725ab8e6aa539929d5199a7d854210b7ff9
+>
+> HOSTING: both zips uploaded to a Cloudflare R2 public bucket
+> (`etradie-installers`, r2.dev public subdomain). Any anonymous HTTPS
+> host works; the URL just must NOT contain `download.mql5.com` (the CI
+> production-build guard blocks that substring).
+>
+> GITHUB ACTIONS SECRETS after this change (repo FlameGreat-1/eTradie,
+> Settings -> Secrets and variables -> Actions). Already present from
+> deploy time: WINEHQ_VERSION, EA_EX5_SHA256, EA_EX4_SHA256,
+> ETRADIE_ALLOW_PUBLIC_INSTALLER_CDN. REWIRED for defect #13:
+>   MT5_INSTALLER_URL    = https://pub-<hash>.r2.dev/mt5-portable.zip
+>   MT4_INSTALLER_URL    = https://pub-<hash>.r2.dev/mt4-portable.zip
+>   MT5_INSTALLER_SHA256 = 32675431e68ab8715ee6e0b45d77d58b206fbbc8f610ad54d71b32c7f821ece3
+>   MT4_INSTALLER_SHA256 = b2dcd86fcc658a41d677f0fee5d3b725ab8e6aa539929d5199a7d854210b7ff9
+>
+> DOCKERFILE CHANGE (docker/mt-node/Dockerfile): both MT install steps
+> are being rewritten to: add `unzip` to apt; download the portable zip
+> from MTx_INSTALLER_URL; verify sha256 against MTx_INSTALLER_SHA256;
+> `unzip` into `$WINE_TEMPLATE/drive_c/Program Files/` (MT5) and
+> `$WINE_TEMPLATE/drive_c/Program Files (x86)/` (MT4); keep the hard
+> terminal64.exe / terminal.exe assertions; NO `wine ... /auto` run.
+> Deterministic, reproducible, no hang.
+>
+> >>> RESUME HERE (2026-06-21) <<<
+> 1. Confirm the two zips are live + byte-correct:
+>      curl -fsI "$MT5_INSTALLER_URL" | head -1   # HTTP/2 200
+>      curl -fsSL "$MT5_INSTALLER_URL" | sha256sum # == 32675431...ece3
+>      curl -fsI "$MT4_INSTALLER_URL" | head -1   # HTTP/2 200
+>      curl -fsSL "$MT4_INSTALLER_URL" | sha256sum # == b2dcd86f...7ff9
+> 2. Confirm the four GitHub secrets above are set, then push the
+>    Dockerfile rewrite to the GitLab mirror (propagates GitLab -> GitHub
+>    -> CI). Watch the GitHub Actions `build (mt-node)` job: it must now
+>    download+unzip (seconds), print `INFO: MT5 terminal64.exe verified`
+>    and `INFO: MT4 terminal.exe verified`, and go GREEN with NO hang.
+> 3. After CI green + deploy-bump, the new mt-node image SHA is pinned
+>    into helm/mt-node/values-staging.yaml + helm/engine/values-staging
+>    .yaml::config.mtNode.image. Confirm the engine picked it up:
+>      export KUBECONFIG=~/.kube/etradie-contabo.yaml
+>      kubectl -n etradie-system exec deploy/etradie-engine -c engine -- printenv MT_NODE_IMAGE
+>    (must be the new git SHA, NOT 34a2dabd / 8deaafc2). NOTE: a stale
+>    inline `MT_NODE_IMAGE` env on the Deployment can override envFrom -
+>    if so, `kubectl -n etradie-system set env deploy/etradie-engine
+>    MT_NODE_IMAGE-` to drop it and let the ConfigMap value win.
+> 4. Clean the prior failed tenant + rows, re-provision FROM THE
+>    DASHBOARD (connection_type=hosted), gate on the pod image, then
+>    watch the decisive log:
+>      kubectl -n etradie-system delete statefulset,svc,sa,configmap,pvc -l app.kubernetes.io/name=etradie-mt-node --ignore-not-found
+>      kubectl -n etradie-system exec -i postgres-0 -c postgres -- psql -U etradie -d etradie -c "DELETE FROM broker_connections WHERE status IN ('failed','provisioning') RETURNING id;"
+>      # submit in dashboard, then:
+>      CONN=$(kubectl -n etradie-system exec -i postgres-0 -c postgres -- psql -U etradie -d etradie -t -A -c "SELECT left(id::text,12) FROM broker_connections ORDER BY created_at DESC LIMIT 1;")
+>      kubectl -n etradie-system get pod etradie-mt-${CONN}-0 -o jsonpath='{.spec.containers[?(@.name=="mt-node")].image}{"\n"}'
+>      kubectl -n etradie-system logs etradie-mt-${CONN}-0 -c mt-node --tail=40 -f
+>    SUCCESS = `Launching terminal64.exe` is NOT followed by
+>    `ShellExecuteEx failed: File not found`; MT5 actually starts.
+> 5. Anticipated NEXT walls after Wine launches (not hit yet): MT5
+>    broker login on Deriv-Demo, EA ZMQ bind on :5555, then the symbol
+>    two-boot (one expected roll). Watchdog /healthz needs
+>    mt5_connected=true AND authenticated=true to go Ready.
+>
+> CAUTION ON THE PORTABLE ARTIFACT: the zips carry a full MT5/MT4
+> install (166M/41M). They are broker-agnostic (Deriv-Demo login is
+> supplied at runtime via startup.ini). If a broker requires its own
+> custom MT build, the portable terminal still connects to standard
+> MT5/MT4 servers; only re-generate the zip if you intentionally change
+> the MT base version (then recompute + update the *_INSTALLER_SHA256
+> secrets).
+
 
 > SESSION UPDATE 2026-06-20 (defects #10/#11/#12 + mt-node image
 > delivery GitOps). Read this block FIRST; it supersedes older resume
