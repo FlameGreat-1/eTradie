@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://exoper.dev/schemas/broker-catalog/brand.schema.json",
+  "title": "Exoper Broker Catalog — Brand Record",
+  "description": "Authoritative contract for a single broker brand file under infrastructure/broker-catalog/<brand_id>.json. One file per brand. Validated fail-closed by src/engine/ta/broker/registry.py at engine boot. See MT5_Multi_Broker_Provisioning_Architecture.md §5.2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "brand_id",
+    "display_name",
+    "official_website",
+    "mt5_supported",
+    "installer_packaging",
+    "status",
+    "entities"
+  ],
+  "properties": {
+    "brand_id": {
+      "type": "string",
+      "description": "Lowercase, underscore-separated brand identifier. Must match the filename stem.",
+      "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 64
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Brand name exactly as the broker presents it.",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "official_website": {
+      "type": "string",
+      "description": "The broker's own official website (https).",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "mt5_supported": {
+      "type": "boolean",
+      "description": "Whether this broker offers an MT5 terminal at all. When false, entities MUST be empty."
+    },
+    "installer_packaging": {
+      "type": "string",
+      "description": "How the broker packages its MT5 installer. 'none' for brands that do not offer MT5.",
+      "enum": ["unified", "per_entity", "none", "unknown"]
+    },
+    "status": {
+      "type": "string",
+      "description": "Lifecycle state. 'active' is only permitted after the verification gate passes and the bundle + sha are published to R2 (see conditional rules below).",
+      "enum": ["active", "pending_bake", "unsupported_mt5", "inactive"]
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text operator context (packaging observations, regional restrictions, why a brand is unsupported, etc.)."
+    },
+    "entities": {
+      "type": "array",
+      "description": "Legal entities under this brand that offer MT5. Empty iff mt5_supported is false.",
+      "items": { "$ref": "#/$defs/entity" }
+    }
+  },
+  "allOf": [
+    {
+      "description": "A brand that does not support MT5 must carry no entities.",
+      "if": { "properties": { "mt5_supported": { "const": false } } },
+      "then": { "properties": { "entities": { "maxItems": 0 } } }
+    },
+    {
+      "description": "A brand that supports MT5 must carry at least one entity.",
+      "if": { "properties": { "mt5_supported": { "const": true } } },
+      "then": { "properties": { "entities": { "minItems": 1 } } }
+    },
+    {
+      "description": "An active brand must have every entity fully provisioned (R2 bundle + sha + non-empty live servers). Enforced per-entity in the loader; expressed here for documentation.",
+      "if": { "properties": { "status": { "const": "active" } } },
+      "then": {
+        "properties": {
+          "entities": {
+            "minItems": 1,
+            "items": {
+              "required": [
+                "entity_id",
+                "display_name",
+                "bundle_r2_path",
+                "bundle_sha256",
+                "servers"
+              ],
+              "properties": {
+                "servers": { "required": ["live"] }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "display_name"],
+      "properties": {
+        "entity_id": {
+          "type": "string",
+          "description": "Brand-prefixed, lowercase, underscore-separated entity identifier (e.g. exness_technologies_ltd).",
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+          "minLength": 2,
+          "maxLength": 96
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Entity's full legal name exactly as the broker publishes it.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "regulator": {
+          "type": "string",
+          "description": "Short-form regulator name for display (e.g. 'FSA Seychelles', 'CySEC'). Advisory only.",
+          "maxLength": 80
+        },
+        "acquisition_url": {
+          "type": "string",
+          "description": "ACQUISITION ONLY — the broker's own official installer URL used ONCE BY A HUMAN on the bake workstation. This is NEVER a runtime/pipeline fetch path; the CI build guard blocks download.mql5.com as a build arg. The system fetch path is bundle_r2_path.",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "bundle_r2_path": {
+          "type": "string",
+          "description": "SYSTEM FETCH PATH — the only path the provisioner/initContainer pulls from. The baked, sha-pinned per-broker portable zip in R2.",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "bundle_sha256": {
+          "type": "string",
+          "description": "SHA256 of the baked portable zip referenced by bundle_r2_path. 64 lowercase hex chars.",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "verified_on": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) the verification gate passed for this entity's bundle.",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "servers": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Exact server strings extracted from the baked servers.dat (verbatim, every numbered variant). NEVER researched as free text.",
+          "properties": {
+            "demo": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "uniqueItems": true
+            },
+            "live": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    }
+  }
+}
