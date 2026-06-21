@@ -120,6 +120,18 @@ _load_vault_secrets_file(_VAULT_SECRETS_FILE)
 # ----- Config from envFrom (ConfigMap) ---------------------------------
 POLL_INTERVAL = float(os.environ.get("WATCHDOG_POLL_INTERVAL_SECONDS", "10"))
 MAX_FAILURES = int(os.environ.get("WATCHDOG_MAX_FAILURES", "6"))
+# Cold-boot grace: MT5 build 5836 runs a full 453-file MQL5
+# recompilation on a fresh prefix (~100s to usable) BEFORE it loads the
+# EA and the EA binds :5555. Without a grace window the watchdog reaches
+# MAX_FAILURES (6 x POLL_INTERVAL ~= 60s) of 'Resource temporarily
+# unavailable' HEALTH polls and SIGTERMs MT mid-compile every boot, so
+# the compile never finishes and the EA never comes up. During the first
+# WATCHDOG_STARTUP_GRACE_SECONDS from watchdog start, failed HEALTH polls
+# are logged but do NOT drive the in-pod terminate path, letting the
+# one-time compile finish and persist on the (persistent) Wine-prefix
+# PVC. After the window, normal MAX_FAILURES behaviour resumes. Memory
+# and CPU soft-caps are unaffected by this window.
+STARTUP_GRACE_SECONDS = float(os.environ.get("WATCHDOG_STARTUP_GRACE_SECONDS", "180"))
 MEMORY_SOFT_CAP_FRACTION = float(os.environ.get("WATCHDOG_MEMORY_SOFT_CAP_FRACTION", "0.8"))
 LIVEZ_GRACE_SECONDS = float(os.environ.get("WATCHDOG_LIVEZ_GRACE_SECONDS", "60"))
 ZMQ_ENDPOINT = os.environ.get("WATCHDOG_ZMQ_ENDPOINT", "tcp://127.0.0.1:5555")
@@ -703,13 +715,25 @@ def watchdog_loop() -> None:
                 else:
                     STATE.consecutive_failures += 1
 
+            in_startup_grace = (time.time() - STATE.start_ts) < STARTUP_GRACE_SECONDS
             if STATE.consecutive_failures >= MAX_FAILURES:
-                terminate_mt_processes(
-                    f"EA semantic failure (connected={connected} authed={authed}) for "
-                    f"{STATE.consecutive_failures} consecutive probes"
-                )
-                with STATE.lock:
-                    STATE.consecutive_failures = 0
+                if in_startup_grace:
+                    log.info(
+                        "startup grace active (%.0fs): %d consecutive EA failures "
+                        "(connected=%s authed=%s) NOT forcing restart while MT5 cold-boot "
+                        "compile completes",
+                        STARTUP_GRACE_SECONDS,
+                        STATE.consecutive_failures,
+                        connected,
+                        authed,
+                    )
+                else:
+                    terminate_mt_processes(
+                        f"EA semantic failure (connected={connected} authed={authed}) for "
+                        f"{STATE.consecutive_failures} consecutive probes"
+                    )
+                    with STATE.lock:
+                        STATE.consecutive_failures = 0
 
         except Exception as e:  # noqa: BLE001
             M_POLL_FAILS.inc()
@@ -717,10 +741,19 @@ def watchdog_loop() -> None:
                 STATE.consecutive_failures += 1
             log.warning("poll failed: %s (consecutive=%d)", e, STATE.consecutive_failures)
 
+            in_startup_grace = (time.time() - STATE.start_ts) < STARTUP_GRACE_SECONDS
             if STATE.consecutive_failures >= MAX_FAILURES:
-                terminate_mt_processes(f"HEALTH probe failures: {STATE.consecutive_failures} consecutive")
-                with STATE.lock:
-                    STATE.consecutive_failures = 0
+                if in_startup_grace:
+                    log.info(
+                        "startup grace active (%.0fs): %d consecutive HEALTH poll failures "
+                        "NOT forcing restart while MT5 cold-boot compile completes",
+                        STARTUP_GRACE_SECONDS,
+                        STATE.consecutive_failures,
+                    )
+                else:
+                    terminate_mt_processes(f"HEALTH probe failures: {STATE.consecutive_failures} consecutive")
+                    with STATE.lock:
+                        STATE.consecutive_failures = 0
 
         time.sleep(POLL_INTERVAL)
 
