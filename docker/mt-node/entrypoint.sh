@@ -334,6 +334,56 @@ EOF
 fi
 log INFO "Startup config written to $INI_FILE"
 
+# ── Disable MT5 LiveUpdate self-restart loop (defect #15) ────────
+# MT5 (build 5836) runs LiveUpdate on every cold boot: it detects a
+# newer build's data on MetaQuotes' servers, downloads it, and
+# self-restarts to apply (exit 143). The supervised loop then
+# relaunches, re-seeds, and re-runs the full recompile + LiveUpdate
+# from scratch -- an infinite, non-convergent loop in which the EA
+# OnInit never runs, MQL5/Logs is never created, and :5555 never
+# binds, so the pod never reaches Ready.
+#
+# LiveUpdate is controlled in terminal.ini (NOT common.ini) under the
+# [LiveUpdate] section; LastBuildDataPath tracks the last-known build.
+# Pinning it to the baked terminal build makes MT5 treat itself as
+# current and skip the update + self-restart. Config only; no EA
+# recompile. MT5 path only -- MT4 is not affected by this loop and the
+# [LiveUpdate] section is MT5-specific.
+if [ "$MT_PLATFORM" = "mt5" ]; then
+  # Resolve the baked terminal build so we never pin a stale number.
+  # MT5 records the running build in its journal as
+  # 'MetaTrader 5 x64 build <N> started'; fall back to the known
+  # baked build (5836) if the journal is not yet present (first boot).
+  MT5_BUILD=""
+  MT5_JOURNAL_DIR="$MT_DIR/logs"
+  if [ -d "$MT5_JOURNAL_DIR" ]; then
+    MT5_BUILD=$(grep -ahoE 'build [0-9]+ started' "$MT5_JOURNAL_DIR"/*.log 2>/dev/null \
+      | grep -oE '[0-9]+' | sort -rn | head -n1 || true)
+  fi
+  MT5_BUILD="${MT5_BUILD:-5836}"
+  TERMINAL_INI="$MT_DIR/config/terminal.ini"
+  if [ -f "$TERMINAL_INI" ]; then
+    # Preserve any existing terminal.ini content but replace/append the
+    # [LiveUpdate] section deterministically.
+    if grep -qi '^\[LiveUpdate\]' "$TERMINAL_INI"; then
+      # Drop the existing [LiveUpdate] section (from its header up to
+      # the next section header or EOF), then append a clean one.
+      awk 'BEGIN{skip=0}
+           /^\[[Ll]ive[Uu]pdate\]/{skip=1; next}
+           /^\[/{skip=0}
+           skip==0{print}' "$TERMINAL_INI" > "${TERMINAL_INI}.tmp"
+      mv "${TERMINAL_INI}.tmp" "$TERMINAL_INI"
+    fi
+    printf '\n[LiveUpdate]\nLastBuildDataPath=%s\n' "$MT5_BUILD" >> "$TERMINAL_INI"
+  else
+    cat > "$TERMINAL_INI" <<EOF
+[LiveUpdate]
+LastBuildDataPath=${MT5_BUILD}
+EOF
+  fi
+  log INFO "LiveUpdate pinned to build ${MT5_BUILD} in $TERMINAL_INI (defect #15)"
+fi
+
 # ── Supervised MT restart loop ───────────────────────────────────
 restart_count=0
 window_start=$(date +%s)
