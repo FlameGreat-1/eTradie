@@ -250,4 +250,3 @@ def test_schema_entity_required_fields_in_lockstep() -> None:
         f"schema.json entity required={entity_required} "
         f"diverged from BrokerEntity required={model_required}"
     )
-}
