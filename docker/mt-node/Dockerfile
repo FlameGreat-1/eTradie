@@ -254,6 +254,24 @@ COPY ea/ /opt/ea/
 COPY watchdog.py /opt/watchdog/watchdog.py
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 
+# ── Bake EA Dependencies into Wine Template ─────────────────────
+COPY ea/deps/mt5/libzmq.dll "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Libraries/libzmq.dll"
+COPY ea/deps/mt4/libzmq.dll "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Libraries/libzmq.dll"
+COPY ea/deps/Include/Zmq/ "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Include/Zmq/"
+COPY ea/deps/Include/Zmq/ "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Include/Zmq/"
+COPY ea/deps/Include/JAson.mqh "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Include/JAson.mqh"
+COPY ea/deps/Include/JAson.mqh "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Include/JAson.mqh"
+
+RUN set -eux; \
+    if [ ! -f "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Libraries/libzmq.dll" ]; then \
+        echo "FATAL: libzmq.dll missing in MT5 template" >&2; \
+        exit 1; \
+    fi; \
+    if [ ! -f "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Libraries/libzmq.dll" ]; then \
+        echo "FATAL: libzmq.dll missing in MT4 template" >&2; \
+        exit 1; \
+    fi
+
 # Verify EA binary SHAs. A backdoored .ex5 that quietly replaces the
 # committed file would deploy on every Pod without this check.
 # 'skip' is dev-only - production CI MUST pass real values.
@@ -280,7 +298,7 @@ RUN set -eux; \
     else \
         echo "WARN: EA .ex4 SHA check skipped (dev mode or file missing)." >&2; \
     fi; \
-    chown -R mt:mt /opt/ea /opt/watchdog; \
+    chown -R mt:mt /opt/ea /opt/watchdog "$WINE_TEMPLATE"; \
     chmod +x /usr/local/bin/entrypoint.sh /opt/watchdog/watchdog.py
 
 # NOTE: the Wine template ownership sweep is done in the MT4 install step

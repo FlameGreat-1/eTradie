@@ -29,7 +29,7 @@ export default function ProcessFlow() {
       {/* ── DESKTOP LAYOUT (Horizontal Pipeline) ── */}
       <div className="w-full max-w-[1800px] mx-auto px-4 md:px-8 hidden lg:block">
         <div className="w-full overflow-x-auto pb-8 hide-scrollbar">
-          <div className="relative w-full min-w-[1024px] h-[550px] xl:h-[600px] bg-slate-50 dark:bg-[#080808] rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl dark:shadow-2xl overflow-hidden mx-auto">
+          <div className="relative w-full min-w-[1024px] h-[550px] xl:h-[600px] bg-transparent overflow-hidden mx-auto">
             
             {/* Background Glows */}
             <div className="absolute top-[20%] left-[30%] w-[30%] h-[60%] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none" />
@@ -54,7 +54,7 @@ export default function ProcessFlow() {
                 }
                 return (
                   <g key={i}>
-                    <path d={pathData} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
+                    <path d={pathData} fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/40" />
                     <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                       <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto" path={pathData} />
                     </image>
@@ -64,7 +64,7 @@ export default function ProcessFlow() {
 
               {/* Settings Node -> Engine Node */}
               <g>
-                <path d="M 26 32.5 C 31 32.5, 31 50, 36 50" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
+                <path d="M 26 32.5 C 31 32.5, 31 50, 36 50" fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/40" />
                 <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                   <animateMotion dur="2.5s" repeatCount="indefinite" rotate="auto" path="M 26 32.5 C 31 32.5, 31 50, 36 50" />
                 </image>
@@ -72,7 +72,7 @@ export default function ProcessFlow() {
 
               {/* Engine Node -> AI Node */}
               <g>
-                <path d="M 44 50 L 59 50" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
+                <path d="M 44 50 L 59 50" fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/40" />
                 <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                   <animateMotion dur="2s" repeatCount="indefinite" rotate="auto" path="M 44 50 L 59 50" />
                 </image>
@@ -80,7 +80,7 @@ export default function ProcessFlow() {
 
               {/* AI Node -> Output Node */}
               <g>
-                <path d="M 69 50 L 77 50" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
+                <path d="M 69 50 L 77 50" fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/40" />
                 <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                   <animateMotion dur="1.5s" repeatCount="indefinite" rotate="auto" path="M 69 50 L 77 50" />
                 </image>
@@ -88,7 +88,7 @@ export default function ProcessFlow() {
 
               {/* Feedback Loop 1: Control (Top) -> Engine (Top) */}
               <g>
-                <path d="M 87 27 L 87 10 L 40 10 L 40 38" fill="none" stroke="#06b6d4" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+                <path d="M 87 27 L 87 10 L 40 10 L 40 38" fill="none" stroke="#06b6d4" strokeOpacity="0.6" strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
                 <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                   <animateMotion dur="4s" repeatCount="indefinite" rotate="auto" path="M 87 27 L 87 10 L 40 10 L 40 38" />
                 </image>
@@ -96,7 +96,7 @@ export default function ProcessFlow() {
 
               {/* Feedback Loop 2: Control (Bottom) -> AI (Bottom) */}
               <g>
-                <path d="M 87 73 L 87 90 L 64 90 L 64 62" fill="none" stroke="#a855f7" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+                <path d="M 87 73 L 87 90 L 64 90 L 64 62" fill="none" stroke="#a855f7" strokeOpacity="0.6" strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
                 <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                   <animateMotion dur="3s" repeatCount="indefinite" rotate="auto" path="M 87 73 L 87 90 L 64 90 L 64 62" />
                 </image>
@@ -207,7 +207,7 @@ export default function ProcessFlow() {
 
       {/* ── MOBILE LAYOUT (Vertical Top-to-Bottom Pipeline) ── */}
       <div className="w-full max-w-[500px] md:max-w-[900px] mx-auto px-4 block lg:hidden">
-        <div className="relative w-full h-[1100px] md:h-[1600px] bg-slate-50 dark:bg-[#080808] rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-xl dark:shadow-2xl overflow-hidden mt-8">
+        <div className="relative w-full h-[1100px] md:h-[1600px] bg-transparent overflow-hidden mt-8">
           
           {/* Background Glows */}
           <div className="absolute top-[10%] left-[20%] w-[60%] h-[30%] bg-cyan-600/10 blur-[80px] rounded-full pointer-events-none" />
@@ -229,14 +229,14 @@ export default function ProcessFlow() {
                 <g key={i}>
                   {/* Mobile (Orthogonal) */}
                   <g className="md:hidden">
-                    <path d={pathDataMobile} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
+                    <path d={pathDataMobile} fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/40" />
                     <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                       <animateMotion dur={`${2 + i * 0.5}s`} repeatCount="indefinite" rotate="auto" path={pathDataMobile} />
                     </image>
                   </g>
                   {/* Tablet (Curved) */}
                   <g className="hidden md:block">
-                    <path d={pathDataTablet} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
+                    <path d={pathDataTablet} fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/40" />
                     <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                       <animateMotion dur={`${2 + i * 0.5}s`} repeatCount="indefinite" rotate="auto" path={pathDataTablet} />
                     </image>
@@ -247,7 +247,7 @@ export default function ProcessFlow() {
 
             {/* Settings Node -> Engine Node (Zero-Crossing Bus Route) */}
             <g>
-              <path d="M 75 20 L 75 34 L 65 34 L 65 55 L 50 55 L 50 61" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
+              <path d="M 75 20 L 75 34 L 65 34 L 65 55 L 50 55 L 50 61" fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/40" />
               <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                 <animateMotion dur="2.5s" repeatCount="indefinite" rotate="auto" path="M 75 20 L 75 34 L 65 34 L 65 55 L 50 55 L 50 61" />
               </image>
@@ -260,13 +260,13 @@ export default function ProcessFlow() {
               return (
                 <g key={i}>
                   <g className="md:hidden">
-                    <path d={pathDataMobile} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
+                    <path d={pathDataMobile} fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/40" />
                     <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                       <animateMotion dur={`${3 + i * 0.5}s`} repeatCount="indefinite" rotate="auto" path={pathDataMobile} />
                     </image>
                   </g>
                   <g className="hidden md:block">
-                    <path d={pathDataTablet} fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
+                    <path d={pathDataTablet} fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/40" />
                     <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                       <animateMotion dur={`${3 + i * 0.5}s`} repeatCount="indefinite" rotate="auto" path={pathDataTablet} />
                     </image>
@@ -277,7 +277,7 @@ export default function ProcessFlow() {
 
             {/* Engine Node -> AI Node */}
             <g>
-              <path d="M 50 61 L 50 73" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
+              <path d="M 50 61 L 50 73" fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/40" />
               <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                 <animateMotion dur="2s" repeatCount="indefinite" rotate="auto" path="M 50 61 L 50 73" />
               </image>
@@ -285,7 +285,7 @@ export default function ProcessFlow() {
 
             {/* AI Node -> Output Node */}
             <g>
-              <path d="M 50 73 L 50 89" fill="none" strokeWidth="0.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/15" />
+              <path d="M 50 73 L 50 89" fill="none" strokeWidth="1.5" vectorEffect="non-scaling-stroke" className="stroke-slate-300 dark:stroke-white/40" />
               <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                 <animateMotion dur="1.5s" repeatCount="indefinite" rotate="auto" path="M 50 73 L 50 89" />
               </image>
@@ -293,7 +293,7 @@ export default function ProcessFlow() {
 
             {/* Feedback Loop 1: Control -> Engine */}
             <g>
-              <path d="M 90 89 L 95 89 L 95 61 L 55 61" fill="none" stroke="#06b6d4" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" className="opacity-60 dark:opacity-30" />
+              <path d="M 90 89 L 95 89 L 95 61 L 55 61" fill="none" stroke="#06b6d4" strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" className="opacity-60 dark:opacity-60" />
               <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                 <animateMotion dur="4s" repeatCount="indefinite" rotate="auto" path="M 90 89 L 95 89 L 95 61 L 55 61" />
               </image>
@@ -301,7 +301,7 @@ export default function ProcessFlow() {
 
             {/* Feedback Loop 2: Control -> AI */}
             <g>
-              <path d="M 10 89 L 5 89 L 5 73 L 45 73" fill="none" stroke="#a855f7" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+              <path d="M 10 89 L 5 89 L 5 73 L 45 73" fill="none" stroke="#a855f7" strokeOpacity="0.6" strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
               <image href="/assets/landing/icons/electron.svg" width="4" height="2" x="-2" y="-1">
                 <animateMotion dur="3s" repeatCount="indefinite" rotate="auto" path="M 10 89 L 5 89 L 5 73 L 45 73" />
               </image>
