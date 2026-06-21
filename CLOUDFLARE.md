@@ -235,3 +235,24 @@ Which do you prefer — add a card for R2, or set the bypass secret?
 
 
 
+
+
+# 1. Always start from a fresh sync
+git checkout main
+git pull --rebase origin main
+
+# 2. Branch for your change
+git checkout -b fix/something-descriptive
+
+# 3. Edit, commit, push the BRANCH (not main)
+# edit files
+git add .
+git commit -m "fix: something descriptive"
+git push origin fix/something-descriptive
+
+# 4. Open a PR on GitHub (the CI runs against your branch)
+# 5. After CI is green and review, MERGE the PR via the GitHub UI
+# 6. Locally, sync main back to the new origin/main
+git checkout main
+git pull --rebase origin main
+git branch -d fix/something-descriptive

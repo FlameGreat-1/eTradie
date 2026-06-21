@@ -4,9 +4,171 @@
 This is the authoritative resume point for the hosted-MT provisioning
 effort on the **staging** Contabo box (`vmi3362776`).
 
-**Last updated:** 2026-06-21, session through **defect #15**. READ THE
-DEFECT #15 BLOCK DIRECTLY BELOW FIRST — it supersedes every older block
-(#14, #13, #10-12, #9, etc.), which are all FIXED.
+**Last updated:** 2026-06-21, session through **defect #16**. READ THE
+DEFECT #16 BLOCK DIRECTLY BELOW FIRST — it supersedes #15b and every
+older block (#14, #13, #10-12, #9, etc.), which are all FIXED.
+
+> ============================================================
+> SESSION UPDATE 2026-06-21 — DEFECT #16 (CURRENT, OPEN): BROKER
+> LOGIN WALL. MT5 cannot log in because the broker's server is not
+> in the tenant pod's servers.dat. READ THIS FIRST.
+> ============================================================
+>
+> TL;DR: The tenant is FULLY PROVISIONED (pod, image, Wine, MT5
+> terminal, libzmq+EA deps, LiveUpdate fixed, startup.ini with valid
+> login/password/Server=Deriv-Demo, /config: honored). The ONLY thing
+> broken is BROKER LOGIN. MT5 never logs in, so it never downloads
+> symbols, so no chart can open, so the EA never attaches, so :5555
+> never binds, so the startupProbe (tcp :5555, ~320s budget) SIGTERMs
+> the container (exit 143) on a ~2.5min loop. Everything downstream of
+> login is already built and will light up once login works.
+>
+> #15b HYPOTHESIS WAS DISPROVEN: '/config: not honored' was WRONG.
+>   `ps -ef` proved the launch line is
+>     terminal64.exe /config:/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5/config/startup.ini
+>   and startup.ini is correct + populated (Login=201415706,
+>   Password set, Server=Deriv-Demo, [Charts] Template=expert,
+>   [Experts] Enabled=true AllowDllImport=true). /config: IS read.
+>
+> THE PROVEN ROOT CAUSE (#16): the broker server is ABSENT from the
+> pod's MT5 server directory.
+>   - MT5 journal for the boot ends at:
+>       build 5836 started / full recompilation finished: 0 file(s)
+>     and then NOTHING — NO 'network'/'connect'/'login'/'authorized'
+>     line at all (grep over the journal returns nothing). MT5 makes
+>     ZERO network activity toward the broker.
+>   - No lowercase bases/ dir (created only after a broker connects).
+>     (There IS a capital Bases/ with Default symbols — case-sensitive
+>     Linux; that is the baked default set, NOT the broker's symbols.)
+>   - config/servers.dat exists (28544 bytes) but contains NO Deriv
+>     entry (grep over both `strings` and `strings -el` => zero Deriv).
+>   MT5 connects to the server NAME selected from servers.dat; if
+>   Deriv-Demo is not in servers.dat, `Server=Deriv-Demo` resolves to
+>   nothing and MT5 silently never attempts login.
+>
+> WHY (operator's authoritative description of real MT5 login — KEEP):
+>   - To log into ANY broker you enter login + password and SELECT THE
+>     SERVER FROM A DROPDOWN (brokers do not show a free-text server
+>     field). That dropdown is populated from servers.dat.
+>   - Mobile: a fresh MT5 shows 'Create Demo Account' (MT5 default
+>     broker) OR 'Add existing account'. Add-existing opens a 'Find
+>     Broker' search; typing e.g. 'Exness' lists Exness Technologies
+>     Ltd, Exness (SC) Ltd, Exness B.V., Exness (KE) Limited, etc.
+>     SELECTING one DOWNLOADS that broker's server list, THEN you get
+>     login/password + the server dropdown; submitting opens the chart.
+>   - PC: 'Login With Trading Account' -> login/password + server
+>     dropdown -> connects + chart opens (sometimes you open the chart
+>     manually). The PC dropdown is pre-populated because that PC's MT5
+>     already had the broker added from prior use.
+>   => CONCLUSION: the broker's server must be PRESENT in servers.dat
+>     BEFORE login is possible. The operator's build machine had
+>     Deriv-Demo (from prior manual use), so it works there; the
+>     PORTABLE ZIP baked into the image did NOT carry it, so every
+>     tenant pod's servers.dat lacks the broker the user picks. This
+>     is broker-agnostic: it happens for EVERY broker.
+>
+>   LOCAL-TEST NOTE (operator, KEEP): when testing locally the operator
+>   had to MANUALLY (a) open a chart at a specific timeframe, (b) attach
+>   the EA, and (c) tick 'Allow DLL imports' (+ one other) before
+>   submitting the attach. Our headless automation
+>   ([Charts]/[Experts]/expert.tpl) must replicate that — but ONLY
+>   AFTER login succeeds. None of it can work pre-login.
+>
+> ORDERED DEPENDENCY CHAIN (login is the prerequisite for everything):
+>   broker server in servers.dat -> LOGIN -> symbols download ->
+>   chart can open -> EA attaches (+Allow DLL) -> :5555 binds ->
+>   watchdog Ready -> engine GET_ALL_SYMBOLS resolves real symbol ->
+>   one roll (two-boot). The WALL is the very first arrow.
+>   IMPORTANT: a chart CANNOT be attached before login (no symbols
+>   exist pre-login). So MR !11 (attach EA on sentinel boot) and the
+>   symbol two-boot are correct but DOWNSTREAM of login; they cannot
+>   help until login works. Do NOT keep iterating on chart/EA attach.
+>
+> RULED OUT (do NOT re-chase): /config: ignored (false), LiveUpdate
+>   (fixed), watchdog (innocent, in grace), libzmq/EA deps (baked),
+>   terminal binary (baked), broker egress blocked (pod reaches the
+>   internet: 1.1.1.1:443 OPEN, www.deriv.com:443 OPEN; and reaches
+>   MetaQuotes: www.metaquotes.net + mql5.com -> 194.164.179.31), DNS
+>   (works), chart-symbol format (irrelevant pre-login).
+>
+> THE OPEN QUESTION THAT PICKS THE FIX (confirm authoritatively, like
+> the [LiveUpdate] key was, before coding):
+>   On a FRESH MT5 (never used), does entering login + an unknown
+>   server name auto-fetch/connect, or must the broker first be ADDED
+>   (Find Broker -> select) so MT5 DOWNLOADS the server list into
+>   servers.dat? Operator's description strongly indicates the latter:
+>   you must select the broker first, which downloads its servers.
+>
+> CANDIDATE FIXES (broker-agnostic; the platform forces NO broker, so
+> a hardcoded/single-broker bake is NOT acceptable):
+>   A. Engine/entrypoint SEEDS the chosen broker's server into the pod
+>      so servers.dat contains it before MT5 launches. The dashboard
+>      connection already names the broker/server. Need: the source of
+>      the broker server definition (the .srv/servers.dat entry) per
+>      broker. This is the most robust multi-broker path.
+>   B. Trigger MT5's headless broker/server auto-discovery from
+>      MetaQuotes (the pod CAN reach MetaQuotes). Need: confirm build
+>      5836 will fetch an unknown server via startup.ini headless, and
+>      how to force it. If MT5 only auto-fetches via the GUI 'Find
+>      Broker' flow, B is not viable headless and A is the fix.
+>   C. Regenerate the portable MT5/MT4 zip from a prefix that has the
+>      broker(s) added so servers.dat ships populated — but this bakes
+>      specific brokers and does NOT scale to arbitrary user brokers;
+>      only acceptable as a stopgap for a known broker set.
+>
+> >>> RESUME HERE (2026-06-21, defect #16) <<<
+> Operator routine (two terminals; the tunnel drops often — always
+> confirm `kubectl get nodes` is Ready before any exec):
+>   T1 (leave open): ssh -N -L 6443:127.0.0.1:6443 etradie@13.140.164.173
+>   T2: export KUBECONFIG=~/.kube/etradie-contabo.yaml; kubectl get nodes
+>
+> 1. Resolve the current pod (it ROLLS often; never hardcode):
+>      POD=$(kubectl -n etradie-system get pods -o name | grep 'etradie-mt-' | head -1 | cut -d/ -f2); echo "$POD"
+>    If empty, re-provision FROM THE DASHBOARD after cleaning:
+>      kubectl -n etradie-system delete statefulset,svc,sa,configmap,pvc -l app.kubernetes.io/name=etradie-mt-node --ignore-not-found
+>      kubectl -n etradie-system exec -i postgres-0 -c postgres -- psql -U etradie -d etradie -c "DELETE FROM broker_connections WHERE status IN ('failed','provisioning') RETURNING id;"
+>
+> 2. Re-confirm the wall (servers.dat lacks the broker; no login in
+>    journal). NOTE: the pod has no `strings` binary — use grep -a:
+>      kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c 'grep -aiE "deriv" "/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5/config/servers.dat" | head || echo "NO DERIV IN servers.dat"'
+>      kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c 'J="/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5/logs"; f=$(ls -t "$J"/*.log|head -1); grep -iE "network|connect|login|authoriz|account|deriv" "$f" || echo "NO LOGIN/NETWORK LINE IN JOURNAL"'
+>      kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c 'ls "/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5/bases" 2>&1   # lowercase = post-login; absent = never logged in'
+>
+> 3. Decide A vs B by confirming how MT5 build 5836 obtains an unknown
+>    broker server (operator knowledge + a test). Then implement the
+>    broker-agnostic fix in the engine provisioner and/or
+>    docker/mt-node/entrypoint.sh (seed the broker server / trigger
+>    discovery). Cover BOTH MT5 and MT4.
+>
+> 4. After the fix: push to GitHub origin (CI source) -> CI rebuilds
+>    mt-node + bumps staging pins -> confirm new MT_NODE_IMAGE SHA ->
+>    clean failed tenant -> re-provision FROM THE DASHBOARD -> verify
+>    the journal now shows a LOGIN/authorized line, lowercase bases/
+>    appears, a chart opens, MQL5/Logs gets the EA
+>    '=== eTradie ZeroMQ Bridge Started ===' / 'Endpoint: tcp://*:5555'
+>    line, :5555 LISTEN, watchdog mt5_connected=1 + authenticated=1,
+>    pod 3/3 Ready, then one roll for the symbol two-boot.
+>
+> GIT REMOTES: a local NOTE.md / CLOUDFLARE.md keep dirtying the tree —
+>   `git stash` first. Then `git pull --rebase gitlab main`;
+>   `git pull --rebase origin main`; `git push origin main`
+>   (LOAD-BEARING — CI/ArgoCD build from GitHub FlameGreat-1/eTradie);
+>   `git push --force-with-lease gitlab main`; `git stash pop`.
+>   CI deploy-bump commit: `ci: pin staging image tags to <sha> [skip ci]`.
+>
+> SEPARATE NON-BLOCKING ITEM: GitHub Actions 'FATAL: Cloudflare AOP CA
+>   fingerprint changed' — deployments/cloudflare/origin-pull/
+>   aop-ca.sha256 was never bootstrapped (placeholder). Live CA
+>   fingerprint = 9a1ac2b4be15f9f27eee20a734cba4e9898f61001b3bd7c84b69b56a3e25a2b9.
+>   Does NOT gate the mt-node build. Resolve per docs/architecture/
+>   edge-cloudflare-envoy.md (verify CA, bootstrap pin, write PEM to
+>   Vault etradie/services/edge-ingress/<env>/cloudflare/aop_ca).
+> ============================================================
+
+> NOTE: the DEFECT #15 block below is partially SUPERSEDED by #16
+> above. #15a (LiveUpdate) remains FIXED and accurate; the #15b
+> 'startup.ini not honored' hypothesis in it is DISPROVEN — the real
+> cause is #16 (broker not in servers.dat). Kept for audit trail.
 
 > ============================================================
 > SESSION UPDATE 2026-06-21 — DEFECT #15 (CURRENT, OPEN).
