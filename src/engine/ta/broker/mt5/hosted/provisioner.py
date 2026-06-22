@@ -1342,6 +1342,14 @@ class HostedProvisioner:
             # would make every soft-cap signal a no-op.
             share_process_namespace=True,
             containers=[container, watchdog_container],
+            # The broker-bundle initContainer downloads + sha256-verifies
+            # + unzips the broker terminal bundle into the /broker-bundle
+            # emptyDir BEFORE the mt-node container starts, so
+            # entrypoint.sh finds the broker's servers.dat to install.
+            # The Vault injector (agent-init-first=true) prepends its own
+            # vault-agent-init ahead of this one; both run to completion
+            # before the mt-node container launches.
+            init_containers=[bundle_init_container],
             # Inline volumes only; the wine-prefix volume is supplied by
             # volumeClaimTemplates below.
             volumes=[
