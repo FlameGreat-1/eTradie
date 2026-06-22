@@ -6,6 +6,7 @@
   "mt4_supported": false,
   "installer_packaging": "unified",
   "status": "active",
+  "notes": "bundle_r2_path is the resolved public HTTPS URL of the R2 object. The R2 scheme alias (r2://etradie-installers/broker-bundles/deriv-portable.zip) is preserved here for traceability only; never used as a fetch path. The HTTPS URL below is what the provisioner / initContainer wget-fetches.",
   "entities": [
     {
       "entity_id": "deriv_com_limited",
@@ -14,7 +15,7 @@
       "platforms": {
         "mt5": {
           "acquisition_url": "https://download.mql5.com/cdn/web/deriv.investments.ltd/mt5/deriv5setup.exe",
-          "bundle_r2_path": "r2://etradie-installers/broker-bundles/deriv-portable.zip",
+          "bundle_r2_path": "https://pub-etradie-installers.r2.dev/broker-bundles/deriv-portable.zip",
           "bundle_sha256": "ec1be6862921f7ff946acdc23d1ffc64410ff606190d7d9d4dd9247df009e612",
           "verified_on": "2026-06-22",
           "servers": {

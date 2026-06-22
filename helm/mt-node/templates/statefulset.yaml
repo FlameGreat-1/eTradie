@@ -123,6 +123,13 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- if and .Values.mtConnection.brokerBundleR2Path .Values.mtConnection.brokerBundleSha256 }}
+      {{- /* Audit defect #1: wget cannot fetch the bespoke `r2://`
+             scheme. Operators handing the chart by hand sometimes paste
+             the catalog's r2:// alias; fail-fast at render time with a
+             clear message so the bad value never reaches the kubelet. */}}
+      {{- if not (or (hasPrefix "https://" .Values.mtConnection.brokerBundleR2Path) (hasPrefix "http://" .Values.mtConnection.brokerBundleR2Path)) }}
+      {{- fail (printf "helm/mt-node: .Values.mtConnection.brokerBundleR2Path must be an http(s):// URL the initContainer can wget (got %q). The catalog's r2:// alias is documentation-only; use the resolved public HTTPS URL of the R2 object." .Values.mtConnection.brokerBundleR2Path) }}
+      {{- end }}
       initContainers:
         - name: broker-bundle
           image: {{ include "mt-node.image" . | quote }}
