@@ -30,24 +30,39 @@ def _write(catalog_dir: Path, brand_id: str, payload: dict) -> None:
 
 
 def _active_brand(brand_id: str = "deriv") -> dict:
-    """A minimal, fully-valid ACTIVE brand record."""
+    """A minimal, fully-valid ACTIVE brand record.
+
+    Mirrors the on-disk schema:
+      brand-level: brand_id, display_name, official_website, mt5_supported,
+        mt4_supported, installer_packaging, status, entities.
+      entity-level: entity_id, display_name, (optional) regulator, platforms.
+      platform-level (under entities[].platforms.<mt4|mt5>):
+        bundle_r2_path (http(s)://), bundle_sha256, servers.{demo,live}.
+    """
     return {
         "brand_id": brand_id,
         "display_name": "Deriv",
         "official_website": "https://deriv.com",
         "mt5_supported": True,
-        "installer_packaging": "per_entity",
+        "mt4_supported": False,
+        "installer_packaging": "unified",
         "status": "active",
         "entities": [
             {
                 "entity_id": f"{brand_id}_com_limited",
                 "display_name": "Deriv.com Limited",
-                "bundle_r2_path": f"r2://etradie-installers/broker-bundles/{brand_id}-portable.zip",
-                "bundle_sha256": "a" * 64,
-                "verified_on": "2026-06-21",
-                "servers": {
-                    "demo": ["Deriv-Demo"],
-                    "live": ["Deriv-Server", "Deriv-Server-02"],
+                "regulator": "unknown",
+                "platforms": {
+                    "mt5": {
+                        "acquisition_url": "https://download.mql5.com/cdn/web/deriv.investments.ltd/mt5/deriv5setup.exe",
+                        "bundle_r2_path": f"https://pub-etradie-installers.r2.dev/broker-bundles/{brand_id}-portable.zip",
+                        "bundle_sha256": "a" * 64,
+                        "verified_on": "2026-06-21",
+                        "servers": {
+                            "demo": ["Deriv-Demo"],
+                            "live": ["Deriv-Server", "Deriv-Server-02"],
+                        },
+                    }
                 },
             },
         ],
@@ -72,8 +87,9 @@ def test_valid_active_brand_loads_and_resolves(tmp_path: Path) -> None:
 
     assert [b.brand_id for b in reg.list_active()] == ["deriv"]
 
-    resolved = reg.resolve("deriv", "deriv_com_limited")
+    resolved = reg.resolve("deriv", "deriv_com_limited", "mt5")
     assert resolved.bundle_r2_path.endswith("deriv-portable.zip")
+    assert resolved.bundle_r2_path.startswith("https://")
     assert resolved.bundle_sha256 == "a" * 64
     assert resolved.live_servers == ["Deriv-Server", "Deriv-Server-02"]
     assert resolved.has_server("Deriv-Demo") is True
@@ -114,12 +130,16 @@ def test_mt5_unsupported_brand_must_have_no_entities(tmp_path: Path) -> None:
         "display_name": "eToro",
         "official_website": "https://www.etoro.com",
         "mt5_supported": False,
+        "mt4_supported": False,
         "installer_packaging": "none",
         "status": "unsupported_mt5",
         "entities": [{"entity_id": "etoro_x", "display_name": "eToro X"}],
     }
     _write(tmp_path, "etoro", payload)
-    with pytest.raises(ConfigurationError, match="mt5_supported=false but lists entities"):
+    with pytest.raises(
+        ConfigurationError,
+        match="has neither mt5_supported nor mt4_supported but lists entities",
+    ):
         load_broker_registry(tmp_path)
 
 
@@ -129,6 +149,7 @@ def test_mt5_unsupported_brand_with_no_entities_loads(tmp_path: Path) -> None:
         "display_name": "eToro",
         "official_website": "https://www.etoro.com",
         "mt5_supported": False,
+        "mt4_supported": False,
         "installer_packaging": "none",
         "status": "unsupported_mt5",
         "entities": [],
@@ -141,15 +162,15 @@ def test_mt5_unsupported_brand_with_no_entities_loads(tmp_path: Path) -> None:
 
 def test_active_brand_missing_bundle_sha_is_rejected(tmp_path: Path) -> None:
     payload = _active_brand()
-    del payload["entities"][0]["bundle_sha256"]
+    del payload["entities"][0]["platforms"]["mt5"]["bundle_sha256"]
     _write(tmp_path, "deriv", payload)
-    with pytest.raises(ConfigurationError, match="missing bundle_sha256"):
+    with pytest.raises(ConfigurationError, match="failed validation"):
         load_broker_registry(tmp_path)
 
 
 def test_active_brand_missing_live_servers_is_rejected(tmp_path: Path) -> None:
     payload = _active_brand()
-    payload["entities"][0]["servers"]["live"] = []
+    payload["entities"][0]["platforms"]["mt5"]["servers"]["live"] = []
     _write(tmp_path, "deriv", payload)
     with pytest.raises(ConfigurationError, match="has no live servers"):
         load_broker_registry(tmp_path)
@@ -157,7 +178,19 @@ def test_active_brand_missing_live_servers_is_rejected(tmp_path: Path) -> None:
 
 def test_bad_sha256_is_rejected(tmp_path: Path) -> None:
     payload = _active_brand()
-    payload["entities"][0]["bundle_sha256"] = "NOTHEX"
+    payload["entities"][0]["platforms"]["mt5"]["bundle_sha256"] = "NOTHEX"
+    _write(tmp_path, "deriv", payload)
+    with pytest.raises(ConfigurationError, match="failed validation"):
+        load_broker_registry(tmp_path)
+
+
+def test_bad_bundle_url_scheme_is_rejected(tmp_path: Path) -> None:
+    # Audit defect #1: the legacy `r2://` alias must be rejected, since
+    # wget cannot fetch it. Only http(s):// is permitted.
+    payload = _active_brand()
+    payload["entities"][0]["platforms"]["mt5"]["bundle_r2_path"] = (
+        "r2://etradie-installers/broker-bundles/deriv-portable.zip"
+    )
     _write(tmp_path, "deriv", payload)
     with pytest.raises(ConfigurationError, match="failed validation"):
         load_broker_registry(tmp_path)
@@ -174,7 +207,10 @@ def test_bad_brand_id_pattern_is_rejected(tmp_path: Path) -> None:
 
 def test_duplicate_servers_rejected(tmp_path: Path) -> None:
     payload = _active_brand()
-    payload["entities"][0]["servers"]["live"] = ["Deriv-Server", "Deriv-Server"]
+    payload["entities"][0]["platforms"]["mt5"]["servers"]["live"] = [
+        "Deriv-Server",
+        "Deriv-Server",
+    ]
     _write(tmp_path, "deriv", payload)
     with pytest.raises(ConfigurationError, match="failed validation"):
         load_broker_registry(tmp_path)
@@ -184,31 +220,39 @@ def test_resolve_unknown_brand_raises(tmp_path: Path) -> None:
     _write(tmp_path, "deriv", _active_brand())
     reg = load_broker_registry(tmp_path)
     with pytest.raises(ConfigurationError, match="Unknown broker brand_id"):
-        reg.resolve("nope", "x")
+        reg.resolve("nope", "x", "mt5")
 
 
 def test_resolve_unknown_entity_raises(tmp_path: Path) -> None:
     _write(tmp_path, "deriv", _active_brand())
     reg = load_broker_registry(tmp_path)
     with pytest.raises(ConfigurationError, match="Unknown entity_id"):
-        reg.resolve("deriv", "nope")
+        reg.resolve("deriv", "nope", "mt5")
+
+
+def test_resolve_unknown_platform_raises(tmp_path: Path) -> None:
+    # The deriv fixture only configures mt5; resolving mt4 must raise
+    # cleanly, not silently succeed.
+    _write(tmp_path, "deriv", _active_brand())
+    reg = load_broker_registry(tmp_path)
+    with pytest.raises(ConfigurationError, match="Platform 'mt4' is not configured"):
+        reg.resolve("deriv", "deriv_com_limited", "mt4")
 
 
 def test_resolve_inactive_brand_raises(tmp_path: Path) -> None:
     payload = _active_brand()
     payload["status"] = "pending_bake"
     # pending_bake brand need not carry bundle fields; strip them so the
-    # record is a realistic pre-bake entry.
-    payload["entities"][0].pop("bundle_sha256", None)
-    payload["entities"][0].pop("bundle_r2_path", None)
-    payload["entities"][0]["servers"] = {"demo": [], "live": []}
+    # record is a realistic pre-bake entry. Drop the entity's platforms
+    # entirely to avoid the platform_config required-field surface.
+    payload["entities"][0]["platforms"] = {}
     _write(tmp_path, "deriv", payload)
     reg = load_broker_registry(tmp_path)
     with pytest.raises(ConfigurationError, match="is not active"):
-        reg.resolve("deriv", "deriv_com_limited")
+        reg.resolve("deriv", "deriv_com_limited", "mt5")
 
 
-def test_duplicate_brand_ids_across_files_rejected(tmp_path: Path) -> None:
+def test_duplicate_entity_ids_rejected(tmp_path: Path) -> None:
     # Two files cannot declare the same brand_id; filename-stem rule makes
     # this require a same-stem clash, which the filesystem forbids, so we
     # assert the within-brand entity-id uniqueness guard instead.
@@ -228,12 +272,9 @@ def test_model_and_schema_required_fields_in_lockstep() -> None:
 
     from engine.ta.broker.registry import BrokerBrand
 
-    model_required = {
-        name for name, field in BrokerBrand.model_fields.items() if field.is_required()
-    }
+    model_required = {name for name, field in BrokerBrand.model_fields.items() if field.is_required()}
     assert schema_required == model_required, (
-        f"schema.json required={schema_required} "
-        f"diverged from BrokerBrand required={model_required}"
+        f"schema.json required={schema_required} diverged from BrokerBrand required={model_required}"
     )
 
 
@@ -243,10 +284,7 @@ def test_schema_entity_required_fields_in_lockstep() -> None:
 
     from engine.ta.broker.registry import BrokerEntity
 
-    model_required = {
-        name for name, field in BrokerEntity.model_fields.items() if field.is_required()
-    }
+    model_required = {name for name, field in BrokerEntity.model_fields.items() if field.is_required()}
     assert entity_required == model_required, (
-        f"schema.json entity required={entity_required} "
-        f"diverged from BrokerEntity required={model_required}"
+        f"schema.json entity required={entity_required} diverged from BrokerEntity required={model_required}"
     )

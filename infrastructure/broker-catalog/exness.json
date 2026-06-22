@@ -6,6 +6,7 @@
   "mt4_supported": true,
   "installer_packaging": "per_entity",
   "status": "active",
+  "notes": "bundle_r2_path is the resolved public HTTPS URL of the R2 object. The R2 scheme alias (r2://etradie-installers/broker-bundles/...) is preserved in commit history for traceability only; the HTTPS URL below is what the provisioner / initContainer wget-fetches.",
   "entities": [
     {
       "entity_id": "exness_technologies_ltd",
@@ -14,7 +15,7 @@
       "platforms": {
         "mt5": {
           "acquisition_url": "https://download.mql5.com/cdn/web/exness.technologies.ltd/mt5/exness5setup.exe",
-          "bundle_r2_path": "r2://etradie-installers/broker-bundles/exness-portable.zip",
+          "bundle_r2_path": "https://pub-5bdcacdedad6458298e8b8d5435f301a.r2.dev/broker-bundles/exness-portable.zip",
           "bundle_sha256": "eadee9c7a152514f9c904b381a9416cf3d88dc5e480a12a62544079743c5e11c",
           "verified_on": "2026-06-22",
           "servers": {
@@ -84,7 +85,7 @@
         },
         "mt4": {
           "acquisition_url": "https://download.mql5.com/cdn/web/exness.technologies.ltd/mt4/exness4setup.exe",
-          "bundle_r2_path": "r2://etradie-installers/broker-bundles/exness-mt4-portable.zip",
+          "bundle_r2_path": "https://pub-5bdcacdedad6458298e8b8d5435f301a.r2.dev/broker-bundles/exness-mt4-portable.zip",
           "bundle_sha256": "790101cf0039eb9a4805f71cbb77293aa46de978e8ef33e9c5eca34c20dfa09c",
           "verified_on": "2026-06-22",
           "servers": {

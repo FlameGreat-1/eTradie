@@ -107,6 +107,19 @@ class PlatformConfig(BaseModel):
             raise ValueError("verified_on must be YYYY-MM-DD")
         if self.acquisition_url is not None and not self.acquisition_url.startswith("https://"):
             raise ValueError("acquisition_url must be an https:// URL")
+        # bundle_r2_path is the SYSTEM FETCH PATH the provisioner's
+        # initContainer wget-fetches at runtime. wget cannot speak the
+        # bespoke `r2://` scheme; only http(s):// works. Catch a stale
+        # `r2://` value here so the failure surfaces at engine boot,
+        # not at the first tenant provision's Init:Error.
+        # NOTE.md §14.4: the resolved value MUST be the public HTTPS URL
+        # of the R2 object (e.g. https://<account>.r2.cloudflarestorage.com/
+        # <bucket>/<key> or the public r2.dev convenience hostname).
+        if not (self.bundle_r2_path.startswith("https://") or self.bundle_r2_path.startswith("http://")):
+            raise ValueError(
+                "bundle_r2_path must be an http(s):// URL the initContainer can wget; "
+                f"got {self.bundle_r2_path!r}. The catalog's r2:// alias is documentation-only."
+            )
         return self
 
 
@@ -176,7 +189,9 @@ class BrokerBrand(BaseModel):
                 raise ValueError(f"active brand {self.brand_id!r} has no entities")
             for entity in self.entities:
                 if not entity.platforms:
-                    raise ValueError(f"active brand {self.brand_id!r} entity {entity.entity_id!r} has no platforms configured")
+                    raise ValueError(
+                        f"active brand {self.brand_id!r} entity {entity.entity_id!r} has no platforms configured"
+                    )
                 for platform_id, config in entity.platforms.items():
                     if not config.servers.live:
                         raise ValueError(
@@ -250,7 +265,7 @@ class BrokerRegistry:
                 details={"brand_id": brand_id, "entity_id": entity_id},
             )
 
-        # We explicitly type-cast to suppress a pyright warning since we 
+        # We explicitly type-cast to suppress a pyright warning since we
         # validate the platform string in HostedProvisioner.
         pf = entity.platforms.get(platform)  # type: ignore
         if pf is None:

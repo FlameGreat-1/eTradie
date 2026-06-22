@@ -534,9 +534,41 @@ class HostedRecoveryService:
         if getattr(row, "mt5_symbol", None):
             existing_symbol = str(row.mt5_symbol).strip() or None
 
+        # broker_id + broker_entity_id are REQUIRED by
+        # HostedProvisioner.provision_account so it can resolve the
+        # broker bundle (bundle_r2_path + bundle_sha256) from the
+        # BrokerRegistry and layer it into the per-tenant pod. Migration
+        # 0034 added these columns nullable for backfill safety, so a
+        # row created before that migration (or a row with an unknown
+        # brand) carries NULL. Skipping the recovery in that case is the
+        # only safe choice: re-provisioning without a broker_id would
+        # crash at registry.resolve(), and provisioning with an empty
+        # string would silently boot a Pod with no servers.dat layered
+        # in. The operator must re-create the connection via the
+        # dashboard to populate these columns. The skip is logged loud
+        # so the dashboard / on-call sees it.
+        brand_id = (getattr(row, "broker_id", None) or "").strip()
+        entity_id = (getattr(row, "broker_entity_id", None) or "").strip()
+        if not brand_id or not entity_id:
+            logger.warning(
+                "hosted_recovery_skipped_missing_broker_identity",
+                extra={
+                    "connection_id": connection_id,
+                    "user_id": user_id,
+                    "reason": reason,
+                    "phase": phase,
+                    "has_broker_id": bool(brand_id),
+                    "has_broker_entity_id": bool(entity_id),
+                    "hint": "The row pre-dates the broker registry rollout (migration 0034) or was created via a path that did not persist broker_id/broker_entity_id. The user must re-create this hosted connection from the dashboard so the new columns get populated.",
+                },
+            )
+            return
+
         await self._provisioner.provision_account(
             connection_id=connection_id,
             user_id=user_id,
+            brand_id=brand_id,
+            entity_id=entity_id,
             login=row.mt5_login,
             password=password,
             server=row.mt5_server,

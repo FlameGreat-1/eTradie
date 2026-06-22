@@ -215,9 +215,81 @@ async def create_broker_connection(
                 )
 
             try:
-                container.broker_registry.resolve(body.broker_id, body.entity_id, body.platform)
+                _resolved = container.broker_registry.resolve(body.broker_id, body.entity_id, body.platform)
             except ConfigurationError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
+
+            # Bundle reachability fail-fast (audit defect #4 / #17).
+            #
+            # If the catalog points at a missing/wrong R2 object, the
+            # initContainer would crashloop forever AFTER the DB row
+            # is committed - the row sits in 'provisioning' and the
+            # HostedRecoveryService keeps re-trying a permanently broken
+            # download. HEAD-probe the URL BEFORE committing the row so
+            # the user gets a clean 422 they can act on ("the operator
+            # has not uploaded this bundle yet") instead of a five-minute
+            # silent failure surfaced via the dashboard's status banner.
+            #
+            # 422 is the right code: the broker_id + entity_id ARE valid
+            # (resolve() passed), but the platform-side bundle for that
+            # entity is unreachable. The user cannot self-correct; the
+            # message tells operations exactly what to fix.
+            #
+            # We use the shared engine HttpClient so retries / circuit
+            # breaker / metrics are inherited; a single HEAD with a tight
+            # timeout is cheap. A 200/3xx is success (R2 / CDN may serve
+            # an HTTP redirect chain to the actual object).
+            try:
+                _probe = await container.http_client.head(
+                    _resolved.bundle_r2_path,
+                    timeout=10.0,
+                    follow_redirects=True,
+                )
+                if _probe.status_code >= 400:
+                    raise HTTPException(
+                        status_code=422,
+                        detail={
+                            "code": "broker_bundle_unreachable",
+                            "message": (
+                                f"The broker bundle for {body.broker_id}/{body.entity_id} "
+                                f"({body.platform}) is not reachable (HTTP {_probe.status_code}). "
+                                "This is a platform-side configuration error; "
+                                "please contact support."
+                            ),
+                            "bundle_url": _resolved.bundle_r2_path,
+                            "http_status": _probe.status_code,
+                        },
+                    )
+            except HTTPException:
+                raise
+            except Exception as _probe_exc:
+                # Network-level failure (DNS, connection refused, TLS).
+                # Same posture as the 4xx branch: fail-fast so a bad
+                # URL never becomes a stuck row.
+                logger.error(
+                    "broker_bundle_reachability_probe_failed",
+                    extra={
+                        "broker_id": body.broker_id,
+                        "entity_id": body.entity_id,
+                        "platform": body.platform,
+                        "bundle_url": _resolved.bundle_r2_path,
+                        "error": str(_probe_exc),
+                        "error_type": type(_probe_exc).__name__,
+                    },
+                )
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "broker_bundle_unreachable",
+                        "message": (
+                            f"The broker bundle for {body.broker_id}/{body.entity_id} "
+                            f"({body.platform}) could not be reached. "
+                            "This is a platform-side configuration error; "
+                            "please contact support."
+                        ),
+                        "bundle_url": _resolved.bundle_r2_path,
+                    },
+                )
 
             # Per-user hosted connection quota. Each hosted connection
             # consumes a dedicated K8s StatefulSet (2 CPU cores + 2 GiB
@@ -476,7 +548,28 @@ async def update_broker_connection(
     # connection on its next sweep, but the user may see up to
     # ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS of downtime.
     if row.connection_type == "hosted" and row.hosted_container_id and body.mt5_password is not None:
-        try:
+        # broker_id + broker_entity_id are REQUIRED by provision_account
+        # so it can resolve the broker bundle. A row that pre-dates
+        # migration 0034 has NULL on these columns; passing an empty
+        # string would crash registry.resolve(). Skip the re-seal in
+        # that case with a clear log; HostedRecoveryService converges
+        # the Pod on its next sweep (and also skips with the same
+        # guard until the user re-creates the connection).
+        _brand_id = (getattr(row, "broker_id", None) or "").strip()
+        _entity_id = (getattr(row, "broker_entity_id", None) or "").strip()
+        if not _brand_id or not _entity_id:
+            logger.warning(
+                "hosted_password_rotation_skipped_missing_broker_identity",
+                extra={
+                    "connection_id": connection_id,
+                    "user_id": user.user_id,
+                    "has_broker_id": bool(_brand_id),
+                    "has_broker_entity_id": bool(_entity_id),
+                    "hint": "Hosted row pre-dates migration 0034; re-create the connection via the dashboard to populate broker_id/broker_entity_id so password rotation can re-seal the per-tenant Secret.",
+                },
+            )
+        else:
+          try:
             provisioner = container.hosted_provisioner
             ea_auth_token = ""  # nosec B105
             if row.ea_auth_token_encrypted:
@@ -495,8 +588,8 @@ async def update_broker_connection(
             await provisioner.provision_account(
                 connection_id=connection_id,
                 user_id=user.user_id,
-                brand_id=getattr(row, "broker_id", None) or "",
-                entity_id=getattr(row, "broker_entity_id", None) or "",
+                brand_id=_brand_id,
+                entity_id=_entity_id,
                 login=row.mt5_login or "",
                 password=password_plain,
                 server=row.mt5_server or "",
