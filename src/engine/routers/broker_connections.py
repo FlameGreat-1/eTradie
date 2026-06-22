@@ -576,9 +576,7 @@ async def update_broker_connection(
                 ea_auth_token = ""  # nosec B105
                 if row.ea_auth_token_encrypted:
                     ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
-                password_plain = (
-                    decrypt_credential(row.mt5_password_encrypted) if row.mt5_password_encrypted else ""
-                )
+                password_plain = decrypt_credential(row.mt5_password_encrypted) if row.mt5_password_encrypted else ""
                 # Preserve the previously-resolved chart-attach symbol so
                 # a password-rotation triggered re-provision does not
                 # silently change the user's mt5_symbol. Same H-4 guard
