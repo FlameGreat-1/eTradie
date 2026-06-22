@@ -279,6 +279,8 @@ async def test_provision_is_idempotent_on_409(
     out = await prov.provision_account(
         connection_id=sample_connection["connection_id"],
         user_id=sample_connection["user_id"],
+        brand_id=sample_connection["brand_id"],
+        entity_id=sample_connection["entity_id"],
         login=sample_connection["login"],
         password=sample_connection["password"],
         server=sample_connection["server"],
