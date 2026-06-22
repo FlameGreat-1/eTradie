@@ -41,16 +41,26 @@ from typing import Literal
 import orjson
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from engine.config import get_settings
 from engine.shared.exceptions import ConfigurationError
 from engine.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Repository-root-relative location of the broker catalog. Resolved
-# relative to this file so it works from the engine image, pytest, and
-# local dev identically:
-#   src/engine/ta/broker/registry.py -> parents[4] == repo root.
-_DEFAULT_CATALOG_DIR = Path(__file__).resolve().parents[4] / "infrastructure" / "broker-catalog"
+
+def _default_catalog_dir() -> Path:
+    """Resolve the catalog directory from validated Settings.
+
+    Returns Settings.broker_catalog_dir (env BROKER_CATALOG_DIR),
+    which defaults to the in-image path /app/infrastructure/
+    broker-catalog. This deliberately does NOT derive the path from
+    this module's location: in a site-packages install (the engine
+    image) a __file__-relative walk lands in the interpreter's lib
+    dir, not the repo root, so the catalog would never be found.
+    Tests bypass this entirely by passing an explicit directory to
+    load_broker_registry().
+    """
+    return Path(get_settings().broker_catalog_dir)
 
 # Mirrors schema.json identifier patterns so the loader rejects the
 # same shapes the JSON Schema does, even though we validate via Pydantic.
