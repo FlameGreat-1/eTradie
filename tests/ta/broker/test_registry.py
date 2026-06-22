@@ -272,12 +272,9 @@ def test_model_and_schema_required_fields_in_lockstep() -> None:
 
     from engine.ta.broker.registry import BrokerBrand
 
-    model_required = {
-        name for name, field in BrokerBrand.model_fields.items() if field.is_required()
-    }
+    model_required = {name for name, field in BrokerBrand.model_fields.items() if field.is_required()}
     assert schema_required == model_required, (
-        f"schema.json required={schema_required} "
-        f"diverged from BrokerBrand required={model_required}"
+        f"schema.json required={schema_required} diverged from BrokerBrand required={model_required}"
     )
 
 
@@ -287,10 +284,7 @@ def test_schema_entity_required_fields_in_lockstep() -> None:
 
     from engine.ta.broker.registry import BrokerEntity
 
-    model_required = {
-        name for name, field in BrokerEntity.model_fields.items() if field.is_required()
-    }
+    model_required = {name for name, field in BrokerEntity.model_fields.items() if field.is_required()}
     assert entity_required == model_required, (
-        f"schema.json entity required={entity_required} "
-        f"diverged from BrokerEntity required={model_required}"
+        f"schema.json entity required={entity_required} diverged from BrokerEntity required={model_required}"
     )

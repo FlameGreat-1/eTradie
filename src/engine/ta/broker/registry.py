@@ -189,7 +189,9 @@ class BrokerBrand(BaseModel):
                 raise ValueError(f"active brand {self.brand_id!r} has no entities")
             for entity in self.entities:
                 if not entity.platforms:
-                    raise ValueError(f"active brand {self.brand_id!r} entity {entity.entity_id!r} has no platforms configured")
+                    raise ValueError(
+                        f"active brand {self.brand_id!r} entity {entity.entity_id!r} has no platforms configured"
+                    )
                 for platform_id, config in entity.platforms.items():
                     if not config.servers.live:
                         raise ValueError(
@@ -263,7 +265,7 @@ class BrokerRegistry:
                 details={"brand_id": brand_id, "entity_id": entity_id},
             )
 
-        # We explicitly type-cast to suppress a pyright warning since we 
+        # We explicitly type-cast to suppress a pyright warning since we
         # validate the platform string in HostedProvisioner.
         pf = entity.platforms.get(platform)  # type: ignore
         if pf is None:
