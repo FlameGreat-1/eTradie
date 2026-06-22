@@ -67,7 +67,7 @@ export function OnboardingChecklistModal({ open, onClose }: Props) {
           <div>
             <h2 className="text-lg font-bold text-content">Let&apos;s get you set up</h2>
             <p className="text-xs text-content-muted mt-0.5">
-              Seven quick steps to your personalised Exoper trading desk.
+              A few quick steps to your personalised Exoper trading desk.
             </p>
           </div>
           <button

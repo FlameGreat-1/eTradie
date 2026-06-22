@@ -155,7 +155,7 @@ export function FindBrokerStep({ onSelect, onAdvanced, initialBrandId }: Props) 
               ref={listRef}
               role="listbox"
               aria-label="Broker results"
-              className="max-h-72 overflow-y-auto divide-y divide-border"
+              className="max-h-[40vh] overflow-y-auto divide-y divide-border"
             >
               {filtered.map((brand, idx) => {
                 const isActive = idx === activeIndex;

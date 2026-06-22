@@ -59,6 +59,10 @@ export function BrokerStep({ brand, advanced, onBack, onComplete }: Props) {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (!brand && !advanced) onBack();
+  }, [brand, advanced, onBack]);
+
+  useEffect(() => {
     if (!brand) return;
     setForm((f) => {
       const next = { ...f };

@@ -44,7 +44,7 @@ export function useOnboardingProgress(): OnboardingProgress {
       perStep.broker && perStep.symbols && perStep.tradingSystem && perStep.llm;
 
     const completed =
-      (perStep.broker ? 2 : 0) +
+      (perStep.broker ? 1 : 0) +
       (perStep.symbols ? 1 : 0) +
       (perStep.tradingSystem ? 1 : 0) +
       (perStep.billing ? 1 : 0) +
