@@ -53,6 +53,21 @@ class Settings(BaseSettings):
     app_debug: bool = False
     app_log_level: str = Field(default="INFO", pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$")
 
+    # ── Broker catalog ───────────────────────────────────────
+    # Directory holding the multi-broker MT5 provisioning catalog
+    # (infrastructure/broker-catalog/*.json). The engine ships these
+    # files into the image at /app/infrastructure/broker-catalog (see
+    # the root Dockerfile), so the default below is correct in-image.
+    # Mirrors RAGConfig.knowledge_base_dir, which solves the same
+    # 'repo-root data dir shipped into /app and located by config'
+    # problem. An absolute path or a WORKDIR-relative path both work;
+    # the loader (engine.ta.broker.registry.load_broker_registry) reads
+    # this when called without an explicit directory argument.
+    broker_catalog_dir: str = Field(
+        default="/app/infrastructure/broker-catalog",
+        description="Directory containing the broker catalog JSON files (absolute or WORKDIR-relative).",
+    )
+
     # ── PostgreSQL ───────────────────────────────────────────
     database_url: PostgresDsn
     db_pool_size: int = Field(default=10, ge=2, le=50, description="SQLAlchemy connection pool size")

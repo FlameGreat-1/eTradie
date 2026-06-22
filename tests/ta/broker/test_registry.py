@@ -76,6 +76,29 @@ def test_empty_catalog_dir_yields_empty_registry(tmp_path: Path) -> None:
     assert reg.list_active() == []
 
 
+def test_default_dir_resolves_from_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """load_broker_registry() with NO argument must resolve the catalog
+    directory from Settings.broker_catalog_dir (env BROKER_CATALOG_DIR).
+
+    Regression guard: the previous default derived the path from this
+    module's __file__ via parents[4], which lands in the interpreter
+    lib dir in a site-packages install (the engine image) and so found
+    no catalog. This asserts the env-var-backed resolution instead.
+    """
+    from engine.config import get_settings
+
+    _write(tmp_path, "deriv", _active_brand())
+    monkeypatch.setenv("BROKER_CATALOG_DIR", str(tmp_path))
+    # Settings is an lru_cache singleton; clear it so the patched env is
+    # picked up for this test and does not leak into others.
+    get_settings.cache_clear()
+    try:
+        reg = load_broker_registry()
+        assert [b.brand_id for b in reg.list_active()] == ["deriv"]
+    finally:
+        get_settings.cache_clear()
+
+
 def test_absent_catalog_dir_is_not_an_error(tmp_path: Path) -> None:
     reg = load_broker_registry(tmp_path / "does-not-exist")
     assert reg.brands == {}
