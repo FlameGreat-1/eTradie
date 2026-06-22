@@ -12,8 +12,7 @@
     "mt5_supported",
     "mt4_supported",
     "installer_packaging",
-    "status",
-    "entities"
+    "status"
   ],
   "properties": {
     "brand_id": {

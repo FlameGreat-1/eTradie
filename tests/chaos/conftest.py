@@ -58,6 +58,8 @@ def sample_connection() -> dict:
         "server": "Exness-MT5Trial9",
         "symbol": "EURUSD",
         "platform": "mt5",
+        "brand_id": "deriv",
+        "entity_id": "deriv_com_limited",
     }
 
 
