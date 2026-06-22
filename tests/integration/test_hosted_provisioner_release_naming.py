@@ -113,6 +113,13 @@ async def test_provisioner_stamps_connection_id_into_every_resource() -> None:
         vault_path="tenants/mt-node/" + release_name_for(CONNECTION_ID),
         sa_name=release_name_for(CONNECTION_ID),
         credentials_checksum="deadbeef",
+        connection_id=CONNECTION_ID,
+        user_id=USER_ID,
+        brand_id="exness",
+        entity_id="exness_technologies_ltd",
+        bundle_r2_path="https://pub-test.r2.dev/broker-bundles/exness-portable.zip",
+        bundle_sha256="a" * 64,
+        watchdog_port=9100,
     )
 
     sts = captured["statefulset"]
@@ -144,6 +151,8 @@ async def test_catalog_sync_runner_and_writer_are_required() -> None:
         await provisioner.provision_account(
             connection_id=CONNECTION_ID,
             user_id=USER_ID,
+            brand_id="exness",
+            entity_id="exness_technologies_ltd",
             login="123",
             password="pw",
             server="Exness-MT5Trial9",

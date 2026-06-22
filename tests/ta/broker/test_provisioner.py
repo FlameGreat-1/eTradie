@@ -78,6 +78,13 @@ async def _captured_statefulset(provisioner: HostedProvisioner, platform: str):
         vault_path=f"tenants/mt-node/{release}",
         sa_name=release,
         credentials_checksum="deadbeef",
+        connection_id=CONNECTION_ID,
+        user_id=USER_ID,
+        brand_id="deriv",
+        entity_id="deriv_com_limited",
+        bundle_r2_path="https://pub-test.r2.dev/broker-bundles/deriv-portable.zip",
+        bundle_sha256="a" * 64,
+        watchdog_port=9100,
     )
 
     apps_api.create_namespaced_stateful_set.assert_called_once()
@@ -116,6 +123,8 @@ class TestHostedProvisioner:
             await provisioner.provision_account(
                 connection_id=CONNECTION_ID,
                 user_id=USER_ID,
+                brand_id="deriv",
+                entity_id="deriv_com_limited",
                 login="12345",
                 password="pwd",
                 server=SERVER,
