@@ -285,6 +285,16 @@ config:
     hostedRecoveryReprovisionCooldownSecs: "300"
     hostedRecoveryMaxConcurrent: "4"
 
+  # Broker catalog (multi-broker MT5 provisioning control plane).
+  # Directory the engine reads the broker catalog JSON files from. The
+  # root Dockerfile copies infrastructure/broker-catalog/ into
+  # /app/infrastructure/broker-catalog, so the default below is correct
+  # in-image. Surfaced as BROKER_CATALOG_DIR in the ConfigMap and
+  # consumed by engine.config.Settings.broker_catalog_dir. Mirrors
+  # config.rag.knowledgeBaseDir. Inherited by both env overlays.
+  broker:
+    catalogDir: "/app/infrastructure/broker-catalog"
+
   # mt-node runtime tunables read by HostedProvisioner (Step 4 of
   # the mt-node hardening series). Non-secret; the credential
   # encryption key comes from ExternalSecret (see externalSecrets
