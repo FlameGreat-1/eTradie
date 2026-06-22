@@ -106,6 +106,18 @@ COPY src/engine/shared/db/migrations src/engine/shared/db/migrations
 #   RAGLoaderError: Cannot load markdown file: /app/knowledge/master_rulebook.md
 COPY knowledge/ knowledge/
 
+# Broker catalog (multi-broker MT5 provisioning control plane). These
+# JSON files live at the repo-root infrastructure/broker-catalog/ dir
+# and are NOT part of the installed Python package (setuptools
+# packages-find under src/ does not ship them), so they must be copied
+# explicitly into the runtime image, exactly like knowledge/ above.
+# WORKDIR is /app, so this lands at /app/infrastructure/broker-catalog;
+# the engine reads it via BROKER_CATALOG_DIR (default /app/
+# infrastructure/broker-catalog). Without this, the broker registry
+# loads zero brokers and hosted provisioning cannot resolve any broker.
+# The chown below covers ownership for uid 1000.
+COPY infrastructure/broker-catalog/ infrastructure/broker-catalog/
+
 # Ownership
 RUN chown -R etradie:etradie /app /home/etradie
 
