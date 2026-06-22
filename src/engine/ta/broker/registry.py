@@ -343,7 +343,7 @@ def load_broker_registry(catalog_dir: Path | None = None) -> BrokerRegistry:
     error, so the engine boots cleanly before the first broker is
     onboarded.
     """
-    directory = catalog_dir or _DEFAULT_CATALOG_DIR
+    directory = catalog_dir or _default_catalog_dir()
     if not directory.is_dir():
         logger.info("broker_registry_catalog_dir_absent", extra={"dir": str(directory)})
         return BrokerRegistry([])
