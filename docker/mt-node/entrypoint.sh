@@ -249,9 +249,40 @@ mkdir -p "$MT_DIR/$(dirname "$EA_REL_DST")" \
          "$MT_DIR/config"
 
 # ── Inject broker-specific servers.dat or *.srv if present ────────
-if [ -d "/broker-bundle/config" ] && [ "$(ls -A /broker-bundle/config 2>/dev/null)" ]; then
-  cp -f /broker-bundle/config/* "$MT_DIR/config/"
-  log INFO "Injected broker-specific config files from /broker-bundle/config"
+# The broker-bundle initContainer unzips the broker portable zip into
+# /broker-bundle. That zip carries a TOP-LEVEL 'MetaTrader 5/' (or
+# 'MetaTrader 5 <BRAND>/') directory -- the same layout the image
+# Dockerfile unzips and asserts terminal64.exe beneath -- so the
+# broker's servers.dat is at e.g.
+# /broker-bundle/MetaTrader 5/config/servers.dat, NOT
+# /broker-bundle/config/servers.dat. A per-instance Terminal data dir
+# layout is also possible. Per the architecture doc we therefore FIND
+# servers.dat rather than assume a fixed path, and install it (plus any
+# *.srv companions) into the terminal's config dir before launch. These
+# are the broker's OWN authoritative files -- installed verbatim, never
+# edited. Safe when the bundle is absent (dev/docker-compose): the find
+# returns nothing and the block is a no-op.
+if [ -d "/broker-bundle" ]; then
+  _bundle_installed=0
+  while IFS= read -r _sd; do
+    [ -n "$_sd" ] || continue
+    cp -f "$_sd" "$MT_DIR/config/servers.dat"
+    _bundle_installed=1
+    log INFO "Installed broker servers.dat from bundle ($_sd)"
+  done <<EOF
+$(find /broker-bundle -type f -iname 'servers.dat' 2>/dev/null)
+EOF
+  while IFS= read -r _srv; do
+    [ -n "$_srv" ] || continue
+    cp -f "$_srv" "$MT_DIR/config/"
+    _bundle_installed=1
+    log INFO "Installed broker .srv from bundle ($_srv)"
+  done <<EOF
+$(find /broker-bundle -type f -iname '*.srv' 2>/dev/null)
+EOF
+  if [ "$_bundle_installed" -eq 0 ]; then
+    log WARN "/broker-bundle present but no servers.dat/*.srv found under it; MT will use the baked servers.dat (broker login may fail)"
+  fi
 fi
 
 # ── Copy EA binary ────────────────────────────────────────────────
