@@ -215,7 +215,7 @@ async def create_broker_connection(
                 )
 
             try:
-                container.broker_registry.resolve(body.broker_id, body.entity_id)
+                container.broker_registry.resolve(body.broker_id, body.entity_id, body.platform)
             except ConfigurationError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
 
