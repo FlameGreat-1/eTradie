@@ -565,7 +565,11 @@ async def update_broker_connection(
                     "user_id": user.user_id,
                     "has_broker_id": bool(_brand_id),
                     "has_broker_entity_id": bool(_entity_id),
-                    "hint": "Hosted row pre-dates migration 0034; re-create the connection via the dashboard to populate broker_id/broker_entity_id so password rotation can re-seal the per-tenant Secret.",
+                    "hint": (
+                        "Hosted row pre-dates migration 0034; re-create the connection "
+                        "via the dashboard to populate broker_id/broker_entity_id so "
+                        "password rotation can re-seal the per-tenant Secret."
+                    ),
                 },
             )
         else:
