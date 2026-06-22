@@ -857,6 +857,77 @@ class HttpClient:
             timeout_override=timeout_override,
         )
 
+    async def head(
+        self,
+        url: str,
+        *,
+        provider_name: str = "unknown",
+        category: str = "unknown",
+        headers: dict[str, str] | None = None,
+        follow_redirects: bool = True,
+        timeout: float | None = None,
+        timeout_override: int | None = None,
+        trace_id: str | None = None,
+    ) -> HeadResult:
+        """Execute an HTTP HEAD request and return ONLY the status.
+
+        Unlike request()/get()/post()/delete(), this does NOT read or
+        parse a response body: a HEAD response has none, and the callers
+        (e.g. the broker-bundle reachability pre-flight) only need the
+        status code to decide reachable-vs-not. This makes it safe to
+        probe large artifacts (e.g. a 100MB+ broker bundle zip) without
+        downloading them.
+
+        Returns a HeadResult carrying status_code. Network-level failures
+        (DNS, connection refused, TLS, timeout) raise
+        ProviderUnavailableError / ProviderTimeoutError so the caller can
+        treat them as 'unreachable', mirroring the other verbs.
+
+        `timeout` (float seconds) is accepted as a convenience alias for
+        `timeout_override` so existing call sites read naturally; if both
+        are given, `timeout_override` wins.
+        """
+        self._validate_url(url)
+
+        effective_timeout = timeout_override if timeout_override is not None else (int(timeout) if timeout else None)
+        request_timeout = aiohttp.ClientTimeout(total=effective_timeout) if effective_timeout else self._timeout
+
+        circuit = await self._get_circuit(provider_name)
+        if (await circuit.state) == CircuitState.OPEN:
+            raise ProviderUnavailableError(
+                f"Circuit breaker OPEN for {provider_name}",
+                details={"provider": provider_name, "url": url},
+            )
+
+        session = await self._get_session()
+        start = time.monotonic()
+        try:
+            async with session.head(
+                url,
+                headers=headers,
+                allow_redirects=follow_redirects,
+                timeout=request_timeout,
+            ) as resp:
+                elapsed = time.monotonic() - start
+                PROVIDER_FETCH_DURATION.labels(provider=provider_name, category=category).observe(elapsed)
+                PROVIDER_FETCH_TOTAL.labels(provider=provider_name, category=category, status="success").inc()
+                await circuit.record_success()
+                return HeadResult(status_code=resp.status)
+        except TimeoutError as exc:
+            PROVIDER_ERRORS_TOTAL.labels(provider=provider_name, category=category, error_type="timeout").inc()
+            await circuit.record_failure()
+            raise ProviderTimeoutError(
+                f"{provider_name} HEAD timed out",
+                details={"url": url, "timeout": request_timeout.total},
+            ) from exc
+        except aiohttp.ClientError as exc:
+            PROVIDER_ERRORS_TOTAL.labels(provider=provider_name, category=category, error_type="connection").inc()
+            await circuit.record_failure()
+            raise ProviderUnavailableError(
+                f"{provider_name} HEAD connection error: {exc}",
+                details={"url": url, "error": str(exc)},
+            ) from exc
+
     async def close(self) -> None:
         """Gracefully close HTTP session."""
         try:
