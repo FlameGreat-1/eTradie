@@ -16,7 +16,7 @@
         "mt5": {
           "acquisition_url": "https://download.mql5.com/cdn/web/deriv.investments.ltd/mt5/deriv5setup.exe",
           "bundle_r2_path": "https://pub-5bdcacdedad6458298e8b8d5435f301a.r2.dev/broker-bundles/deriv-portable.zip",
-          "bundle_sha256": "ec1be6862921f7ff946acdc23d1ffc64410ff606190d7d9d4dd9247df009e612",
+          "bundle_sha256": "b0c68f1b3316b7d2aaf8495519642af8dc5947bc4dcf4a1703c520e48d81b5b3",
           "verified_on": "2026-06-22",
           "servers": {
             "demo": [
