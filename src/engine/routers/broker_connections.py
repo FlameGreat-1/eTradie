@@ -569,48 +569,50 @@ async def update_broker_connection(
                 },
             )
         else:
-          try:
-            provisioner = container.hosted_provisioner
-            ea_auth_token = ""  # nosec B105
-            if row.ea_auth_token_encrypted:
-                ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
-            password_plain = decrypt_credential(row.mt5_password_encrypted) if row.mt5_password_encrypted else ""
-            # Preserve the previously-resolved chart-attach symbol so
-            # a password-rotation triggered re-provision does not
-            # silently change the user's mt5_symbol. Same H-4 guard
-            # as HostedRecoveryService._reprovision.
-            existing_symbol = None
-            if getattr(row, "mt5_symbol", None):
-                _stripped = str(row.mt5_symbol).strip()
-                if _stripped:
-                    existing_symbol = _stripped
+            try:
+                provisioner = container.hosted_provisioner
+                ea_auth_token = ""  # nosec B105
+                if row.ea_auth_token_encrypted:
+                    ea_auth_token = decrypt_credential(row.ea_auth_token_encrypted)
+                password_plain = (
+                    decrypt_credential(row.mt5_password_encrypted) if row.mt5_password_encrypted else ""
+                )
+                # Preserve the previously-resolved chart-attach symbol so
+                # a password-rotation triggered re-provision does not
+                # silently change the user's mt5_symbol. Same H-4 guard
+                # as HostedRecoveryService._reprovision.
+                existing_symbol = None
+                if getattr(row, "mt5_symbol", None):
+                    _stripped = str(row.mt5_symbol).strip()
+                    if _stripped:
+                        existing_symbol = _stripped
 
-            await provisioner.provision_account(
-                connection_id=connection_id,
-                user_id=user.user_id,
-                brand_id=_brand_id,
-                entity_id=_entity_id,
-                login=row.mt5_login or "",
-                password=password_plain,
-                server=row.mt5_server or "",
-                platform=row.platform or "mt5",
-                per_user_zmq_token=ea_auth_token or None,
-                existing_chart_symbol=existing_symbol,
-            )
-            # provision_account() also re-runs symbol resolution on
-            # the new credentials and persists the refreshed map, so
-            # no extra call is needed here.
-            logger.info(
-                "hosted_credentials_rotated_after_password_update",
-                extra={"connection_id": connection_id, "user_id": user.user_id},
-            )
-        except Exception as exc:
-            # Non-fatal: log and continue. HostedRecoveryService will
-            # converge the Pod state on its next sweep.
-            logger.error(
-                "hosted_credentials_rotation_failed_after_password_update",
-                extra={"connection_id": connection_id, "error": str(exc)},
-            )
+                await provisioner.provision_account(
+                    connection_id=connection_id,
+                    user_id=user.user_id,
+                    brand_id=_brand_id,
+                    entity_id=_entity_id,
+                    login=row.mt5_login or "",
+                    password=password_plain,
+                    server=row.mt5_server or "",
+                    platform=row.platform or "mt5",
+                    per_user_zmq_token=ea_auth_token or None,
+                    existing_chart_symbol=existing_symbol,
+                )
+                # provision_account() also re-runs symbol resolution on
+                # the new credentials and persists the refreshed map, so
+                # no extra call is needed here.
+                logger.info(
+                    "hosted_credentials_rotated_after_password_update",
+                    extra={"connection_id": connection_id, "user_id": user.user_id},
+                )
+            except Exception as exc:
+                # Non-fatal: log and continue. HostedRecoveryService
+                # will converge the Pod state on its next sweep.
+                logger.error(
+                    "hosted_credentials_rotation_failed_after_password_update",
+                    extra={"connection_id": connection_id, "error": str(exc)},
+                )
 
     await container.invalidate_user_broker(user.user_id)
 
