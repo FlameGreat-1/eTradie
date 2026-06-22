@@ -15,7 +15,7 @@
       "platforms": {
         "mt5": {
           "acquisition_url": "https://download.mql5.com/cdn/web/exness.technologies.ltd/mt5/exness5setup.exe",
-          "bundle_r2_path": "https://pub-etradie-installers.r2.dev/broker-bundles/exness-portable.zip",
+          "bundle_r2_path": "https://pub-5bdcacdedad6458298e8b8d5435f301a.r2.dev/broker-bundles/exness-portable.zip",
           "bundle_sha256": "eadee9c7a152514f9c904b381a9416cf3d88dc5e480a12a62544079743c5e11c",
           "verified_on": "2026-06-22",
           "servers": {
@@ -85,7 +85,7 @@
         },
         "mt4": {
           "acquisition_url": "https://download.mql5.com/cdn/web/exness.technologies.ltd/mt4/exness4setup.exe",
-          "bundle_r2_path": "https://pub-etradie-installers.r2.dev/broker-bundles/exness-mt4-portable.zip",
+          "bundle_r2_path": "https://pub-5bdcacdedad6458298e8b8d5435f301a.r2.dev/broker-bundles/exness-mt4-portable.zip",
           "bundle_sha256": "790101cf0039eb9a4805f71cbb77293aa46de978e8ef33e9c5eca34c20dfa09c",
           "verified_on": "2026-06-22",
           "servers": {
