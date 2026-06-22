@@ -46,6 +46,18 @@ _SENSITIVE_HEADERS = frozenset(
 )
 
 
+@dataclass(frozen=True)
+class HeadResult:
+    """Result of a HEAD request: status only, no body.
+
+    HttpClient.head() returns this so callers can branch on
+    ``status_code`` (reachable vs not) without holding an open
+    aiohttp response or downloading a body.
+    """
+
+    status_code: int
+
+
 @unique
 class CircuitState(StrEnum):
     """Circuit breaker states."""
