@@ -139,10 +139,10 @@ spec:
             - -c
             - |
               echo "Downloading {{ .Values.mtConnection.brokerBundleR2Path }}..." && \
-              wget -qO /tmp/bundle.zip '{{ .Values.mtConnection.brokerBundleR2Path }}' && \
-              echo "{{ .Values.mtConnection.brokerBundleSha256 }}  /tmp/bundle.zip" | sha256sum -c - && \
-              unzip -q /tmp/bundle.zip -d /broker-bundle && \
-              rm /tmp/bundle.zip && \
+              wget -qO /broker-bundle/bundle.zip '{{ .Values.mtConnection.brokerBundleR2Path }}' && \
+              echo "{{ .Values.mtConnection.brokerBundleSha256 }}  /broker-bundle/bundle.zip" | sha256sum -c - && \
+              unzip -q /broker-bundle/bundle.zip -d /broker-bundle && \
+              rm /broker-bundle/bundle.zip && \
               echo 'Bundle extracted successfully.'
           securityContext:
             allowPrivilegeEscalation: false
