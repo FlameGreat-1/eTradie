@@ -62,6 +62,7 @@ def _default_catalog_dir() -> Path:
     """
     return Path(get_settings().broker_catalog_dir)
 
+
 # Mirrors schema.json identifier patterns so the loader rejects the
 # same shapes the JSON Schema does, even though we validate via Pydantic.
 _ID_PATTERN = re.compile(r"^[a-z0-9]+(_[a-z0-9]+)*$")
