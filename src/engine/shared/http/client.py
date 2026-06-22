@@ -5,6 +5,7 @@ import random
 import ssl
 import time
 from asyncio import Lock
+from dataclasses import dataclass
 from enum import StrEnum, unique
 from typing import Any
 from urllib.parse import urlparse
