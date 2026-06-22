@@ -240,6 +240,8 @@ async def create_broker_connection(
             try:
                 _probe = await container.http_client.head(
                     _resolved.bundle_r2_path,
+                    provider_name="broker_bundle_r2",
+                    category="bundle_reachability",
                     timeout=10.0,
                     follow_redirects=True,
                 )
