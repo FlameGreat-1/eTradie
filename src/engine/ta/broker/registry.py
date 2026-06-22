@@ -249,7 +249,7 @@ class BrokerRegistry:
                 f"Unknown entity_id {entity_id!r} for broker brand {brand_id!r}",
                 details={"brand_id": brand_id, "entity_id": entity_id},
             )
-        
+
         # We explicitly type-cast to suppress a pyright warning since we 
         # validate the platform string in HostedProvisioner.
         pf = entity.platforms.get(platform)  # type: ignore
@@ -258,7 +258,7 @@ class BrokerRegistry:
                 f"Platform {platform!r} is not configured for entity_id {entity_id!r} of brand {brand_id!r}",
                 details={"brand_id": brand_id, "entity_id": entity_id, "platform": platform},
             )
-            
+
         return ResolvedBroker(
             brand_id=brand.brand_id,
             entity_id=entity.entity_id,
