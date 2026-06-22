@@ -16,11 +16,46 @@ import { toast } from '@/hooks/useToast';
 // 5xx must be surfaced here.
 // ---------------------------------------------------------------------------
 
+// Normalise any FastAPI error `detail` shape into a single string.
+//
+// The engine returns `detail` as one of:
+//   - a plain string (most handlers),
+//   - a structured object, e.g. the hosted broker-bundle 422
+//     `{ code, message, bundle_url }` or `{ code, message }`,
+//   - a 422 validation LIST of `{ loc, msg, type }` items.
+// Returning anything other than a string here lets a non-string reach
+// the toast/JSX layer and crashes React with error #31. This helper is
+// the single guarantee that callers always get a string.
+function detailToString(detail: unknown): string | undefined {
+  if (detail == null) return undefined;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map((d) =>
+        d && typeof d === 'object' && 'msg' in d ? String((d as { msg: unknown }).msg) : '',
+      )
+      .filter(Boolean);
+    return msgs.length > 0 ? msgs.join('; ') : undefined;
+  }
+  if (typeof detail === 'object') {
+    const obj = detail as Record<string, unknown>;
+    if (typeof obj.message === 'string') return obj.message;
+    if (typeof obj.code === 'string') return obj.code;
+    try {
+      return JSON.stringify(obj);
+    } catch {
+      return undefined;
+    }
+  }
+  return String(detail);
+}
+
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof AxiosError) {
-    const body = err.response?.data as { detail?: string; error?: string } | undefined;
-    if (body?.detail) return body.detail;
-    if (body?.error) return body.error;
+    const body = err.response?.data as { detail?: unknown; error?: unknown } | undefined;
+    const detail = detailToString(body?.detail);
+    if (detail) return detail;
+    if (typeof body?.error === 'string') return body.error;
     if (err.message) return err.message;
   } else if (err instanceof Error) {
     return err.message;
