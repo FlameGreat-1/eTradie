@@ -95,12 +95,36 @@ def _fake_vault() -> MagicMock:
     return vault
 
 
+def _fake_broker_registry() -> MagicMock:
+    """Fake BrokerRegistry whose resolve() returns a stub ResolvedBroker.
+
+    The provisioner reads .bundle_r2_path, .bundle_sha256,
+    .demo_servers, and .live_servers off the result. The actual
+    bundle download is mocked out by _patch_kube_api, so the values
+    here just need to be well-formed enough to satisfy the production
+    code's downstream assertions (https URL, 64-hex sha).
+    """
+    resolved = MagicMock()
+    resolved.brand_id = "deriv"
+    resolved.entity_id = "deriv_com_limited"
+    resolved.display_name = "Deriv.com Limited"
+    resolved.bundle_r2_path = "https://pub-test.r2.dev/broker-bundles/deriv-portable.zip"
+    resolved.bundle_sha256 = "a" * 64
+    resolved.demo_servers = ["Deriv-Demo"]
+    resolved.live_servers = ["Deriv-Server"]
+
+    registry = MagicMock()
+    registry.resolve = MagicMock(return_value=resolved)
+    return registry
+
+
 def _make_provisioner(vault: MagicMock | None = None) -> HostedProvisioner:
     """Construct a fully-wired provisioner with async catalog/chart hooks."""
     return HostedProvisioner(
         namespace="etradie-system",
         image="etradie-mt-node:test",
         vault_client=vault if vault is not None else _fake_vault(),
+        broker_registry=_fake_broker_registry(),
         catalog_sync_runner=AsyncMock(return_value="EURUSD"),
         chart_symbol_writer=AsyncMock(return_value=None),
     )
