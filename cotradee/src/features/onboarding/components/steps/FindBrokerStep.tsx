@@ -5,46 +5,9 @@ import {
   type BrandRecord,
 } from '@/features/broker/api/brokerRegistry';
 
-// ---------------------------------------------------------------------------
-// FindBrokerStep — Step 0/8 of the onboarding wizard.
-//
-// MT5-terminal-style "Find Your Broker" experience: the user types a
-// broker name and matches appear in a scrollable dropdown. They click
-// one to select it. The next step (BrokerStep) then renders a server
-// dropdown populated from the chosen brand's catalog instead of a
-// free-text input.
-//
-// Reference: MT5_Multi_Broker_Provisioning_Architecture.md §9 Stage 1.
-//
-// Theming
-// -------
-// Uses the project's Tailwind tokens exclusively (surface-1/2/3,
-// border, brand, content, success). No hard-coded hex; dark/light
-// auto via the existing CSS-variable theme.
-//
-// Responsiveness
-// --------------
-// max-w-md mx-auto with px-4 sm:px-6 padding mirrors every other
-// onboarding step (BrokerStep, SymbolsStep). The dropdown caps at
-// max-h-72 and scrolls internally so it never grows past the wizard
-// card on small screens.
-//
-// Long-tail brokers
-// -----------------
-// Brands not yet in the registry are not listed. Per §9 the wizard
-// offers an 'Advanced setup' escape hatch — handled by the receiver
-// in BrokerStep (next commit). FindBrokerStep renders the link only;
-// the actual free-text form lives in step 1.
-// ---------------------------------------------------------------------------
-
 interface Props {
-  /** Called when the user picks a brand. Bubbles to the wizard which
-   *  routes the choice to the BrokerStep (next commit). */
   onSelect: (brand: BrandRecord) => void;
-  /** Called when the user clicks 'Use advanced setup' for a long-tail
-   *  broker not yet in the catalog. The receiver lives in BrokerStep. */
   onAdvanced?: () => void;
-  /** Pre-selected brand_id (when the user re-opens this step). */
   initialBrandId?: string;
 }
 
@@ -56,10 +19,6 @@ export function FindBrokerStep({ onSelect, onAdvanced, initialBrandId }: Props) 
   const listRef = useRef<HTMLUListElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Filter brands by the typed query. The match is case-insensitive on
-  // both display_name and brand_id so 'der' surfaces Deriv whether the
-  // user types the marketing name or the canonical id. Sorted
-  // alphabetically on display_name for stable rendering.
   const filtered = useMemo<BrandRecord[]>(() => {
     const list = brands ?? [];
     const q = query.trim().toLowerCase();
@@ -75,27 +34,19 @@ export function FindBrokerStep({ onSelect, onAdvanced, initialBrandId }: Props) 
       .sort((a, b) => a.display_name.localeCompare(b.display_name));
   }, [brands, query]);
 
-  // Reset the active highlight whenever the visible list shape changes.
   useEffect(() => {
     setActiveIndex(0);
   }, [query, brands]);
 
-  // Keep the highlighted row in view as the user arrow-keys through it.
   useEffect(() => {
     const el = listRef.current?.children[activeIndex] as HTMLElement | undefined;
     el?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex]);
 
-  // Autofocus the search input on mount so the user can start typing
-  // immediately — the MT5 terminal does the same.
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  // If the caller passed an initialBrandId (the user is re-opening
-  // step 0), pre-fill the search box so they see why a brand is
-  // already 'staged'. We do not auto-select; the user must click to
-  // confirm to avoid silent state.
   useEffect(() => {
     if (!initialBrandId || !brands?.length) return;
     const match = brands.find((b) => b.brand_id === initialBrandId);
@@ -157,11 +108,6 @@ export function FindBrokerStep({ onSelect, onAdvanced, initialBrandId }: Props) 
           </div>
         </label>
 
-        {/*
-          Results dropdown. Internally scrollable so the wizard card
-          never grows on mobile. The list lives inline (not popover-
-          attached) so iOS Safari does not clip it under the keyboard.
-        */}
         <div className="rounded-lg border border-border bg-surface-2 overflow-hidden">
           {isLoading && (
             <div className="flex items-center justify-center gap-2 py-8 text-xs text-content-muted">
@@ -272,12 +218,6 @@ export function FindBrokerStep({ onSelect, onAdvanced, initialBrandId }: Props) 
   );
 }
 
-/**
- * Inline highlight of the matching substring in a brand's display
- * name. Mirrors the MT5 mobile terminal's search-as-you-type effect.
- * Falls back to the unmodified text when the query is empty or no
- * match exists.
- */
 function HighlightedMatch({ text, query }: { text: string; query: string }) {
   const q = query.trim();
   if (!q) return <>{text}</>;
