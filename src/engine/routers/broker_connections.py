@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-from typing import Any
-
 """Broker connection management endpoints (dashboard CRUD).
 
 Routes:
@@ -17,10 +13,12 @@ Routes:
     DELETE /api/broker/connections/{connection_id}
 """
 
+from __future__ import annotations
 
 import asyncio
 import contextlib
 import os
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 
