@@ -1280,10 +1280,13 @@ class HostedProvisioner:
                 "-c",
                 (
                     f"echo 'Downloading {bundle_r2_path}...' && "
-                    f"wget -qO /tmp/bundle.zip '{bundle_r2_path}' && "
-                    f"echo '{bundle_sha256}  /tmp/bundle.zip' | sha256sum -c - && "
-                    f"unzip -q /tmp/bundle.zip -d /broker-bundle && "
-                    f"rm /tmp/bundle.zip && "
+                    # readOnlyRootFilesystem=true: / and /tmp are NOT
+                    # writable. The broker-bundle emptyDir IS writable
+                    # (it is the unzip target), so stage the zip there.
+                    f"wget -qO /broker-bundle/bundle.zip '{bundle_r2_path}' && "
+                    f"echo '{bundle_sha256}  /broker-bundle/bundle.zip' | sha256sum -c - && "
+                    f"unzip -q /broker-bundle/bundle.zip -d /broker-bundle && "
+                    f"rm /broker-bundle/bundle.zip && "
                     f"echo 'Bundle extracted successfully.'"
                 ),
             ],
