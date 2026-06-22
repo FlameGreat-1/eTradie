@@ -60,6 +60,44 @@ async def test_url_validation(http_client):
 
 
 @pytest.mark.asyncio
+async def test_head_success_returns_status(http_client, mock_aioresponse):
+    """HEAD on a reachable URL returns a HeadResult carrying the status,
+    without reading a body. This is the broker-bundle reachability
+    probe's happy path."""
+    url = "https://pub-example.r2.dev/broker-bundles/deriv-portable.zip"
+    mock_aioresponse.head(url, status=200)
+
+    result = await http_client.head(url, provider_name="broker_bundle_r2", timeout=10.0)
+
+    assert result.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_head_returns_4xx_without_raising(http_client, mock_aioresponse):
+    """A 4xx HEAD is a reachable-but-missing object: head() RETURNS the
+    status (the caller decides what >=400 means), it does not raise."""
+    url = "https://pub-example.r2.dev/broker-bundles/missing.zip"
+    mock_aioresponse.head(url, status=404)
+
+    result = await http_client.head(url, provider_name="broker_bundle_r2", timeout=10.0)
+
+    assert result.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_head_connection_error_raises_unavailable(http_client, mock_aioresponse):
+    """A network-level failure surfaces as ProviderUnavailableError so the
+    probe's except-branch can map it to a 422 'bundle unreachable'."""
+    import aiohttp
+
+    url = "https://pub-example.r2.dev/broker-bundles/deriv-portable.zip"
+    mock_aioresponse.head(url, exception=aiohttp.ClientConnectionError("refused"))
+
+    with pytest.raises(ProviderUnavailableError):
+        await http_client.head(url, provider_name="broker_bundle_r2", timeout=10.0)
+
+
+@pytest.mark.asyncio
 async def test_timeout_retry_and_exhaustion(http_client, mock_aioresponse):
     """Test that timeouts trigger retries and eventually surface a ProviderTimeoutError."""
     url = "https://api.example.com/timeout"
