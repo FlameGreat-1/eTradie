@@ -22,7 +22,6 @@ export function OnboardingWizard() {
   const [mounted, setMounted] = useState(false);
 
   const [pickedBrand, setPickedBrand] = useState<BrandRecord | null>(null);
-  const [advancedMode, setAdvancedMode] = useState(false);
 
   useEffect(() => {
     if (loading || mounted) return;
@@ -55,13 +54,6 @@ export function OnboardingWizard() {
 
   const handleBrandSelect = useCallback((brand: BrandRecord) => {
     setPickedBrand(brand);
-    setAdvancedMode(false);
-    setCurrent(1);
-  }, []);
-
-  const handleAdvanced = useCallback(() => {
-    setPickedBrand(null);
-    setAdvancedMode(true);
     setCurrent(1);
   }, []);
 
@@ -75,7 +67,6 @@ export function OnboardingWizard() {
         return (
           <FindBrokerStep
             onSelect={handleBrandSelect}
-            onAdvanced={handleAdvanced}
             initialBrandId={pickedBrand?.brand_id}
           />
         );
@@ -83,7 +74,6 @@ export function OnboardingWizard() {
         return (
           <BrokerStep
             brand={pickedBrand}
-            advanced={advancedMode}
             onBack={handleBackFromSetup}
             onComplete={advance}
           />
@@ -103,15 +93,7 @@ export function OnboardingWizard() {
       default:
         return null;
     }
-  }, [
-    current,
-    pickedBrand,
-    advancedMode,
-    handleBrandSelect,
-    handleAdvanced,
-    handleBackFromSetup,
-    advance,
-  ]);
+  }, [current, pickedBrand, handleBrandSelect, handleBackFromSetup, advance]);
 
   if (loading)
     return (

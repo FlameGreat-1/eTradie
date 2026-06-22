@@ -7,11 +7,10 @@ import {
 
 interface Props {
   onSelect: (brand: BrandRecord) => void;
-  onAdvanced?: () => void;
   initialBrandId?: string;
 }
 
-export function FindBrokerStep({ onSelect, onAdvanced, initialBrandId }: Props) {
+export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
   const { data: brands, isLoading, isError, error, refetch } = useBrokerRegistry();
 
   const [query, setQuery] = useState('');
@@ -138,15 +137,9 @@ export function FindBrokerStep({ onSelect, onAdvanced, initialBrandId }: Props) 
               <p className="text-xs text-content-muted">
                 No supported broker matches &ldquo;{query}&rdquo;.
               </p>
-              {onAdvanced && (
-                <button
-                  type="button"
-                  onClick={onAdvanced}
-                  className="mt-3 text-xs font-semibold text-brand hover:opacity-80"
-                >
-                  Use advanced setup →
-                </button>
-              )}
+              <p className="mt-2 text-[11px] text-content-faint">
+                We&apos;re adding more brokers regularly.
+              </p>
             </div>
           )}
 
@@ -201,18 +194,6 @@ export function FindBrokerStep({ onSelect, onAdvanced, initialBrandId }: Props) 
             </ul>
           )}
         </div>
-
-        {onAdvanced && !isLoading && !isError && filtered.length > 0 && (
-          <div className="text-center pt-2">
-            <button
-              type="button"
-              onClick={onAdvanced}
-              className="text-[11px] font-medium text-content-muted hover:text-content underline-offset-2 hover:underline"
-            >
-              Can&apos;t find your broker? Use advanced setup →
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

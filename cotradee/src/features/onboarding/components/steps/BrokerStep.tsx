@@ -36,12 +36,11 @@ const INITIAL_FORM: BrokerForm = {
 
 interface Props {
   brand: BrandRecord | null;
-  advanced: boolean;
   onBack: () => void;
   onComplete: () => void;
 }
 
-export function BrokerStep({ brand, advanced, onBack, onComplete }: Props) {
+export function BrokerStep({ brand, onBack, onComplete }: Props) {
   const { data: connections } = useBrokerConnections();
   const { data: active } = useActiveBrokerConnection();
   const createConn = useCreateBrokerConnection();
@@ -59,8 +58,8 @@ export function BrokerStep({ brand, advanced, onBack, onComplete }: Props) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!brand && !advanced) onBack();
-  }, [brand, advanced, onBack]);
+    if (!brand) onBack();
+  }, [brand, onBack]);
 
   useEffect(() => {
     if (!brand) return;
@@ -112,6 +111,10 @@ export function BrokerStep({ brand, advanced, onBack, onComplete }: Props) {
     e.preventDefault();
     setError('');
 
+    if (!brand || !selectedEntity) {
+      setError('Pick a broker first.');
+      return;
+    }
     if (!form.name.trim()) {
       setError('Give your connection a name.');
       return;
@@ -129,12 +132,6 @@ export function BrokerStep({ brand, advanced, onBack, onComplete }: Props) {
       return;
     }
 
-    const useRegistry = !advanced && !!brand && !!selectedEntity;
-    if (!useRegistry && !advanced) {
-      setError('Pick a broker first.');
-      return;
-    }
-
     const payload: Record<string, unknown> = {
       connection_type: form.connection_type,
       name: form.name.trim(),
@@ -144,9 +141,9 @@ export function BrokerStep({ brand, advanced, onBack, onComplete }: Props) {
       platform: form.platform,
     };
 
-    if (useRegistry && form.connection_type === 'hosted') {
-      payload.broker_id = brand!.brand_id;
-      payload.entity_id = selectedEntity!.entity_id;
+    if (form.connection_type === 'hosted') {
+      payload.broker_id = brand.brand_id;
+      payload.entity_id = selectedEntity.entity_id;
     }
 
     try {
@@ -174,6 +171,8 @@ export function BrokerStep({ brand, advanced, onBack, onComplete }: Props) {
     );
   }
 
+  if (!brand) return null;
+
   const requiresPassword =
     form.connection_type === 'metaapi' || form.connection_type === 'hosted';
 
@@ -183,23 +182,13 @@ export function BrokerStep({ brand, advanced, onBack, onComplete }: Props) {
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-2 border border-border">
           <Server className="h-6 w-6 text-content" />
         </div>
-        <h2 className="text-xl font-bold text-content">
-          {advanced ? 'Advanced broker setup' : 'Connect your broker'}
-        </h2>
-        {brand && !advanced && (
-          <p className="mt-2 text-sm text-content-secondary">
-            <span className="font-semibold text-content">{brand.display_name}</span>
-            {brand.entities.length === 1 && (
-              <span className="text-content-muted"> · {brand.entities[0].display_name}</span>
-            )}
-          </p>
-        )}
-        {advanced && (
-          <p className="mt-2 text-xs text-content-muted">
-            Type your broker&apos;s server name manually. Use this only if your
-            broker is not yet in our catalog.
-          </p>
-        )}
+        <h2 className="text-xl font-bold text-content">Connect your broker</h2>
+        <p className="mt-2 text-sm text-content-secondary">
+          <span className="font-semibold text-content">{brand.display_name}</span>
+          {brand.entities.length === 1 && (
+            <span className="text-content-muted"> · {brand.entities[0].display_name}</span>
+          )}
+        </p>
         <button
           type="button"
           onClick={onBack}
@@ -248,7 +237,7 @@ export function BrokerStep({ brand, advanced, onBack, onComplete }: Props) {
             />
           </div>
 
-          {brand && !advanced && brand.entities.length > 1 && (
+          {brand.entities.length > 1 && (
             <div className="col-span-2 space-y-1">
               <label className="text-[10px] text-content-muted uppercase font-bold tracking-wider">
                 Legal Entity
@@ -319,51 +308,41 @@ export function BrokerStep({ brand, advanced, onBack, onComplete }: Props) {
             <label className="text-[10px] text-content-muted uppercase font-bold tracking-wider">
               Broker Server
             </label>
-            {advanced ? (
-              <input
-                type="text"
+            <div className="relative">
+              <select
                 value={form.mt5_server}
                 onChange={(e) => setForm((f) => ({ ...f, mt5_server: e.target.value }))}
-                placeholder="Exness-MT5Trial9"
-                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand"
+                disabled={!selectedEntity}
+                className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="" disabled>
+                  {selectedEntity ? 'Select a server…' : 'Pick an entity first'}
+                </option>
+                {serverLists.demo.length > 0 && (
+                  <optgroup label="Demo">
+                    {serverLists.demo.map((s) => (
+                      <option key={`d-${s}`} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {serverLists.live.length > 0 && (
+                  <optgroup label="Live">
+                    {serverLists.live.map((s) => (
+                      <option key={`l-${s}`} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              <ChevronDown
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-content-faint pointer-events-none"
+                size={14}
+                strokeWidth={3}
               />
-            ) : (
-              <div className="relative">
-                <select
-                  value={form.mt5_server}
-                  onChange={(e) => setForm((f) => ({ ...f, mt5_server: e.target.value }))}
-                  disabled={!selectedEntity}
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="" disabled>
-                    {selectedEntity ? 'Select a server…' : 'Pick an entity first'}
-                  </option>
-                  {serverLists.demo.length > 0 && (
-                    <optgroup label="Demo">
-                      {serverLists.demo.map((s) => (
-                        <option key={`d-${s}`} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {serverLists.live.length > 0 && (
-                    <optgroup label="Live">
-                      {serverLists.live.map((s) => (
-                        <option key={`l-${s}`} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
-                <ChevronDown
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-content-faint pointer-events-none"
-                  size={14}
-                  strokeWidth={3}
-                />
-              </div>
-            )}
+            </div>
           </div>
 
           <div className="space-y-1">
