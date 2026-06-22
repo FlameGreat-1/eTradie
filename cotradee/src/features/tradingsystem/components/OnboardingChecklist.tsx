@@ -168,7 +168,7 @@ export function OnboardingChecklist() {
         <header className="mb-4">
           <h2 className="text-lg font-semibold text-content">Let&apos;s get you set up</h2>
           <p className="mt-1 text-sm text-content-secondary">
-            Seven quick steps to your personalised Exoper trading desk.
+            A few quick steps to your personalised Exoper trading desk.
           </p>
           <div className="mt-3">
             <div className="flex items-center justify-between text-xs text-content-muted mb-1.5">
