@@ -230,6 +230,7 @@ class Container:
         self._vault_client: VaultClient | None = None  # type: ignore[name-defined]
         self._hosted_provisioner: HostedProvisioner | None = None  # type: ignore[name-defined]
         self._hosted_recovery_service: HostedRecoveryService | None = None  # type: ignore[name-defined]
+        self._broker_registry: BrokerRegistry | None = None  # type: ignore[name-defined]
 
     def _build_providers(self) -> None:
         s = self.settings
@@ -678,7 +679,7 @@ class Container:
     @property
     def broker_registry(self) -> Any:
         """Lazy-built singleton BrokerRegistry."""
-        if getattr(self, "_broker_registry", None) is not None:
+        if self._broker_registry is not None:
             return self._broker_registry
         from engine.ta.broker.registry import load_broker_registry
 
