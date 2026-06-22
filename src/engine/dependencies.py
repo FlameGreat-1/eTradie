@@ -676,6 +676,16 @@ class Container:
     # -- Section 8 (CHECKLIST): hosted MT-node failure recovery -----------
 
     @property
+    def broker_registry(self) -> Any:
+        """Lazy-built singleton BrokerRegistry."""
+        if getattr(self, "_broker_registry", None) is not None:
+            return self._broker_registry
+        from engine.ta.broker.registry import load_broker_registry
+
+        self._broker_registry = load_broker_registry()
+        return self._broker_registry
+
+    @property
     def vault_client(self) -> Any:
         """Lazy-built singleton VaultClient.
 
@@ -839,6 +849,7 @@ class Container:
 
         self._hosted_provisioner = HostedProvisioner(
             vault_client=self.vault_client,
+            broker_registry=self.broker_registry,
             catalog_sync_runner=_catalog_sync_runner,
             chart_symbol_writer=_chart_symbol_writer,
         )

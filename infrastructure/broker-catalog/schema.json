@@ -10,6 +10,7 @@
     "display_name",
     "official_website",
     "mt5_supported",
+    "mt4_supported",
     "installer_packaging",
     "status",
     "entities"
@@ -36,7 +37,11 @@
     },
     "mt5_supported": {
       "type": "boolean",
-      "description": "Whether this broker offers an MT5 terminal at all. When false, entities MUST be empty."
+      "description": "Whether this broker offers an MT5 terminal at all."
+    },
+    "mt4_supported": {
+      "type": "boolean",
+      "description": "Whether this broker offers an MT4 terminal at all."
     },
     "installer_packaging": {
       "type": "string",
@@ -60,17 +65,27 @@
   },
   "allOf": [
     {
-      "description": "A brand that does not support MT5 must carry no entities.",
-      "if": { "properties": { "mt5_supported": { "const": false } } },
+      "description": "A brand that supports neither MT5 nor MT4 must carry no entities.",
+      "if": { 
+        "properties": { 
+          "mt5_supported": { "const": false },
+          "mt4_supported": { "const": false }
+        } 
+      },
       "then": { "properties": { "entities": { "maxItems": 0 } } }
     },
     {
-      "description": "A brand that supports MT5 must carry at least one entity.",
-      "if": { "properties": { "mt5_supported": { "const": true } } },
+      "description": "A brand that supports either MT5 or MT4 must carry at least one entity.",
+      "if": { 
+        "anyOf": [
+          { "properties": { "mt5_supported": { "const": true } } },
+          { "properties": { "mt4_supported": { "const": true } } }
+        ]
+      },
       "then": { "properties": { "entities": { "minItems": 1 } } }
     },
     {
-      "description": "An active brand must have every entity fully provisioned (R2 bundle + sha + non-empty live servers). Enforced per-entity in the loader; expressed here for documentation.",
+      "description": "An active brand must have every entity fully provisioned (at least one platform present, and any present platform must have R2 bundle + sha + non-empty live servers). Enforced in the loader; expressed here for documentation.",
       "if": { "properties": { "status": { "const": "active" } } },
       "then": {
         "properties": {
@@ -80,13 +95,8 @@
               "required": [
                 "entity_id",
                 "display_name",
-                "bundle_r2_path",
-                "bundle_sha256",
-                "servers"
-              ],
-              "properties": {
-                "servers": { "required": ["live"] }
-              }
+                "platforms"
+              ]
             }
           }
         }
@@ -117,6 +127,22 @@
           "description": "Short-form regulator name for display (e.g. 'FSA Seychelles', 'CySEC'). Advisory only.",
           "maxLength": 80
         },
+        "platforms": {
+          "type": "object",
+          "description": "Platform-specific provisioning data (MT4, MT5).",
+          "additionalProperties": false,
+          "properties": {
+            "mt4": { "$ref": "#/$defs/platform_config" },
+            "mt5": { "$ref": "#/$defs/platform_config" }
+          }
+        }
+      }
+    },
+    "platform_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundle_r2_path", "bundle_sha256", "servers"],
+      "properties": {
         "acquisition_url": {
           "type": "string",
           "description": "ACQUISITION ONLY — the broker's own official installer URL used ONCE BY A HUMAN on the bake workstation. This is NEVER a runtime/pipeline fetch path; the CI build guard blocks download.mql5.com as a build arg. The system fetch path is bundle_r2_path.",
@@ -142,7 +168,8 @@
         "servers": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Exact server strings extracted from the baked servers.dat (verbatim, every numbered variant). NEVER researched as free text.",
+          "description": "Exact server strings extracted from the baked config files (verbatim, every numbered variant). NEVER researched as free text.",
+          "required": ["live"],
           "properties": {
             "demo": {
               "type": "array",

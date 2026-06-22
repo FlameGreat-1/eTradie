@@ -189,6 +189,8 @@ class CreateBrokerConnectionRequest(BaseModel):
 
     connection_type: str  # 'ea', 'metaapi', or 'hosted'
     name: str
+    broker_id: str | None = None
+    entity_id: str | None = None
     # MetaAPI / Hosted: user's MT broker credentials
     mt5_login: str | None = None
     mt5_password: str | None = None

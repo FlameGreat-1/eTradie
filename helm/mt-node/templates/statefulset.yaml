@@ -75,6 +75,9 @@ spec:
           export MT_ZMQ_AUTH_TOKEN={{`{{ .Data.data.mt5_zmq_auth_token }}`}}
           export MT_VAULT_RENDERED_AT={{`{{ timestamp "2006-01-02T15:04:05Z" }}`}}
           {{`{{- end -}}`}}
+        {{- if and .Values.mtConnection.brokerBundleR2Path .Values.mtConnection.brokerBundleSha256 }}
+        etradie.io/broker-bundle-sha256: {{ .Values.mtConnection.brokerBundleSha256 | quote }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -119,6 +122,33 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if and .Values.mtConnection.brokerBundleR2Path .Values.mtConnection.brokerBundleSha256 }}
+      initContainers:
+        - name: broker-bundle
+          image: {{ include "mt-node.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Downloading {{ .Values.mtConnection.brokerBundleR2Path }}..." && \
+              wget -qO /tmp/bundle.zip '{{ .Values.mtConnection.brokerBundleR2Path }}' && \
+              echo "{{ .Values.mtConnection.brokerBundleSha256 }}  /tmp/bundle.zip" | sha256sum -c - && \
+              unzip -q /tmp/bundle.zip -d /broker-bundle && \
+              rm /tmp/bundle.zip && \
+              echo 'Bundle extracted successfully.'
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: {{ .Values.securityContext.runAsUser | default 1000 }}
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: broker-bundle
+              mountPath: /broker-bundle
+      {{- end }}
       containers:
         - name: mt-node
           image: {{ include "mt-node.image" . | quote }}
@@ -144,6 +174,12 @@ spec:
               value: {{ .Values.mtConnection.symbol | quote }}
             - name: ZMQ_PORT
               value: {{ .Values.service.zmqPort | default 5555 | quote }}
+            {{- if and .Values.mtConnection.brokerBundleR2Path .Values.mtConnection.brokerBundleSha256 }}
+            - name: BUNDLE_R2_PATH
+              value: {{ .Values.mtConnection.brokerBundleR2Path | quote }}
+            - name: BUNDLE_SHA256
+              value: {{ .Values.mtConnection.brokerBundleSha256 | quote }}
+            {{- end }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -184,6 +220,11 @@ spec:
             - name: vault-token
               mountPath: /var/run/secrets/vault
               readOnly: true
+            {{- if and .Values.mtConnection.brokerBundleR2Path .Values.mtConnection.brokerBundleSha256 }}
+            - name: broker-bundle
+              mountPath: /broker-bundle
+              readOnly: true
+            {{- end }}
         {{- if .Values.sidecar.watchdog.enabled }}
         - name: watchdog
           image: {{ include "mt-node.image" . | quote }}
@@ -232,6 +273,10 @@ spec:
               mountPath: /tmp
         {{- end }}
       volumes:
+        {{- if and .Values.mtConnection.brokerBundleR2Path .Values.mtConnection.brokerBundleSha256 }}
+        - name: broker-bundle
+          emptyDir: {}
+        {{- end }}
         - name: mt-cache
           emptyDir:
             sizeLimit: 256Mi

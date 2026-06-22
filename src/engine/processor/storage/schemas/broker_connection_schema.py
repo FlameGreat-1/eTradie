@@ -105,6 +105,16 @@ class BrokerConnectionRow(ProcessorBase):
         nullable=True,
     )
 
+    # -- Broker Registry Identity ----------------------------------------------
+    broker_id: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+    broker_entity_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
     # -- MT5 account info (common to both types) ------------------------------
     mt5_server: Mapped[str | None] = mapped_column(
         String(200),

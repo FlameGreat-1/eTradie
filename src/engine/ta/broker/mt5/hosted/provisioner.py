@@ -250,6 +250,7 @@ class HostedProvisioner:
         image: str | None = None,
         platform_default_token_secret_name: str | None = None,
         vault_client: VaultClient | None = None,
+        broker_registry: Any | None = None,
         catalog_sync_runner: CatalogSyncRunner | None = None,
         chart_symbol_writer: ChartSymbolWriter | None = None,
     ) -> None:
@@ -259,6 +260,7 @@ class HostedProvisioner:
         # release-scoped name helm/mt-node renders for a release.
         self._platform_secret_template = platform_default_token_secret_name or "{release}-platform"
         self._vault = vault_client
+        self._broker_registry = broker_registry
         # Injected by Container: keeps DB + broker-client coupling out
         # of the K8s module. Both are required for hosted provisioning;
         # absence is enforced at provision_account().
@@ -407,6 +409,8 @@ class HostedProvisioner:
         *,
         connection_id: str,
         user_id: str,
+        brand_id: str,
+        entity_id: str,
         login: str,
         password: str,
         server: str,
@@ -448,6 +452,18 @@ class HostedProvisioner:
                 f"platform must be mt4 or mt5 (got {platform!r})",
                 details={"platform": platform, "connection_id": connection_id},
             )
+
+        if self._broker_registry is None:
+            raise ConfigurationError(
+                "BrokerRegistry must be injected to provision hosted accounts.",
+                details={"connection_id": connection_id},
+            )
+
+        resolved_broker = self._broker_registry.resolve(brand_id, entity_id, platform)
+
+        # Fall back to development token if not explicitly provided
+        zmq_auth_token = per_user_zmq_token or os.environ.get("DEFAULT_ZMQ_AUTH_TOKEN", "")
+
         if self._catalog_sync_runner is None or self._chart_symbol_writer is None:
             raise ConfigurationError(
                 "HostedProvisioner requires catalog_sync_runner and "
@@ -499,18 +515,27 @@ class HostedProvisioner:
                     zmq_port=zmq_port,
                     watchdog_port=DEFAULT_WATCHDOG_PORT,
                 )
+                # 4. Upsert StatefulSet (skip catalog sync if already resolved)
+                target_symbol = existing_chart_symbol or SYMBOL_PENDING_SENTINEL
                 await self._upsert_statefulset(
                     apps_api=apps_api,
+                    connection_id=connection_id,
+                    user_id=user_id,
+                    platform=platform,
+                    brand_id=brand_id,
+                    entity_id=entity_id,
+                    bundle_r2_path=resolved_broker.bundle_r2_path,
+                    bundle_sha256=resolved_broker.bundle_sha256,
                     release=release,
+                    sa_name=sa_name,
+                    vault_path=vault_path,
+                    symbol=target_symbol,
+                    watchdog_port=DEFAULT_WATCHDOG_PORT,
+                    zmq_port=zmq_port,
                     headless_service_name=headless_service_name,
                     labels=labels,
                     selector=selector,
-                    platform=platform,
                     server=server,
-                    symbol=SYMBOL_PENDING_SENTINEL,
-                    zmq_port=zmq_port,
-                    vault_path=vault_path,
-                    sa_name=sa_name,
                     credentials_checksum=credentials_checksum,
                 )
                 await self._upsert_service(
@@ -1014,6 +1039,13 @@ class HostedProvisioner:
         vault_path: str,
         sa_name: str,
         credentials_checksum: str = "",
+        connection_id: str,
+        user_id: str,
+        brand_id: str,
+        entity_id: str,
+        bundle_r2_path: str,
+        bundle_sha256: str,
+        watchdog_port: int,
     ) -> None:
         """Create or update the per-tenant StatefulSet.
 
@@ -1024,15 +1056,16 @@ class HostedProvisioner:
         lifecycle.preStop, same terminationGracePeriodSeconds, same
         security context, and the same Vault Agent Injector annotations.
         """
-        # Watchdog port (matches chart default service.watchdogPort).
-        watchdog_port = DEFAULT_WATCHDOG_PORT
-
         # ── mt-node container env ──────────────────────────────────────────
         env = [
             client.V1EnvVar(name="MT_PLATFORM", value=platform),
             client.V1EnvVar(name="MT_SERVER", value=server),
             client.V1EnvVar(name="MT_SYMBOL", value=symbol),
             client.V1EnvVar(name="ZMQ_PORT", value=str(zmq_port)),
+            client.V1EnvVar(name="MT_BROKER_ID", value=brand_id),
+            client.V1EnvVar(name="MT_BROKER_ENTITY_ID", value=entity_id),
+            client.V1EnvVar(name="BUNDLE_R2_PATH", value=bundle_r2_path),
+            client.V1EnvVar(name="BUNDLE_SHA256", value=bundle_sha256),
             client.V1EnvVar(
                 name="POD_NAME",
                 value_from=client.V1EnvVarSource(
@@ -1149,6 +1182,7 @@ class HostedProvisioner:
                 # The Vault Agent reads it via the auth-config-token-path
                 # annotation so its login JWT carries aud=vault.
                 client.V1VolumeMount(name="vault-token", mount_path="/var/run/secrets/vault", read_only=True),
+                client.V1VolumeMount(name="broker-bundle", mount_path="/broker-bundle", read_only=True),
             ],
         )
 
@@ -1233,6 +1267,32 @@ class HostedProvisioner:
             ],
         )
 
+        # ── broker-bundle initContainer ─────────────────────────────────────
+        # Downloads the platform/broker-specific MetaTrader terminal bundle
+        # from R2, verifies its SHA256 digest, and unpacks it into the
+        # emptyDir volume that the main container mounts at /broker-bundle.
+        bundle_init_container = client.V1Container(
+            name="broker-bundle",
+            image=self._image,  # Reuses mt-node image which has wget + unzip
+            image_pull_policy="IfNotPresent",
+            command=[
+                "/bin/sh",
+                "-c",
+                (
+                    f"echo 'Downloading {bundle_r2_path}...' && "
+                    f"wget -qO /tmp/bundle.zip '{bundle_r2_path}' && "
+                    f"echo '{bundle_sha256}  /tmp/bundle.zip' | sha256sum -c - && "
+                    f"unzip -q /tmp/bundle.zip -d /broker-bundle && "
+                    f"rm /tmp/bundle.zip && "
+                    f"echo 'Bundle extracted successfully.'"
+                ),
+            ],
+            security_context=container_security_ctx,
+            volume_mounts=[
+                client.V1VolumeMount(name="broker-bundle", mount_path="/broker-bundle"),
+            ],
+        )
+
         # Parse each scheduling envelope from its ConfigMap-sourced JSON
         # string. kubernetes_asyncio accepts raw dicts/lists in place of
         # typed Tolerations / Affinity / TopologySpreadConstraint objects
@@ -1285,6 +1345,10 @@ class HostedProvisioner:
             # Inline volumes only; the wine-prefix volume is supplied by
             # volumeClaimTemplates below.
             volumes=[
+                client.V1Volume(
+                    name="broker-bundle",
+                    empty_dir=client.V1EmptyDirVolumeSource(),
+                ),
                 client.V1Volume(
                     name="mt-cache",
                     empty_dir=client.V1EmptyDirVolumeSource(size_limit="256Mi"),
@@ -1391,6 +1455,7 @@ class HostedProvisioner:
             "vault.hashicorp.com/agent-init-first": "true",
             f"vault.hashicorp.com/agent-inject-secret-{_VAULT_SECRETS_FILE}": self._vault_data_path(vault_path),
             f"vault.hashicorp.com/agent-inject-template-{_VAULT_SECRETS_FILE}": vault_template,
+            "etradie.io/broker-bundle-sha256": bundle_sha256,
         }
         # Stamp the sentinel-or-real symbol's resolution moment on the
         # initial pod template so a chart upgrade that replaces the

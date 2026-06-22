@@ -190,6 +190,9 @@ class BrokerConnectionRepository:
         metaapi_region: str | None = None,
         # Hosted: container_id comes from Docker provisioner
         hosted_container_id: str | None = None,
+        # Broker Registry Identity
+        broker_id: str | None = None,
+        broker_entity_id: str | None = None,
         # Common MT5 info
         mt5_server: str | None = None,
         mt5_login: str | None = None,
@@ -279,6 +282,8 @@ class BrokerConnectionRepository:
             metaapi_account_id=metaapi_account_id,
             metaapi_region=metaapi_region,
             hosted_container_id=hosted_container_id,
+            broker_id=broker_id,
+            broker_entity_id=broker_entity_id,
             mt5_server=mt5_server,
             mt5_login=mt5_login,
             mt5_password_encrypted=encrypted_mt5_password,
@@ -373,6 +378,8 @@ class BrokerConnectionRepository:
         metaapi_account_id: str | None = None,
         metaapi_region: str | None = None,
         hosted_container_id: str | None = None,
+        broker_id: str | None = None,
+        broker_entity_id: str | None = None,
         mt5_server: str | None = None,
         mt5_login: str | None = None,
         mt5_password: str | None = None,
@@ -403,6 +410,10 @@ class BrokerConnectionRepository:
             values["metaapi_region"] = metaapi_region
         if hosted_container_id is not None:
             values["hosted_container_id"] = hosted_container_id
+        if broker_id is not None:
+            values["broker_id"] = broker_id
+        if broker_entity_id is not None:
+            values["broker_entity_id"] = broker_entity_id
         if mt5_server is not None:
             values["mt5_server"] = mt5_server
         if mt5_login is not None:

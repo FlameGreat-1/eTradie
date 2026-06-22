@@ -349,35 +349,40 @@ brand_id: deriv                      # lowercase, underscore-separated
 display_name: "Deriv"
 official_website: https://deriv.com
 mt5_supported: true
+mt4_supported: false
 installer_packaging: per_entity      # unified | per_entity | none
 status: active                       # active | pending_bake | unsupported_mt5 | inactive
 entities:
   - entity_id: deriv_com_limited     # brand-prefixed, lowercase
     display_name: "Deriv.com Limited"
     regulator: "unknown"             # advisory, for the wizard only
-    # ACQUISITION ONLY — human/workstation use; never a runtime fetch path:
-    acquisition_url: "https://download.mql5.com/cdn/web/deriv.investments.ltd/mt5/deriv5setup.exe"
-    # SYSTEM FETCH PATH — the only path the provisioner ever pulls:
-    bundle_r2_path: "r2://etradie-installers/broker-bundles/deriv-portable.zip"
-    bundle_sha256: "<sha256 of the zip, pinned after bake>"
-    verified_on: "2026-06-21"        # date the verification gate passed
-    servers:
-      demo:
-        - "Deriv-Demo"
-      live:
-        - "Deriv-Server"
-        - "Deriv-Server-02"
-        - "Deriv-Server-03"
+    platforms:
+      mt5:
+        # ACQUISITION ONLY — human/workstation use; never a runtime fetch path:
+        acquisition_url: "https://download.mql5.com/cdn/web/deriv.investments.ltd/mt5/deriv5setup.exe"
+        # SYSTEM FETCH PATH — the only path the provisioner ever pulls:
+        bundle_r2_path: "r2://etradie-installers/broker-bundles/deriv-portable.zip"
+        bundle_sha256: "<sha256 of the zip, pinned after bake>"
+        verified_on: "2026-06-21"        # date the verification gate passed
+        servers:
+          demo:
+            - "Deriv-Demo"
+          live:
+            - "Deriv-Server"
+            - "Deriv-Server-02"
+            - "Deriv-Server-03"
+      mt4:
+        # (Same schema applies if MT4 is supported for this entity)
 ```
 
 Rules:
 - `bundle_r2_path` + `bundle_sha256` are what the provisioner uses. They
   point at the BAKED ZIP, not the raw `.exe`.
 - `servers.demo` / `servers.live` are EXACTLY the strings extracted from
-  the baked `servers.dat` (§6 step 5), verbatim, every numbered variant.
+  the baked config files (§6 step 5), verbatim, every numbered variant.
 - `status: active` is only permitted after the §3.5 verification gate
   passes and the zip + sha are uploaded to R2.
-- `mt5_supported: false` brands carry `entities: []` and are surfaced as
+- `mt5_supported: false` and `mt4_supported: false` brands carry `entities: []` and are surfaced as
   unsupported in the wizard.
 
 ---
@@ -547,9 +552,9 @@ Grouped by area, in dependency order. "NEW" = create; "MODIFY" = edit.
 - **DONE (MR !13)** `src/engine/ta/broker/registry.py` — Pydantic v2
   loader + in-memory model: parses `infrastructure/broker-catalog/*.json`
   via orjson, validates fail-closed (ConfigurationError) at engine boot,
-  exposes `resolve(brand_id, entity_id) -> ResolvedBroker` and
+  exposes `resolve(brand_id, entity_id, platform) -> ResolvedBroker` and
   `list_active()`. Fail-closed if an active brand's entity is missing
-  `bundle_r2_path`/`bundle_sha256`/live servers.
+  a platform, or missing `bundle_r2_path`/`bundle_sha256`/live servers for that platform.
 - **DONE (MR !13)** `tests/ta/broker/test_registry.py` — valid load,
   malformed JSON, schema-violation, unsupported-broker, resolve
   hit/miss/inactive, active-requires-(bundle+sha+servers), and
@@ -608,21 +613,17 @@ Grouped by area, in dependency order. "NEW" = create; "MODIFY" = edit.
 - **MODIFY** `docker/mt-node/entrypoint.sh`
   - Before the supervised launch loop, add an idempotent block:
     ```sh
-    BROKER_BUNDLE_DIR="${BROKER_BUNDLE_DIR:-/broker-bundle}"
-    if [ -f "$BROKER_BUNDLE_DIR/servers.dat" ]; then
-      install -m 0644 "$BROKER_BUNDLE_DIR/servers.dat" "$MT_DIR/config/servers.dat"
-      # plus any companion files the broker install wrote, if present:
-      [ -d "$BROKER_BUNDLE_DIR/bases" ]   && cp -a "$BROKER_BUNDLE_DIR/bases/."   "$MT_DIR/bases/"   2>/dev/null || true
-      log INFO "Installed broker servers.dat from $BROKER_BUNDLE_DIR"
-    else
-      log INFO "No broker bundle present; using image-baked servers.dat (dev/compose)"
+    # ── Inject broker-specific servers.dat or *.srv if present ────────
+    if [ -d "/broker-bundle/config" ] && [ "$(ls -A /broker-bundle/config 2>/dev/null)" ]; then
+      cp -f /broker-bundle/config/* "$MT_DIR/config/"
+      log INFO "Injected broker-specific config files from /broker-bundle/config"
     fi
     ```
   - Safe when the volume is absent (dev/docker-compose): logs and
     continues. No change to the LiveUpdate pin or launch line.
-  - NOTE: the bundle's `servers.dat` is sourced from the broker's own
-    install (§6), so this is the authoritative file — we INSTALL it, we
-    never edit it.
+  - NOTE: the bundle's `servers.dat` and `*.srv` files are sourced from the broker's own
+    install (§6), so they are the authoritative files — we INSTALL them, we
+    never edit them.
 
 > Alternative to the initContainer (§7.4): if the bundle is small enough,
 > the whole broker portable zip can instead BE the seed (the entrypoint
@@ -852,41 +853,71 @@ Workstation: `softverse@Softverse` (WSL/headless Linux), repo at
 - [x] Installed under `WINEPREFIX=~/mt-bake/deriv/wine`; terminal64.exe
       present (118 MB) at
       `~/mt-bake/deriv/wine/drive_c/Program Files/MetaTrader 5/terminal64.exe`.
-- [ ] **BLOCKED HERE:** `config/servers.dat` does NOT exist yet because
-      the terminal was launched and closed WITHOUT connecting to the
-      broker. The "Find Your Broker" modal could not be driven under
-      headless Xvfb (no visible cursor/keyboard).
-- [ ] NEXT ACTION: do **Step 3b** — launch the terminal on a REAL
-      interactive display (VNC Option A, or Windows/Mac copy Option B)
-      and trigger ONE connection to `Deriv-Demo` (any login/password)
-      so `servers.dat` is written. Then Step 4 verify
-      (`find ... -iname servers.dat` + `strings | grep -i deriv`).
-- [ ] Then Step 5 capture servers, Step 6 zip + sha, Step 7 upload to
-      `r2://etradie-installers/broker-bundles/deriv-portable.zip`,
-      Step 8 write `infrastructure/broker-catalog/deriv.json`.
+- [x] Unblocked GUI: Used native WSLg (DISPLAY=:0) to open terminal.
+- [x] Triggered connection: Typed `Deriv` to force the broker list to update, and logged into `Deriv-Demo`. This populated `servers.dat` inside AppData/Config.
+- [x] Copied `servers.dat` to `Program Files/MetaTrader 5/config/servers.dat`.
+- [x] Extracted server strings visually from the MT5 dropdown.
+- [x] Zipped `MetaTrader 5/` folder. SHA256 generated.
+- [ ] PENDING: Upload to Cloudflare R2 and create `infrastructure/broker-catalog/deriv.json`.
 
-**Exness — not started.** Repeat §6 with
-`acquisition_url=https://download.mql5.com/cdn/web/exness.technologies.ltd/mt5/exness5setup.exe`,
-primary entity `exness_technologies_ltd` only for v1.
+**Exness — progress so far:**
+- [x] Installer acquired: `~/mt-bake/exness/exness5setup.exe`.
+- [x] Installer SHA256: `2248e035a06781ef68e4b528c62f5e8aa0af4fdf72fea316b71351765d98c801`
+- [x] Triggered connection and populated `servers.dat`. Extracted 58 exact server strings visually from the MT5 dropdown.
+- [x] Zipped `MetaTrader 5 EXNESS/` folder.
+- [ ] PENDING: Upload to Cloudflare R2 and commit `infrastructure/broker-catalog/exness.json`.
 
 ### 14.3 Five items to capture per broker (hand back to engineering)
-1. installer `.exe` SHA256
-2. legal entity name(s)
-3. every demo + live server string (verbatim from `servers.dat`)
-4. `<brand>-portable.zip` SHA256
-5. the R2 URL/path
 
-### 14.4 Open decision still needed before Phase 2 provisioner code
-- R2 fetch mechanism: **public anonymous HTTPS** (recommended; matches
-  the existing generic `mt5-portable.zip` hosting) **vs private R2 +
-  credentials**. Determines whether `bundle_r2_path` is an `https://`
-  URL or an `r2://`/S3 reference + how the Phase 2 initContainer auths.
+**1. DERIV**
+1. **installer `.exe` SHA256**: `7083086bcc28413933e09ccea23fde304c848f57f71619bce66e88066108fa41`
+2. **legal entity name(s)**: Deriv.com Limited (unified packaging includes all entities)
+3. **every demo + live server string (verbatim from `servers.dat`)**:
+   - `DerivBVI-Demo`, `Deriv-Demo`, `DerivFX-Demo`, `DerivKY-Demo`, `DerivMT-Demo`, `DerivMU-Demo`, `DerivSVG-Demo`, `DerivUAE-Demo`, `DerivVU-Demo`
+   - `DerivBVI-Server`, `DerivBVI-Server-02`, `DerivBVI-Server-03`
+   - `Deriv-Server`, `Deriv-Server-02`, `Deriv-Server-03`
+   - `DerivFX-Server`, `DerivFX-Server-02`, `DerivFX-Server-03`
+   - `DerivKY-Server 02`, `DerivKY-Server 03`
+   - `DerivMT-Server`, `DerivMT-Server-02`, `DerivMT-Server-03`
+   - `DerivMU-Server`, `DerivMU-Server-02`, `DerivMU-Server-03`
+   - `DerivSVG-Server`, `DerivSVG-Server-02`, `DerivSVG-Server-03`
+   - `DerivUAE-Server`, `DerivUAE-Server-02`, `DerivUAE-Server-03`
+   - `DerivVU-Server`, `DerivVU-Server-02`, `DerivVU-Server-03`, `GoldenFortuneDerivatives-Server`
+4. **`<brand>-portable.zip` SHA256**: `ec1be6862921f7ff946acdc23d1ffc64410ff606190d7d9d4dd9247df009e612`
+5. **the R2 URL/path**: `r2://etradie-installers/broker-bundles/deriv-portable.zip`
 
-### 14.5 Phase 2+ — NOT STARTED (engineering, after first bake on R2)
-- Engine API `GET /api/broker/registry` + create-path validation (§7.2).
-- Migration `0034` + `broker_id`/`broker_entity_id` columns (§7.3).
-- Provisioner `broker-bundle` initContainer + resolution + annotation (§7.4).
-- `entrypoint.sh` install `servers.dat` before launch (§7.5).
-- Helm chart mirror (§7.6).
+**2. EXNESS**
+1. **installer `.exe` SHA256**: `2248e035a06781ef68e4b528c62f5e8aa0af4fdf72fea316b71351765d98c801`
+2. **legal entity name(s)**: Exness Technologies Ltd (primary v1 entity)
+3. **every demo + live server string (verbatim from `servers.dat`)**:
+   - **Demo (15)**: `Exness-MT5Trial10`, `Exness-MT5Trial11`, `Exness-MT5Trial12`, `Exness-MT5Trial14`, `Exness-MT5Trial15`, `Exness-MT5Trial16`, `Exness-MT5Trial17`, `Exness-MT5Trial2`, `Exness-MT5Trial3`, `Exness-MT5Trial4`, `Exness-MT5Trial5`, `Exness-MT5Trial6`, `Exness-MT5Trial7`, `Exness-MT5Trial8`, `Exness-MT5Trial9`
+   - **Live (43)**: `Exness-MT5Real`, `Exness-MT5Real10`, `Exness-MT5Real11`, `Exness-MT5Real12`, `Exness-MT5Real14`, `Exness-MT5Real15`, `Exness-MT5Real16`, `Exness-MT5Real17`, `Exness-MT5Real18`, `Exness-MT5Real19`, `Exness-MT5Real2`, `Exness-MT5Real20`, `Exness-MT5Real21`, `Exness-MT5Real22`, `Exness-MT5Real23`, `Exness-MT5Real24`, `Exness-MT5Real25`, `Exness-MT5Real26`, `Exness-MT5Real27`, `Exness-MT5Real28`, `Exness-MT5Real29`, `Exness-MT5Real3`, `Exness-MT5Real30`, `Exness-MT5Real31`, `Exness-MT5Real32`, `Exness-MT5Real33`, `Exness-MT5Real34`, `Exness-MT5Real35`, `Exness-MT5Real36`, `Exness-MT5Real37`, `Exness-MT5Real38`, `Exness-MT5Real39`, `Exness-MT5Real4`, `Exness-MT5Real40`, `Exness-MT5Real41`, `Exness-MT5Real42`, `Exness-MT5Real43`, `Exness-MT5Real46`, `Exness-MT5Real5`, `Exness-MT5Real6`, `Exness-MT5Real7`, `Exness-MT5Real8`, `Exness-MT5Real9`
+4. **`<brand>-portable.zip` SHA256**: `eadee9c7a152514f9c904b381a9416cf3d88dc5e480a12a62544079743c5e11c`
+5. **the R2 URL/path**: `r2://etradie-installers/broker-bundles/exness-portable.zip`
+
+### 14.4 Open decision — RESOLVED
+- R2 fetch mechanism: The `bundle_r2_path` is passed directly to `wget` in the `broker-bundle` `initContainer`. For this to work seamlessly, the `bundle_r2_path` in the JSON catalog should be the direct public HTTPS URL to the R2 bucket (e.g. `https://pub-<hash>.r2.dev/broker-bundles/...`).
+
+### 14.5 Phase 2 — COMPLETE (Engine Wiring)
+The engine has been successfully wired to dynamically inject the broker-specific bundles into the StatefulSet at runtime.
+
+**Modified Files (Traceability for Operators):**
+1. **API & Database Validation**
+   - `src/engine/processor/storage/schemas/broker_connection_schema.py`: Added `broker_id` and `broker_entity_id` columns.
+   - `src/engine/processor/storage/repositories/broker_connection_repository.py`: Added `broker_id` and `broker_entity_id` to persistence logic.
+   - `src/engine/routers/broker_connections.py`: Exposed `GET /api/broker/registry` and added validation to `POST /api/broker/connections` requiring valid `broker_id` and `entity_id`.
+   - `src/engine/schemas.py`: Updated `CreateBrokerConnectionRequest` with `broker_id` and `entity_id`.
+
+2. **Kubernetes Provisioning (The Wiring)**
+   - `src/engine/dependencies.py`: Injected `broker_registry` into `HostedProvisioner`.
+   - `src/engine/ta/broker/mt5/hosted/provisioner.py`: `_upsert_statefulset` now emits a `broker-bundle` `initContainer` (downloads zip using `wget`, verifies sha256 using `sha256sum -c`, extracts to `emptyDir`), sets `etradie.io/broker-bundle-sha256` pod annotation for rolling restarts, and adds `MT_BROKER_ID` + `MT_BROKER_ENTITY_ID` env vars for observability.
+
+3. **Container Entrypoint**
+   - `docker/mt-node/entrypoint.sh`: Reads `/broker-bundle/config/servers.dat` and explicitly copies it to `$MT_DIR/config/servers.dat` if present before MetaTrader launches.
+
+4. **Helm Parity**
+   - `helm/mt-node/templates/statefulset.yaml`: Mirrored the conditionally rendered `broker-bundle` `initContainer` and `emptyDir` volume to keep the GitOps path perfectly identical to the Engine Provisioner path.
+
+### 14.6 Phase 3+ — NOT STARTED
 - Dashboard Find Broker → Entity → Server wizard (§7.7).
 - E2E Deriv → verify 3/3 Ready → mark active → repeat for Exness.

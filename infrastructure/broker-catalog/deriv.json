@@ -1,0 +1,66 @@
+{
+  "brand_id": "deriv",
+  "display_name": "Deriv",
+  "official_website": "https://deriv.com",
+  "mt5_supported": true,
+  "mt4_supported": false,
+  "installer_packaging": "unified",
+  "status": "active",
+  "entities": [
+    {
+      "entity_id": "deriv_com_limited",
+      "display_name": "Deriv.com Limited",
+      "regulator": "unknown",
+      "platforms": {
+        "mt5": {
+          "acquisition_url": "https://download.mql5.com/cdn/web/deriv.investments.ltd/mt5/deriv5setup.exe",
+          "bundle_r2_path": "r2://etradie-installers/broker-bundles/deriv-portable.zip",
+          "bundle_sha256": "ec1be6862921f7ff946acdc23d1ffc64410ff606190d7d9d4dd9247df009e612",
+          "verified_on": "2026-06-22",
+          "servers": {
+            "demo": [
+              "DerivBVI-Demo",
+              "Deriv-Demo",
+              "DerivFX-Demo",
+              "DerivKY-Demo",
+              "DerivMT-Demo",
+              "DerivMU-Demo",
+              "DerivSVG-Demo",
+              "DerivUAE-Demo",
+              "DerivVU-Demo"
+            ],
+            "live": [
+              "DerivBVI-Server",
+              "DerivBVI-Server-02",
+              "DerivBVI-Server-03",
+              "Deriv-Server",
+              "Deriv-Server-02",
+              "Deriv-Server-03",
+              "DerivFX-Server",
+              "DerivFX-Server-02",
+              "DerivFX-Server-03",
+              "DerivKY-Server 02",
+              "DerivKY-Server 03",
+              "DerivMT-Server",
+              "DerivMT-Server-02",
+              "DerivMT-Server-03",
+              "DerivMU-Server",
+              "DerivMU-Server-02",
+              "DerivMU-Server-03",
+              "DerivSVG-Server",
+              "DerivSVG-Server-02",
+              "DerivSVG-Server-03",
+              "DerivUAE-Server",
+              "DerivUAE-Server-02",
+              "DerivUAE-Server-03",
+              "DerivVU-Server",
+              "DerivVU-Server-02",
+              "DerivVU-Server-03",
+              "GoldenFortuneDerivatives-Server"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

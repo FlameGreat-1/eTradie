@@ -35,6 +35,7 @@ from engine.processor.storage.repositories.broker_connection_repository import (
 )
 from engine.schemas import CreateBrokerConnectionRequest, UpdateBrokerConnectionRequest
 from engine.shared.auth import AuthenticatedUser, get_current_user
+from engine.shared.exceptions import ConfigurationError
 from engine.shared.logging import get_logger
 from engine.ta.broker.mt5.factory import create_mt5_broker_from_connection
 from engine.ta.broker.mt5.hosted.provisioner import HostedProvisioner
@@ -80,6 +81,8 @@ def _serialize_broker_connection(row) -> dict[str, Any]:
         "ea_port": None if is_hosted else row.ea_port,
         "metaapi_account_id": row.metaapi_account_id,
         "metaapi_region": row.metaapi_region,
+        "broker_id": getattr(row, "broker_id", None),
+        "broker_entity_id": getattr(row, "broker_entity_id", None),
         "mt5_server": row.mt5_server,
         "mt5_login": row.mt5_login,
         "mt5_symbol": getattr(row, "mt5_symbol", None),
@@ -205,6 +208,16 @@ async def create_broker_connection(
                     status_code=400,
                     detail="mt5_login, mt5_password, and mt5_server are required for Hosted connections",
                 )
+            if not body.broker_id or not body.entity_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="broker_id and entity_id are required for Hosted connections",
+                )
+
+            try:
+                container.broker_registry.resolve(body.broker_id, body.entity_id)
+            except ConfigurationError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
 
             # Per-user hosted connection quota. Each hosted connection
             # consumes a dedicated K8s StatefulSet (2 CPU cores + 2 GiB
@@ -270,6 +283,8 @@ async def create_broker_connection(
                     await hosted_provisioner.provision_account(
                         connection_id=conn_id,
                         user_id=user_id,
+                        brand_id=body.broker_id,
+                        entity_id=body.entity_id,
                         login=login,
                         password=password,
                         server=server,
@@ -326,6 +341,8 @@ async def create_broker_connection(
                 metaapi_account_id=metaapi_account_id,
                 metaapi_region=metaapi_region,
                 hosted_container_id=(hosted_container_id if body.connection_type == "hosted" else None),
+                broker_id=body.broker_id if body.connection_type == "hosted" else None,
+                broker_entity_id=body.entity_id if body.connection_type == "hosted" else None,
                 mt5_server=body.mt5_server,
                 mt5_login=body.mt5_login,
                 mt5_password=body.mt5_password,
@@ -478,6 +495,8 @@ async def update_broker_connection(
             await provisioner.provision_account(
                 connection_id=connection_id,
                 user_id=user.user_id,
+                brand_id=getattr(row, "broker_id", None) or "",
+                entity_id=getattr(row, "broker_entity_id", None) or "",
                 login=row.mt5_login or "",
                 password=password_plain,
                 server=row.mt5_server or "",
@@ -740,3 +759,11 @@ async def delete_broker_connection(
             logger.error("failed_to_start_hosted_cleanup", extra={"error": str(exc)})
 
     return {"deleted": True, "id": connection_id, "message": "Connection deleted."}
+
+
+@router.get("/api/broker/registry")
+async def list_broker_registry(request: Request) -> dict[str, Any]:
+    """List active brokers from the catalog registry for the dashboard setup wizard."""
+    container: Container = request.app.state.container
+    brands = container.broker_registry.list_active()
+    return {"brands": [b.model_dump() for b in brands]}

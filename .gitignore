@@ -110,3 +110,4 @@ target/
 # API token is 48h TTL and must be `shred -u`'d after Phase 6.
 /cloudflare-*-tunnel-token.txt
 /.cloudflare-*-api-token.txt
+*.zip

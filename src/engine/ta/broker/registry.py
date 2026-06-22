@@ -58,6 +58,7 @@ _ID_PATTERN = re.compile(r"^[a-z0-9]+(_[a-z0-9]+)*$")
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _DATE_PATTERN = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
+PlatformType = Literal["mt4", "mt5"]
 InstallerPackaging = Literal["unified", "per_entity", "none", "unknown"]
 BrandStatus = Literal["active", "pending_bake", "unsupported_mt5", "inactive"]
 
@@ -85,6 +86,30 @@ class EntityServers(BaseModel):
         return self
 
 
+class PlatformConfig(BaseModel):
+    """Platform-specific provisioning configuration (MT4 or MT5)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Human-only acquisition URL; never a runtime fetch path.
+    acquisition_url: str | None = None
+    # The ONLY path the provisioner pulls from.
+    bundle_r2_path: str = Field(min_length=1, max_length=512)
+    bundle_sha256: str
+    verified_on: str | None = None
+    servers: EntityServers
+
+    @model_validator(mode="after")
+    def _validate_platform_fields(self) -> PlatformConfig:
+        if not _SHA256_PATTERN.match(self.bundle_sha256):
+            raise ValueError("bundle_sha256 must be 64 lowercase hex chars")
+        if self.verified_on is not None and not _DATE_PATTERN.match(self.verified_on):
+            raise ValueError("verified_on must be YYYY-MM-DD")
+        if self.acquisition_url is not None and not self.acquisition_url.startswith("https://"):
+            raise ValueError("acquisition_url must be an https:// URL")
+        return self
+
+
 class BrokerEntity(BaseModel):
     """A single legal entity under a broker brand."""
 
@@ -93,13 +118,7 @@ class BrokerEntity(BaseModel):
     entity_id: str
     display_name: str = Field(min_length=1, max_length=120)
     regulator: str | None = Field(default=None, max_length=80)
-    # Human-only acquisition URL; never a runtime fetch path.
-    acquisition_url: str | None = None
-    # The ONLY path the provisioner pulls from.
-    bundle_r2_path: str | None = Field(default=None, max_length=512)
-    bundle_sha256: str | None = None
-    verified_on: str | None = None
-    servers: EntityServers = Field(default_factory=EntityServers)
+    platforms: dict[PlatformType, PlatformConfig] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _validate_fields(self) -> BrokerEntity:
@@ -107,18 +126,6 @@ class BrokerEntity(BaseModel):
             raise ValueError(
                 f"entity_id {self.entity_id!r} must be lowercase, underscore-separated",
             )
-        if self.bundle_sha256 is not None and not _SHA256_PATTERN.match(self.bundle_sha256):
-            raise ValueError(
-                f"bundle_sha256 for {self.entity_id!r} must be 64 lowercase hex chars",
-            )
-        if self.verified_on is not None and not _DATE_PATTERN.match(self.verified_on):
-            raise ValueError(
-                f"verified_on for {self.entity_id!r} must be YYYY-MM-DD",
-            )
-        for url_field in ("acquisition_url",):
-            value = getattr(self, url_field)
-            if value is not None and not value.startswith("https://"):
-                raise ValueError(f"{url_field} for {self.entity_id!r} must be an https:// URL")
         return self
 
 
@@ -131,6 +138,7 @@ class BrokerBrand(BaseModel):
     display_name: str = Field(min_length=1, max_length=100)
     official_website: str
     mt5_supported: bool
+    mt4_supported: bool
     installer_packaging: InstallerPackaging
     status: BrandStatus
     notes: str | None = None
@@ -145,14 +153,14 @@ class BrokerBrand(BaseModel):
         if not self.official_website.startswith("https://"):
             raise ValueError(f"official_website for {self.brand_id!r} must be an https:// URL")
 
-        # mt5_supported:false => no entities; true => at least one.
-        if not self.mt5_supported and self.entities:
+        # Neither supported => no entities; either supported => at least one.
+        if not self.mt5_supported and not self.mt4_supported and self.entities:
             raise ValueError(
-                f"brand {self.brand_id!r} has mt5_supported=false but lists entities",
+                f"brand {self.brand_id!r} has neither mt5_supported nor mt4_supported but lists entities",
             )
-        if self.mt5_supported and not self.entities:
+        if (self.mt5_supported or self.mt4_supported) and not self.entities:
             raise ValueError(
-                f"brand {self.brand_id!r} has mt5_supported=true but lists no entities",
+                f"brand {self.brand_id!r} supports MT but lists no entities",
             )
 
         # Unique entity ids within the brand.
@@ -167,21 +175,14 @@ class BrokerBrand(BaseModel):
             if not self.entities:
                 raise ValueError(f"active brand {self.brand_id!r} has no entities")
             for entity in self.entities:
-                if not entity.bundle_r2_path:
-                    raise ValueError(
-                        f"active brand {self.brand_id!r} entity {entity.entity_id!r} "
-                        "is missing bundle_r2_path",
-                    )
-                if not entity.bundle_sha256:
-                    raise ValueError(
-                        f"active brand {self.brand_id!r} entity {entity.entity_id!r} "
-                        "is missing bundle_sha256",
-                    )
-                if not entity.servers.live:
-                    raise ValueError(
-                        f"active brand {self.brand_id!r} entity {entity.entity_id!r} "
-                        "has no live servers",
-                    )
+                if not entity.platforms:
+                    raise ValueError(f"active brand {self.brand_id!r} entity {entity.entity_id!r} has no platforms configured")
+                for platform_id, config in entity.platforms.items():
+                    if not config.servers.live:
+                        raise ValueError(
+                            f"active brand {self.brand_id!r} entity {entity.entity_id!r} "
+                            f"platform {platform_id!r} has no live servers",
+                        )
         return self
 
     def entity(self, entity_id: str) -> BrokerEntity | None:
@@ -219,16 +220,16 @@ class BrokerRegistry:
         return dict(self._brands)
 
     def list_active(self) -> list[BrokerBrand]:
-        """Active, MT5-supported brands for the 'Find Broker' wizard."""
-        return [b for b in self._brands.values() if b.status == "active" and b.mt5_supported]
+        """Active brands for the 'Find Broker' wizard."""
+        return [b for b in self._brands.values() if b.status == "active" and (b.mt5_supported or b.mt4_supported)]
 
-    def resolve(self, brand_id: str, entity_id: str) -> ResolvedBroker:
-        """Resolve (brand_id, entity_id) to its bundle + server lists.
+    def resolve(self, brand_id: str, entity_id: str, platform: str) -> ResolvedBroker:
+        """Resolve (brand_id, entity_id, platform) to its bundle + server lists.
 
-        Raises ConfigurationError when the brand/entity is unknown, the
-        brand is not active, or the entity is not fully provisioned.
-        The model_validator already guarantees an active brand's
-        entities carry bundle_r2_path + bundle_sha256 + live servers, so
+        Raises ConfigurationError when the brand/entity/platform is unknown,
+        the brand is not active, or the platform is missing from the entity.
+        The model_validator already guarantees an active brand's platforms
+        carry bundle_r2_path + bundle_sha256 + live servers.
         this is a clear-error lookup, not a re-validation.
         """
         brand = self._brands.get(brand_id)
@@ -248,18 +249,24 @@ class BrokerRegistry:
                 f"Unknown entity_id {entity_id!r} for broker brand {brand_id!r}",
                 details={"brand_id": brand_id, "entity_id": entity_id},
             )
-        # Active-brand invariant guarantees these are set; assert for the
-        # type checker and as defence in depth.
-        assert entity.bundle_r2_path is not None  # nosec B101
-        assert entity.bundle_sha256 is not None  # nosec B101
+        
+        # We explicitly type-cast to suppress a pyright warning since we 
+        # validate the platform string in HostedProvisioner.
+        pf = entity.platforms.get(platform)  # type: ignore
+        if pf is None:
+            raise ConfigurationError(
+                f"Platform {platform!r} is not configured for entity_id {entity_id!r} of brand {brand_id!r}",
+                details={"brand_id": brand_id, "entity_id": entity_id, "platform": platform},
+            )
+            
         return ResolvedBroker(
             brand_id=brand.brand_id,
             entity_id=entity.entity_id,
             display_name=entity.display_name,
-            bundle_r2_path=entity.bundle_r2_path,
-            bundle_sha256=entity.bundle_sha256,
-            demo_servers=list(entity.servers.demo),
-            live_servers=list(entity.servers.live),
+            bundle_r2_path=pf.bundle_r2_path,
+            bundle_sha256=pf.bundle_sha256,
+            demo_servers=list(pf.servers.demo),
+            live_servers=list(pf.servers.live),
         )
 
 
@@ -335,7 +342,7 @@ def load_broker_registry(catalog_dir: Path | None = None) -> BrokerRegistry:
         "broker_registry_loaded",
         extra={
             "brands_total": len(brands),
-            "brands_active": sum(1 for b in brands if b.status == "active" and b.mt5_supported),
+            "brands_active": sum(1 for b in brands if b.status == "active" and (b.mt5_supported or b.mt4_supported)),
             "dir": str(directory),
         },
     )

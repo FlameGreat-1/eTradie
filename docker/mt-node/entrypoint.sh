@@ -248,6 +248,12 @@ mkdir -p "$MT_DIR/$(dirname "$EA_REL_DST")" \
          "$MT_DIR/$(dirname "$TPL_REL_DST")" \
          "$MT_DIR/config"
 
+# ── Inject broker-specific servers.dat or *.srv if present ────────
+if [ -d "/broker-bundle/config" ] && [ "$(ls -A /broker-bundle/config 2>/dev/null)" ]; then
+  cp -f /broker-bundle/config/* "$MT_DIR/config/"
+  log INFO "Injected broker-specific config files from /broker-bundle/config"
+fi
+
 # ── Copy EA binary ────────────────────────────────────────────────
 if [ -f "$EA_SRC" ]; then
   cp -f "$EA_SRC" "$MT_DIR/$EA_REL_DST"
