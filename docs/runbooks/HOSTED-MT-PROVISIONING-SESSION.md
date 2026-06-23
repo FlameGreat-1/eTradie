@@ -245,6 +245,76 @@ rather than silently burning the 300s gate.
 
 ---
 
+## 4a. Build, roll, and verify the LiveUpdate config fix (step-by-step)
+
+### Step 1 — confirm the fix is on the GitHub tip, then nudge CI
+```bash
+cd ~/eTradie
+git fetch gitlab main && git reset --hard gitlab/main
+git push --force-with-lease origin main
+# Confirm the fix actually landed on GitHub (cross-remote rebases can drop commits):
+git show origin/main:docker/mt-node/entrypoint.sh | grep -n 'LiveUpdate Source neutralized' \
+  || echo '!!! FIX MISSING ON GITHUB TIP'
+git show origin/main:docker/mt-node/Dockerfile | grep -n 'common.ini.*Source' \
+  || echo '!!! Dockerfile fix missing'
+# Nudge CI if the tip is a [skip ci] pin or CI did not trigger:
+git commit --allow-empty -m 'ci: rebuild mt-node for LiveUpdate Source fix'
+git push origin main
+```
+
+### Step 2 — wait for CI green, confirm GHCR image, sync ArgoCD
+```bash
+gh run list --repo FlameGreat-1/eTradie --branch main --limit 5
+gh run watch --repo FlameGreat-1/eTradie
+
+cd ~/eTradie
+git fetch origin main && git pull --rebase origin main
+PIN=$(git show origin/main:helm/engine/values-staging.yaml | grep -E '^[[:space:]]*tag:' | head -1 | tr -d ' "' | cut -d: -f2)
+echo "pinned SHA = $PIN"
+GH_OWNER=FlameGreat-1; GH_PAT=$(cat ~/.ghcr_pat)
+token=$(curl -sS -u "$GH_OWNER:$GH_PAT" "https://ghcr.io/token?service=ghcr.io&scope=repository:flamegreat-1/etradie/mt-node:pull" | jq -r .token)
+curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $token" \
+  -H "Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.v2+json" \
+  "https://ghcr.io/v2/flamegreat-1/etradie/mt-node/manifests/$PIN"   # expect 200
+
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+kubectl -n argocd patch application engine-staging  --type merge -p '{"operation":{"sync":{"revision":"HEAD"}}}'
+kubectl -n argocd patch application mt-node-staging --type merge -p '{"operation":{"sync":{"revision":"HEAD"}}}' 2>/dev/null || true
+kubectl -n etradie-system rollout status deploy/etradie-engine
+kubectl -n etradie-system exec deploy/etradie-engine -c engine -- printenv MT_NODE_IMAGE   # must == $PIN
+# Mirror back to GitLab: git push gitlab main
+```
+
+### Step 3 — clean, re-provision, and verify (the real test)
+```bash
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+kubectl -n etradie-system delete statefulset,svc,sa,configmap,pvc \
+  -l app.kubernetes.io/name=etradie-mt-node --ignore-not-found
+kubectl -n etradie-system exec -i postgres-0 -c postgres -- psql -U etradie -d etradie -c \
+  "DELETE FROM broker_connections WHERE connection_type='hosted' AND status IN ('failed','provisioning','active') RETURNING id;"
+
+# Re-provision Exness demo from the dashboard (Exness-MT5Trial9 + valid demo creds), then:
+REL=$(kubectl -n etradie-system get statefulset -o name | grep 'etradie-mt-' | head -1 | cut -d/ -f2); echo "$REL"
+P="/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5"
+
+# (a) NEW image wrote common.ini Source= with Environment preserved:
+kubectl -n etradie-system exec "${REL}-0" -c mt-node -- sh -c "head -6 \"$P/config/common.ini\""
+# (b) entrypoint logged the neutralization (and watch for the loud self-restart ERROR):
+kubectl -n etradie-system logs "${REL}-0" -c mt-node | grep -iE 'LiveUpdate Source neutralized|LiveUpdate self-restart detected'
+# (c) THE VERDICT — no LiveUpdate download, terminal not re-restarting:
+kubectl -n etradie-system exec "${REL}-0" -c mt-node -- sh -c \
+  "f=\$(ls -t \"$P/logs\"/*.log|head -1); tr -d '\000' < \"\$f\" | grep -aiE 'liveupdate|build 5836 started|compiled'"
+# (d) :5555 bound + pod Ready:
+kubectl -n etradie-system exec "${REL}-0" -c mt-node -- sh -c 'cat /proc/net/tcp|grep -i 15B3 && echo ":5555 LISTEN" || echo "not bound"'
+kubectl -n etradie-system get pod "${REL}-0"
+```
+
+**Verdict:** no `LiveUpdate ... downloaded` + `:5555 LISTEN` + pod `3/3`
+=> config disable WORKS, done. If LiveUpdate STILL downloads (the loud
+Layer-4 ERROR fires) => proceed to Layer 2 egress (§2/§3).
+
+---
+
 ## 5. Operator routine (unchanged)
 
 ```bash
