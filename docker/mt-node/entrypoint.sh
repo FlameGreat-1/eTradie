@@ -412,46 +412,26 @@ log INFO "Startup config written to $INI_FILE"
 # loop in which the EA OnInit never runs, MQL Logs is never created,
 # and :5555 never binds, so the pod never reaches Ready.
 #
-# PROVEN (staging, build 5836; see docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md):
-#   - The [LiveUpdate] LastBuildDataPath pin in terminal.ini does NOT
-#     stop LiveUpdate. The key was present in the exact terminal.ini the
-#     terminal reads and LiveUpdate still downloaded + self-restarted.
-#     It is kept below ONLY as a harmless tertiary; it is NOT the
-#     mechanism.
-#   - hostAliases / DNS sinkhole of download.mql5.com does NOT stop it
-#     either: the updater dials MetaQuotes by hardcoded IP, bypassing
-#     /etc/hosts. The durable app-proof control is therefore an EGRESS
-#     block (network layer), tracked in the runbook (Layer 2) and NOT in
-#     this script.
+# DEAD ENDS -- DO NOT RE-IMPLEMENT (all empirically DISPROVEN on the
+# live cluster, build 5836; see
+# docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md §1.x):
+#   1. [LiveUpdate] LastBuildDataPath pin in terminal.ini  -> IGNORED.
+#   2. hostAliases / DNS sinkhole of download.mql5.com     -> IGNORED
+#      (updater dials MetaQuotes by hardcoded IP, bypassing /etc/hosts).
+#   3. common.ini [Common] Source= empty (+ NewsEnable=0), re-asserted
+#      every boot                                          -> IGNORED
+#      (confirmed present in the running prefix; MT5 still downloaded
+#      mt5onnx64 and self-restarted exit 143; :5555 never bound).
 #
-# Layer 1 (this block) -- broker-safe config disable, RE-ASSERTED EVERY
-# BOOT: neutralize the LiveUpdate Source in common.ini [Common]
-# (Source= empty + NewsEnable=0). MT5 rewrites its own common.ini on
-# shutdown, so a once-baked value drifts; we therefore rewrite it fresh
-# here on every launch. We PRESERVE the existing encrypted
-# 'Environment=' blob verbatim -- clobbering it corrupts MT's settings
-# store and can stop the terminal from starting. This is config-only,
-# touches no broker field, and cannot break the broker / EA / ZMQ. It
-# is defense-in-depth, NOT a guaranteed kill on its own (the updater may
-# still reach MetaQuotes by IP -- that is what the egress block is for).
-COMMON_INI="$MT_DIR/config/common.ini"
-_env_line=""
-if [ -f "$COMMON_INI" ]; then
-  # Capture the encrypted Environment= line exactly as MT wrote it.
-  _env_line=$(grep -a '^Environment=' "$COMMON_INI" 2>/dev/null | head -n1 || true)
-fi
-# Rewrite common.ini's [Common] section with LiveUpdate neutralized,
-# preserving the Environment blob when present. Any other [Common]
-# keys MT needs are re-derived by the terminal on next launch; the
-# broker login does NOT come from common.ini (it comes from
-# startup.ini [Common], written above), so this is broker-safe.
-{
-  printf '[Common]\n'
-  [ -n "$_env_line" ] && printf '%s\n' "$_env_line"
-  printf 'NewsEnable=0\n'
-  printf 'Source=\n'
-} > "$COMMON_INI"
-log INFO "LiveUpdate Source neutralized in $COMMON_INI (Environment preserved=$([ -n "$_env_line" ] && echo yes || echo no), $MT_PLATFORM)"
+# NO in-container config or DNS lever stops LiveUpdate on this build.
+# The ONLY working control is a NETWORK EGRESS BLOCK (Layer 2) applied
+# by the per-tenant NetworkPolicy (default-deny egress + broker
+# access-server CIDR allowlist). That lives in the chart + provisioner,
+# NOT in this script. Do not add another config-write 'fix' here.
+#
+# The legacy terminal.ini LastBuildDataPath pin is still written below
+# only because the baked template carries it; it is INERT and retained
+# solely to avoid a no-op diff. It does nothing.
 
 # Resolve the baked terminal build so we never pin a stale number.
 # The terminal records the running build in its journal as

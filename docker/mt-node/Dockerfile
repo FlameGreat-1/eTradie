@@ -293,19 +293,19 @@ RUN set -eux; \
     # self-restarted (exit 143) in an infinite loop. It is retained
     # below ONLY as a harmless tertiary, NOT as the mechanism.
     #
-    # The config-level lever is common.ini [Common] Source= (the
-    # LiveUpdate source host). We bake it empty (Source=) + NewsEnable=0
-    # so the seeded prefix is already neutralized; the entrypoint
-    # re-asserts it EVERY boot because MT rewrites common.ini on
-    # shutdown. NOTE: config disable is broker-safe but NOT a guaranteed
-    # kill -- the updater can still reach MetaQuotes by hardcoded IP, so
-    # the durable app-proof control is a network egress block (runbook
-    # Layer 2). Config only here; no network; no chmod.
+    # DEAD END -- the common.ini [Common] Source= neutralization was
+    # tried (baked here + re-asserted in entrypoint.sh) and is
+    # empirically DISPROVEN: MT5 build 5836 still downloaded mt5onnx64
+    # and self-restarted (see runbook). It has been REMOVED. The only
+    # working LiveUpdate control is the per-tenant NetworkPolicy egress
+    # block (runbook Layer 2), not any baked config.
+    #
+    # The terminal.ini LastBuildDataPath pin below is likewise INEFFECTIVE
+    # (proven), retained only as inert legacy so the seeded prefix shape
+    # is unchanged. Do not add a common.ini 'fix' here again.
     mkdir -p "$MT5_ROOT/config" "$MT4_ROOT/config"; \
     printf '[LiveUpdate]\nLastBuildDataPath=5836\n' > "$MT5_ROOT/config/terminal.ini"; \
     printf '[LiveUpdate]\nLastBuildDataPath=5836\n' > "$MT4_ROOT/config/terminal.ini"; \
-    printf '[Common]\nNewsEnable=0\nSource=\n' > "$MT5_ROOT/config/common.ini"; \
-    printf '[Common]\nNewsEnable=0\nSource=\n' > "$MT4_ROOT/config/common.ini"; \
     if ! grep -q 'LastBuildDataPath' "$MT5_ROOT/config/terminal.ini"; then \
         echo "FATAL: LiveUpdate pin missing in MT5 template terminal.ini" >&2; \
         exit 1; \
