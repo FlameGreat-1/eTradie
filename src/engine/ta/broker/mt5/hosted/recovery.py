@@ -55,7 +55,7 @@ import asyncio
 import os
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -528,7 +528,7 @@ class HostedRecoveryService:
             return None
         if isinstance(created, datetime):
             if created.tzinfo is None:
-                created = created.replace(tzinfo=timezone.utc)
+                created = created.replace(tzinfo=UTC)
             try:
                 return created.timestamp()
             except (OverflowError, OSError, ValueError):
