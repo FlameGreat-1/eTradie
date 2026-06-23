@@ -1,62 +1,299 @@
 # Hosted-MT (Wine) Provisioning — Root Cause + Fix Runbook
 
-**Status (REVISED, post-audit):** The previously-suspected root cause
-(MetaTrader LiveUpdate as the bug) was WRONG. LiveUpdate is designed
-to run ONCE on a fresh install, swap a component (mt5onnx64) via
-exit-143 self-restart, persist the new file on disk, and never
-re-download the same build. Every commercial MT5 VPS runs this flow
-with no egress block.
+**Status (REVISED, post-audit, complete fix shipped on 2026-06-23):**
+The previously-suspected root cause ("MetaTrader LiveUpdate as the
+bug") was WRONG. LiveUpdate is designed to run ONCE on a fresh
+install, swap a component (`mt5onnx64`) via exit-143 self-restart,
+persist the new file on disk, and never re-download the same build.
+Every commercial MT5 VPS runs this flow with no egress block.
 
-The ACTUAL root cause was a three-bug cascade in our own stack that
-destroyed the persisted LiveUpdate state on every restart, forcing
-LiveUpdate to re-run on every boot:
+The real failure was TWO independent bug clusters layered on top of
+each other. The first cluster destroyed MT5's persisted state on
+every restart, which masked the second cluster (a stuck launch-flag)
+behind an infinite restart loop. Closing the first cluster exposed
+the second; closing both makes the pipeline behave like every other
+headless MT5 VPS in the world.
 
-1. **`HostedProvisioner._best_effort_cleanup` deleted the wine-prefix
-   PVC** whenever the 300s readiness gate timed out. The 300s gate
-   was below the genuine first-boot work-time once LiveUpdate added
-   30-90s of network I/O on top of the 453-file MQL5 recompile.
-2. **`HostedRecoveryService.run_once_at_startup` with
-   bypass_threshold=True** force-reprovisioned any not-Ready pod
-   immediately on engine restart, including fresh provisions that
-   were legitimately mid-first-boot.
-3. **`entrypoint.sh` corruption-reset `rm -rf`'d the whole prefix on
+## Cluster 1 — Persisted state was being destroyed (LiveUpdate loop driver)
+
+Five independent paths cooperated to wipe the wine-prefix PVC + its
+LiveUpdate-applied component on every restart, so MT5 saw itself as
+out-of-date and re-ran LiveUpdate on every boot:
+
+1. **`HostedProvisioner._best_effort_cleanup` deleted the
+   wine-prefix PVC** whenever the readiness gate timed out. PVC
+   destruction belongs in `delete_account()` (explicit user action)
+   or `gc_orphans()` (row gone from DB), NEVER in error rollback.
+2. **`_READINESS_TIMEOUT_SECS=300`** was below the genuine first-boot
+   work-time once LiveUpdate added 30-90s of network I/O on top of
+   the 453-file MQL5 recompile. Any blip → `ProviderTimeoutError` →
+   PVC destroyed → next provision seeds from the image-baked
+   template → MT5 sees itself as out-of-date → LiveUpdate re-runs.
+3. **`HostedRecoveryService.run_once_at_startup(bypass_threshold=True)`**
+   force-reprovisioned ANY not-Ready pod immediately on engine
+   restart, including fresh provisions legitimately mid-first-boot.
+4. **`entrypoint.sh` corruption-reset `rm -rf`'d the whole prefix on
    `.update-timestamp.lock`** — a file Wine writes during normal
    `wineboot -u` that legitimately survives any abrupt pod kill, not
-   a corruption signal at all. Plus the supervisor loop treated
-   exit-143 (a self-initiated SIGTERM, not a crash) like a crash:
-   `wineserver -k` + `pkill -9` raced the on-disk rename and left
-   the lock behind, feeding bug #3 on the next boot.
-   `terminationGracePeriodSeconds: 60`/`90` and `preStop sleep 5` were
-   also too short to let LiveUpdate finalize on pod eviction.
+   a corruption signal at all.
+5. **Supervisor loop treated exit-143 (a self-initiated SIGTERM, not
+   a crash) like a crash**: `wineserver -k` + `pkill -9` raced the
+   on-disk rename and left `.update-timestamp.lock` behind (feeding
+   bug #4), AND the LiveUpdate self-restart counted against
+   `MAX_INPOD_RESTARTS=5`, exhausting the budget on the very first
+   provision. `terminationGracePeriodSeconds: 60/90` and
+   `preStop sleep 5` were too short for clean LiveUpdate finalize on
+   pod eviction.
 
-**Fix landed:** the three bugs above are now closed in code. After
-the fix, LiveUpdate runs ONCE on the first boot of a fresh PVC,
-`mt5onnx64` persists, the pod restarts cleanly, `:5555` binds on the
-second boot, and subsequent boots are sub-30s. No NetworkPolicy
-egress block, no config/DNS lever, no SNI gateway is required.
+## Cluster 2 — Launch flag was wrong (silent-after-init bug)
 
-The DEAD ENDS section below remains accurate for what was tried; the
-"Layer 2 / 3 / 4" prescriptions are SUPERSEDED by the actual fix
-recorded in commits `5c5d…`/`…` on `main` (see git log around
-2026-06-23). The Layer-4 loud diagnostic for exit-143 is retained
-because it is still useful observability, though it now logs at INFO
-(not ERROR) on a single LiveUpdate run and only warns if the pattern
-repeats more than once per fresh PVC.
+Closing Cluster 1 made MT5's LiveUpdate run exactly once and persist
+the component (proven on staging: every subsequent boot is silent on
+the LiveUpdate front, no recompile, no download). But MT5 still did
+not bind `:5555`. Live journal inspection showed:
 
-Files changed by the fix:
-- `src/engine/ta/broker/mt5/hosted/provisioner.py` (no PVC delete in
-  `_best_effort_cleanup`, readiness 300s -> 600s).
-- `src/engine/ta/broker/mt5/hosted/recovery.py` (unhealthy threshold
-  600s -> 1200s, fresh-provision grace window 30min).
-- `docker/mt-node/entrypoint.sh` (corruption-reset only on missing
-  `system32`, stale lock => single-file delete + `wineboot -u`;
-  supervisor branches on exit-143 with a 30s settle window and no
-  budget increment).
-- `helm/mt-node/values.yaml` and `values-production.yaml`
-  (`terminationGracePeriodSeconds` 60/90 -> 180, `preStop sleep`
-  5 -> 30, `startupProbe.failureThreshold` 60 -> 120 for a 620s
-  budget).
-- `docker/mt-node/README.md` (Wine prefix lifecycle section).
+  build 5836 started
+  full recompilation finished: 0 file(s) compiled
+  LiveUpdate 'mt5onnx64' downloaded and updated (14688 kb)
+  LiveUpdate downloaded successfully
+  [silent — no Network / Authentication / Login / Chart / Expert lines]
+
+The entrypoint launched MT5 with `wine terminal64.exe /config:<path>`.
+`/config:<file>` is the "use these settings INSTEAD OF the saved ones"
+OVERRIDE flag — it makes MT5 READ `[Common] Login/Password/Server` but
+does NOT auto-execute login → chart open → expert attach. That
+auto-execute hook is `/portable`, which makes terminal64 run as a
+self-contained portable installation, reads
+`<install_dir>/config/startup.ini` at boot, AND auto-executes the
+login + chart + expert sequence. This is the documented MT5
+unattended-launch contract used by every commercial MT5 VPS provider.
+
+## Fix landed (5 commits, all on `main`, 2026-06-23)
+
+| Commit | Layer | Files |
+|---|---|---|
+| `684746d5` | Engine — Cluster 1 #1,#2,#3 | `src/engine/ta/broker/mt5/hosted/provisioner.py`, `src/engine/ta/broker/mt5/hosted/recovery.py` |
+| `ea5f0c1a` | Pod — Cluster 1 #4,#5 + grace | `docker/mt-node/entrypoint.sh`, `helm/mt-node/values.yaml`, `helm/mt-node/values-production.yaml`, `docker/mt-node/README.md` |
+| `60aabc3a` | Chart defaults — align ConfigMap with new code defaults | `helm/engine/values.yaml`, `helm/engine/templates/configmap.yaml` |
+| `a74d8f1b` | CI lint follow-up (UP017) | `src/engine/ta/broker/mt5/hosted/recovery.py` |
+| `(latest)` | Pod — Cluster 2 (launch flag) | `docker/mt-node/entrypoint.sh` |
+
+Specific changes:
+
+- **`_best_effort_cleanup`**: no longer deletes the wine-prefix PVC
+  or destroys Vault credentials. Both belong only to `delete_account`
+  / `gc_orphans`.
+- **`_READINESS_TIMEOUT_SECS`**: 300s → 600s. Sized to cover
+  Wine init + MT5 launch + LiveUpdate + exit-143 + 453-file MQL5
+  recompile + EA OnInit + `:5555` bind (175-280s of genuine work,
+  easily 350-450s under I/O contention).
+- **`HostedRecoveryConfig.unhealthy_threshold_secs`**: 600s → 1200s.
+  Sits well above the new readiness gate so the recovery sweep
+  cannot race a still-cold-booting pod.
+- **`HostedRecoveryConfig.fresh_provision_grace_secs`** (NEW): 1800s
+  default. Skips the recovery sweep for connections younger than
+  this threshold, including the bypass-threshold startup sweep, so
+  a coincidental engine restart cannot tear down an in-flight first
+  boot.
+- **`entrypoint.sh` corruption-reset**: only wipes when
+  `drive_c/windows/system32` is missing. On a stale
+  `.update-timestamp.lock`, deletes the single lock file and runs
+  `wineboot -u` to reconcile. NO prefix wipe.
+- **`entrypoint.sh` supervisor loop**: on `EXIT_CODE=143`, branches
+  to a 30s `LIVEUPDATE_SETTLE_SECS` window, NO `wineserver -k`, NO
+  `pkill -9`, NO `restart_count` increment.
+- **`entrypoint.sh` launch flag**: `wine $MT_EXE /config:$INI_FILE`
+  → `wine $MT_EXE /portable`. MT5 now auto-executes login + chart +
+  expert attach from `<install_dir>/config/startup.ini`.
+- **`values.yaml` + `values-production.yaml`**:
+  `terminationGracePeriodSeconds` 60/90 → 180, `preStop sleep` 5 →
+  30, `startupProbe.failureThreshold` 60 → 120 (620s kubelet budget
+  sits just above the 600s engine readiness gate).
+- **`helm/engine/values.yaml`**: `mtNode.readinessTimeoutSecs` 300
+  → 600, `connectivity.hostedRecoveryUnhealthyThresholdSecs` 600 →
+  1200, NEW `connectivity.hostedRecoveryFreshProvisionGraceSecs:
+  1800`. ConfigMap template updated to render the new env var.
+
+**No NetworkPolicy egress block, no config/DNS lever, no SNI gateway
+is required.** The historical "Layer 2 / Layer 3 / DEAD ENDS"
+prescriptions below are SUPERSEDED. The Layer-4 loud exit-143
+diagnostic in `entrypoint.sh` is RETAINED because it's still useful
+observability — but it now logs at INFO (not ERROR) on a single
+LiveUpdate run, and the supervisor's branch on exit-143 makes the
+diagnostic actionable instead of just noisy.
+
+---
+
+## Deployment Verification (live-staging procedure, 2026-06-23)
+
+The verify path on the live staging box surfaced four operational
+gotchas that aren't visible from the chart values alone. Capture them
+here so the next operator doesn't relearn them.
+
+### A. The engine ConfigMap can be overridden by a live `kubectl set env`
+
+Observed: chart `values.yaml` set `MT_NODE_READINESS_TIMEOUT_SECS=600`
+and the ConfigMap rendered correctly, but the running engine pod read
+`900`. Root cause: a previous operator had run something equivalent to
+`kubectl set env deploy/etradie-engine MT_NODE_READINESS_TIMEOUT_SECS=900`
+on all three containers (engine main + `wait-for-deps` init + `migrate`
+init). Container `env:` always wins over `envFrom: configMapRef:`.
+
+Diagnostic:
+```bash
+kubectl -n etradie-system get deploy etradie-engine -o json \
+  | jq '
+    [.spec.template.spec.containers, .spec.template.spec.initContainers // []]
+    | flatten
+    | map(select(.env != null))
+    | map({name: .name,
+           override_env: (.env // [] | map(select(.name == "MT_NODE_READINESS_TIMEOUT_SECS")))})
+    | map(select(.override_env != []))
+  '
+# expect: []  (empty - no overrides). A non-empty result means someone live-patched.
+```
+
+Fix:
+```bash
+kubectl -n argocd patch application engine-staging --type merge -p '{
+  "operation": {
+    "sync": {
+      "revision": "HEAD",
+      "syncOptions": ["Force=true", "Replace=true"]
+    }
+  }
+}'
+# Replace=true runs kubectl replace, which restores the Deployment spec
+# to exactly what the chart renders (no live env override).
+```
+
+Also ensure ArgoCD `syncPolicy.automated.selfHeal` is `true` so a
+future live-patch reverts on the next reconcile:
+```bash
+kubectl -n argocd get application engine-staging \
+  -o jsonpath='{.spec.syncPolicy.automated}{"\n"}'
+# expect: {"prune":true,"selfHeal":true}
+```
+
+### B. A `failed` broker_connections row keeps the engine spinning
+
+Observed: after a provision times out, the engine's `_best_effort_cleanup`
+removes the StatefulSet / Services / SA / ConfigMap, but `is_active=true`
+stays on the row and `status='failed'`. The dashboard's broker bridge
+keeps calling `service_dns_for(release_name)` every ~2 seconds:
+```
+broker_positions_failed_no_cache
+broker_symbol_sync_failed: ZMQ recv timed out
+```
+
+This is harmless to other tenants (the K8s Service is gone, so the
+calls fail fast) but burns engine CPU + log volume and confuses the
+user-facing dashboard. The clean fix is to NULL the row before
+re-provisioning:
+
+```bash
+kubectl -n etradie-system exec -i postgres-0 -c postgres \
+  -- psql -U etradie -d etradie -c \
+  "DELETE FROM broker_connections WHERE connection_type='hosted' RETURNING id, status;"
+
+# Also clean any orphaned PVC (the new _best_effort_cleanup preserves it,
+# but the next provision gets a fresh release name -> fresh PVC name, so
+# the old PVC is now unreferenced).
+kubectl -n etradie-system delete pvc,sa,configmap,svc,statefulset \
+  -l app.kubernetes.io/name=etradie-mt-node --ignore-not-found
+
+# Clean Vault tenant path (the old release's credentials).
+ROOT_TOKEN=$(awk '/Initial Root Token:/ {print $NF}' ~/vault-init.txt)
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN="$ROOT_TOKEN" \
+  vault kv metadata delete -mount=etradie \
+  "etradie/tenants/mt-node/<release-name>" 2>/dev/null || true
+```
+
+Then roll the engine to invalidate its per-user broker client cache,
+so it stops dialing the dead Service:
+```bash
+kubectl -n etradie-system rollout restart deploy/etradie-engine
+kubectl -n etradie-system rollout status deploy/etradie-engine --timeout=120s
+```
+
+### C. Verify the new env vars are flowing to the running engine pod
+
+After ANY change to `helm/engine/values{,-staging,-production}.yaml` or
+the ConfigMap template, Stakater Reloader rolls the engine on the
+ConfigMap checksum change. Confirm the running pod sees the new
+values:
+```bash
+POD=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-engine \
+  -o name | head -1)
+kubectl -n etradie-system exec "$POD" -c engine -- printenv \
+  MT_NODE_READINESS_TIMEOUT_SECS \
+  ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS \
+  ENGINE_HOSTED_RECOVERY_FRESH_PROVISION_GRACE_SECS \
+  MT_NODE_IMAGE
+# expect:
+#   MT_NODE_READINESS_TIMEOUT_SECS=600
+#   ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS=1200
+#   ENGINE_HOSTED_RECOVERY_FRESH_PROVISION_GRACE_SECS=1800
+#   MT_NODE_IMAGE=ghcr.io/<org>/etradie/mt-node:<sha>   (matches the
+#                                                       deploy-bump pin)
+```
+
+If any value is wrong, run the §A diagnostic — most likely a live
+override needs to be dropped.
+
+### D. Verdict checks after a successful provision
+
+The smoking-gun proof is that LiveUpdate runs EXACTLY ONCE per fresh
+PVC and subsequent boots are silent on the LiveUpdate front.
+
+```bash
+P="/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5"
+POD=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-mt-node \
+  -o jsonpath='{.items[0].metadata.name}')
+
+# (a) :5555 LISTEN (15B3 hex = 5555 dec)
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
+  'cat /proc/net/tcp | awk "NR>1 && (\$3 ~ /:15B3/ || \$2 ~ /:15B3/){print}"'
+
+# (b) LiveUpdate ran ONCE
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
+  "f=\$(ls -t \"$P/logs\"/*.log | head -1); \
+   echo -n 'downloads:       '; tr -d '\000' < \"\$f\" | grep -ac 'downloaded and updated'; \
+   echo -n 'terminal starts: '; tr -d '\000' < \"\$f\" | grep -ac 'build .* started'; \
+   echo -n 'login lines:     '; tr -d '\000' < \"\$f\" | grep -ac -E 'Network|Login|Authentication|connected'; \
+   echo -n 'expert lines:    '; tr -d '\000' < \"\$f\" | grep -ac -iE 'expert|ZeroMQ'"
+# expect after fix:
+#   downloads:       1
+#   terminal starts: 2     (one cold + one post-LiveUpdate relaunch)
+#   login lines:    >0     (proves /portable triggered auto-login)
+#   expert lines:   >0     (proves the EA was attached)
+
+# (c) Pod fully ready
+kubectl -n etradie-system get pod "$POD"   # expect 3/3 Ready
+
+# (d) Engine recovery sweep is silent on this connection
+kubectl -n etradie-system logs deploy/etradie-engine --tail=200 \
+  | grep -iE 'hosted_recovery_fresh_provision_grace|hosted_recovery_sweep_complete' | tail -10
+# expect: fresh_provision_grace entries while the connection is
+#          younger than 30min; sweep_complete with reprovisioned=0.
+```
+
+### E. Smoking-gun proof — restart the pod and confirm LiveUpdate stays silent
+
+```bash
+kubectl -n etradie-system delete pod "$POD"
+kubectl -n etradie-system get pod "$POD" -w
+# expect: 3/3 Ready in 20-40 seconds (NOT 3-5 minutes)
+
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
+  "f=\$(ls -t \"$P/logs\"/*.log | head -1); tr -d '\000' < \"\$f\" | grep -ac 'downloaded and updated'"
+# expect: STILL 1 (LiveUpdate did NOT re-run; persisted mt5onnx64 was already current)
+```
+
+If this passes, the system behaves identically to every commercial MT5
+VPS: LiveUpdate ran once on first boot, the component persisted on the
+PVC, every subsequent restart is fast and silent on the LiveUpdate
+front.
 
 ---
 
