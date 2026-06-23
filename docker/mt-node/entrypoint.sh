@@ -522,31 +522,42 @@ while :; do
   log INFO "Launching $MT_EXE (platform=$MT_PLATFORM, server=$MT_SERVER, login=$MT_LOGIN, symbol=$MT_SYMBOL, symbol_resolved=$SYMBOL_RESOLVED, zmq_port=$ZMQ_PORT, restart_count=$restart_count)"
 
   cd "$MT_DIR"
-  # Launch in PORTABLE mode (NOT /config:).
+  # Launch contract for unattended headless MT5:
+  #   /portable        - pin config location to <install_dir>/config/
+  #                      (not AppData/Roaming/MetaQuotes/), so the
+  #                      startup.ini we write is the one MT5 reads.
+  #   /login:<id>      - account login number
+  #   /password:<pw>   - account password
+  #   /server:<name>   - broker server name (must match servers.dat)
   #
-  # /portable makes terminal64.exe run as a self-contained portable
-  # installation: it reads <install_dir>/config/startup.ini at boot
-  # AND auto-executes the [Common] Login/Password/Server block,
-  # opens a chart per [Charts] Symbol/Period/Template, and attaches
-  # the expert per [Experts] Enabled/Account. This is the documented
-  # MetaTrader unattended-launch contract used by every commercial
-  # MT5 VPS provider and by the headless EA bridges in production.
+  # /portable alone is INSUFFICIENT. It only changes WHERE MT5 stores
+  # config; it does NOT trigger auto-login. Live diagnostics on
+  # staging proved this: /portable boots leave
+  # AppData/Roaming/MetaQuotes/Terminal/<hash>/portable.txt as a
+  # marker, MT5 reads startup.ini and gets the credential values, but
+  # never executes a login -- the journal has zero Network/Login/
+  # Authentication/Chart/Expert lines and MQL5/Logs/ never gets
+  # created. startup.ini's [Common] Login/Password/Server block only
+  # POPULATES dialog fields; it does not trigger an action.
   #
-  # /config:<path> (the previous launch flag) is a DIFFERENT flag:
-  # it loads settings from the named file in place of the install's
-  # saved settings, but does NOT auto-execute login + chart + expert
-  # attach. With /config: alone, MT5 reads the credentials, runs
-  # LiveUpdate once, then sits idle waiting for a human to click
-  # 'File -> Login'. The watchdog SIGTERMs after the 180s startup
-  # grace (correctly: the EA never bound :5555) and the pod loops.
-  # This was the second-half failure the runbook RCA traced after
-  # the LiveUpdate-loop fix (commits 684746d5/ea5f0c1a) exposed it.
+  # The /login /password /server command-line flags are the
+  # documented MT5 unattended-launch trigger. They are processed
+  # BEFORE the GUI is shown and execute the full sequence
+  # automatically: login -> chart open (uses [Charts] Symbol/Period
+  # from startup.ini) -> template apply ([Charts] Template=) ->
+  # expert load (template's <expert> block). This is the contract
+  # every commercial headless MT5 deployment uses.
+  #
   # See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
   #
-  # The entrypoint already writes startup.ini to
-  # $MT_DIR/config/startup.ini (the path /portable expects), so this
-  # is a pure-flag change with no other code edits.
-  wine "$MT_EXE" /portable &
+  # Note on credential exposure: MT_PASSWORD appears in the command
+  # line. /proc/<pid>/cmdline is readable only by the same uid (the
+  # mt user, 1000) which is the only uid in this pod. The shared PID
+  # namespace with the watchdog sidecar means the watchdog can also
+  # read it, but the watchdog already has the auth token from the
+  # same Vault-rendered credentials file. No new exposure surface vs
+  # today.
+  wine "$MT_EXE" /portable "/login:$MT_LOGIN" "/password:$MT_PASSWORD" "/server:$MT_SERVER" &
   MT_PID=$!
   log INFO "MetaTrader PID: $MT_PID"
 
