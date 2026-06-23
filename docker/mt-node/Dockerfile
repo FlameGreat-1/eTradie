@@ -281,17 +281,31 @@ RUN set -eux; \
         echo "FATAL: libzmq.dll missing in MT4 template" >&2; \
         exit 1; \
     fi; \
-    # Defect #15: bake LiveUpdate-disabled into the template so a
-    # freshly-seeded prefix ships already-current and never attempts a
-    # self-update/self-restart on first boot. LiveUpdate is controlled
-    # by the [LiveUpdate] LastBuildDataPath key in config/terminal.ini
-    # (confirmed from the actual MT5 install; the MT family shares the
-    # terminal.ini schema). Pin it to the baked MT5 build (5836). The
-    # entrypoint re-pins from the live journal at runtime as a
-    # belt-and-braces follow-up. Config only; no network; no chmod.
+    # Defect #15: bake LiveUpdate-neutralization into the template so a
+    # freshly-seeded prefix ships with the updater disabled on first
+    # boot.
+    #
+    # PROVEN (staging, build 5836; see
+    # docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md): the
+    # [LiveUpdate] LastBuildDataPath key in terminal.ini does NOT stop
+    # LiveUpdate -- it was present in the exact terminal.ini the
+    # terminal reads and the terminal still downloaded mt5onnx64 and
+    # self-restarted (exit 143) in an infinite loop. It is retained
+    # below ONLY as a harmless tertiary, NOT as the mechanism.
+    #
+    # The config-level lever is common.ini [Common] Source= (the
+    # LiveUpdate source host). We bake it empty (Source=) + NewsEnable=0
+    # so the seeded prefix is already neutralized; the entrypoint
+    # re-asserts it EVERY boot because MT rewrites common.ini on
+    # shutdown. NOTE: config disable is broker-safe but NOT a guaranteed
+    # kill -- the updater can still reach MetaQuotes by hardcoded IP, so
+    # the durable app-proof control is a network egress block (runbook
+    # Layer 2). Config only here; no network; no chmod.
     mkdir -p "$MT5_ROOT/config" "$MT4_ROOT/config"; \
     printf '[LiveUpdate]\nLastBuildDataPath=5836\n' > "$MT5_ROOT/config/terminal.ini"; \
     printf '[LiveUpdate]\nLastBuildDataPath=5836\n' > "$MT4_ROOT/config/terminal.ini"; \
+    printf '[Common]\nNewsEnable=0\nSource=\n' > "$MT5_ROOT/config/common.ini"; \
+    printf '[Common]\nNewsEnable=0\nSource=\n' > "$MT4_ROOT/config/common.ini"; \
     if ! grep -q 'LastBuildDataPath' "$MT5_ROOT/config/terminal.ini"; then \
         echo "FATAL: LiveUpdate pin missing in MT5 template terminal.ini" >&2; \
         exit 1; \
