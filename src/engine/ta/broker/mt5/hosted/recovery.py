@@ -176,9 +176,7 @@ class HostedRecoveryConfig:
             # 0 disables the guard (pre-fix behaviour); the production
             # default protects fresh provisions through their genuine
             # first-boot window.
-            fresh_provision_grace_secs=_pos_float(
-                "ENGINE_HOSTED_RECOVERY_FRESH_PROVISION_GRACE_SECS", "1800", 0.0
-            ),
+            fresh_provision_grace_secs=_pos_float("ENGINE_HOSTED_RECOVERY_FRESH_PROVISION_GRACE_SECS", "1800", 0.0),
         )
 
 
