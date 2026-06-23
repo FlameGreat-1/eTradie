@@ -7,6 +7,7 @@ required. Cover the four CHECKLIST Section 8 disaster scenarios.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -28,7 +29,11 @@ pytestmark = pytest.mark.asyncio
 # ---------------------------------------------------------------------------
 
 
-def _make_row(connection_id: str, user_id: str = "user-1") -> MagicMock:
+def _make_row(
+    connection_id: str,
+    user_id: str = "user-1",
+    created_at: datetime | None = None,
+) -> MagicMock:
     row = MagicMock()
     row.id = connection_id
     row.user_id = user_id
@@ -36,6 +41,11 @@ def _make_row(connection_id: str, user_id: str = "user-1") -> MagicMock:
     row.mt5_server = "Exness-MT5Trial9"
     row.mt5_login = "123456"
     row.mt5_password_encrypted = "gAAAAA-fake-fernet-ciphertext"
+    # Default created_at is OLD (24h ago) so the fresh-provision guard
+    # in HostedRecoveryService._sweep (commit 684746d5) NEVER skips
+    # the row. Tests that need to exercise the guard pass an explicit
+    # recent datetime.
+    row.created_at = created_at if created_at is not None else datetime.now(UTC) - timedelta(hours=24)
     return row
 
 
@@ -92,14 +102,24 @@ def _make_provisioner(
 def _make_config(
     enabled: bool = True,
     sweep_interval_secs: float = 60.0,
-    unhealthy_threshold_secs: float = 600.0,
+    unhealthy_threshold_secs: float = 1200.0,
     reprovision_cooldown_secs: float = 300.0,
+    fresh_provision_grace_secs: float = 0.0,
 ) -> HostedRecoveryConfig:
+    """Construct a HostedRecoveryConfig for tests.
+
+    Defaults match the production-leaning code defaults set in commit
+    684746d5: unhealthy_threshold_secs=1200 sits above the provisioner
+    readiness gate. fresh_provision_grace_secs defaults to 0 (disabled)
+    so the existing tests do not have to fight the guard; the dedicated
+    test_fresh_provision_grace_* cases pass an explicit non-zero value.
+    """
     return HostedRecoveryConfig(
         enabled=enabled,
         sweep_interval_secs=sweep_interval_secs,
         unhealthy_threshold_secs=unhealthy_threshold_secs,
         reprovision_cooldown_secs=reprovision_cooldown_secs,
+        fresh_provision_grace_secs=fresh_provision_grace_secs,
     )
 
 
@@ -114,13 +134,24 @@ async def test_config_from_env_defaults(monkeypatch: pytest.MonkeyPatch):
         "ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS",
         "ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS",
         "ENGINE_HOSTED_RECOVERY_REPROVISION_COOLDOWN_SECS",
+        "ENGINE_HOSTED_RECOVERY_MAX_CONCURRENT",
+        "ENGINE_HOSTED_RECOVERY_FRESH_PROVISION_GRACE_SECS",
     ):
         monkeypatch.delenv(k, raising=False)
     cfg = HostedRecoveryConfig.from_env()
     assert cfg.enabled is True
     assert cfg.sweep_interval_secs == 60.0
-    assert cfg.unhealthy_threshold_secs == 600.0
+    # 1200s default (raised from 600s in commit 684746d5) sits above
+    # the provisioner readiness gate (_READINESS_TIMEOUT_SECS=600) so
+    # the recovery sweep cannot race a still-cold-booting Pod. See
+    # docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+    assert cfg.unhealthy_threshold_secs == 1200.0
     assert cfg.reprovision_cooldown_secs == 300.0
+    assert cfg.max_concurrent_reprovisions == 4
+    # Fresh-provision guard: 30min default protects fresh provisions
+    # through their genuine first-boot window (Wine init + LiveUpdate +
+    # exit-143 + 453-file MQL5 recompile + EA OnInit).
+    assert cfg.fresh_provision_grace_secs == 1800.0
 
 
 async def test_config_from_env_disabled(monkeypatch: pytest.MonkeyPatch):
@@ -340,6 +371,139 @@ async def test_reprovision_missing_credentials_raises_configuration_error():
     result = await svc.run_once_at_startup()
     provisioner.provision_account.assert_not_awaited()
     assert result == {"scanned": 1, "reprovisioned": 0, "failed": 1}
+
+
+# ---------------------------------------------------------------------------
+# Scenario: fresh-provision guard (commit 684746d5)
+#
+# A connection younger than fresh_provision_grace_secs is
+# legitimately mid-first-boot (Wine init + LiveUpdate + exit-143
+# self-restart + 453-file MQL5 recompile + EA OnInit). The
+# provisioner's own readiness gate (_READINESS_TIMEOUT_SECS) is the
+# authoritative check during this window; the recovery sweep must
+# NOT tear it down, even on bypass_threshold=True. Without the
+# guard, a coincidental engine restart during a user's first
+# provision fed the exit-143 self-restart loop documented in
+# docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+# ---------------------------------------------------------------------------
+
+
+async def test_fresh_provision_grace_skips_recent_row_on_startup_sweep():
+    """A row created 60s ago must be SKIPPED by the eager startup sweep,
+    even though the StatefulSet is missing and bypass_threshold=True."""
+    fresh_row = _make_row(
+        "aaaaaaaaaaaa-fresh",
+        created_at=datetime.now(UTC) - timedelta(seconds=60),
+    )
+    provisioner = _make_provisioner()  # default 'removed' for every release
+    import engine.ta.broker.mt5.hosted.recovery as recovery_mod
+
+    recovery_mod.decrypt_credential = lambda enc: "plaintext"  # type: ignore[assignment]
+
+    svc = HostedRecoveryService(
+        provisioner=provisioner,
+        db=_make_db_with_rows([fresh_row]),
+        config=_make_config(fresh_provision_grace_secs=1800.0),
+    )
+    result = await svc.run_once_at_startup()
+
+    # The fresh row is unhealthy (counted) but NOT reprovisioned.
+    provisioner.provision_account.assert_not_awaited()
+    assert result == {"scanned": 1, "reprovisioned": 0, "failed": 0}
+
+
+async def test_fresh_provision_grace_lets_old_row_reprovision():
+    """A row older than fresh_provision_grace_secs is reprovisioned
+    normally; the guard only protects the FIRST-boot window."""
+    old_row = _make_row(
+        "bbbbbbbbbbbb-old",
+        created_at=datetime.now(UTC) - timedelta(hours=2),
+    )
+    provisioner = _make_provisioner()
+    import engine.ta.broker.mt5.hosted.recovery as recovery_mod
+
+    recovery_mod.decrypt_credential = lambda enc: "plaintext"  # type: ignore[assignment]
+
+    svc = HostedRecoveryService(
+        provisioner=provisioner,
+        db=_make_db_with_rows([old_row]),
+        config=_make_config(fresh_provision_grace_secs=1800.0),
+    )
+    result = await svc.run_once_at_startup()
+
+    provisioner.provision_account.assert_awaited_once()
+    assert result == {"scanned": 1, "reprovisioned": 1, "failed": 0}
+
+
+async def test_fresh_provision_grace_zero_disables_guard():
+    """fresh_provision_grace_secs=0 must restore the pre-fix behaviour:
+    even a row created milliseconds ago is reprovisioned."""
+    new_row = _make_row(
+        "cccccccccccc-new",
+        created_at=datetime.now(UTC) - timedelta(milliseconds=100),
+    )
+    provisioner = _make_provisioner()
+    import engine.ta.broker.mt5.hosted.recovery as recovery_mod
+
+    recovery_mod.decrypt_credential = lambda enc: "plaintext"  # type: ignore[assignment]
+
+    svc = HostedRecoveryService(
+        provisioner=provisioner,
+        db=_make_db_with_rows([new_row]),
+        config=_make_config(fresh_provision_grace_secs=0.0),
+    )
+    result = await svc.run_once_at_startup()
+
+    provisioner.provision_account.assert_awaited_once()
+    assert result == {"scanned": 1, "reprovisioned": 1, "failed": 0}
+
+
+async def test_fresh_provision_grace_naive_datetime_treated_as_utc():
+    """created_at without tzinfo must be normalised to UTC by
+    _row_created_at_seconds (the engine's DB DSN sets timezone=UTC,
+    but defensive timezone normalisation is the documented contract).
+    """
+    naive_recent = datetime.utcnow() - timedelta(seconds=60)  # noqa: DTZ003
+    fresh_row = _make_row("dddddddddddd-naive", created_at=naive_recent)
+    provisioner = _make_provisioner()
+    import engine.ta.broker.mt5.hosted.recovery as recovery_mod
+
+    recovery_mod.decrypt_credential = lambda enc: "plaintext"  # type: ignore[assignment]
+
+    svc = HostedRecoveryService(
+        provisioner=provisioner,
+        db=_make_db_with_rows([fresh_row]),
+        config=_make_config(fresh_provision_grace_secs=1800.0),
+    )
+    result = await svc.run_once_at_startup()
+
+    provisioner.provision_account.assert_not_awaited()
+    assert result == {"scanned": 1, "reprovisioned": 0, "failed": 0}
+
+
+async def test_fresh_provision_grace_unparseable_created_at_falls_through():
+    """A row whose created_at is None / unparseable cannot be evaluated
+    against the guard; the helper returns None and the sweep falls
+    through to normal recovery (safe: never tears down inappropriately).
+    """
+    row = _make_row("eeeeeeeeeeee-none", created_at=None)
+    row.created_at = None  # explicitly None overrides _make_row default
+    provisioner = _make_provisioner()
+    import engine.ta.broker.mt5.hosted.recovery as recovery_mod
+
+    recovery_mod.decrypt_credential = lambda enc: "plaintext"  # type: ignore[assignment]
+
+    svc = HostedRecoveryService(
+        provisioner=provisioner,
+        db=_make_db_with_rows([row]),
+        config=_make_config(fresh_provision_grace_secs=1800.0),
+    )
+    result = await svc.run_once_at_startup()
+
+    # Guard returns None for an unparseable created_at -> the sweep
+    # falls through and reprovisions (the row is genuinely missing).
+    provisioner.provision_account.assert_awaited_once()
+    assert result == {"scanned": 1, "reprovisioned": 1, "failed": 0}
 
 
 # ---------------------------------------------------------------------------
