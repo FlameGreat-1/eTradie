@@ -1,6 +1,49 @@
 # Hosted-MT (Wine) Provisioning — Root Cause + Fix Runbook
 
-**Status:** ROOT CAUSE CONFIRMED. Fix in progress.
+**Status:** ROOT CAUSE CONFIRMED. Layer 1 (config) + Layer 4
+(operability) SHIPPED to `main` and awaiting a CI image build + roll to
+verify on a real boot. Layer 2 (network egress block) is the durable
+app-proof control and is still PENDING (see §3 / §7).
+
+### What shipped (this fix)
+- `docker/mt-node/entrypoint.sh`: neutralize LiveUpdate via
+  `common.ini [Common] Source=` (+ `NewsEnable=0`), re-asserted EVERY
+  boot, preserving the encrypted `Environment=` blob. Plus a loud
+  `exit 143 + LiveUpdate` self-restart detector (Layer 4).
+- `docker/mt-node/Dockerfile`: bake the same `common.ini` neutralization
+  into the MT5 + MT4 template program dirs; corrected the false
+  defect-#15 claim that `LastBuildDataPath` disables LiveUpdate.
+
+### How to verify (real boot, NOT a live exec hack)
+1. Push to GitHub, let CI build + push the mt-node image, let
+   `deploy-bump` pin the SHA, sync ArgoCD (see `docs/runbooks/README.md`).
+2. Clean any failed tenant (§5) and re-provision Exness demo from the
+   dashboard.
+3. On the live pod, confirm:
+   ```bash
+   P="/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5"
+   kubectl -n etradie-system exec <pod> -c mt-node -- sh -c \
+     "f=\$(ls -t \"$P/logs\"/*.log|head -1); tr -d '\000' < \"\$f\" | grep -aiE 'liveupdate|build 5836 started'"
+   kubectl -n etradie-system exec <pod> -c mt-node -- sh -c 'cat /proc/net/tcp|grep -i 15B3 && echo ":5555 LISTEN" || echo "not bound"'
+   ```
+   - No `LiveUpdate ... downloaded` line + `:5555 LISTEN` + pod 3/3 =>
+     config disable WORKS; Layer 2 becomes hardening, not a blocker.
+   - LiveUpdate STILL downloads (the loud Layer-4 ERROR fires) =>
+     config disable is insufficient (updater dialing by IP); Layer 2
+     egress block is REQUIRED. Proceed to §2 enforcement-confirmed +
+     §3 broker-allowlist design.
+
+### Layer 2 status note (enforcement CONFIRMED)
+The k3s NetworkPolicy enforcement question from the original §2 is now
+ANSWERED: a deny-all-egress-except-DNS policy put the terminal's
+MetaQuotes :443 connection into SYN_SENT with no ESTABLISHED => the
+cluster DOES enforce NetworkPolicy. So Layer 2 (CIDR egress) is viable.
+The remaining hazard: MetaQuotes-hosted brokers share the
+`194.164.179.x` range with the updater, so a blunt range-block would
+sever the broker. Layer 2 must therefore be default-deny + a
+broker-access-server allowlist (or an Envoy/Linkerd egress SNI
+allowlist), keyed off per-entity CIDRs added to the broker catalog. Do
+NOT ship a blunt MetaQuotes range-block.
 
 This file supersedes all prior "resume here" notes. The earlier
 hypotheses (missing `servers.dat` entries, re-zipped Deriv bundle, the
