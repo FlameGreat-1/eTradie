@@ -405,34 +405,53 @@ log INFO "Startup config written to $INI_FILE"
 
 # ── Disable MetaTrader LiveUpdate self-restart loop (defect #15) ──
 # Both MT5 (terminal64.exe) and MT4 (terminal.exe) run LiveUpdate on
-# every cold boot: the terminal detects a newer build on MetaQuotes'
-# servers, downloads it, and self-restarts to apply (exit 143). The
-# supervised loop then relaunches, re-seeds, and re-runs the full
+# every cold boot: the terminal contacts MetaQuotes' update servers,
+# downloads a component (e.g. mt5onnx64), and self-restarts to apply
+# (exit 143). The supervised loop then relaunches and re-runs the full
 # recompile + LiveUpdate from scratch -- an infinite, non-convergent
 # loop in which the EA OnInit never runs, MQL Logs is never created,
 # and :5555 never binds, so the pod never reaches Ready.
 #
-# Applies to BOTH platforms (the image bakes both MT4 and MT5 EA
-# artifacts). LiveUpdate is disabled by ONE mechanism, confirmed from
-# the actual install: the [LiveUpdate] LastBuildDataPath key in
-# terminal.ini (NOT common.ini). Pinning it to the baked terminal
-# build makes the terminal treat itself as current and skip the
-# update + self-restart. The MT family shares the terminal.ini schema,
-# so the same pin is written for MT4 and MT5.
+# PROVEN (staging, build 5836; see docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md):
+#   - The [LiveUpdate] LastBuildDataPath pin in terminal.ini does NOT
+#     stop LiveUpdate. The key was present in the exact terminal.ini the
+#     terminal reads and LiveUpdate still downloaded + self-restarted.
+#     It is kept below ONLY as a harmless tertiary; it is NOT the
+#     mechanism.
+#   - hostAliases / DNS sinkhole of download.mql5.com does NOT stop it
+#     either: the updater dials MetaQuotes by hardcoded IP, bypassing
+#     /etc/hosts. The durable app-proof control is therefore an EGRESS
+#     block (network layer), tracked in the runbook (Layer 2) and NOT in
+#     this script.
 #
-# Defence in depth without side effects: the pin is BAKED into the
-# image template at build time (Dockerfile, both program dirs) so a
-# freshly-seeded prefix ships already-current, AND re-pinned here at
-# runtime so it also holds on the symbol two-boot / any restart where
-# the template is not re-copied.
-#
-# NO filesystem chmod and NO network block are used. Locking the
-# program dir would risk stopping the terminal from launching (MT
-# writes legitimate files at the program-dir root on startup), and a
-# network block is the only lever that could endanger the broker
-# connection. The ini pin is config-only with zero side effect -- it
-# cannot break the broker, the EA, the ZMQ socket, or startup. No EA
-# recompile.
+# Layer 1 (this block) -- broker-safe config disable, RE-ASSERTED EVERY
+# BOOT: neutralize the LiveUpdate Source in common.ini [Common]
+# (Source= empty + NewsEnable=0). MT5 rewrites its own common.ini on
+# shutdown, so a once-baked value drifts; we therefore rewrite it fresh
+# here on every launch. We PRESERVE the existing encrypted
+# 'Environment=' blob verbatim -- clobbering it corrupts MT's settings
+# store and can stop the terminal from starting. This is config-only,
+# touches no broker field, and cannot break the broker / EA / ZMQ. It
+# is defense-in-depth, NOT a guaranteed kill on its own (the updater may
+# still reach MetaQuotes by IP -- that is what the egress block is for).
+COMMON_INI="$MT_DIR/config/common.ini"
+_env_line=""
+if [ -f "$COMMON_INI" ]; then
+  # Capture the encrypted Environment= line exactly as MT wrote it.
+  _env_line=$(grep -a '^Environment=' "$COMMON_INI" 2>/dev/null | head -n1 || true)
+fi
+# Rewrite common.ini's [Common] section with LiveUpdate neutralized,
+# preserving the Environment blob when present. Any other [Common]
+# keys MT needs are re-derived by the terminal on next launch; the
+# broker login does NOT come from common.ini (it comes from
+# startup.ini [Common], written above), so this is broker-safe.
+{
+  printf '[Common]\n'
+  [ -n "$_env_line" ] && printf '%s\n' "$_env_line"
+  printf 'NewsEnable=0\n'
+  printf 'Source=\n'
+} > "$COMMON_INI"
+log INFO "LiveUpdate Source neutralized in $COMMON_INI (Environment preserved=$([ -n "$_env_line" ] && echo yes || echo no), $MT_PLATFORM)"
 
 # Resolve the baked terminal build so we never pin a stale number.
 # The terminal records the running build in its journal as
@@ -500,6 +519,20 @@ while :; do
   MT_PID=""
 
   log WARN "MetaTrader exited with code $EXIT_CODE"
+
+  # Layer 4 (operability): detect the LiveUpdate self-restart pattern
+  # and surface it LOUDLY so this symptom is never again misdiagnosed
+  # as a slow boot / login failure. exit 143 = SIGTERM (MT's own
+  # self-restart to apply a LiveUpdate). If the most recent journal
+  # also shows a LiveUpdate download, the egress block (runbook Layer 2)
+  # is not effective in this pod and the loop will not converge -- no
+  # amount of readiness-timeout raising will help.
+  if [ "$EXIT_CODE" = "143" ]; then
+    _lu=$(grep -ahiE 'LiveUpdate.*(downloaded|is available)' "$MT_DIR/logs/"*.log 2>/dev/null | tail -n1 || true)
+    if [ -n "$_lu" ]; then
+      log ERROR "LiveUpdate self-restart detected (exit 143; '$_lu'). The terminal is updating itself and will loop until MetaQuotes update egress is blocked at the network layer (see docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md Layer 2). The EA will NOT bind :5555 until this is stopped."
+    fi
+  fi
 
   now=$(date +%s)
   elapsed=$(( now - window_start ))
