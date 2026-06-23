@@ -124,6 +124,65 @@ diagnostic actionable instead of just noisy.
 
 ---
 
+## Cluster 3 — Vault credential shell-expansion bug (entrypoint bash-source)
+
+After Clusters 1 and 2 were closed, a third independent bug surfaced:
+the pod booted cleanly through LiveUpdate, `ps -ef` showed the new
+`/login /password /server` flags reaching `terminal64.exe`, but the MT5
+journal stayed silent after `LiveUpdate downloaded successfully` and the
+broker never received a login attempt.
+
+Root cause: `entrypoint.sh` sourced `/vault/secrets/mt-credentials.env`
+via `. "$FILE"`. The Vault Agent renders each credential as a literal
+`export KEY=VALUE` line; bash's `source` re-evaluates the right-hand
+side of every assignment as a shell expression. For a password
+starting with `$$` (the literal characters), bash expanded `$$` to its
+own PID before exporting `MT_PASSWORD`, so `terminal64.exe` received
+a wrong password and the broker silently rejected the login.
+
+Reproduction signature: `kubectl exec ... -- ps -ef | grep terminal64`
+shows `/password:<digits><rest>` where `<digits>` is a small number
+(40-100). That prefix is literally the entrypoint shell's PID. A user
+password that happens to start with two digits will also match this
+pattern by coincidence; treat the diagnostic as suggestive, not
+definitive. The authoritative check is to log into the pod and read
+`/vault/secrets/mt-credentials.env` directly - if it contains a
+literal `$$` (or any other shell metacharacter) in the value of a
+`export KEY=VALUE` line, the source-style consumption is broken.
+
+Why bash does this: parameter expansion is part of normal `source`
+semantics. `$$` -> shell PID; `` `cmd` `` and `$(cmd)` -> command
+substitution (executes arbitrary code as uid 1000 inside the pod);
+`\` -> escape character; `!` -> history expansion in interactive
+shells. The fix is to never let bash interpret the right-hand side
+of these assignments. Read the file as pure text instead.
+
+Fix landed: `docker/mt-node/entrypoint.sh` now parses the file with a
+`while IFS= read -r _line` loop that strips a leading `export `,
+splits on the first `=`, removes matching single- or double-quote
+wrappers, whitelists the four expected keys, and exports the literal
+value. The parser mirrors `docker/mt-node/watchdog.py::_load_vault_secrets_file`
+exactly so the two consumers of the Vault-rendered file agree on its
+semantics. A regression guard logs WARN if `MT_PASSWORD` ever starts
+with the entrypoint's own PID, so any future re-introduction of a
+shell-source pattern fails loudly instead of silently.
+
+Security note: this also closed a uid-1000 shell-injection vector
+inside the mt-node container. A password of `` `id` `` or
+`$(whoami)` would have executed those commands at boot with access
+to the per-tenant Vault credentials and the projected aud=vault SA
+token under `/var/run/secrets/vault/token`. Treat any future shell
+source of a Vault-rendered file as a P0 security defect.
+
+Do not re-introduce a shell-source pattern for any Vault-rendered
+file. The chart's Vault template (`helm/mt-node/templates/statefulset.yaml`)
+and the engine-runtime template in
+`src/engine/ta/broker/mt5/hosted/provisioner.py::_upsert_statefulset`
+are unchanged and continue to emit `export KEY=VALUE` lines verbatim;
+only the consumer changed.
+
+---
+
 ## Live Session Handoff (2026-06-23 ≈18:00 UTC) — PICK UP HERE
 
 If the active session ended before the final verdict, this section is

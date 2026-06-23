@@ -98,19 +98,102 @@ MT_SYMBOL_PENDING_SENTINEL="__pending__"
 #
 # Local docker-compose has no injector; the operator can either set
 # MT_LOGIN/MT_PASSWORD/MT_ZMQ_AUTH_TOKEN directly in the compose
-# file's environment block (skipping the source), or pre-create the
+# file's environment block (skipping the parse), or pre-create the
 # file at the same path.
+#
+# CRITICAL: we MUST NOT bash-source this file. The Vault Agent renders
+# each line as `export KEY=VALUE` with the value substituted verbatim.
+# User passwords can contain $, `, $(, \, !, ${ - all of which bash
+# would expand or execute on `. "$FILE"`. A password starting with $$
+# (a literal double dollar) would otherwise expand to the shell's PID
+# and the broker would receive a wrong password; a password containing
+# `cmd` or $(cmd) would execute that command inside the pod as uid 1000
+# with access to the per-tenant Vault credentials and the projected
+# aud=vault SA token. Both classes are closed by parsing the file as
+# pure text and never letting the shell re-evaluate the right-hand side.
+#
+# This parser mirrors watchdog.py::_load_vault_secrets_file exactly so
+# the two consumers of the Vault-rendered file agree on its semantics.
+# See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md ("Vault credential
+# shell-expansion bug") for the diagnosis and the full audit trail.
 VAULT_SECRETS_FILE="${VAULT_SECRETS_FILE:-/vault/secrets/mt-credentials.env}"
 if [ -r "${VAULT_SECRETS_FILE}" ]; then
-  # shellcheck disable=SC1090
-  set -a
-  . "${VAULT_SECRETS_FILE}"
-  set +a
-  if [ -n "${MT_VAULT_RENDERED_AT:-}" ]; then
-    log INFO "Loaded Vault-rendered credentials (rendered_at=${MT_VAULT_RENDERED_AT})"
+  _vault_rendered_at=""
+  _vault_loaded_count=0
+  # Read each line as a literal string. `IFS=` + `-r` prevents word
+  # splitting and backslash interpretation by `read` itself. The
+  # `|| [ -n "$_line" ]` keeps the loop reading the final line when
+  # the file does not end with a newline.
+  while IFS= read -r _line || [ -n "$_line" ]; do
+    # Strip leading whitespace.
+    _line="${_line#"${_line%%[![:space:]]*}"}"
+    # Skip blank lines and comments.
+    case "$_line" in
+      ''|\#*) continue ;;
+    esac
+    # Drop a single leading `export ` (the Vault template emits it).
+    case "$_line" in
+      'export '*)
+        _line="${_line#export }"
+        _line="${_line#"${_line%%[![:space:]]*}"}"
+        ;;
+    esac
+    # Split on the FIRST '=' only.
+    case "$_line" in
+      *=*)
+        _key="${_line%%=*}"
+        _val="${_line#*=}"
+        ;;
+      *) continue ;;
+    esac
+    # Trim trailing carriage return then trailing whitespace on the value.
+    _val="${_val%$'\r'}"
+    _val="${_val%"${_val##*[![:space:]]}"}"
+    # Strip matching single- or double-quote wrappers if present.
+    case "$_val" in
+      \"*\") _val="${_val#\"}"; _val="${_val%\"}" ;;
+      \'*\') _val="${_val#\'}"; _val="${_val%\'}" ;;
+    esac
+    # Whitelist the keys we expect. Anything else is ignored so a
+    # future template typo cannot pollute the engine env or leak
+    # arbitrary attacker-influenced values into the process
+    # environment.
+    case "$_key" in
+      MT_LOGIN|MT_PASSWORD|MT_ZMQ_AUTH_TOKEN|MT_VAULT_RENDERED_AT)
+        # `export NAME=VALUE` with the value in a variable is NOT
+        # re-parsed by bash (parameter expansion is not recursive
+        # once the value is in $_val). $_val is treated as a literal
+        # byte string.
+        export "$_key=$_val"
+        _vault_loaded_count=$(( _vault_loaded_count + 1 ))
+        if [ "$_key" = "MT_VAULT_RENDERED_AT" ]; then
+          _vault_rendered_at="$_val"
+        fi
+        ;;
+    esac
+  done < "${VAULT_SECRETS_FILE}"
+
+  # Regression guard. If MT_PASSWORD starts with the entrypoint's own
+  # PID, the file was sourced by something upstream (not us) and bash
+  # re-expanded `$$`. Log loudly so the symptom (broker reports invalid
+  # password) is never re-diagnosed at the MT5 layer again. We do not
+  # modify the value here - we cannot reverse the corruption - but a
+  # clear log entry plus a journal-grep is enough for an operator to
+  # escalate.
+  _self_pid=$$
+  case "${MT_PASSWORD:-}" in
+    "${_self_pid}"*)
+      log WARN "MT_PASSWORD appears to start with this shell's PID (${_self_pid}). This is the historical signature of bash-source corruption of /vault/secrets/. If the broker rejects the login as 'invalid password', someone has reintroduced a shell-source pattern upstream of this entrypoint. See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md."
+      ;;
+  esac
+  unset _self_pid _line _key _val
+
+  if [ -n "$_vault_rendered_at" ]; then
+    log INFO "Loaded ${_vault_loaded_count} Vault-rendered credential entries (rendered_at=${_vault_rendered_at})"
   else
-    log INFO "Loaded Vault-rendered credentials from ${VAULT_SECRETS_FILE}"
+    log INFO "Loaded ${_vault_loaded_count} Vault-rendered credential entries from ${VAULT_SECRETS_FILE}"
   fi
+  unset _vault_rendered_at _vault_loaded_count
 else
   log INFO "Vault credentials file not present at ${VAULT_SECRETS_FILE}; relying on env (docker-compose / dev mode)"
 fi
