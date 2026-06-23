@@ -463,7 +463,11 @@ async def test_fresh_provision_grace_naive_datetime_treated_as_utc():
     _row_created_at_seconds (the engine's DB DSN sets timezone=UTC,
     but defensive timezone normalisation is the documented contract).
     """
-    naive_recent = datetime.utcnow() - timedelta(seconds=60)  # noqa: DTZ003
+    # Construct a NAIVE datetime (no tzinfo) without calling the
+    # deprecated datetime.utcnow(): take a tz-aware UTC instant and
+    # strip its tzinfo. The helper's defensive UTC normalisation must
+    # treat the resulting naive value as UTC.
+    naive_recent = (datetime.now(UTC) - timedelta(seconds=60)).replace(tzinfo=None)
     fresh_row = _make_row("dddddddddddd-naive", created_at=naive_recent)
     provisioner = _make_provisioner()
     import engine.ta.broker.mt5.hosted.recovery as recovery_mod
