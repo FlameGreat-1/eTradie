@@ -65,6 +65,92 @@ MetaQuotes) is dead by construction. Implementation:
 > Do NOT ship a blunt MetaQuotes range-block, and do NOT add another
 > config/DNS "disable" — see DEAD ENDS.
 
+---
+
+## Layer 2 — design analysis (READ before implementing)
+
+### Why a static CIDR allowlist is the WRONG tool (broker IPs are dynamic)
+MetaQuotes-hosted brokers (Exness, Deriv, most of them) resolve their
+trade servers through MetaQuotes' access-server infrastructure, which:
+- uses MULTIPLE, ROTATING IPs across MetaQuotes ranges,
+- can FAILOVER to different ranges,
+- OVERLAPS with the LiveUpdate IPs (observed `194.164.179.28` serving
+  both the broker hop AND update traffic).
+
+So a static `194.164.179.0/24` allowlist would (a) break the moment the
+broker uses an IP outside it, and (b) still let LiveUpdate through on the
+shared IPs. CIDR allowlisting brokers is NOT the clean answer. (This
+supersedes the earlier "seed Exness with 194.164.179.0/24" note above.)
+
+### What actually distinguishes broker traffic from LiveUpdate traffic
+NOT the IP (shared/dynamic). The distinguishers are:
+1. Hostname/SNI: LiveUpdate -> `download.mql5.com` / MetaQuotes update
+   hosts; broker login -> the broker's trade-server hostname. Same IPs
+   sometimes, but DIFFERENT SNI in the TLS handshake.
+2. Purpose/timing: LiveUpdate is an HTTPS GET to a CDN; broker login is
+   the MT5 trade protocol to the access server.
+
+The correct control for "same/dynamic IP, different purpose" is L7/SNI
+egress filtering, NOT L3/IP filtering: allow the broker SNI, deny
+`*.mql5.com` / update SNIs, regardless of which IP they resolve to.
+This handles dynamic IPs by construction (filter on the name, not the
+address).
+
+### The options, ranked
+
+**Option A — SNI-based egress gateway (proper enterprise answer).**
+Route all mt-node egress through an Envoy/proxy that allowlists the
+broker SNI and denies MetaQuotes update SNIs. The cluster already runs
+Linkerd + Envoy, so the infrastructure exists. Industry-standard egress
+gateway + SNI policy; handles dynamic IPs. Downside: meaningful
+architectural change, touches the mesh (fragile here per
+PHASE10.6-MESH-DISABLED-CHECKPOINT), needs care.
+
+**Option B — accept LiveUpdate runs once, make the pod SURVIVE it.**
+The failure is not "LiveUpdate downloads a file"; it is "the terminal
+self-restarts (exit 143) and the supervisor relaunches into the same
+download before it converges, while the 300s readiness gate + 180s
+watchdog grace expire first." LiveUpdate downloads ONE component
+(`mt5onnx64`, ~14.7MB) and applies it. IF that update persisted on the
+Wine-prefix PVC, the next boot would have nothing to download -> no
+self-restart -> login -> EA binds. Then the fix is network-free: let the
+one-time update complete + raise the readiness gate / watchdog grace so
+the post-update boot can settle, plus a gentler (exponential-backoff,
+LiveUpdate-143-aware) supervisor relaunch.
+
+**Option C — do not block MetaQuotes at all; raise the gate.**
+Allow broker traffic, accept LiveUpdate, just give it a long enough
+window and ensure the update persists. Simplest; only works if Option
+B's persistence holds.
+
+### The OPEN question that decides B/C vs A
+Does the LiveUpdate-applied component PERSIST across restarts, or does
+every boot re-download it?
+- Earlier journals showed the terminal restarting 7+ times and EACH
+  cycle re-announcing `LiveUpdate new version build 5833 is available`
+  + `downloaded`. That strongly suggests it does NOT persist (the prefix
+  state or the kubelet container restart wipes the applied update), in
+  which case backoff/idempotency CANNOT converge and Option A (SNI
+  egress) is required.
+- The confirming metric is the download:starts ratio in the persisted
+  journal (`grep -ac 'downloaded and updated'` vs `grep -ac 'build 5836
+  started'` in `.../MetaTrader 5/logs/<date>.log`). Captures so far kept
+  racing the restart (the container exits mid-exec) or read a too-fresh
+  pod (`dl=0 starts=0`). Capture it after the pod has looped 3+ times,
+  reading via `kubectl logs` (survives restarts) for the supervisor
+  `restart_count`, and the journal for the MT5 download count.
+  - dl ~= starts (re-downloads every boot) -> NOT persisting ->
+    backoff cannot converge -> implement Option A (SNI egress).
+  - dl fixed at 1 while starts/restart_count climb -> persisted ->
+    implement Option B (let it converge + raise gate + backoff).
+
+### Honest assessment
+Backoff/idempotency on OUR supervisor cannot help if the
+non-idempotent actor is MT5 itself re-running LiveUpdate every boot
+(which the repeated "new version available" lines indicate). In that
+case Option A (SNI egress gateway) is the real, dynamic-IP-safe fix.
+Confirm the persistence ratio before committing to the Envoy/SNI work.
+
 This file supersedes all prior "resume here" notes. The earlier
 hypotheses (missing `servers.dat` entries, re-zipped Deriv bundle, the
 no-`Symbol=` chart wall, `#15b` startup.ini-not-honored) are **closed as
