@@ -222,3 +222,32 @@ Deriv-Demo NOT in servers.dat
 NO connection-related line at all
 error: Internal error occurred: unable to upgrade connection: container not found ("mt-node")
 softverse@Softverse:~/eTradie
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
