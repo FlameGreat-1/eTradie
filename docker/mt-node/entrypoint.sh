@@ -522,7 +522,31 @@ while :; do
   log INFO "Launching $MT_EXE (platform=$MT_PLATFORM, server=$MT_SERVER, login=$MT_LOGIN, symbol=$MT_SYMBOL, symbol_resolved=$SYMBOL_RESOLVED, zmq_port=$ZMQ_PORT, restart_count=$restart_count)"
 
   cd "$MT_DIR"
-  wine "$MT_EXE" "/config:$INI_FILE" &
+  # Launch in PORTABLE mode (NOT /config:).
+  #
+  # /portable makes terminal64.exe run as a self-contained portable
+  # installation: it reads <install_dir>/config/startup.ini at boot
+  # AND auto-executes the [Common] Login/Password/Server block,
+  # opens a chart per [Charts] Symbol/Period/Template, and attaches
+  # the expert per [Experts] Enabled/Account. This is the documented
+  # MetaTrader unattended-launch contract used by every commercial
+  # MT5 VPS provider and by the headless EA bridges in production.
+  #
+  # /config:<path> (the previous launch flag) is a DIFFERENT flag:
+  # it loads settings from the named file in place of the install's
+  # saved settings, but does NOT auto-execute login + chart + expert
+  # attach. With /config: alone, MT5 reads the credentials, runs
+  # LiveUpdate once, then sits idle waiting for a human to click
+  # 'File -> Login'. The watchdog SIGTERMs after the 180s startup
+  # grace (correctly: the EA never bound :5555) and the pod loops.
+  # This was the second-half failure the runbook RCA traced after
+  # the LiveUpdate-loop fix (commits 684746d5/ea5f0c1a) exposed it.
+  # See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+  #
+  # The entrypoint already writes startup.ini to
+  # $MT_DIR/config/startup.ini (the path /portable expects), so this
+  # is a pure-flag change with no other code edits.
+  wine "$MT_EXE" /portable &
   MT_PID=$!
   log INFO "MetaTrader PID: $MT_PID"
 
