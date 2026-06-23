@@ -291,8 +291,17 @@ Required env vars (from chart env block):
   `wineserver -k`. Without this, MT5 helpers leak into the next
   restart cycle.
 - **Wine prefix corruption**: `entrypoint.sh` auto-detects a
-  missing `drive_c/windows/system32` or stale `.update-timestamp.lock`
-  and resets the prefix. Recovery path for unclean pod kills.
+  missing `drive_c/windows/system32` and resets the prefix. This is
+  the ONLY real corruption signal. A stale
+  `$WINE_PREFIX/.update-timestamp.lock` (which Wine writes during
+  normal `wineboot -u` and that legitimately survives an abrupt pod
+  kill) is handled by deleting the SINGLE lock file and running
+  `wineboot -u` to reconcile - NOT by wiping the prefix. Wiping on a
+  stale lock would destroy MetaTrader's LiveUpdate-applied components
+  (e.g. `mt5onnx64`), the broker's trusted-device profile, and the
+  EA's compiled state, forcing a re-download on the next boot and
+  producing the exit-143 self-restart loop documented in
+  `docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md`.
 - **Supervised restart loop**: `MAX_INPOD_RESTARTS` (default 5) in
   a 5-minute window. On exhaustion, exit non-zero so kubelet
   recreates the Pod — the kernel does a full clean restart.

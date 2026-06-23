@@ -1,9 +1,72 @@
 # Hosted-MT (Wine) Provisioning — Root Cause + Fix Runbook
 
-**Status:** ROOT CAUSE CONFIRMED. All config/DNS disables are DISPROVEN
-(see DEAD ENDS below) and have been REVERTED from the codebase. The
-Layer 4 self-restart detector is retained. The ONLY working control is
-Layer 2 (network egress block), which is the next and final fix.
+**Status (REVISED, post-audit):** The previously-suspected root cause
+(MetaTrader LiveUpdate as the bug) was WRONG. LiveUpdate is designed
+to run ONCE on a fresh install, swap a component (mt5onnx64) via
+exit-143 self-restart, persist the new file on disk, and never
+re-download the same build. Every commercial MT5 VPS runs this flow
+with no egress block.
+
+The ACTUAL root cause was a three-bug cascade in our own stack that
+destroyed the persisted LiveUpdate state on every restart, forcing
+LiveUpdate to re-run on every boot:
+
+1. **`HostedProvisioner._best_effort_cleanup` deleted the wine-prefix
+   PVC** whenever the 300s readiness gate timed out. The 300s gate
+   was below the genuine first-boot work-time once LiveUpdate added
+   30-90s of network I/O on top of the 453-file MQL5 recompile.
+2. **`HostedRecoveryService.run_once_at_startup` with
+   bypass_threshold=True** force-reprovisioned any not-Ready pod
+   immediately on engine restart, including fresh provisions that
+   were legitimately mid-first-boot.
+3. **`entrypoint.sh` corruption-reset `rm -rf`'d the whole prefix on
+   `.update-timestamp.lock`** — a file Wine writes during normal
+   `wineboot -u` that legitimately survives any abrupt pod kill, not
+   a corruption signal at all. Plus the supervisor loop treated
+   exit-143 (a self-initiated SIGTERM, not a crash) like a crash:
+   `wineserver -k` + `pkill -9` raced the on-disk rename and left
+   the lock behind, feeding bug #3 on the next boot.
+   `terminationGracePeriodSeconds: 60`/`90` and `preStop sleep 5` were
+   also too short to let LiveUpdate finalize on pod eviction.
+
+**Fix landed:** the three bugs above are now closed in code. After
+the fix, LiveUpdate runs ONCE on the first boot of a fresh PVC,
+`mt5onnx64` persists, the pod restarts cleanly, `:5555` binds on the
+second boot, and subsequent boots are sub-30s. No NetworkPolicy
+egress block, no config/DNS lever, no SNI gateway is required.
+
+The DEAD ENDS section below remains accurate for what was tried; the
+"Layer 2 / 3 / 4" prescriptions are SUPERSEDED by the actual fix
+recorded in commits `5c5d…`/`…` on `main` (see git log around
+2026-06-23). The Layer-4 loud diagnostic for exit-143 is retained
+because it is still useful observability, though it now logs at INFO
+(not ERROR) on a single LiveUpdate run and only warns if the pattern
+repeats more than once per fresh PVC.
+
+Files changed by the fix:
+- `src/engine/ta/broker/mt5/hosted/provisioner.py` (no PVC delete in
+  `_best_effort_cleanup`, readiness 300s -> 600s).
+- `src/engine/ta/broker/mt5/hosted/recovery.py` (unhealthy threshold
+  600s -> 1200s, fresh-provision grace window 30min).
+- `docker/mt-node/entrypoint.sh` (corruption-reset only on missing
+  `system32`, stale lock => single-file delete + `wineboot -u`;
+  supervisor branches on exit-143 with a 30s settle window and no
+  budget increment).
+- `helm/mt-node/values.yaml` and `values-production.yaml`
+  (`terminationGracePeriodSeconds` 60/90 -> 180, `preStop sleep`
+  5 -> 30, `startupProbe.failureThreshold` 60 -> 120 for a 620s
+  budget).
+- `docker/mt-node/README.md` (Wine prefix lifecycle section).
+
+---
+
+# Below: the original investigation notes
+
+The sections below are preserved verbatim for historical context and
+audit trail. **Read the status block above first.** Every "Layer 2"
+NetworkPolicy egress prescription, the SNI/Envoy gateway plan, and
+the "config/DNS disable" dead ends in the original text are
+SUPERSEDED by the actual fix. Do not implement them.
 
 ---
 

@@ -99,4 +99,11 @@ externalSecrets:
     vaultPath: etradie/services/mt-node/production
     refreshInterval: 1h
 
-terminationGracePeriodSeconds: 90
+# 180s aligns with the base values.yaml; see the lifecycle/preStop
+# comment there for the LiveUpdate finalize budget reasoning. The
+# previous 90s value was too short on the production overlay too;
+# pod eviction (rolling upgrade, node drain) could race the LiveUpdate
+# on-disk rename and leave $WINE_PREFIX/.update-timestamp.lock
+# behind, which used to feed the corruption-reset loop documented
+# in docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+terminationGracePeriodSeconds: 180

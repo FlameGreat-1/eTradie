@@ -40,6 +40,16 @@ set -euo pipefail
 MAX_INPOD_RESTARTS="${MAX_INPOD_RESTARTS:-5}"
 INPOD_RESTART_WINDOW_SECS="${INPOD_RESTART_WINDOW_SECS:-300}"
 
+# LiveUpdate self-restart handling (exit 143 from MT5/MT4).
+# When MT5 self-exits 143 to apply a downloaded component, the kernel
+# needs a brief window to finish the in-flight rename + write-back
+# on the (PVC-backed) Wine prefix before we relaunch. SIGKILLing the
+# wineserver helpers or relaunching immediately races the rename and
+# leaves $WINE_PREFIX/.update-timestamp.lock behind, which is the
+# pattern that fed the corruption-reset loop documented in
+# docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+LIVEUPDATE_SETTLE_SECS="${LIVEUPDATE_SETTLE_SECS:-30}"
+
 MT_PID=""
 XVFB_PID=""
 
@@ -170,10 +180,25 @@ fi
 # ── Wine prefix corruption auto-reset ─────────────────────────────
 # A previous Pod kill mid-write can leave the prefix in an inconsistent
 # state where wineserver refuses to start. Detect and reset.
+#
+# CRITICAL: the ONLY real corruption signal is a missing
+# drive_c/windows/system32. .update-timestamp.lock is NOT a corruption
+# signal: Wine writes it during normal wineboot -u and it legitimately
+# survives any abrupt pod kill (SIGKILL, kubelet eviction, node
+# reboot). Wiping the whole prefix on a stale lock destroys the
+# LiveUpdate-applied mt5onnx64 (and the broker's trusted-device
+# profile, the EA's compiled state, and the chart-template files),
+# forcing MT5 to re-download LiveUpdate on the next boot and producing
+# the exit-143 self-restart loop documented in
+# docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+#
+# Correct behaviour on a stale lock: delete the SINGLE lock file and
+# let wineboot -u (run by the seed block below when needed, or our own
+# wineserver --wait + lock removal here) reconcile the prefix. NO
+# prefix wipe.
 if [ -d "$WINE_PREFIX" ]; then
-  if [ ! -d "$WINE_PREFIX/drive_c/windows/system32" ] || \
-     [ -f "$WINE_PREFIX/.update-timestamp.lock" ]; then
-    log WARN "Wine prefix appears corrupted; resetting"
+  if [ ! -d "$WINE_PREFIX/drive_c/windows/system32" ]; then
+    log WARN "Wine prefix is missing drive_c/windows/system32; resetting (true corruption signal)"
     # $WINE_PREFIX is a subdirectory the entrypoint owns (uid 1000),
     # nested inside the PVC mount point. Clear its CONTENTS (incl.
     # dotfiles); the subdir itself is owned by us so this also works
@@ -181,6 +206,15 @@ if [ -d "$WINE_PREFIX" ]; then
     # never touch the mount-point parent ($WINE_PREFIX_MOUNT), which
     # is root-owned and read-only to us.
     rm -rf "${WINE_PREFIX:?}"/* "${WINE_PREFIX:?}"/.[!.]* "${WINE_PREFIX:?}"/..?* 2>/dev/null || true
+  elif [ -f "$WINE_PREFIX/.update-timestamp.lock" ]; then
+    log WARN "Stale wineboot lock detected at $WINE_PREFIX/.update-timestamp.lock; removing single file and reconciling (NOT wiping prefix)"
+    rm -f "$WINE_PREFIX/.update-timestamp.lock" 2>/dev/null || true
+    # Best-effort reconcile against the surviving prefix. -u runs in
+    # update mode (~5s) and rebuilds dosdevices/* against the live
+    # drive_c. If wineserver is already stopped this is a no-op.
+    wineserver --wait 2>/dev/null || true
+    WINEPREFIX="$WINE_PREFIX" wineboot -u 2>/dev/null || true
+    WINEPREFIX="$WINE_PREFIX" wineserver --wait 2>/dev/null || true
   fi
 fi
 # Seed the (PVC-mounted) Wine prefix from the image-baked template on
@@ -503,15 +537,30 @@ while :; do
   # Layer 4 (operability): detect the LiveUpdate self-restart pattern
   # and surface it LOUDLY so this symptom is never again misdiagnosed
   # as a slow boot / login failure. exit 143 = SIGTERM (MT's own
-  # self-restart to apply a LiveUpdate). If the most recent journal
-  # also shows a LiveUpdate download, the egress block (runbook Layer 2)
-  # is not effective in this pod and the loop will not converge -- no
-  # amount of readiness-timeout raising will help.
+  # self-restart to apply a LiveUpdate).
+  IS_LIVEUPDATE_RESTART=0
   if [ "$EXIT_CODE" = "143" ]; then
     _lu=$(grep -ahiE 'LiveUpdate.*(downloaded|is available)' "$MT_DIR/logs/"*.log 2>/dev/null | tail -n1 || true)
     if [ -n "$_lu" ]; then
-      log ERROR "LiveUpdate self-restart detected (exit 143; '$_lu'). The terminal is updating itself and will loop until MetaQuotes update egress is blocked at the network layer (see docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md Layer 2). The EA will NOT bind :5555 until this is stopped."
+      IS_LIVEUPDATE_RESTART=1
+      log INFO "LiveUpdate self-restart detected (exit 143; '$_lu'). This is MetaQuotes' designed behaviour: the terminal swaps its own binary atomically and re-execs. Letting the kernel finalize the on-disk rename and relaunching cleanly. This should occur AT MOST ONCE per fresh PVC; if it loops, see docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md."
     fi
+  fi
+
+  # On a genuine LiveUpdate self-restart we MUST NOT race the
+  # on-disk rename: no wineserver -k, no pkill -9, no
+  # restart_count increment. We just sleep the settle window and
+  # relaunch into the post-update prefix on the next iteration.
+  # The MT process has already exited cleanly so its wineserver +
+  # helpers either drained themselves or are about to; the
+  # 5-second "sleep before in-pod restart" below is replaced by
+  # the LIVEUPDATE_SETTLE_SECS window. Counting this against the
+  # in-pod restart budget would exhaust the budget on the very
+  # FIRST boot of a fresh prefix.
+  if [ "$IS_LIVEUPDATE_RESTART" = "1" ]; then
+    log INFO "Waiting ${LIVEUPDATE_SETTLE_SECS}s for LiveUpdate on-disk finalize before relaunch (restart_count NOT incremented)"
+    sleep "$LIVEUPDATE_SETTLE_SECS"
+    continue
   fi
 
   now=$(date +%s)

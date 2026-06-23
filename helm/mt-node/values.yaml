@@ -256,7 +256,17 @@ startupProbe:
   periodSeconds: 5
   timeoutSeconds: 3
   successThreshold: 1
-  failureThreshold: 60  # 20 + 5*60 = 320s budget (cold Wine boot)
+  # 20s init + 5s period * 120 = 620s budget. Sized to sit just above
+  # the engine's _READINESS_TIMEOUT_SECS=600 default. A real first
+  # boot on a fresh PVC needs ~175-280s of genuine work (Wine init +
+  # MT5 launch + LiveUpdate download of mt5onnx64 + exit-143 self-
+  # restart + relaunch + full 453-file MQL5 recompile + EA OnInit +
+  # :5555 bind), easily 350-450s under I/O contention. The previous
+  # 60 -> 320s budget regularly killed the pod from underneath the
+  # engine's own 300s readiness gate, destroying the in-flight
+  # LiveUpdate state and feeding the loop documented in
+  # docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+  failureThreshold: 120
 
 livenessProbe:
   httpGet:
@@ -279,16 +289,30 @@ readinessProbe:
   failureThreshold: 3
 
 # ---------------------------------------------------------------------
-# Lifecycle hook: give Wine 5s to flush its journal cleanly when the
-# Pod is being terminated. Combined with entrypoint.sh's SIGTERM trap
+# Lifecycle hook: give Wine + MetaTrader 30s to flush their journals
+# and finalize any in-flight LiveUpdate rename before the kubelet
+# proceeds to SIGTERM. Combined with entrypoint.sh's SIGTERM trap
 # this gives a clean shutdown.
+#
+# 5s was previously enough only for the steady-state journal flush;
+# it raced LiveUpdate's on-disk rename and left
+# $WINE_PREFIX/.update-timestamp.lock behind, which fed the
+# corruption-reset loop documented in
+# docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
 # ---------------------------------------------------------------------
 lifecycle:
   preStop:
     exec:
-      command: ["/bin/sh", "-c", "sleep 5"]
+      command: ["/bin/sh", "-c", "sleep 30"]
 
-terminationGracePeriodSeconds: 60
+# 180s = 30s preStop + 150s SIGTERM grace. The 150s window covers the
+# worst-case LiveUpdate finalize (~30s rename) PLUS Wine + MetaTrader
+# write-back on a slow underlying disk PLUS Vault Agent sidecar
+# shutdown. The previous 60s value was too short for a clean
+# LiveUpdate finalize on pod eviction (rolling update, node drain,
+# image bump), which left a stale wineboot lock on disk and forced a
+# prefix reset on the next boot - the in-pod loop driver.
+terminationGracePeriodSeconds: 180
 
 # ---------------------------------------------------------------------
 # PodDisruptionBudget
