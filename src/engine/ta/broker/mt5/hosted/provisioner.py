@@ -202,7 +202,23 @@ def _parse_json_envelope(env_name: str, raw: str, expected: type) -> Any:
 
 
 # Readiness gate.
-_READINESS_TIMEOUT_SECS = float(os.environ.get("MT_NODE_READINESS_TIMEOUT_SECS", "300"))
+#
+# 600s default covers the genuine FIRST-boot work-time on a fresh PVC:
+#   Wine init (~10s) + MT5 launch (~15s) + LiveUpdate download of
+#   mt5onnx64 ~15MB (~30-90s on a slow upstream) + exit-143 self-restart
+#   (~5s) + relaunch (~15s) + full 453-file MQL5 recompile (~100s) +
+#   chart load + EA OnInit + :5555 bind. Total 175-280s of genuine work,
+#   easily 350-450s under any I/O contention. The previous 300s value
+#   left ~zero margin and was the single biggest contributor to
+#   first-boot ProviderTimeoutError, which used to delete the PVC in
+#   _best_effort_cleanup (now fixed) and feed the LiveUpdate loop.
+#   Subsequent boots are sub-30s because MT5's LiveUpdate-applied
+#   component persists on the wine-prefix PVC.
+#
+# Operators can lower this for fast-broker installs via
+# MT_NODE_READINESS_TIMEOUT_SECS but the 600s default is the safe
+# enterprise floor. See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+_READINESS_TIMEOUT_SECS = float(os.environ.get("MT_NODE_READINESS_TIMEOUT_SECS", "600"))
 _READINESS_POLL_SECS = float(os.environ.get("MT_NODE_READINESS_POLL_SECS", "3"))
 _ZMQ_PROBE_TIMEOUT_SECS = float(os.environ.get("MT_NODE_ZMQ_PROBE_TIMEOUT_SECS", "5"))
 
@@ -1916,6 +1932,31 @@ class HostedProvisioner:
         sa_name: str,
         vault_path: str,
     ) -> None:
+        """Roll back orphan K8s objects on a transient provision failure.
+
+        CRITICAL: this function MUST NOT delete the wine-prefix PVC.
+        The PVC carries MetaTrader's LiveUpdate-applied components
+        (e.g. mt5onnx64), the broker's trusted-device profile, the
+        EA's compiled state, and the chart-template files. Destroying
+        it on a transient readiness/PING/post-upsert failure forces
+        the next provision attempt to seed from the image-baked
+        template, which MT5 then sees as out-of-date and re-runs
+        LiveUpdate against, producing the exit-143 self-restart loop
+        documented in docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+
+        PVC deletion is ONLY correct on explicit user action
+        (delete_account) or when a connection_id is gone from the
+        database (gc_orphans). Never on error rollback.
+
+        Vault credentials are also preserved here - they belong to
+        the same connection_id and HostedRecoveryService.reprovision
+        will reuse them on the next sweep. Destroying them would
+        force the engine to mint a new ZMQ token that the EA running
+        on the surviving PVC's restored prefix no longer matches.
+        """
+        # NOTE: order is best-effort; every step is idempotent.
+        # NOTE: wine-prefix PVC is INTENTIONALLY omitted; see docstring.
+        # NOTE: Vault path destroy is INTENTIONALLY omitted; see docstring.
         for fn, name, kind in (
             (apps_api.delete_namespaced_stateful_set, release, "StatefulSet"),
             (core_api.delete_namespaced_service, service_name, "Service"),
@@ -1935,11 +1976,6 @@ class HostedProvisioner:
                 f"{release}-watchdog-config",
                 "ConfigMap(watchdog-config)",
             ),
-            (
-                core_api.delete_namespaced_persistent_volume_claim,
-                _pvc_name_for(release),
-                "PVC",
-            ),
         ):
             try:
                 await fn(name=name, namespace=self._namespace)
@@ -1949,11 +1985,9 @@ class HostedProvisioner:
                         "hosted_rollback_warning",
                         extra={"kind": kind, "name": name, "status": exc.status},
                     )
-        if vault is not None:
-            try:
-                await vault.destroy_all_versions(vault_path)
-            except VaultError as exc:
-                logger.warning(
-                    "hosted_rollback_vault_destroy_failed",
-                    extra={"path": vault_path, "error": str(exc)},
-                )
+        # Vault path is INTENTIONALLY preserved. The PVC is INTENTIONALLY
+        # preserved. Both belong to the connection_id and will be reused
+        # by the next reconciliation (HostedRecoveryService or a user-
+        # initiated re-provision). Only delete_account() and gc_orphans()
+        # are allowed to destroy them.
+        del vault, vault_path  # unused on purpose; see docstring.

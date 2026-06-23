@@ -39,6 +39,12 @@ Design invariants
   connection. The cooldown is in-memory only (intentional - on
   engine restart the cooldown resets, which is the desired behavior
   for the eager startup sweep).
+- Fresh provisions (younger than fresh_provision_grace_secs) are
+  protected from the eager startup sweep so a legitimate first-boot
+  cold start (Wine init + LiveUpdate + MQL5 recompile, can take 5-10
+  minutes) is not torn down by a coincidental engine restart. See
+  docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md for the loop this
+  guard prevents.
 - All four metrics are bounded-cardinality (see prometheus.py
   comments). Per-connection detail goes to structured logs.
 """
@@ -49,6 +55,7 @@ import asyncio
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -98,6 +105,18 @@ class HostedRecoveryConfig:
     # match from_env()'s ENGINE_HOSTED_RECOVERY_MAX_CONCURRENT fallback
     # so direct constructors stay backward-compatible.
     max_concurrent_reprovisions: int = 4
+    # A freshly-provisioned connection is legitimately mid-first-boot
+    # for ~5-10 minutes (Wine init + MT5 launch + LiveUpdate download +
+    # exit-143 self-restart + 453-file MQL5 recompile + EA OnInit). If
+    # the engine pod restarts inside that window, run_once_at_startup
+    # used to fire with bypass_threshold=True and tear the connection
+    # down before it could converge. The fresh-provision grace window
+    # below skips connections younger than this threshold during the
+    # bypass-threshold path; the normal periodic sweep still applies
+    # (with its longer unhealthy_threshold_secs gate). Default 30min
+    # = 2x the worst-case first-boot envelope (15min) plus a 15min
+    # operability margin. Set to 0 to restore the pre-fix behaviour.
+    fresh_provision_grace_secs: float = 1800.0
 
     @classmethod
     def from_env(cls) -> HostedRecoveryConfig:
@@ -143,9 +162,23 @@ class HostedRecoveryConfig:
         return cls(
             enabled=enabled,
             sweep_interval_secs=_pos_float("ENGINE_HOSTED_RECOVERY_SWEEP_INTERVAL_SECS", "60", 5.0),
-            unhealthy_threshold_secs=_pos_float("ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS", "600", 30.0),
+            # 1200s default sits well above the new provisioner readiness
+            # gate (_READINESS_TIMEOUT_SECS=600) so the recovery sweep
+            # cannot trigger a re-provision against a Pod that is still
+            # legitimately cold-booting through its FIRST LiveUpdate +
+            # MQL5 recompile cycle. The previous 600s value matched the
+            # readiness gate exactly, which created a race where the
+            # sweep fired at the same instant the readiness gate
+            # expired. See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+            unhealthy_threshold_secs=_pos_float("ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS", "1200", 30.0),
             reprovision_cooldown_secs=_pos_float("ENGINE_HOSTED_RECOVERY_REPROVISION_COOLDOWN_SECS", "300", 30.0),
             max_concurrent_reprovisions=_pos_int("ENGINE_HOSTED_RECOVERY_MAX_CONCURRENT", "4", 1),
+            # 0 disables the guard (pre-fix behaviour); the production
+            # default protects fresh provisions through their genuine
+            # first-boot window.
+            fresh_provision_grace_secs=_pos_float(
+                "ENGINE_HOSTED_RECOVERY_FRESH_PROVISION_GRACE_SECS", "1800", 0.0
+            ),
         )
 
 
@@ -345,6 +378,40 @@ class HostedRecoveryService:
             # Decide the reason and whether we are allowed to act.
             reason = "missing" if sts_status == "removed" else "unhealthy"
 
+            # FRESH-PROVISION GUARD.
+            # A connection younger than fresh_provision_grace_secs is
+            # legitimately mid-first-boot (Wine init + LiveUpdate +
+            # exit-143 self-restart + 453-file MQL5 recompile +
+            # EA OnInit). The PROVISION call's own readiness gate
+            # (_READINESS_TIMEOUT_SECS=600s) is the authoritative
+            # check during this window; recovery must NOT tear it
+            # down. Without this guard, a coincidental engine
+            # restart during a user's first provision used to fire
+            # the bypass-threshold startup sweep and re-provision
+            # the connection from scratch, destroying the in-flight
+            # LiveUpdate state and feeding the loop documented in
+            # docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+            grace = self._config.fresh_provision_grace_secs
+            if grace > 0.0:
+                created_at = self._row_created_at_seconds(row)
+                if created_at is not None:
+                    age_since_created = max(0.0, time.time() - created_at)
+                    if age_since_created < grace:
+                        logger.info(
+                            "hosted_recovery_fresh_provision_grace",
+                            extra={
+                                "connection_id": connection_id,
+                                "user_id": user_id,
+                                "release": release,
+                                "status": sts_status,
+                                "reason": reason,
+                                "phase": phase,
+                                "age_since_created_secs": round(age_since_created, 1),
+                                "grace_secs": grace,
+                            },
+                        )
+                        continue
+
             # First-observed-unhealthy bookkeeping.
             first_seen = self._first_unhealthy.setdefault(connection_id, now_mono)
             age_secs = now_mono - first_seen
@@ -446,6 +513,34 @@ class HostedRecoveryService:
         return {"scanned": scanned, "reprovisioned": reprovisioned, "failed": failed}
 
     # ---- Internal helpers ---------------------------------------------
+
+    @staticmethod
+    def _row_created_at_seconds(row: BrokerConnectionRow) -> float | None:
+        """Return row.created_at as a UNIX epoch seconds float, or None.
+
+        Robust to None, naive datetimes (assumed UTC), and aware
+        datetimes (normalised to UTC). A None or unparseable value
+        means we cannot evaluate the fresh-provision grace; the
+        caller falls through to the normal recovery path.
+        """
+        created = getattr(row, "created_at", None)
+        if created is None:
+            return None
+        if isinstance(created, datetime):
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            try:
+                return created.timestamp()
+            except (OverflowError, OSError, ValueError):
+                return None
+        # Best-effort numeric coercion for surprise types (epoch ints/
+        # strings). Any failure -> None means "cannot apply grace",
+        # which is safe (the connection is then evaluated by the
+        # normal thresholds, not torn down inappropriately).
+        try:
+            return float(created)
+        except (TypeError, ValueError):
+            return None
 
     async def _list_active_hosted_rows(self) -> list[BrokerConnectionRow]:
         """Return every active row with connection_type='hosted'.
