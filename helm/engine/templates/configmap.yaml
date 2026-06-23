@@ -145,6 +145,15 @@ data:
   ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS: {{ .Values.config.connectivity.hostedRecoveryUnhealthyThresholdSecs | quote }}
   ENGINE_HOSTED_RECOVERY_REPROVISION_COOLDOWN_SECS: {{ .Values.config.connectivity.hostedRecoveryReprovisionCooldownSecs | quote }}
   ENGINE_HOSTED_RECOVERY_MAX_CONCURRENT: {{ .Values.config.connectivity.hostedRecoveryMaxConcurrent | default "4" | quote }}
+  # Fresh-provision grace window. A hosted broker_connections row whose
+  # created_at is younger than this threshold is SKIPPED by the
+  # recovery sweep (including the bypass-threshold startup sweep), so a
+  # coincidental engine restart during a user's first provision cannot
+  # tear down the in-flight LiveUpdate state. The provisioner's own
+  # readiness gate (MT_NODE_READINESS_TIMEOUT_SECS) is the authoritative
+  # check during this window. "0" disables the guard (pre-fix behaviour).
+  # See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+  ENGINE_HOSTED_RECOVERY_FRESH_PROVISION_GRACE_SECS: {{ .Values.config.connectivity.hostedRecoveryFreshProvisionGraceSecs | default "1800" | quote }}
 
   # Broker catalog directory (multi-broker MT5 provisioning control
   # plane). Read by engine.config.Settings.broker_catalog_dir and the

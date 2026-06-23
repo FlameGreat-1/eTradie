@@ -277,13 +277,33 @@ config:
     # boot. The startup sweep runs once before the engine serves
     # traffic; the background sweep ticks every sweepIntervalSecs.
     # A StatefulSet not-Ready longer than unhealthyThresholdSecs is
-    # reprovisioned, respecting the per-connection cooldown and the
-    # in-flight concurrency cap.
+    # reprovisioned, respecting the per-connection cooldown, the
+    # fresh-provision grace window, and the in-flight concurrency cap.
     hostedRecoveryEnabled: "true"
     hostedRecoverySweepIntervalSecs: "60"
-    hostedRecoveryUnhealthyThresholdSecs: "600"
+    # 1200s sits well above the new mtNode.readinessTimeoutSecs=600
+    # so the recovery sweep cannot trigger a re-provision against a
+    # Pod that is still legitimately cold-booting through its FIRST
+    # LiveUpdate + MQL5 recompile cycle. The previous 600s value
+    # matched the readiness gate exactly, which created a race where
+    # the sweep fired at the same instant the readiness gate expired.
+    # See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+    hostedRecoveryUnhealthyThresholdSecs: "1200"
     hostedRecoveryReprovisionCooldownSecs: "300"
     hostedRecoveryMaxConcurrent: "4"
+    # Fresh-provision grace window. A connection younger than this
+    # threshold (measured against broker_connections.created_at) is
+    # SKIPPED by the recovery sweep, including the bypass-threshold
+    # startup sweep that fires when the engine pod restarts. This
+    # protects a genuine first-boot (Wine init + LiveUpdate +
+    # exit-143 + 453-file MQL5 recompile + EA OnInit, which can take
+    # 5-10 minutes) from being torn down by a coincidental engine
+    # restart. The provisioner's own readiness gate
+    # (mtNode.readinessTimeoutSecs) is the authoritative check during
+    # this window. Default 30min = 2x worst-case first-boot envelope
+    # plus a 15min operability margin. Set to "0" to disable the
+    # guard (pre-fix behaviour).
+    hostedRecoveryFreshProvisionGraceSecs: "1800"
 
   # Broker catalog (multi-broker MT5 provisioning control plane).
   # Directory the engine reads the broker catalog JSON files from. The
@@ -323,7 +343,20 @@ config:
     # as a chart-rendered Pod. TABLE 2B (BUDGET.md): production overlay
     # sets this to 4Gi, staging to 2Gi.
     pvcSize: "4Gi"
-    readinessTimeoutSecs: "300"
+    # 600s aligns with src/engine/ta/broker/mt5/hosted/provisioner.py
+    # _READINESS_TIMEOUT_SECS default. Sized to cover the genuine
+    # FIRST-boot work-time on a fresh PVC (Wine init + MT5 launch +
+    # LiveUpdate download of mt5onnx64 + exit-143 self-restart +
+    # 453-file MQL5 recompile + EA OnInit + :5555 bind = 175-280s of
+    # genuine work, easily 350-450s under I/O contention). The previous
+    # 300s value left ~zero margin and used to trigger
+    # ProviderTimeoutError, which previously deleted the wine-prefix
+    # PVC in _best_effort_cleanup and fed the LiveUpdate self-restart
+    # loop documented in
+    # docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md. Subsequent boots
+    # are sub-30s because the LiveUpdate-applied component persists on
+    # the wine-prefix PVC.
+    readinessTimeoutSecs: "600"
     readinessPollSecs: "3"
     zmqProbeTimeoutSecs: "5"
     # Per-user quota for hosted MetaTrader connections. Each hosted
