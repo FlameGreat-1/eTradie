@@ -124,6 +124,216 @@ diagnostic actionable instead of just noisy.
 
 ---
 
+## Live Session Handoff (2026-06-23 ≈18:00 UTC) — PICK UP HERE
+
+If the active session ended before the final verdict, this section is
+the single source of truth for what is done, what is in flight, and
+what the next operator action is. Read this section top-to-bottom
+before running anything.
+
+### Chain of commits already landed (all on `main`, both remotes)
+
+In chronological order, each one closes a specific bug:
+
+| # | Commit | What it closes |
+|---|---|---|
+| 1 | `684746d5` | Engine: `_best_effort_cleanup` no longer deletes the wine-prefix PVC. `_READINESS_TIMEOUT_SECS` 300→600. `HostedRecoveryConfig.unhealthy_threshold_secs` 600→1200. New `fresh_provision_grace_secs=1800` field + helper. |
+| 2 | `ea5f0c1a` | Pod: `entrypoint.sh` corruption-reset only wipes on missing `system32` (stale lock => single-file delete + `wineboot -u`). Supervisor branches on exit-143 with a 30s settle, no `wineserver -k`, no `pkill -9`, no `restart_count` increment. `terminationGracePeriodSeconds` 60/90→180, `preStop sleep` 5→30, `startupProbe.failureThreshold` 60→120 (620s budget). |
+| 3 | `60aabc3a` | Chart: `helm/engine/values.yaml` aligned with the new code defaults (`mtNode.readinessTimeoutSecs` 300→600, `hostedRecoveryUnhealthyThresholdSecs` 600→1200, new `hostedRecoveryFreshProvisionGraceSecs: 1800`). ConfigMap template renders the new env var. |
+| 4 | `a74d8f1b` | CI lint: `from datetime import UTC` instead of `timezone.utc` (ruff UP017). |
+| 5 | `6cbd1b51` (approximate) | Pod: launch flag `/config:<file>` → `/portable`. Hypothesis: `/portable` would trigger auto-login. PROVEN INSUFFICIENT on staging — `/portable` only sets the config-file location, it does NOT trigger auto-login. |
+| 6 | `c384a600` | Pod: launch flags become `/portable /login:<id> /password:<pw> /server:<name>`. `/login /password /server` are the documented MT5 unattended-launch trigger that executes login → chart → expert sequence non-interactively. |
+| (mid-session) | (this commit) | Docs: this handoff section. |
+
+### Verified state of the staging cluster (as of session pause)
+
+All of the following are CONFIRMED via direct `kubectl` inspection:
+
+```
+staging mt-node image  = ghcr.io/flamegreat-1/etradie/mt-node:c384a6006da81b667d459e3d89581d4e0ec3526c
+staging engine image   = same SHA (matches commit 6)
+engine ConfigMap MT_NODE_READINESS_TIMEOUT_SECS                 = 600
+engine ConfigMap ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS = 1200
+engine ConfigMap ENGINE_HOSTED_RECOVERY_FRESH_PROVISION_GRACE_SECS = 1800
+engine ConfigMap MT_NODE_IMAGE = the c384a600 image above
+Deployment env override on MT_NODE_READINESS_TIMEOUT_SECS = NONE (live-patch dropped via ArgoCD Replace=true)
+```
+
+Provision in flight (started ≈18:01 UTC):
+```
+broker_connections.id  = 7b9fd8c0-6a1c-... (the row created by the dashboard)
+release                = etradie-mt-7b9fd8c0-6a1
+pod                    = etradie-mt-7b9fd8c0-6a1-0
+status at session end  = 2/3 Running, 4m42s, mid cold boot
+terminal64.exe cmdline = .../terminal64.exe /portable /login:133978149 /password:<redacted> /server:Exness-MT5Real9
+                         <-- THIS PROVES THE NEW IMAGE + NEW FLAGS ARE LIVE
+```
+
+What the previous attempts (pre c384a600) all showed in the journal:
+
+```
+build 5836 started
+full recompilation has been finished: 0 file(s) compiled
+LiveUpdate 'mt5onnx64' downloaded and updated (one-time, persisted on PVC)
+LiveUpdate downloaded successfully
+[silent -- NO Network/Login/Authentication/Chart/Expert lines]
+```
+
+The smoking-gun pieces of evidence those attempts produced:
+- `MQL5/Logs/` directory did NOT exist (no Expert ever loaded).
+- `/proc/net/tcp` had only `:443 TIME_WAIT` (one-shot LiveUpdate CDN
+  hit; no sustained broker connection).
+- `AppData/Roaming/MetaQuotes/Terminal/<hash>/portable.txt` DID exist
+  (so `/portable` was being honoured by MT5).
+- `<install_dir>/config/startup.ini` had correct `[Common]
+  Login/Password/Server` (so MT5 was reading the file).
+- But there is no MT5 unattended-login trigger from `startup.ini` -
+  it only populates Login dialog fields. The `/login /password
+  /server` command-line flags ARE the documented trigger.
+
+### NEXT ACTION (do this now)
+
+Pick up at the verdict check on the in-flight pod
+`etradie-mt-7b9fd8c0-6a1-0`. Re-derive the variable in your current
+shell (every new terminal needs its own `$POD`):
+
+```bash
+POD=etradie-mt-7b9fd8c0-6a1-0
+# or re-derive:
+# POD=$(kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-mt-node -o jsonpath='{.items[0].metadata.name}')
+
+# Wait for the boot to settle
+sleep 60   # adjust if the pod is younger than ~5 min total
+
+# 1. Pod readiness
+kubectl -n etradie-system get pod "$POD"
+# Expected after a successful login: 3/3 Ready
+# Pre-fix pattern was: stuck at 2/3 with periodic watchdog SIGTERMs
+
+# 2. MT5 journal - the KEY signal
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
+  'P="/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5"; \
+   f=$(ls -t "$P/logs"/*.log 2>/dev/null | head -1); \
+   echo "file: $f, size: $(wc -c < "$f") bytes"; \
+   tr -d "\000" < "$f"'
+
+# 3. EA's own log directory (only exists if the EA actually loaded)
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
+  'P="/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5"; \
+   ls -la "$P/MQL5/Logs/" 2>&1 | head -10; \
+   f=$(ls -t "$P/MQL5/Logs"/*.log 2>/dev/null | head -1); \
+   [ -n "$f" ] && { echo "--- $f ---"; tr -d "\000" < "$f" | tail -60; }'
+
+# 4. :5555 socket state (15B3 hex = 5555 dec)
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
+  'cat /proc/net/tcp | awk "NR>1 && (\$3 ~ /:15B3/ || \$2 ~ /:15B3/){print}"'
+
+# 5. Engine recovery state for this connection
+kubectl -n etradie-system logs deploy/etradie-engine --tail=200 \
+  | grep -iE 'hosted_recovery_fresh_provision_grace|hosted_recovery_sweep_complete|hosted_provisioning' | tail -20
+
+# 6. Final DB row state
+kubectl -n etradie-system exec -i postgres-0 -c postgres -- psql -U etradie -d etradie -c \
+  "SELECT id, status, status_message, mt5_symbol, is_active FROM broker_connections WHERE connection_type='hosted';"
+```
+
+### Decision matrix on the journal output
+
+Look at the §2 (MT5 journal) output. **The diagnostic is the first
+NEW line that appears after `LiveUpdate downloaded successfully`.**
+
+| What you see in the journal | What it means | What to do next |
+|---|---|---|
+| `Network 'Exness-MT5Real9': connecting to access point ...` followed by `Login 133978149: ok` | Auto-login WORKED. `:5555` will bind once the EA loads. | Wait for `3/3 Ready`. Run the §E smoking-gun proof (kill the pod, confirm LiveUpdate stays silent on restart). DONE. |
+| `Network 'Exness-MT5Real9': connecting...` then `Login 133978149: invalid account` / `invalid password` / `account is disabled` | Flags work; credentials wrong. | Check the broker creds with the user; fix and re-provision. NOT a code fix. |
+| `Network 'Exness-MT5Real9': server not found` or `unknown server` | Flags work; `servers.dat` for Exness is missing or wrong. | Inspect the broker bundle: `kubectl exec ... ls -la /broker-bundle/` and `grep -i Exness /broker-bundle/MetaTrader\ 5\ EXNESS/Config/servers.dat`. Bundle is platform-side; fix the bundle's `servers.dat`. |
+| Same silent pattern (no `Network` line ever appears, just `build 5836 started` repeating) | Flags reached `terminal64.exe` (proven by `ps -ef`) but MT5 isn't ACTING on them. | Three fallback paths below. |
+
+### Fallback paths if the silent pattern persists
+
+Do NOT re-launch with random guesses. Each of the three approaches
+below has a specific signal that triggers it, and each can be tested
+in isolation.
+
+#### Fallback A: try `/profile` flag instead of `/login`
+
+Some MT5 builds (notably 5xxx series) honor `/profile:<name>` to
+restore a saved profile that includes the saved-account auto-login.
+But this requires a previously-saved profile, which a fresh prefix
+doesn't have. NOT a viable first-fallback for the cold-boot case.
+
+#### Fallback B: pre-populate `accounts.dat`
+
+MT5 reads `<install_dir>/config/accounts.dat` (binary, AES-encrypted)
+at boot. If it contains a saved-account entry matching the
+`/login`'d account, MT5 logs in silently. Generating `accounts.dat`
+from scratch is non-trivial (requires reversing MetaQuotes' format).
+NOT a viable fallback without significant reverse-engineering work.
+
+#### Fallback C: pre-render `terminal.ini` `[Common]` with credentials
+
+`terminal.ini` (the file the entrypoint writes the `[LiveUpdate]`
+section into) ALSO accepts a `[Common]` section. Pre-populating it
+with `Login=`, `Password=`, `Server=` in addition to `startup.ini`
+may make MT5 treat the credentials as previously-saved and skip the
+Login dialog entirely. Worth trying if Fallback A and B are both
+out-of-reach.
+
+Patch sketch (in `docker/mt-node/entrypoint.sh`, the section that
+writes `terminal.ini`):
+
+```bash
+cat > "$TERMINAL_INI" <<EOF
+[Common]
+Login=${MT_LOGIN}
+Password=${MT_PASSWORD}
+Server=${MT_SERVER}
+AutoConfiguration=true
+
+[LiveUpdate]
+LastBuildDataPath=${MT_BUILD}
+EOF
+```
+
+#### Fallback D: capture screenshots via Xvfb's framebuffer
+
+If MT5 is showing a dialog that none of our flags can dismiss
+(EULA, broker-specific terms-of-service, etc.), we can capture the
+Xvfb framebuffer to see what's on screen:
+
+```bash
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
+  'apt list --installed 2>/dev/null | grep -i imagemagick'
+# If installed:
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
+  'DISPLAY=:99 import -window root /tmp/screenshot.png && wc -c /tmp/screenshot.png'
+kubectl -n etradie-system cp etradie-system/"$POD":/tmp/screenshot.png ./mt5-screenshot.png -c mt-node
+```
+
+The screenshot shows EXACTLY what MT5 is doing visually, even on a
+headless Xvfb display. If it shows a `License Agreement` dialog or
+a broker-specific welcome page, that's the smoking-gun blocker.
+
+### State of the test cluster on session pause
+
+```
+Pod    : etradie-mt-7b9fd8c0-6a1-0 (2/3 Running, ~4m42s old)
+Row    : broker_connections.id=7b9fd8c0-6a1c-...
+Image  : c384a6006da81b667d459e3d89581d4e0ec3526c
+Flags  : /portable /login:133978149 /password:43123acChuks /server:Exness-MT5Real9
+Verdict: PENDING - run the §NEXT ACTION block above
+```
+
+If the operator picks up after the engine's 600s readiness gate has
+fired and `_best_effort_cleanup` has run (PVC will be preserved per
+commit 1, but StatefulSet / Service / DB row will be cleaned up),
+the DB row goes to `status='failed'` and the engine starts spinning
+on `broker_positions_failed_no_cache`. In that case, run the §B
+cleanup procedure (this section, just below), then re-provision
+from scratch from the dashboard with a FRESH wallclock window.
+
+---
+
 ## Deployment Verification (live-staging procedure, 2026-06-23)
 
 The verify path on the live staging box surfaced four operational
