@@ -187,6 +187,12 @@ trap _shutdown TERM INT
 #   lifetime.
 # - NEVER logs $MT_PASSWORD. Logs $MT_LOGIN, $MT_SERVER, dialog
 #   titles, timing.
+# Clipboard paste timeout for credential fields. Bounds any xclip hang
+# against a wedged X server. 3s is the safe ceiling: xclip's happy
+# path is ~10ms (set the selection, return); under heavy I/O load it
+# should never exceed ~500ms.
+AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS="${AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS:-3}"
+
 AUTO_LOGIN_TOTAL_BUDGET_SECS="${AUTO_LOGIN_TOTAL_BUDGET_SECS:-240}"
 AUTO_LOGIN_DIALOG_WAIT_SECS="${AUTO_LOGIN_DIALOG_WAIT_SECS:-120}"
 AUTO_LOGIN_PROCESS_WAIT_SECS="${AUTO_LOGIN_PROCESS_WAIT_SECS:-60}"
@@ -273,6 +279,85 @@ _drv_err() { log "ERROR" "auto_login: $*"; }
 # emitted by the driver helpers, not by xdotool itself.
 _xdo() {
   timeout "${AUTO_LOGIN_XDOTOOL_TIMEOUT_SECS}" xdotool "$@"
+}
+
+# _drv_paste_into_focused_field: deliver a credential value to the
+# currently-focused MT5 dialog field via the X CLIPBOARD selection +
+# Ctrl+V (Win32 WM_PASTE).
+#
+# This is the deterministic alternative to `xdotool type --` for
+# Wine-translated Win32 input. Empirical evidence (2026-06-24 08:52
+# staging screenshot) showed `xdotool type` dropping characters at
+# the X-event / Wine-message-pump boundary under load: Login field
+# got 0 chars, Password 3 chars, Server lost trailing char. Clipboard
+# paste delivers the value atomically via a single WM_PASTE message;
+# no per-character pipeline, no drops possible.
+#
+# Contract:
+#   * $1 = field label for logging (never logs the value itself).
+#   * stdin = the literal byte sequence to paste.
+#   * Caller MUST already have Tab'd to the target field. This helper
+#     does not move focus; it only clears + pastes.
+#
+# Steps:
+#   1. Ctrl+A + Delete to guarantee empty field (closes the case where
+#      a focus race left MT5's default text in the field).
+#   2. Pipe stdin to xclip with --loops 1. xclip serves exactly one
+#      paste consumer, then exits, so the selection lives only until
+#      Ctrl+V consumes it (~50ms).
+#   3. timeout AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS bounds the call.
+#   4. LC_ALL=C on the subshell so non-ASCII bytes are byte-preserved
+#      (no locale-specific UTF-8 re-encoding).
+#   5. Send Ctrl+V via _xdo so it inherits the existing per-call
+#      timeout.
+#   6. Settle for AUTO_LOGIN_FIELD_SETTLE_SECS so MT5's message pump
+#      consumes the WM_PASTE before the next operation.
+#
+# Security:
+#   * stdin is read by xclip; the value NEVER appears in argv or
+#     /proc/<pid>/cmdline of any process.
+#   * Logs only the label and a derived integer length, never the
+#     content.
+_drv_paste_into_focused_field() {
+  local _label="$1"
+  local _bytes_read
+  # Step 1: clear field deterministically.
+  DISPLAY=:99 _xdo key --clearmodifiers ctrl+a 2>/dev/null || true
+  sleep 0.2
+  DISPLAY=:99 _xdo key --clearmodifiers Delete 2>/dev/null || true
+  sleep 0.2
+  # Step 2: read stdin bytes and pipe to xclip atomically. We measure
+  # the byte count so we can log a length-only audit signal without
+  # ever surfacing the value itself.
+  _bytes_read=$(
+    LC_ALL=C timeout "$AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS" sh -c '
+      data=$(cat)
+      printf "%s" "$data" | xclip -display :99 -selection clipboard -in -loops 1 &
+      printf "%s" "${#data}"
+    ' 2>/dev/null
+  ) || _bytes_read=""
+  if [ -z "$_bytes_read" ]; then
+    _drv_warn "paste ${_label}: xclip set-clipboard failed or timed out"
+    return 1
+  fi
+  # Brief settle so xclip's selection-owner registration completes
+  # before the paste consumer arrives.
+  sleep 0.15
+  # Step 5: paste.
+  DISPLAY=:99 _xdo key --clearmodifiers ctrl+v 2>/dev/null || true
+  sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
+  _drv_log "paste ${_label}: ok (length=${_bytes_read}, content not logged)"
+  return 0
+}
+
+# _drv_scrub_clipboard: overwrite the X CLIPBOARD selection with the
+# empty string so no credential residue lingers in the X selection
+# buffer after Phase 3 completes. Called at the end of Phase 3 and on
+# any abort path that may have populated the clipboard.
+_drv_scrub_clipboard() {
+  : | timeout "$AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS" \
+    xclip -display :99 -selection clipboard -in 2>/dev/null || true
+  _drv_log "clipboard scrubbed"
 }
 
 # Phase 3 stage-by-stage observability. Logs the currently-focused
@@ -639,55 +724,39 @@ auto_login_driver() {
     # Clear stuck modifiers (xdotool best practice for Xvfb).
     DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
 
-    # ── Field 1: Login ───────────────────────────────────────────
+    # ── Field 1: Login (paste) ────────────────────────────────────
+    # Tab into the Login field, then paste the value atomically via
+    # the X CLIPBOARD + Ctrl+V. This eliminates the keystroke-drop
+    # failure class previously seen with `xdotool type` (2026-06-24
+    # 08:52 staging screenshot).
     DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
     sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
-    DISPLAY=:99 _xdo key --clearmodifiers ctrl+a 2>/dev/null || true
-    sleep 0.2
-    # Explicit clear-before-type: send Delete after ctrl+a. If ctrl+a
-    # correctly selected, Delete clears the field. If ctrl+a was
-    # misinterpreted (some Wine versions map it to default-button
-    # activation rather than select-all in non-edit controls), the
-    # Delete is a single-char backward delete which is a no-op on an
-    # empty field. The subsequent type then writes into a clean field
-    # either way.
-    DISPLAY=:99 _xdo key --clearmodifiers Delete 2>/dev/null || true
-    sleep 0.2
     _drv_phase3_log "after_tab_1"
-    DISPLAY=:99 _xdo type --clearmodifiers --delay "$AUTO_LOGIN_TYPE_DELAY_MS" -- "$MT_LOGIN" 2>/dev/null || true
-    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
-    _drv_phase3_log "after_login_type"
+    printf '%s' "$MT_LOGIN" | _drv_paste_into_focused_field "login"
+    _drv_phase3_log "after_login_paste"
 
-    # ── Field 2: Password ────────────────────────────────────────
+    # ── Field 2: Password (paste) ──────────────────────────────────
+    # Password is piped via stdin to the helper, NEVER as argv.
+    # The helper logs the byte length only, never the content.
     DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
     sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
-    DISPLAY=:99 _xdo key --clearmodifiers ctrl+a 2>/dev/null || true
-    sleep 0.2
-    DISPLAY=:99 _xdo key --clearmodifiers Delete 2>/dev/null || true
-    sleep 0.2
     _drv_phase3_log "after_tab_2"
-    DISPLAY=:99 _xdo type --clearmodifiers --delay "$AUTO_LOGIN_TYPE_DELAY_MS" -- "$MT_PASSWORD" 2>/dev/null || true
-    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
-    _drv_phase3_log "after_pwd_type"
+    printf '%s' "$MT_PASSWORD" | _drv_paste_into_focused_field "password"
+    _drv_phase3_log "after_pwd_paste"
 
-    # ── Field 3: Server (combobox) ───────────────────────────────
-    # MT5's Server field is an editable combobox. Typing alone
-    # populates the filter prefix but does NOT select an item from
-    # the underlying server list. Without explicit selection MT5 may
-    # submit with the typed prefix string rather than the canonical
-    # server name, and the broker's access point may not recognize
-    # it. After typing, send Down (highlight first matching item) +
-    # Return (commit the selection).
+    # ── Field 3: Server (paste; combobox edit portion) ─────────────────
+    # MT5's Server field is an editable combobox (Win32 CBS_DROPDOWN
+    # style). The edit portion accepts WM_PASTE exactly like a plain
+    # edit control; MT5 reads the entry-portion text on dialog submit
+    # rather than the dropdown highlight. Verified via the 2026-06-24
+    # 08:52 staging screenshot which showed 'Exness-MT5Real' in the
+    # field after typing, proving the edit accepts text (the missing
+    # trailing '9' was a keystroke drop, not a combobox rejection).
     DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
     sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
-    DISPLAY=:99 _xdo key --clearmodifiers ctrl+a 2>/dev/null || true
-    sleep 0.2
-    DISPLAY=:99 _xdo key --clearmodifiers Delete 2>/dev/null || true
-    sleep 0.2
     _drv_phase3_log "after_tab_3"
-    DISPLAY=:99 _xdo type --clearmodifiers --delay "$AUTO_LOGIN_TYPE_DELAY_MS" -- "$MT_SERVER" 2>/dev/null || true
-    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
-    _drv_phase3_log "after_server_type"
+    printf '%s' "$MT_SERVER" | _drv_paste_into_focused_field "server"
+    _drv_phase3_log "after_server_paste"
 
     # ── Field 4: Save account information (checkbox) ─────────────
     # Tab to checkbox, Space to toggle ON so MT5 writes accounts.dat.
@@ -703,9 +772,12 @@ auto_login_driver() {
     # button on MT5's Login dialog).
     _drv_phase3_log "pre_submit"
     DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
-    _drv_log "credentials typed and submitted (server=${MT_SERVER}, save-account=on, type_delay_ms=${AUTO_LOGIN_TYPE_DELAY_MS})"
+    _drv_log "credentials pasted and submitted (server=${MT_SERVER}, save-account=on)"
     sleep 1
     _drv_phase3_log "post_submit_1s"
+    # Scrub the X CLIPBOARD selection so no credential residue
+    # lingers in the buffer after Phase 3.
+    _drv_scrub_clipboard
   fi
 
   # Phase 4: dismiss follow-up dialogs AND poll for :5555 bind. The

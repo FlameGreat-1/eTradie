@@ -99,7 +99,7 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends \
         ca-certificates wget gnupg apt-transport-https \
         software-properties-common procps lsof psmisc \
-        xvfb x11-utils x11-apps xdotool unzip \
+        xvfb x11-utils x11-apps xdotool xclip unzip \
         fluxbox \
         python3-minimal python3-pip python3-zmq python3-psutil python3-prometheus-client \
         tzdata; \
