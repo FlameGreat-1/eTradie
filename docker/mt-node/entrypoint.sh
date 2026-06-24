@@ -912,6 +912,13 @@ auto_login_driver() {
   # Phase 4: dismiss follow-up dialogs AND poll for :5555 bind. The
   # two run concurrently because a Welcome / EULA window can appear
   # while we are also waiting for the EA to bind.
+  #
+  # Ensure main_wid is populated so we can skip it below. In the
+  # Phase 2a path (dialog detected without Phase 2c), main_wid is
+  # still empty; grab it now.
+  if [ -z "${main_wid:-}" ]; then
+    main_wid=$(_drv_find_main_window) || true
+  fi
   dismiss_until=$(( $(date +%s) + AUTO_LOGIN_FOLLOWUP_DISMISS_SECS ))
   bind_until=$(( start_ts + AUTO_LOGIN_TOTAL_BUDGET_SECS ))
   while :; do
@@ -936,10 +943,15 @@ auto_login_driver() {
       if [ -n "$fwid" ]; then
         for w in $fwid; do
           [ "$w" = "$wid_first" ] && continue
+          # Skip the main MT window by WID. After login the title
+          # changes from 'MetaTrader 5 - Netting' to
+          # '<account> - - Netting', so name-only matching is not
+          # sufficient.
+          [ -n "${main_wid:-}" ] && [ "$w" = "$main_wid" ] && continue
           wname=$(DISPLAY=:99 xdotool getwindowname "$w" 2>/dev/null || true)
           [ -z "$wname" ] && continue
           case "$wname" in
-            'MetaTrader 5'*|'MetaTrader 4'*) continue ;;
+            'MetaTrader 5'*|'MetaTrader 4'*|*'- Netting'*|*'- Hedging'*) continue ;;
           esac
           _drv_log "dismiss follow-up window: '${wname}' (WID=${w})"
           DISPLAY=:99 xdotool windowactivate --sync "$w" 2>/dev/null || true
