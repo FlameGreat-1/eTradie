@@ -651,6 +651,285 @@ _drv_wait_for_dialog() {
 #     Kept as fallback for cases where the mnemonic is absent or
 #     bound to a different item.
 
+# Phase 5 (chart-attach) tunables. See the Phase 5 contract in the
+# auto_login_driver() docstring above.
+#
+# AUTO_LOGIN_PHASE5_ENABLED: master switch. Default on. Set to 0 to
+#   disable Phase 5 entirely (e.g. when investigating an unrelated
+#   Phase 3/4 regression on staging without rebuilding the image).
+# AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS: how long to wait after
+#   the Phase 3 submit for MT5's post-login synchronous work to
+#   settle (broker access-server handshake, Market Watch symbol-
+#   catalogue download, Welcome-to-LiveUpdate modal materialisation).
+#   The 2026-06-24 15:14 staging diagnostic showed the Welcome modal
+#   appearing ~25s after submit; this window must be long enough for
+#   the modal to appear AND be dismissed by Phase 5's pre-keystroke
+#   sweep before menu navigation starts.
+# AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS: per-attempt budget for
+#   a chart window to appear after menu navigation. MT5 opens the
+#   chart synchronously when the symbol-picker submenu's Return
+#   accelerator fires; the chart window's WM_NAME is published
+#   within ~500ms. 20s covers slow-I/O cases and broker symbol-
+#   catalogue lookups.
+# AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX: WM_NAME pattern for an
+#   open MT5 chart window. The MT5 chart title format is
+#   '<SYMBOL>,<TIMEFRAME>' (e.g. 'EURUSD,H1' or 'XAUUSD.m,H1').
+#   Symbol characters include broker-specific suffix punctuation
+#   ('.', '#', '_', '-', '^', '+', '@', '!'), plus alphanumerics; the
+#   regex is intentionally permissive so brokers with EURUSD.m /
+#   EURUSD-cd / XAUUSD# / BTCUSD@ all match.
+# AUTO_LOGIN_PHASE5_BIND_WAIT_SECS: how long to poll :5555 after
+#   the chart opens before falling through to Phase 4. Sized to the
+#   EA's typical OnInit -> bind latency (~1-3s under fluxbox+Xvfb+
+#   Wine pipeline); 30s gives headroom without burning much of the
+#   total budget.
+# AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS: settle between attempts so a
+#   half-opened menu has time to close before the next Alt+F.
+AUTO_LOGIN_PHASE5_ENABLED="${AUTO_LOGIN_PHASE5_ENABLED:-1}"
+AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS="${AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS:-25}"
+AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS="${AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS:-20}"
+AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX="${AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX:-^[A-Za-z0-9._#@!^+\-]+,[A-Za-z][0-9]+}"
+AUTO_LOGIN_PHASE5_BIND_WAIT_SECS="${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS:-30}"
+AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS="${AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS:-5}"
+
+# _drv_find_chart_window: search Xvfb for an open MT5 chart window.
+# Returns the WID or empty. The MT5 chart title format is
+# '<SYMBOL>,<TIMEFRAME>' which is unambiguous against the main UI
+# window title ('MetaTrader 5 - Netting' or '<login> -   - Netting'),
+# the Login dialog ('Login'), the Welcome modal ('Welcome to
+# LiveUpdate'), the symbol-picker submenu (transient, no WM_NAME
+# under fluxbox), and Phase 4's follow-up windows.
+_drv_find_chart_window() {
+  _drv_find_window_by_regex "$AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX"
+}
+
+# _drv_wait_for_chart_window: poll _drv_find_chart_window until
+# visible or budget exhausted. Echoes WID on success, returns 0;
+# returns 1 on timeout. Same shape as _drv_wait_for_dialog so Phase 5
+# is symmetric with Phase 2c.
+_drv_wait_for_chart_window() {
+  local _budget="$1"
+  local _waited=0 _wid
+  while [ "$_waited" -lt "$_budget" ]; do
+    _wid=$(_drv_find_chart_window)
+    if [ -n "$_wid" ]; then
+      printf '%s' "$_wid"
+      return 0
+    fi
+    sleep 1
+    _waited=$(( _waited + 1 ))
+  done
+  return 1
+}
+
+# _drv_phase5_attempt: drive ONE menu sequence to open a chart and
+# wait for the chart window to appear. Helper used by
+# _drv_phase5_chart_attach below for the 3-attempt cascade.
+#
+# Contract:
+#   * $1 = main UI window WID (focus target).
+#   * $2 = attempt label (for logging).
+#   * $3 = keystroke sequence as a space-separated list of xdotool
+#          key tokens (e.g. 'Right Right Return'). Each token is
+#          dispatched in sequence with a small inter-keystroke settle.
+#   Returns 0 if a chart window appears within the budget; 1 if not.
+_drv_phase5_attempt() {
+  local _mwid="$1"
+  local _label="$2"
+  local _seq="$3"
+  local _tok _chart_wid
+
+  _drv_log "phase5: ${_label}: clearing modals + activating main window"
+  _drv_clear_modals_for_main_window "$_mwid"
+  DISPLAY=:99 _xdo windowactivate "$_mwid" 2>/dev/null || true
+  sleep 0.4
+  DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
+
+  _drv_log "phase5: ${_label}: sending Alt+F then [${_seq}]"
+  DISPLAY=:99 _xdo key --clearmodifiers alt+f 2>/dev/null || true
+  sleep 0.5
+  for _tok in $_seq; do
+    DISPLAY=:99 _xdo key --clearmodifiers "$_tok" 2>/dev/null || true
+    sleep 0.3
+  done
+
+  _chart_wid=$(_drv_wait_for_chart_window "$AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS")
+  if [ -n "$_chart_wid" ]; then
+    _drv_log "phase5: ${_label}: chart window WID=${_chart_wid} visible after menu navigation"
+    return 0
+  fi
+  _drv_warn "phase5: ${_label}: no chart window appeared within ${AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS}s"
+  # Close any half-opened menu before the next attempt so a stuck menu
+  # state does not absorb the next Alt+F.
+  DISPLAY=:99 _xdo key --clearmodifiers Escape 2>/dev/null || true
+  sleep 0.3
+  DISPLAY=:99 _xdo key --clearmodifiers Escape 2>/dev/null || true
+  return 1
+}
+
+# _drv_phase5_chart_attach: open a chart on the broker-default Market
+# Watch symbol via menu-driven File -> New Chart navigation so MT5's
+# startup.ini-pinned 'Template=expert' directive auto-applies the EA
+# template, the EA's OnInit runs, and the EA binds tcp://*:5555.
+#
+# Why this exists
+# ---------------
+# On build 5836 + /portable + a fresh Wine prefix, MT5 does NOT open
+# a chart on its own after login. The empirical signature is the
+# window title '<login> -   - Netting' (account window with the
+# symbol slot blank), no MQL5/Logs directory, and :5555 never
+# LISTENing past the 240s auto-login budget.
+#
+# Why menu-driven (not Ctrl+N)
+# ----------------------------
+# Ctrl+N is the Navigator panel toggle in MT5 (the EA/Indicator tree
+# docked widget), NOT a New Chart hotkey. The 2026-06-24 15:14 staging
+# diagnostic confirmed: Ctrl+N was dispatched cleanly, MT5 honoured it,
+# the Navigator panel toggled inside the main window, and no top-level
+# dialog ever appeared. MT5 has no documented hotkey for New Chart;
+# the only reliable mechanism is the File menu accelerator.
+#
+# This is the same proven mechanism Phase 2c uses for Login to Trade
+# Account (Alt+F + menu navigation), which has been empirically
+# validated on build 5836 since the runbook's Cluster 4 fix.
+#
+# How it works
+# ------------
+# 1. Wait AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS for MT5's post-
+#    login synchronous work to complete (broker access-server
+#    handshake, Market Watch population, Welcome-to-LiveUpdate modal
+#    materialisation). During this window the modal-clear helper
+#    sweeps any blocking modal.
+# 2. Re-check :5555. On the subsequent-boot accounts.dat path the
+#    EA may already be bound; we exit success without keystroking
+#    so a healthy session is never disturbed.
+# 3. Three-attempt cascade. Each attempt:
+#    - Re-clears modals + re-activates main window.
+#    - Dispatches Alt+F then a keystroke sequence.
+#    - Waits AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS for a chart
+#      window matching '<SYMBOL>,<TIMEFRAME>' to appear.
+#    - On timeout: sends Escape twice to close any half-opened menu
+#      then proceeds to the next attempt.
+#
+#    Attempt 1: Right Right Return (canonical happy path).
+#      Alt+F opens File menu with 'New Chart' highlighted (first item;
+#      Win32 default). First Right opens 'New Chart' submenu (broker
+#      symbol groups: Forex, Metals, Energies, ...). Second Right
+#      opens the first group's symbol list. Return accepts the first
+#      symbol. MT5 opens a chart on it.
+#    Attempt 2: Return Right Return (flat-menu fallback).
+#      Some broker-customised builds present New Chart as a flat
+#      symbol picker instead of a nested submenu. Return on the
+#      highlighted 'New Chart' entry opens the picker; Right + Return
+#      accepts the first symbol.
+#    Attempt 3: Down Up Right Return (paranoia fallback).
+#      In case a future menu reorder demotes New Chart from position
+#      1, this sequence walks down then back up to re-highlight it,
+#      then opens the submenu and accepts the first symbol.
+#
+# 4. MT5 auto-applies startup.ini [Charts] Template=expert to the
+#    newly-opened chart -- per MetaQuotes the directive applies to
+#    charts opened both at startup AND interactively post-startup.
+#    The pre-staged expert.tpl loads ZeroMQ_EA, OnInit runs, and the
+#    EA binds tcp://*:5555.
+# 5. Poll :5555 LISTEN for AUTO_LOGIN_PHASE5_BIND_WAIT_SECS. On bind
+#    we exit success; on timeout we fall through to Phase 4 which
+#    keeps polling the remaining budget.
+#
+# Contract
+# --------
+#   * $1 = main UI window WID (used only for focus clearing).
+#   * Best-effort: every failure logs WARN and returns 1; the caller
+#     (auto_login_driver) MUST treat a non-zero return as 'try harder
+#     in Phase 4', never as fatal.
+#   * Idempotent: re-running on an already-:5555-LISTEN pod is a
+#     no-op (early return at step 2).
+#   * Never logs credentials. Logs only WIDs, names, attempt labels,
+#     keystroke sequences, and durations.
+_drv_phase5_chart_attach() {
+  local _mwid="$1"
+  local _waited=0
+
+  if [ "${AUTO_LOGIN_PHASE5_ENABLED}" != "1" ]; then
+    _drv_log "phase5: disabled via AUTO_LOGIN_PHASE5_ENABLED=${AUTO_LOGIN_PHASE5_ENABLED}"
+    return 1
+  fi
+
+  if [ -z "$_mwid" ]; then
+    _drv_warn "phase5: no main window WID provided; cannot drive menu navigation"
+    return 1
+  fi
+
+  # Subsequent-boot short-circuit BEFORE the long settle so the
+  # accounts.dat fast path is not delayed.
+  if _drv_zmq_bound; then
+    _drv_log "phase5: :5555 already LISTEN (accounts.dat fast path); skipping chart-attach"
+    return 0
+  fi
+
+  _drv_log "phase5: settling ${AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS}s for post-login modal + Market Watch population"
+  # Settle in 1s chunks so we can early-exit on :5555 LISTEN and
+  # log progress to operator-readable cadence.
+  while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS" ]; do
+    if _drv_zmq_bound; then
+      _drv_log "phase5: :5555 LISTEN at +${_waited}s during post-login settle; skipping chart-attach"
+      return 0
+    fi
+    sleep 1
+    _waited=$(( _waited + 1 ))
+  done
+
+  # Attempt 1: canonical happy path.
+  if _drv_phase5_attempt "$_mwid" "attempt 1 (Right Right Return)" "Right Right Return"; then
+    # Chart visible; poll :5555.
+    _waited=0
+    while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_BIND_WAIT_SECS" ]; do
+      if _drv_zmq_bound; then
+        _drv_log "phase5: :5555 LISTEN at +${_waited}s after attempt 1; EA OnInit succeeded"
+        return 0
+      fi
+      sleep 1
+      _waited=$(( _waited + 1 ))
+    done
+    _drv_warn "phase5: attempt 1: chart opened but :5555 not bound within ${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS}s; falling through to next attempt"
+  fi
+
+  sleep "$AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS"
+
+  # Attempt 2: flat-menu fallback.
+  if _drv_phase5_attempt "$_mwid" "attempt 2 (Return Right Return)" "Return Right Return"; then
+    _waited=0
+    while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_BIND_WAIT_SECS" ]; do
+      if _drv_zmq_bound; then
+        _drv_log "phase5: :5555 LISTEN at +${_waited}s after attempt 2; EA OnInit succeeded"
+        return 0
+      fi
+      sleep 1
+      _waited=$(( _waited + 1 ))
+    done
+    _drv_warn "phase5: attempt 2: chart opened but :5555 not bound within ${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS}s; falling through to next attempt"
+  fi
+
+  sleep "$AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS"
+
+  # Attempt 3: paranoia fallback.
+  if _drv_phase5_attempt "$_mwid" "attempt 3 (Down Up Right Return)" "Down Up Right Return"; then
+    _waited=0
+    while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_BIND_WAIT_SECS" ]; do
+      if _drv_zmq_bound; then
+        _drv_log "phase5: :5555 LISTEN at +${_waited}s after attempt 3; EA OnInit succeeded"
+        return 0
+      fi
+      sleep 1
+      _waited=$(( _waited + 1 ))
+    done
+    _drv_warn "phase5: attempt 3: chart opened but :5555 not bound within ${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS}s"
+  fi
+
+  _drv_err "phase5: all three attempts failed to open a chart that binds :5555; falling through to Phase 4 poll for remaining budget"
+  return 1
+}
+
 # Phase 2c attempt 1: open File menu, press L mnemonic.
 # Every xdotool call is timeout-bounded via _xdo; `windowactivate` is
 # async (no --sync) to avoid Wine WM hangs on transient_for modals.
@@ -920,6 +1199,34 @@ auto_login_driver() {
     # Scrub the X CLIPBOARD selection so no credential residue
     # lingers in the buffer after Phase 3.
     _drv_scrub_clipboard
+
+    # Phase 5 (chart-attach via menu-driven File -> New Chart).
+    # On build 5836 + /portable + fresh Wine prefix, MT5 does NOT
+    # open a chart on its own after login; without a chart the
+    # startup.ini-pinned 'Template=expert' directive has nowhere to
+    # apply, the EA never loads, and :5555 never binds. Phase 5
+    # uses Alt+F + menu navigation (the same mechanism Phase 2c uses
+    # for Login to Trade Account) to open a chart on the broker-
+    # default Market Watch symbol; MT5 then auto-applies expert.tpl,
+    # the EA OnInit runs, and the EA binds :5555.
+    #
+    # Best-effort: any Phase 5 failure logs WARN and falls through to
+    # Phase 4 (poll :5555 for the remaining budget). A broker that
+    # happens to auto-open a chart on login is still serviced by the
+    # Phase 4 poll.
+    #
+    # Re-resolve main_wid here because Phase 2a may have populated
+    # wid_first without main_wid (the dialog-first path). On the
+    # Phase 2c path main_wid is already set.
+    if [ -z "${main_wid:-}" ]; then
+      main_wid=$(_drv_find_main_window) || true
+    fi
+    if _drv_phase5_chart_attach "$main_wid"; then
+      _drv_log "phase5: chart-attach succeeded; :5555 bound; exit success"
+      return 0
+    else
+      _drv_log "phase5: chart-attach did not bind :5555; continuing to Phase 4 follow-up poll for remaining budget"
+    fi
   fi
 
   # Phase 4: dismiss follow-up dialogs AND poll for :5555 bind. The
