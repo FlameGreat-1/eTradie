@@ -113,17 +113,43 @@ trap _shutdown TERM INT
 # purely additive automation.
 #
 #   1. Wait up to AUTO_LOGIN_PROCESS_WAIT_SECS for terminal binary.
-#   2. Poll xdotool every 2s for a Login-shaped window. Timeout
-#      AUTO_LOGIN_DIALOG_WAIT_SECS.
-#   3. Idempotent fast path: if :5555 LISTEN appears before any
-#      dialog, MT5 has auto-logged in (subsequent-boot via
-#      accounts.dat). Exit 0 immediately.
-#   4. On dialog visible: activate window, type credentials with
-#      --clearmodifiers --delay 50, check "Save account information",
-#      press Return.
-#   5. For AUTO_LOGIN_FOLLOWUP_DISMISS_SECS, dismiss any other visible
-#      windows (EULA, Welcome, broker terms, news alerts) via Return.
-#   6. Total budget AUTO_LOGIN_TOTAL_BUDGET_SECS. On success exit 0;
+#   2. Phase 2 (dialog-first, with main-window fallback):
+#      a) Phase 2a -- poll xdotool every 2s for a Login-shaped window
+#         (AUTO_LOGIN_DIALOG_TITLE_REGEX). Wait at most
+#         AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS (default 30s) for the
+#         dialog before considering Phase 2c. The dialog path was the
+#         original design contract; it remains the happy path for
+#         fresh prefixes and for any future MT5 build that reinstates
+#         the on-launch Login prompt.
+#      b) Phase 2b -- idempotent :5555 fast path. If :5555 LISTEN
+#         appears at any time, MT5 has auto-logged in via
+#         accounts.dat (subsequent boot). Exit 0 immediately.
+#      c) Phase 2c -- main-window menu-driven invocation. After
+#         AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS of NEITHER dialog NOR
+#         :5555 bind, check whether MT5's main UI window is visible
+#         (AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX). If yes, this is the
+#         empirical build-5836 + pre-staged-config path -- MT5
+#         opened straight to the main window without prompting.
+#         Phase 2c dismisses the 'Welcome to LiveUpdate' modal
+#         (Escape), focuses the main window, sends Ctrl+Shift+L
+#         (MT5's 'Login to Trade Account' hotkey), waits up to
+#         AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS for the dialog,
+#         and falls back to the Alt+F (File menu) -> arrow Down ->
+#         Return menu navigation if the hotkey was absorbed. On
+#         dialog visible after either path, falls through to Phase
+#         3 unchanged. Platform-gated to MT_PLATFORM=mt5; MT4 keeps
+#         the dialog-only Phase 2a path because MT4 build behaviour
+#         on this code path has not been empirically validated.
+#      Phase 2 overall budget remains AUTO_LOGIN_DIALOG_WAIT_SECS;
+#      if neither dialog nor :5555 bind happens within that budget,
+#      exit 1 (supervisor handles).
+#   3. Phase 3 -- on dialog visible: activate window, type credentials
+#      with --clearmodifiers --delay 50, check 'Save account
+#      information', press Return. Unchanged from previous design.
+#   4. Phase 4 -- for AUTO_LOGIN_FOLLOWUP_DISMISS_SECS, dismiss any
+#      other visible windows (EULA, Welcome, broker terms, news
+#      alerts) via Return. Unchanged.
+#   5. Total budget AUTO_LOGIN_TOTAL_BUDGET_SECS. On success exit 0;
 #      on timeout exit 1.
 #
 # Security
@@ -142,6 +168,27 @@ AUTO_LOGIN_DIALOG_WAIT_SECS="${AUTO_LOGIN_DIALOG_WAIT_SECS:-120}"
 AUTO_LOGIN_PROCESS_WAIT_SECS="${AUTO_LOGIN_PROCESS_WAIT_SECS:-60}"
 AUTO_LOGIN_FOLLOWUP_DISMISS_SECS="${AUTO_LOGIN_FOLLOWUP_DISMISS_SECS:-60}"
 AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an Account|Login to Trade Account|Authorization)}"
+# Phase 2c tunables. See the contract docstring above.
+#
+# AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS: how long Phase 2a polls for a
+#   Login-shaped dialog before falling through to Phase 2c. Sized
+#   to ~10s main-UI render + ~10s LiveUpdate modal grace + 10s slack;
+#   if the dialog has not appeared by then on build 5836 with
+#   pre-staged config, MT5 will never prompt and Phase 2c must
+#   invoke File -> Login to Trade Account explicitly.
+# AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS: per-attempt wait for the
+#   Login dialog after a Phase 2c invocation (hotkey or menu). Used
+#   twice -- once after Ctrl+Shift+L, once after Alt+F menu fallback.
+# AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX: WM_NAME pattern for the MT main
+#   UI window. Build 5836 emits 'MetaTrader 5 - Netting' (netting
+#   accounts) or 'MetaTrader 5 - Hedging' (hedging accounts); MT4
+#   uses 'MetaTrader 4 - <Account>'. The state machine additionally
+#   gates Phase 2c on MT_PLATFORM=mt5 because the MT5-on-Wine path
+#   is the only one with empirical evidence of skipping the Login
+#   prompt.
+AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS="${AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS:-30}"
+AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS="${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS:-15}"
+AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^MetaTrader [45] - (Netting|Hedging)}"
 
 _drv_log() { log "INFO" "auto_login: $*"; }
 _drv_warn() { log "WARN" "auto_login: $*"; }
