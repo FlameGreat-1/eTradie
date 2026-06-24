@@ -513,6 +513,46 @@ def find_mt_processes() -> list[psutil.Process]:
     return out
 
 
+def update_mt_launch_tracker() -> None:
+    """Detect MT5 process re-launch events and reset the grace clock.
+
+    Called at the top of every watchdog_loop iteration BEFORE the
+    soft-cap and HEALTH-probe paths so the in_startup_grace check
+    below sees an up-to-date STATE.mt_launch_ts.
+
+    The watchdog originally measured startup grace from
+    STATE.start_ts (watchdog process start, == pod birth). That
+    works for the first MT5 boot but breaks on every subsequent
+    supervisor respawn (kubelet container restart, LiveUpdate
+    self-restart, watchdog SIGTERM cycle) because the watchdog
+    sidecar's STATE.start_ts is fixed for the pod lifetime while
+    MT5 inside the mt-node container can boot many times.
+
+    This helper closes the gap: every time MT5 transitions from
+    absent to present in the PID namespace, mt_launch_ts is
+    reset to time.time() so the watchdog's grace window starts
+    over for the new launch.
+
+    Audit ref: 2026-06-24 staging diagnostic, boot 2 MT5 lifetime
+    71s == MAX_FAILURES * POLL_INTERVAL (= 60s) because grace had
+    expired pod-wide before boot 2 ever launched.
+    """
+    is_running = bool(find_mt_processes())
+    with STATE.lock:
+        was_running = STATE.mt_observed_running
+        if is_running and not was_running:
+            STATE.mt_launch_ts = time.time()
+            STATE.mt_observed_running = True
+            log.info(
+                "MT process launch detected; startup grace clock reset (grace=%.0fs)",
+                STARTUP_GRACE_SECONDS,
+            )
+        elif not is_running and was_running:
+            STATE.mt_observed_running = False
+            log.info("MT process disappeared from PID namespace (supervisor will respawn)")
+        # If running state unchanged, no log, no state mutation needed.
+
+
 def terminate_mt_processes(reason: str) -> int:
     """Send SIGTERM to MT processes; entrypoint.sh's supervisor respawns.
     Returns number of processes signalled.
