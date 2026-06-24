@@ -1168,7 +1168,24 @@ class HostedProvisioner:
                 period_seconds=5,
                 timeout_seconds=3,
                 success_threshold=1,
-                failure_threshold=60,
+                # LOCKSTEP INVARIANT: must mirror
+                # helm/mt-node/values.yaml::startupProbe.failureThreshold.
+                # 120 * 5s + 20s initialDelay = 620s startupProbe budget.
+                # Sized for: Wine seed (~10s) + Xvfb/MT5 launch (~15s)
+                # + LiveUpdate download + exit-143 self-restart + 30s
+                # settle + relaunch (~60s; Cluster 1, one-shot per fresh
+                # PVC) + 453-file MQL5 recompile (~100s; build 5836) +
+                # Phase 2a dialog poll (~30s) + Phase 2c menu-driven
+                # Login invocation hotkey + Alt+F menu fallback (~60s)
+                # + Phase 3 credential typing (~30s) + chart open + EA
+                # OnInit + :5555 bind (~10s). ~305s baseline; 620s gives
+                # 2x headroom. The previous failure_threshold=60 (320s
+                # budget) was a latent LOCKSTEP violation against the
+                # chart's 120 that became operationally fatal once
+                # Phase 2c first-boot work pushed total time past 320s.
+                # See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md
+                # §1.4 and the diagnostic capture from 2026-06-24.
+                failure_threshold=120,
             ),
             readiness_probe=client.V1Probe(
                 http_get=client.V1HTTPGetAction(
