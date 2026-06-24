@@ -1113,13 +1113,63 @@ while :; do
   # Layer 4 (operability): detect the LiveUpdate self-restart pattern
   # and surface it LOUDLY so this symptom is never again misdiagnosed
   # as a slow boot / login failure. exit 143 = SIGTERM (MT's own
-  # self-restart to apply a LiveUpdate).
+  # self-restart to apply a LiveUpdate; also matches external SIGTERM
+  # from the watchdog sidecar or kubelet preStop, which is why the
+  # classifier MUST also check whether MT5 has already run past the
+  # most recent LiveUpdate event before treating exit-143 as a
+  # self-restart).
+  #
+  # Issue #3 of the 2026-06-24 staging diagnostic: the original
+  # grep matched on ANY persisted 'LiveUpdate ... downloaded' line
+  # in the (PVC-backed) journal. Once boot 1 ran LiveUpdate, every
+  # later exit-143 (watchdog SIGTERM, kubelet preStop, ...) got
+  # mis-classified as a LiveUpdate self-restart, and the supervisor
+  # never incremented restart_count, never exhausted the in-pod
+  # restart budget, and never let the kubelet recover the pod.
+  #
+  # Correct discriminator: is the LAST 'Terminal ... build NNNN
+  # started' line in the journal AFTER the LAST 'LiveUpdate ...
+  # downloaded successfully' line?
+  #   YES -> MT5 has already booted past that LiveUpdate. Exit-143
+  #          must be external. Classify as NOT LiveUpdate.
+  #   NO  -> MT5 has not yet booted past the most recent LiveUpdate.
+  #          Exit-143 is plausibly that LiveUpdate firing. Classify
+  #          as LiveUpdate self-restart.
   IS_LIVEUPDATE_RESTART=0
   if [ "$EXIT_CODE" = "143" ]; then
-    _lu=$(grep -ahiE 'LiveUpdate.*(downloaded|is available)' "$MT_DIR/logs/"*.log 2>/dev/null | tail -n1 || true)
-    if [ -n "$_lu" ]; then
-      IS_LIVEUPDATE_RESTART=1
-      log INFO "LiveUpdate self-restart detected (exit 143; '$_lu'). This is MetaQuotes' designed behaviour: the terminal swaps its own binary atomically and re-execs. Letting the kernel finalize the on-disk rename and relaunching cleanly. This should occur AT MOST ONCE per fresh PVC; if it loops, see docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md."
+    # Pick the most recent journal file. MT5 writes one .log per
+    # day so this is normally only one file, but the find/sort
+    # covers historical PVCs with multiple files.
+    _journal_file=$(ls -t "$MT_DIR/logs/"*.log 2>/dev/null | head -n1 || true)
+    if [ -n "$_journal_file" ]; then
+      # tr -d '\000' strips the UTF-16 NUL bytes the MT5 journal
+      # writes. grep -n prefixes each match with its line number;
+      # we parse the line number with cut to compare positions.
+      _last_lu_line=$(tr -d '\000' < "$_journal_file" 2>/dev/null \
+        | grep -nE 'LiveUpdate.*downloaded successfully' \
+        | tail -n1 | cut -d: -f1 || true)
+      _last_build_line=$(tr -d '\000' < "$_journal_file" 2>/dev/null \
+        | grep -nE 'Terminal[[:space:]]+MetaTrader [45].*build [0-9]+ started' \
+        | tail -n1 | cut -d: -f1 || true)
+      # Whether to classify as LiveUpdate self-restart:
+      #   - No LiveUpdate line in journal yet -> NOT a self-restart.
+      #   - LiveUpdate line exists but no later 'build started'
+      #     line -> IS a self-restart (current MT5 boot has not yet
+      #     run past that LiveUpdate event).
+      #   - LiveUpdate line exists AND a later 'build started' line
+      #     exists -> NOT a self-restart (current boot has already
+      #     run past that LiveUpdate event; this exit must be
+      #     external).
+      if [ -n "$_last_lu_line" ]; then
+        if [ -z "$_last_build_line" ] || [ "$_last_build_line" -le "$_last_lu_line" ]; then
+          IS_LIVEUPDATE_RESTART=1
+          log INFO "LiveUpdate self-restart detected (exit 143; LiveUpdate line ${_last_lu_line}, last build-started line ${_last_build_line:-none}). This is MetaQuotes' designed behaviour: the terminal swaps its own binary atomically and re-execs. Letting the kernel finalize the on-disk rename and relaunching cleanly. This should occur AT MOST ONCE per fresh PVC; if it loops, see docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md."
+        else
+          log INFO "exit 143 classified as external SIGTERM (LiveUpdate line ${_last_lu_line} predates last build-started line ${_last_build_line}; MT5 already ran past that LiveUpdate). Likely watchdog SIGTERM or kubelet preStop. Counting against in-pod restart budget."
+        fi
+      else
+        log INFO "exit 143 classified as external SIGTERM (no LiveUpdate event in journal yet). Counting against in-pod restart budget."
+      fi
     fi
   fi
 
