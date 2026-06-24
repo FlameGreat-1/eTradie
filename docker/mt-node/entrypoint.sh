@@ -722,16 +722,18 @@ _drv_wait_for_chart_window() {
   return 1
 }
 
-# _drv_phase5_attempt: drive ONE menu sequence to open a chart and
-# wait for the chart window to appear. Helper used by
+# _drv_phase5_attempt: drive ONE keystroke sequence to open a chart
+# and wait for the chart window to appear. Helper used by
 # _drv_phase5_chart_attach below for the 3-attempt cascade.
 #
 # Contract:
 #   * $1 = main UI window WID (focus target).
 #   * $2 = attempt label (for logging).
 #   * $3 = keystroke sequence as a space-separated list of xdotool
-#          key tokens (e.g. 'Right Right Return'). Each token is
+#          key tokens (e.g. 'ctrl+m Tab Home Return'). Each token is
 #          dispatched in sequence with a small inter-keystroke settle.
+#          Tokens containing '+' are xdotool key chords; bare tokens
+#          are single keys.
 #   Returns 0 if a chart window appears within the budget; 1 if not.
 _drv_phase5_attempt() {
   local _mwid="$1"
@@ -745,25 +747,31 @@ _drv_phase5_attempt() {
   sleep 0.4
   DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
 
-  _drv_log "phase5: ${_label}: sending Alt+F then [${_seq}]"
-  DISPLAY=:99 _xdo key --clearmodifiers alt+f 2>/dev/null || true
-  sleep 0.5
+  _drv_log "phase5: ${_label}: dispatching keystroke sequence [${_seq}]"
   for _tok in $_seq; do
     DISPLAY=:99 _xdo key --clearmodifiers "$_tok" 2>/dev/null || true
-    sleep 0.3
+    # Longer settle for Ctrl+M (Market Watch panel materialisation)
+    # and Menu (context menu unfurl); shorter for arrow keys.
+    case "$_tok" in
+      ctrl+m|Menu) sleep 1.0 ;;
+      alt+f)        sleep 0.5 ;;
+      *)            sleep 0.3 ;;
+    esac
   done
 
   _chart_wid=$(_drv_wait_for_chart_window "$AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS")
   if [ -n "$_chart_wid" ]; then
-    _drv_log "phase5: ${_label}: chart window WID=${_chart_wid} visible after menu navigation"
+    _drv_log "phase5: ${_label}: chart window WID=${_chart_wid} visible after keystroke sequence"
     return 0
   fi
   _drv_warn "phase5: ${_label}: no chart window appeared within ${AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS}s"
-  # Close any half-opened menu before the next attempt so a stuck menu
-  # state does not absorb the next Alt+F.
+  # Close any half-opened menu/panel before the next attempt so a
+  # stuck UI state does not absorb the next keystroke. Escape closes
+  # context menus; a second Escape closes the File menu if open.
   DISPLAY=:99 _xdo key --clearmodifiers Escape 2>/dev/null || true
   sleep 0.3
   DISPLAY=:99 _xdo key --clearmodifiers Escape 2>/dev/null || true
+  sleep 0.3
   return 1
 }
 
@@ -780,52 +788,71 @@ _drv_phase5_attempt() {
 # symbol slot blank), no MQL5/Logs directory, and :5555 never
 # LISTENing past the 240s auto-login budget.
 #
-# Why menu-driven (not Ctrl+N)
-# ----------------------------
+# Why Ctrl+M Market Watch (not Ctrl+N, not Alt+F primary)
+# -------------------------------------------------------
 # Ctrl+N is the Navigator panel toggle in MT5 (the EA/Indicator tree
 # docked widget), NOT a New Chart hotkey. The 2026-06-24 15:14 staging
-# diagnostic confirmed: Ctrl+N was dispatched cleanly, MT5 honoured it,
-# the Navigator panel toggled inside the main window, and no top-level
-# dialog ever appeared. MT5 has no documented hotkey for New Chart;
-# the only reliable mechanism is the File menu accelerator.
+# diagnostic confirmed Ctrl+N does nothing useful for chart-attach.
 #
-# This is the same proven mechanism Phase 2c uses for Login to Trade
-# Account (Alt+F + menu navigation), which has been empirically
-# validated on build 5836 since the runbook's Cluster 4 fix.
+# Ctrl+M opens the Market Watch panel -- empirically verified by the
+# operator on real MT5 build 5836 (2026-06-24 16:45). Market Watch
+# is a flat list of broker symbols. Pressing Return on a focused
+# Market Watch row triggers MT5's default action, which ships as
+# 'Chart Window' (opens a new chart) on every fresh MT5 install per
+# MetaQuotes documentation. This is broker-agnostic: whatever symbol
+# the broker put first in Market Watch is what the chart opens on.
+#
+# Alt+F + File menu navigation is the secondary mechanism. It was
+# the v2 primary but relied on Win32 menu-position assumptions that
+# were never empirically verified against build 5836. Retained as
+# the last-resort attempt because it costs nothing.
 #
 # How it works
 # ------------
 # 1. Wait AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS for MT5's post-
 #    login synchronous work to complete (broker access-server
-#    handshake, Market Watch population, Welcome-to-LiveUpdate modal
-#    materialisation). During this window the modal-clear helper
-#    sweeps any blocking modal.
+#    handshake, Market Watch symbol-catalogue download, Welcome-to-
+#    LiveUpdate modal materialisation). During this window the
+#    modal-clear helper sweeps any blocking modal.
 # 2. Re-check :5555. On the subsequent-boot accounts.dat path the
 #    EA may already be bound; we exit success without keystroking
 #    so a healthy session is never disturbed.
-# 3. Three-attempt cascade. Each attempt:
+# 3. Three-attempt cascade, ordered by empirical certainty. Each
+#    attempt:
 #    - Re-clears modals + re-activates main window.
-#    - Dispatches Alt+F then a keystroke sequence.
+#    - Dispatches a keystroke sequence.
 #    - Waits AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS for a chart
 #      window matching '<SYMBOL>,<TIMEFRAME>' to appear.
-#    - On timeout: sends Escape twice to close any half-opened menu
-#      then proceeds to the next attempt.
+#    - On timeout: sends Escape twice to close any half-opened
+#      menu/panel then proceeds to the next attempt.
 #
-#    Attempt 1: Right Right Return (canonical happy path).
-#      Alt+F opens File menu with 'New Chart' highlighted (first item;
-#      Win32 default). First Right opens 'New Chart' submenu (broker
-#      symbol groups: Forex, Metals, Energies, ...). Second Right
-#      opens the first group's symbol list. Return accepts the first
-#      symbol. MT5 opens a chart on it.
-#    Attempt 2: Return Right Return (flat-menu fallback).
-#      Some broker-customised builds present New Chart as a flat
-#      symbol picker instead of a nested submenu. Return on the
-#      highlighted 'New Chart' entry opens the picker; Right + Return
-#      accepts the first symbol.
-#    Attempt 3: Down Up Right Return (paranoia fallback).
-#      In case a future menu reorder demotes New Chart from position
-#      1, this sequence walks down then back up to re-highlight it,
-#      then opens the submenu and accepts the first symbol.
+#    Attempt 1 (highest certainty): Ctrl+M + default action.
+#      ctrl+m Tab Home Return
+#      - Ctrl+M opens Market Watch panel (verified working).
+#      - Tab moves focus into the Market Watch list.
+#      - Home selects the first row (deterministic; no positional
+#        guessing).
+#      - Return triggers MT5's default Market Watch action which is
+#        'Chart Window' out of the box (per MetaQuotes docs).
+#
+#    Attempt 2 (high certainty): Ctrl+M + keyboard context menu.
+#      ctrl+m Tab Home Menu Down Return
+#      - Same Ctrl+M + Tab + Home as Attempt 1 to focus the first
+#        Market Watch row.
+#      - Menu key (XKB keysym, dedicated context-menu key on PC
+#        keyboards) opens the right-click context menu in place.
+#      - Down moves from 'New Order' (position 1) to 'Chart Window'
+#        (position 2) per MetaQuotes default menu order.
+#      - Return activates Chart Window.
+#      This is the keyboard-equivalent of the operator's manual
+#      verification workflow ('right-click symbol -> Chart Window').
+#
+#    Attempt 3 (last resort): Alt+F + File menu navigation.
+#      alt+f Right Right Return
+#      - Retained from v2 verbatim as a defence-in-depth fallback
+#        for the rare case where both Ctrl+M paths fail (e.g.
+#        Market Watch panel is empty post-login because the broker
+#        symbol-catalogue download has not yet completed).
 #
 # 4. MT5 auto-applies startup.ini [Charts] Template=expert to the
 #    newly-opened chart -- per MetaQuotes the directive applies to
@@ -879,8 +906,8 @@ _drv_phase5_chart_attach() {
     _waited=$(( _waited + 1 ))
   done
 
-  # Attempt 1: canonical happy path.
-  if _drv_phase5_attempt "$_mwid" "attempt 1 (Right Right Return)" "Right Right Return"; then
+  # Attempt 1: Ctrl+M Market Watch + default action (highest certainty).
+  if _drv_phase5_attempt "$_mwid" "attempt 1 (Ctrl+M default action)" "ctrl+m Tab Home Return"; then
     # Chart visible; poll :5555.
     _waited=0
     while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_BIND_WAIT_SECS" ]; do
@@ -896,8 +923,8 @@ _drv_phase5_chart_attach() {
 
   sleep "$AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS"
 
-  # Attempt 2: flat-menu fallback.
-  if _drv_phase5_attempt "$_mwid" "attempt 2 (Return Right Return)" "Return Right Return"; then
+  # Attempt 2: Ctrl+M Market Watch + keyboard context menu (high certainty).
+  if _drv_phase5_attempt "$_mwid" "attempt 2 (Ctrl+M context menu)" "ctrl+m Tab Home Menu Down Return"; then
     _waited=0
     while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_BIND_WAIT_SECS" ]; do
       if _drv_zmq_bound; then
@@ -912,8 +939,8 @@ _drv_phase5_chart_attach() {
 
   sleep "$AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS"
 
-  # Attempt 3: paranoia fallback.
-  if _drv_phase5_attempt "$_mwid" "attempt 3 (Down Up Right Return)" "Down Up Right Return"; then
+  # Attempt 3: Alt+F File menu navigation (last resort, defence-in-depth).
+  if _drv_phase5_attempt "$_mwid" "attempt 3 (Alt+F File menu)" "alt+f Right Right Return"; then
     _waited=0
     while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_BIND_WAIT_SECS" ]; do
       if _drv_zmq_bound; then
