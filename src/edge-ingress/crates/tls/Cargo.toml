@@ -11,7 +11,7 @@ tokio-rustls = "0.26"
 rustls = "0.23"
 webpki-roots = "0.26"
 x509-parser = "0.16"
-thiserror = "1.0"
+thiserror = "2.0"
 tracing = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 rustls-pemfile = "2.1.2"
