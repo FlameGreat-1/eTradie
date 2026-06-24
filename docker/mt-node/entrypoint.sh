@@ -52,12 +52,24 @@ LIVEUPDATE_SETTLE_SECS="${LIVEUPDATE_SETTLE_SECS:-30}"
 
 MT_PID=""
 XVFB_PID=""
+DRIVER_PID=""
 
 log() { printf '%s [%s] %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$1" "$2" >&2; }
 
 # ── Signal handling ─────────────────────────────────────────────
 _shutdown() {
-  log INFO "Caught shutdown signal, terminating MetaTrader + Xvfb"
+  log INFO "Caught shutdown signal, terminating auto-login driver + MetaTrader + Xvfb"
+  # Tear down the driver FIRST so it does not race the MT5 SIGTERM
+  # below (a driver mid-`xdotool type` would otherwise inject
+  # keystrokes into a window that is being closed).
+  if [ -n "${DRIVER_PID}" ] && kill -0 "${DRIVER_PID}" 2>/dev/null; then
+    kill -TERM "${DRIVER_PID}" 2>/dev/null || true
+    for _ in $(seq 1 30); do
+      kill -0 "${DRIVER_PID}" 2>/dev/null || break
+      sleep 0.1
+    done
+    kill -KILL "${DRIVER_PID}" 2>/dev/null || true
+  fi
   if [ -n "${MT_PID}" ] && kill -0 "${MT_PID}" 2>/dev/null; then
     kill -TERM "${MT_PID}" 2>/dev/null || true
     for _ in $(seq 1 100); do
