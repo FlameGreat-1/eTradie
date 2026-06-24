@@ -8,44 +8,66 @@ without context loss.
 
 ---
 
-## 1. Current state of the world (as of 2026-06-24)
+## 1. Current state of the world (as of 2026-06-24, post-xdotool ship)
 
-### 1.1 What is fixed and in production
+### 1.1 What is fixed and shipped on `main`
 
-Three independent bug clusters have been diagnosed and closed. Each
+Four independent bug clusters have been diagnosed and closed. Each
 landed a permanent fix on `main`; do not revisit these:
 
 | # | Bug | Closed by |
 |---|---|---|
 | 1 | PVC destruction on every readiness timeout (drove an infinite LiveUpdate-redownload loop) | `_best_effort_cleanup` no longer deletes the wine-prefix PVC; `_READINESS_TIMEOUT_SECS` 300→600; `HostedRecoveryConfig.unhealthy_threshold_secs` 600→1200; new `fresh_provision_grace_secs=1800`; `entrypoint.sh` corruption-reset only wipes on missing `system32`; supervisor branches on exit-143 (LiveUpdate self-restart) with 30s settle and no `restart_count` increment; `terminationGracePeriodSeconds` 60/90→180; `preStop sleep` 5→30; `startupProbe.failureThreshold` 60→120 (620s budget). |
-| 2 | Wrong launch flag (`/config:` only set config-file location, not auto-login) | Switched to `/portable` + `/login:` + `/password:` + `/server:`. Proven to reach `terminal64.exe` correctly via `ps -ef` inspection. |
+| 2 | Wrong launch flag (`/config:` only set config-file location, not auto-login) | Switched to `/portable`. The `/login /password /server` flags were tried as part of the same diagnosis chain but proven ineffective on build 5836 (see Cluster 4); they have since been removed. |
 | 3 | Vault credential shell-expansion (`$$` in password expanded to bash PID via `. "$FILE"` in entrypoint) | Replaced bash-source with a pure-text parser that mirrors `docker/mt-node/watchdog.py::_load_vault_secrets_file` exactly. Whitelisted keys, no shell evaluation, regression guard logs WARN if `MT_PASSWORD` ever starts with the entrypoint's PID. |
+| 4 | MT5 build 5836 ignores `/login /password /server` cmdline flags AND `startup.ini [Common]` auto-login block; broker connection never initiated; pod cycles every ~80s on watchdog SIGTERM | xdotool-driven GUI automation: `docker/mt-node/entrypoint.sh::auto_login_driver()` forks after the wine launch, waits for MT5's Login dialog, types credentials with `--clearmodifiers --delay 50`, ticks "Save account information" so MT5 writes `accounts.dat`, presses Return, dismisses follow-up dialogs (EULA, Welcome, broker terms). Subsequent boots use the MT5-written `accounts.dat` and the driver's idempotent fast-path exits on the immediate `:5555` LISTEN. Wine launch line is now `wine "$MT_EXE" /portable &` (no credential flags - strict improvement vs the previous `/password:$MT_PASSWORD` cmdline exposure). Cold-boot grace bumped 180→300s across the chart base values, the chart configmap-watchdog default, and the engine-runtime provisioner (LOCKSTEP INVARIANT). |
 
-### 1.2 What is OPEN (the remaining issue)
+### 1.2 What is PENDING VERIFICATION (the only thing left)
 
-After all three clusters were closed, the staging cluster reaches
-this state on a fresh provision and **stays stuck**:
+Cluster 4 is the most recent ship. The image has been built off `main`
+HEAD but the operator has NOT yet:
 
-- Pod is `2/3 Running` (mt-node + watchdog Up; main container's
-  `:5555` startupProbe never satisfies).
-- MT5 journal shows clean boot → LiveUpdate once → exit 143 → clean
+  1. Confirmed CI is green on the new SHA.
+  2. Confirmed the new image SHA is pinned in
+     `helm/engine/values-staging.yaml` and
+     `helm/mt-node/values-staging.yaml` via the deploy-bump bot.
+  3. Confirmed ArgoCD rolled both `engine-staging` and `mt-node-staging`
+     to the new SHA.
+  4. Re-provisioned a hosted connection from the dashboard.
+  5. Confirmed via `ps -ef` that the wine cmdline is now
+     `terminal64.exe /portable` only (no `/login` flags).
+  6. Confirmed via journal that `Network ... connecting` and
+     `Login ... ok` appear after `LiveUpdate downloaded successfully`.
+  7. Confirmed `:5555` LISTEN + pod `3/3 Ready` + `accounts.dat`
+     written to the PVC.
+  8. Run the §3.8 smoking-gun proof (delete pod, comes back
+     `3/3 Ready` in 20-40s via the accounts.dat fast path).
+
+**THE NEXT ACTION the operator must take is documented in §2.6 below.**
+
+### 1.3 Why this design (Cluster 4 background, for future-you)
+
+When Clusters 1-3 were closed, the staging cluster reached this state
+on a fresh provision and stayed stuck:
+
+- Pod was `2/3 Running` (mt-node + watchdog Up; main's `:5555`
+  startupProbe never satisfied).
+- MT5 journal showed clean boot → LiveUpdate once → exit 143 → clean
   relaunch → then **silence** (no `Network` / `Login` /
   `Authentication` / `Profile` / `Chart` / `Expert` lines).
-- `/proc/net/tcp` shows ONLY `:9100` (watchdog LISTEN) + a few
+- `/proc/net/tcp` showed ONLY `:9100` (watchdog LISTEN) + a few
   `TIME_WAIT` from the one-shot LiveUpdate CDN hit. **Zero**
   outbound to any broker IP.
-- `MQL5/Logs/` directory does NOT exist (EA never loaded).
-- `:5555` never binds.
-- The pod cycles `terminal64.exe` every ~80 seconds: the watchdog
-  reaches `MAX_FAILURES=6` consecutive HEALTH-probe failures and
-  SIGTERMs MT5; the entrypoint supervisor respawns; same outcome.
-- `startup.ini`'s `[Common] Login/Password/Server` block IS correctly
-  populated (verified via `cat`). MT5 reads the file. MT5 ignores it.
-- The `/login /password /server` command-line flags DO reach
-  `terminal64.exe` (verified via `ps -ef`). MT5 ignores them too.
+- `MQL5/Logs/` directory did NOT exist (EA never loaded).
+- The pod cycled `terminal64.exe` every ~80 seconds via watchdog
+  SIGTERM + supervisor respawn.
+- `startup.ini`'s `[Common] Login/Password/Server` block WAS correctly
+  populated. MT5 read the file. MT5 ignored it.
+- The `/login /password /server` command-line flags DID reach
+  `terminal64.exe`. MT5 ignored them too.
 
-**Definitive diagnosis** (after exhaustive end-to-end audit of the
-pipeline; see commit history for the full audit transcript):
+Definitive diagnosis (after exhaustive end-to-end audit of the
+pipeline):
 
 > MetaTrader 5 build 5836 does NOT honor any of the documented
 > unattended-login mechanisms. `/login /password /server` flags are
@@ -69,27 +91,35 @@ undocumented and would be unbounded reverse-engineering work. Every
 commercial VPS provider gave up on this path and uses GUI automation
 for the first boot instead.
 
-### 1.3 Chain of commits already on `main` (do not redo)
+### 1.4 Chain of commits already on `main` (do not redo)
 
 In chronological order:
 
 | Commit | What it closes |
 |---|---|
-| `684746d5` | Engine: `_best_effort_cleanup` PVC preservation, readiness 300→600, recovery 600→1200, new `fresh_provision_grace_secs=1800`. |
-| `ea5f0c1a` | Pod: corruption-reset only on missing `system32`; supervisor branches on exit-143 with 30s settle; chart `terminationGracePeriodSeconds` 60/90→180, `preStop` 5→30, `startupProbe.failureThreshold` 60→120. |
-| `60aabc3a` | Chart: `helm/engine/values.yaml` aligned with new code defaults; new ConfigMap env var rendered. |
+| `684746d5` | Cluster 1 - Engine: `_best_effort_cleanup` PVC preservation, readiness 300→600, recovery 600→1200, new `fresh_provision_grace_secs=1800`. |
+| `ea5f0c1a` | Cluster 1 - Pod: corruption-reset only on missing `system32`; supervisor branches on exit-143 with 30s settle; chart `terminationGracePeriodSeconds` 60/90→180, `preStop` 5→30, `startupProbe.failureThreshold` 60→120. |
+| `60aabc3a` | Cluster 1 - Chart: `helm/engine/values.yaml` aligned with new code defaults; new ConfigMap env var rendered. |
 | `a74d8f1b` | CI lint UP017. |
-| `6cbd1b51` | Pod: `/config:` → `/portable`. Proven insufficient on staging (no auto-login). |
-| `c384a600` | Pod: launch flags become `/portable /login: /password: /server:`. Proven insufficient — flags reach the binary but MT5 build 5836 ignores them. |
-| `87304e87` | Pod: pure-text Vault credentials parser replaces bash-source. Closes the `$$`/backtick/$(...) shell-expansion class of bug. |
+| `6cbd1b51` | Cluster 2 - Pod: `/config:` → `/portable`. Proven insufficient on staging (no auto-login). |
+| `c384a600` | Cluster 2 - Pod: launch flags become `/portable /login: /password: /server:`. Proven insufficient — flags reach the binary but MT5 build 5836 ignores them. SUPERSEDED by xdotool ship below; the `/login /password /server` flags were REMOVED in commit `2c675386`. |
+| `87304e87` | Cluster 3 - Pod: pure-text Vault credentials parser replaces bash-source. Closes the `$$`/backtick/$(...) shell-expansion class of bug. |
+| `fb17b7be` | Cluster 4 - Dockerfile: add `xdotool` + `x11-apps`. Chart: `startupGraceSeconds` 180→300 + `default "300"` in configmap-watchdog. Provisioner: `WATCHDOG_STARTUP_GRACE_SECONDS` 180→300 (LOCKSTEP). |
+| `2248f1f7` | Cluster 4 - `entrypoint.sh`: add `DRIVER_PID` variable; extend `_shutdown` trap to tear the driver down BEFORE MT5 (xdotool mid-type into a closing window would otherwise inject keystrokes into nothing). |
+| `695f1116` | Cluster 4 - `entrypoint.sh`: add `auto_login_driver()` function (~190 lines). Full contract documented in the function's docstring; summary in §2.3. |
+| `2c675386` | Cluster 4 - `entrypoint.sh`: remove `/login /password /server` from wine launch (build 5836 ignores them; password no longer leaks into `/proc/<pid>/cmdline`). Fork `auto_login_driver` after MT5 launch; reap it (6s grace → SIGTERM → SIGKILL) on MT5 exit. |
+| (latest)  | Cluster 4 - `entrypoint.sh`: cleanup stale launch-flag comments in the supervisor loop so the documentation matches the code that actually runs. |
 
 ---
 
-## 2. THE NEXT THING TO SHIP — xdotool GUI automation
+## 2. WHAT WAS SHIPPED — xdotool GUI automation
 
-This is the precise plan. Do not improvise; the contract below is
-the one that closes the remaining issue cleanly without inviting a
-new restart loop.
+This section was "THE NEXT THING TO SHIP" in the previous runbook
+revision. The fix is now landed on `main` across five files in four
+commits (plus a comment-cleanup follow-up). The shipping plan is
+preserved below as a historical record so future readers understand
+why each change exists; the actual verification path is in §2.6 and
+the command sequences are in §3.
 
 ### 2.1 Why xdotool (and why not the alternatives)
 
@@ -237,12 +267,131 @@ comes back to `3/3 Ready` in 20-40 seconds with NO new Login dialog
 
 | Symptom | Cause | Driver action |
 |---|---|---|
-| Login dialog never appears within 90s | MT5 crashed silently; OR `/portable` mode opening main UI without dialog | Log ERROR, exit; supervisor respawns. |
-| Login dialog appears but typing produces wrong chars | Wine keyboard layout drift | Driver sets `xdotool keyup Shift Control Alt Meta` before each type; uses `--clearmodifiers`. |
-| Login dialog accepts creds but broker rejects | Invalid creds (user-side error) | Driver detects "Invalid account" toast (xdotool searches for the error window class); logs ERROR; exits. The supervisor still respawns, but on the next boot MT5 will show the same dialog — the user needs to fix their broker creds via the dashboard. |
-| Login succeeds, but :5555 doesn't bind within 60s of dialog close | EA didn't load (template issue, EA binary missing) | Driver logs WARN and exits success; the watchdog will SIGTERM MT5 on its own loop and the supervisor will retry. |
-| Multiple identical follow-up dialogs (e.g. EULA + Terms + Welcome) | Broker first-launch wizard | Driver loop dismisses each with Return; up to 5 follow-up dialogs in 60s. |
-| Driver itself crashes | xdotool segfault, X server hiccup | The driver runs as a background child of entrypoint; on exit, the entrypoint's SIGCHLD path logs the exit and continues (does NOT force MT5 respawn). |
+| Login dialog never appears within 120s | MT5 crashed silently; OR `/portable` mode opening main UI without dialog | Log ERROR, exit; supervisor respawns. The 120s budget comes from `AUTO_LOGIN_DIALOG_WAIT_SECS`. |
+| Login dialog appears but typing produces wrong chars | Wine keyboard layout drift | Driver calls `xdotool keyup Shift Control Alt Meta` before each type and uses `--clearmodifiers --delay 50` on every `xdotool type` call. |
+| Login dialog accepts creds but broker rejects | Invalid creds (user-side error) | The dialog stays on screen; `:5555` never binds; the driver's 240s total budget expires; the supervisor SIGTERMs MT5 and respawns; same outcome until the user fixes their broker creds via the dashboard. NOT a code fix. |
+| Login succeeds, but :5555 doesn't bind within 240s total | EA didn't load (template issue, EA binary missing) | Driver logs ERROR and exits 1; the watchdog will SIGTERM MT5 on its own loop and the supervisor will retry. Inspect `$MT_DIR/MQL5/Logs/*.log` for the EA's OnInit output. |
+| Multiple identical follow-up dialogs (e.g. EULA + Terms + Welcome) | Broker first-launch wizard | Driver loop dismisses each non-MetaTrader-titled visible window via Return for `AUTO_LOGIN_FOLLOWUP_DISMISS_SECS=60`s. |
+| Driver itself crashes | xdotool segfault, X server hiccup | The driver runs as a background child of entrypoint. The supervisor reaps it on MT5 exit (6s grace → SIGTERM → SIGKILL → `wait` to drain zombie); a driver crash does NOT force an MT5 respawn. |
+
+### 2.6 NEXT ACTION (operator picking up cold reads here)
+
+The code is shipped on `main`. The operator's job from this point is
+to deploy the new image and verify the fix end-to-end on staging.
+Follow these steps in order; do not skip.
+
+```bash
+# Step 1 - Confirm CI built the new image off `main` HEAD.
+cd ~/eTradie
+git fetch origin main
+git pull --rebase origin main
+git log --oneline -8
+# Expect to see (chronological, newest first):
+#   <latest>  docs(runbook): xdotool fix is SHIPPED; ...
+#   <latest>  docs(mt-node): rewrite stale launch-flag comment block ...
+#   2c675386  fix(mt-node): launch wine /portable only; fork auto_login_driver ...
+#   695f1116  fix(mt-node): add auto_login_driver() function for xdotool GUI automation
+#   2248f1f7  fix(mt-node): add DRIVER_PID tracking and propagate SIGTERM to driver
+#   fb17b7be  fix(mt-node): xdotool-driven auto-login for MT5 build 5836
+#   ...
+
+# Step 2 - Read the pinned mt-node SHA from staging values.
+PIN=$(git show origin/main:helm/engine/values-staging.yaml \
+  | grep -E '^[[:space:]]*tag:' | head -1 | tr -d ' "' | cut -d: -f2)
+echo "Pinned mt-node SHA: $PIN"
+# Expect: a SHA newer than the previous one. If the bot has not yet
+# pushed the deploy-bump commit, wait and re-run this step.
+
+# Step 3 - Verify the new image exists on GHCR (returns 200).
+GH_OWNER=FlameGreat-1
+GH_PAT=$(cat ~/.ghcr_pat)
+token=$(curl -sS -u "$GH_OWNER:$GH_PAT" \
+  "https://ghcr.io/token?service=ghcr.io&scope=repository:flamegreat-1/etradie/mt-node:pull" \
+  | jq -r .token)
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer $token" \
+  -H "Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.v2+json" \
+  "https://ghcr.io/v2/flamegreat-1/etradie/mt-node/manifests/$PIN"
+# Expect: 200
+
+# Step 4 - Establish SSH tunnel + ArgoCD sync (uses §3.1 routine).
+ssh -N -L 6443:127.0.0.1:6443 etradie@<staging-host-ip> &
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+kubectl get nodes   # vmi3362776 Ready => tunnel live
+
+kubectl -n argocd patch application engine-staging --type merge -p '{
+  "operation": {
+    "sync": {
+      "revision": "HEAD",
+      "syncOptions": ["Force=true", "Replace=true"]
+    }
+  }
+}'
+kubectl -n argocd patch application mt-node-staging --type merge -p '{
+  "operation": {
+    "sync": {
+      "revision": "HEAD",
+      "syncOptions": ["Force=true", "Replace=true"]
+    }
+  }
+}' 2>/dev/null || true
+
+# Step 5 - Confirm the engine picked up the new MT_NODE_IMAGE.
+kubectl -n etradie-system rollout status deploy/etradie-engine --timeout=180s
+kubectl -n etradie-system exec deploy/etradie-engine -c engine -- \
+  printenv MT_NODE_IMAGE
+# Expect: ghcr.io/flamegreat-1/etradie/mt-node:<PIN from step 2>
+
+# Step 6 - Run §3.2 cleanup verbatim (drops any failed DB row,
+# wipes orphan K8s objects + PVCs + Vault paths, rolls the engine).
+# Then verify clean state per the same section.
+
+# Step 7 - Re-provision from the dashboard. Enter the broker
+# credentials. The provision is async; the StatefulSet will appear
+# within seconds.
+
+# Step 8 - Pre-flight check: confirm the new image is live on the
+# new pod AND the wine cmdline NO LONGER carries credential flags.
+REL=$(kubectl -n etradie-system get statefulset -o name \
+  | grep 'etradie-mt-' | head -1 | cut -d/ -f2)
+POD="${REL}-0"
+kubectl -n etradie-system get pod "$POD" \
+  -o jsonpath='{.spec.containers[?(@.name=="mt-node")].image}{"\n"}'
+# Expect: ghcr.io/flamegreat-1/etradie/mt-node:<PIN>
+
+sleep 30   # let terminal64.exe spawn
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
+  'ps -ef | grep terminal64.exe | grep -v grep'
+# Expect (NEW): C:\Program Files\MetaTrader 5\terminal64.exe /portable
+# DO NOT expect: any /login: /password: /server: flags on the cmdline.
+# If you see /login flags, the new image did NOT roll - back to Step 5.
+
+# Step 9 - Watch the driver run. Tail the entrypoint log; the driver
+# emits 'auto_login: ...' messages as it progresses.
+kubectl -n etradie-system logs "$POD" -c mt-node -f \
+  | grep -E 'auto_login|MetaTrader exited|LiveUpdate'
+# Expected sequence on a successful first boot:
+#   auto_login: start (budget=240s, login=..., server=...)
+#   auto_login: terminal process detected at +Ns
+#   LiveUpdate ... downloaded successfully       (from the MT5 journal mirror)
+#   auto_login: Login dialog WID=... detected at +Ns
+#   auto_login: credentials typed and submitted (server=..., save-account=on)
+#   auto_login: dismiss follow-up window: 'Welcome ...' (WID=...)   [optional]
+#   auto_login: :5555 LISTEN at +Ns; exit success
+
+# Step 10 - Run the §3.5 NEXT-ACTION verdict block. Match the
+# journal output against the §3.6 decision matrix.
+
+# Step 11 - On success (login worked, :5555 bound, pod 3/3 Ready),
+# run the §3.8 smoking-gun proof: delete the pod, confirm it returns
+# to 3/3 Ready in 20-40s via the accounts.dat fast path. If the
+# driver log shows 'auto_login: :5555 LISTEN ... (no dialog needed;
+# accounts.dat path); exit success', the steady-state is correct.
+```
+
+If any step fails, drop to §3.7 (driver-diagnostic) and §3.9 (quick
+fault map) for the recovery paths. Do NOT improvise outside the
+documented decision matrix without a hard reason.
 
 ---
 
