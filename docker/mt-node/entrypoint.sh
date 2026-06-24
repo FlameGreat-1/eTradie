@@ -395,27 +395,37 @@ auto_login_driver() {
       main_wid=$(_drv_find_main_window)
       if [ -n "$main_wid" ]; then
         phase2c_attempted=1
-        _drv_log "main UI window WID=${main_wid} detected at +${elapsed}s; entering Phase 2c (menu-driven Login invocation)"
-        # Attempt 1: Ctrl+Shift+L hotkey.
-        _drv_invoke_login_via_hotkey "$main_wid"
+        _drv_log "main UI window WID=${main_wid} detected at +${elapsed}s; entering Phase 2c (3-attempt menu invocation)"
+        # Attempt 1: Alt+F then L (Win32 mnemonic).
+        _drv_invoke_login_via_mnemonic "$main_wid"
         wid=$(_drv_wait_for_dialog "$AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS")
         if [ -n "$wid" ]; then
           wid_first="$wid"
           dialog_seen=1
-          _drv_log "Login dialog WID=${wid} appeared after ctrl+shift+l at +$(( $(date +%s) - start_ts ))s"
+          _drv_log "Login dialog WID=${wid} appeared after mnemonic at +$(( $(date +%s) - start_ts ))s"
           break
         fi
-        _drv_warn "ctrl+shift+l did not surface the Login dialog within ${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS}s; falling back to Alt+F menu navigation"
-        # Attempt 2: Alt+F menu navigation.
-        _drv_invoke_login_via_menu "$main_wid"
+        _drv_warn "mnemonic Alt+F,L did not surface the Login dialog within ${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS}s; trying 9-down menu navigation"
+        # Attempt 2: Alt+F then 9x Down then Return.
+        _drv_invoke_login_via_menu_n "$main_wid" 9
         wid=$(_drv_wait_for_dialog "$AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS")
         if [ -n "$wid" ]; then
           wid_first="$wid"
           dialog_seen=1
-          _drv_log "Login dialog WID=${wid} appeared after alt+f menu at +$(( $(date +%s) - start_ts ))s"
+          _drv_log "Login dialog WID=${wid} appeared after 9-down menu at +$(( $(date +%s) - start_ts ))s"
           break
         fi
-        _drv_err "both ctrl+shift+l and alt+f menu path failed to surface Login dialog; exiting (supervisor will respawn)"
+        _drv_warn "9-down menu navigation did not surface the Login dialog within ${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS}s; trying 10-down menu navigation"
+        # Attempt 3: Alt+F then 10x Down then Return (over-by-one defence).
+        _drv_invoke_login_via_menu_n "$main_wid" 10
+        wid=$(_drv_wait_for_dialog "$AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS")
+        if [ -n "$wid" ]; then
+          wid_first="$wid"
+          dialog_seen=1
+          _drv_log "Login dialog WID=${wid} appeared after 10-down menu at +$(( $(date +%s) - start_ts ))s"
+          break
+        fi
+        _drv_err "all three Phase 2c attempts (mnemonic, 9-down menu, 10-down menu) failed to surface Login dialog; exiting (supervisor will respawn)"
         return 1
       fi
     fi
