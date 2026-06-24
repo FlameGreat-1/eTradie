@@ -76,11 +76,13 @@ _shutdown() {
   # keystrokes into a window that is being closed).
   if [ -n "${DRIVER_PID}" ] && kill -0 "${DRIVER_PID}" 2>/dev/null; then
     kill -TERM "${DRIVER_PID}" 2>/dev/null || true
+    pkill -P "${DRIVER_PID}" -TERM 2>/dev/null || true
     for _ in $(seq 1 30); do
       kill -0 "${DRIVER_PID}" 2>/dev/null || break
       sleep 0.1
     done
     kill -KILL "${DRIVER_PID}" 2>/dev/null || true
+    pkill -P "${DRIVER_PID}" -KILL 2>/dev/null || true
   fi
   if [ -n "${MT_PID}" ] && kill -0 "${MT_PID}" 2>/dev/null; then
     kill -TERM "${MT_PID}" 2>/dev/null || true
@@ -354,7 +356,7 @@ _drv_paste_into_focused_field() {
   _bytes_read=$(
     LC_ALL=C timeout "$AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS" sh -c '
       data=$(cat)
-      printf "%s" "$data" | xclip -display :99 -selection clipboard -in -loops 1 &
+      printf "%s" "$data" | xclip -display :99 -selection clipboard -in -loops 1 >/dev/null 2>&1 &
       printf "%s" "${#data}"
     ' 2>/dev/null
   ) || _bytes_read=""
@@ -1670,8 +1672,10 @@ while :; do
     done
     if kill -0 "$DRIVER_PID" 2>/dev/null; then
       kill -TERM "$DRIVER_PID" 2>/dev/null || true
+      pkill -P "$DRIVER_PID" -TERM 2>/dev/null || true
       sleep 1
       kill -KILL "$DRIVER_PID" 2>/dev/null || true
+      pkill -P "$DRIVER_PID" -KILL 2>/dev/null || true
     fi
   fi
   set +e
