@@ -1135,13 +1135,21 @@ class HostedProvisioner:
             capabilities=client.V1Capabilities(drop=["ALL"]),
         )
 
-        # ── Shared lifecycle preStop (Wine journal flush) ──────────────────
-        # Mirrors chart lifecycle.preStop: give Wine 5s to flush its
-        # journal cleanly when the Pod is being terminated. Combined
-        # with entrypoint.sh's SIGTERM trap this gives a clean shutdown.
+        # ── Shared lifecycle preStop (Wine + LiveUpdate finalize) ──────────
+        # LOCKSTEP INVARIANT: must mirror helm/mt-node/values.yaml::
+        # lifecycle.preStop. The chart was raised from 5s to 30s as part
+        # of the Cluster 1 fix (commit ea5f0c1a; see
+        # docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md section 1.4):
+        # the original 5s value was enough for the steady-state journal
+        # flush but raced LiveUpdate's on-disk rename and left
+        # $WINE_PREFIX/.update-timestamp.lock behind, which fed the
+        # corruption-reset loop. 30s covers the worst-case rename
+        # finalize on the PVC-backed prefix. Combined with entrypoint.sh's
+        # SIGTERM trap this gives a clean shutdown across both normal
+        # rollout and LiveUpdate-mid-eviction scenarios.
         lifecycle = client.V1Lifecycle(
             pre_stop=client.V1LifecycleHandler(
-                _exec=client.V1ExecAction(command=["/bin/sh", "-c", "sleep 5"]),
+                _exec=client.V1ExecAction(command=["/bin/sh", "-c", "sleep 30"]),
             ),
         )
 
@@ -1378,7 +1386,17 @@ class HostedProvisioner:
                 fs_group=1000,
                 seccomp_profile=client.V1SeccompProfile(type="RuntimeDefault"),
             ),
-            termination_grace_period_seconds=60,
+            # LOCKSTEP INVARIANT: must mirror helm/mt-node/values.yaml::
+            # terminationGracePeriodSeconds. Raised from 60s to 180s as
+            # part of the Cluster 1 fix (commit ea5f0c1a). The 60s value
+            # raced the LiveUpdate on-disk rename finalize on pod
+            # eviction (rolling update, node drain, image bump), leaving
+            # a stale wineboot lock on the PVC and forcing a corruption
+            # reset on the next boot. 180s = 30s preStop + 150s SIGTERM
+            # grace covers worst-case LiveUpdate finalize plus Wine +
+            # MetaTrader write-back plus Vault Agent sidecar shutdown.
+            # See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+            termination_grace_period_seconds=180,
             # Share the PID namespace between the mt-node container and
             # the watchdog sidecar so the watchdog's psutil.process_iter
             # can see terminal64.exe and SIGTERM it on a soft-cap trip.
