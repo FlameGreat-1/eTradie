@@ -546,59 +546,61 @@ _drv_find_main_window() {
   _drv_find_window_by_regex "$AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX"
 }
 
-# Pre-dismiss the LiveUpdate welcome modal (build 5836 emits one
-# titled 'Welcome to LiveUpdate'). If left visible it steals focus
-# from any subsequent hotkey or menu navigation. Idempotent: a
-# missing modal is a no-op.
+# _drv_clear_modals_for_main_window: aggressively dismiss any open modals
+# (like the nameless "Open an Account" wizard or the "Welcome to LiveUpdate"
+# standalone permissions dialog) that might steal focus from the main UI
+# window during Phase 2c menu navigation.
 #
-# Dismissal cascade (each step bounded by _xdo's timeout):
-#   1. Async windowactivate (NOT --sync; Wine WM may never confirm
-#      activation on an override-redirect modal — jordansissel/
-#      xdotool issues #117 / #126, Wine bug 51924). Followed by a
-#      bounded sleep so the keystroke target is the modal.
-#   2. Escape. Historical default; correct for most Win32 dialogs.
-#   3. Return. The 'Welcome to LiveUpdate' modal on build 5836 is a
-#      permissions prompt whose default action is OK (activates on
-#      Return). Escape may be ignored as 'cancel'; Return is the
-#      documented accept path.
-#   4. windowunmap. Last-resort removal so a modal whose keypresses
-#      are absorbed by Wine cannot continue stealing focus from the
-#      main UI window for the subsequent Alt+F menu navigation.
+# Contract:
+#   * $1 = WID of the main UI window.
 #
-# Every step is bounded and best-effort. The helper always emits ONE
-# audit log line (either 'dismissing ... (WID=...)' or 'welcome
-# modal not present') so the staging diagnostic can prove which path
-# ran.
-_drv_dismiss_welcome_modal() {
-  local _wmwid
-  _wmwid=$(_drv_find_window_by_regex '^Welcome to LiveUpdate')
-  if [ -z "$_wmwid" ]; then
-    _drv_log "welcome modal not present"
-    return 0
-  fi
-  _drv_log "dismissing 'Welcome to LiveUpdate' modal (WID=${_wmwid})"
-  DISPLAY=:99 _xdo windowactivate "$_wmwid" 2>/dev/null || true
-  sleep 0.3
-  DISPLAY=:99 _xdo key --clearmodifiers Escape 2>/dev/null || true
-  sleep 0.4
-  # Re-probe; if still visible try Return (the modal's accept action
-  # on build 5836).
-  _wmwid=$(_drv_find_window_by_regex '^Welcome to LiveUpdate')
-  if [ -n "$_wmwid" ]; then
-    _drv_log "welcome modal still visible after Escape; trying Return (WID=${_wmwid})"
-    DISPLAY=:99 _xdo windowactivate "$_wmwid" 2>/dev/null || true
-    sleep 0.3
-    DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
-    sleep 0.4
-  fi
-  # Re-probe again; if STILL visible, unmap it. windowunmap removes
-  # the window from the framebuffer without destroying its X resource
-  # so MT5 itself sees no error; the modal simply ceases to steal
-  # focus.
-  _wmwid=$(_drv_find_window_by_regex '^Welcome to LiveUpdate')
-  if [ -n "$_wmwid" ]; then
-    _drv_warn "welcome modal still visible after Escape+Return; unmapping (WID=${_wmwid})"
-    DISPLAY=:99 _xdo windowunmap "$_wmwid" 2>/dev/null || true
+# Dismissal cascade:
+#   1. Poll getactivewindow. If the active window is the main UI window,
+#      or if there is no active window, we're done.
+#   2. If the active window is a blocking modal, attempt to dismiss it.
+#   3. If its WM_NAME is 'Welcome to LiveUpdate' (the permissions modal
+#      that appears on build 5836), send Return (its default accept action;
+#      Escape may be ignored as cancel).
+#   4. Otherwise (e.g. the nameless "Open an Account" wizard, which
+#      contains an embedded LiveUpdate section asking to Restart),
+#      send Escape to trigger its Cancel/Close path. Sending Return here
+#      would click the focused "Restart" button, triggering a 143 exit loop.
+#   5. Repeat up to 5 times. If a blocking modal is still active, force
+#      windowunmap as a last resort.
+_drv_clear_modals_for_main_window() {
+  local _mwid="$1"
+  local _awid _aname _i
+  
+  for _i in $(seq 1 5); do
+    _awid=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "unknown")
+    if [ "$_awid" = "unknown" ] || [ -z "$_awid" ]; then
+      break
+    fi
+    if [ "$_awid" = "$_mwid" ]; then
+      _drv_log "main window is active; modals cleared"
+      return 0
+    fi
+    
+    _aname=$(DISPLAY=:99 _xdo getwindowname "$_awid" 2>/dev/null || echo "unknown")
+    _drv_log "blocking modal detected (WID=${_awid}, NAME=${_aname}); attempting dismiss"
+    
+    case "$_aname" in
+      Welcome\ to\ LiveUpdate*)
+        DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
+        ;;
+      *)
+        DISPLAY=:99 _xdo key --clearmodifiers Escape 2>/dev/null || true
+        ;;
+    esac
+    sleep 0.5
+  done
+  
+  # Final fallback: unmap anything still blocking.
+  _awid=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "unknown")
+  if [ "$_awid" != "unknown" ] && [ -n "$_awid" ] && [ "$_awid" != "$_mwid" ]; then
+    _aname=$(DISPLAY=:99 _xdo getwindowname "$_awid" 2>/dev/null || echo "unknown")
+    _drv_warn "modal still active after Escape/Return cascade (WID=${_awid}, NAME=${_aname}); unmapping"
+    DISPLAY=:99 _xdo windowunmap "$_awid" 2>/dev/null || true
     sleep 0.2
   fi
   return 0
@@ -653,7 +655,7 @@ _drv_wait_for_dialog() {
 _drv_invoke_login_via_mnemonic() {
   local _mwid="$1"
   _drv_log "Phase 2c attempt 1: File menu mnemonic (main WID=${_mwid}, Alt+F then L)"
-  _drv_dismiss_welcome_modal
+  _drv_clear_modals_for_main_window "$_mwid"
   DISPLAY=:99 _xdo windowactivate "$_mwid" 2>/dev/null || true
   sleep 0.3
   DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
@@ -675,7 +677,7 @@ _drv_invoke_login_via_menu_n() {
   local _n="$2"
   local _i
   _drv_log "Phase 2c attempt: File menu arrow navigation (main WID=${_mwid}, Alt+F then ${_n}x Down then Return)"
-  _drv_dismiss_welcome_modal
+  _drv_clear_modals_for_main_window "$_mwid"
   DISPLAY=:99 _xdo windowactivate "$_mwid" 2>/dev/null || true
   sleep 0.3
   DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
