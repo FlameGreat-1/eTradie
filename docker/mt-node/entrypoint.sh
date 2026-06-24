@@ -859,12 +859,7 @@ auto_login_driver() {
     DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
 
     # ── Field 1: Login (paste-then-type) ─────────────────────────────
-    # Tab into the Login field, then deliver the value using the
-    # configured strategy (default: paste with typing fallback).
-    # This eliminates the keystroke-drop failure class previously
-    # seen with `xdotool type` alone (2026-06-24 08:52 staging
-    # screenshot).
-    DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
+    # The dialog opens with the Login field already focused. We do NOT tab here.
     sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
     _drv_phase3_log "after_tab_1"
     _drv_deliver_credential "$MT_LOGIN" "login"
