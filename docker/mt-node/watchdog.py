@@ -213,7 +213,25 @@ class State:
     last_success_ts: float = 0.0
     last_health: dict = {}
     consecutive_failures: int = 0
+    # Watchdog process start timestamp. Stable for the watchdog's
+    # entire lifetime (the watchdog sidecar container does not
+    # restart on MT5 supervisor respawns). Retained for /livez
+    # grace tracking and operator-visible 'how long has this
+    # watchdog been up' diagnostics.
     start_ts: float = time.time()
+    # MT5-launch grace tracking (issue #2 in the 2026-06-24
+    # staging diagnostic). The cold-boot startup-grace window must
+    # be measured from THIS PARTICULAR MT5 launch, not from the
+    # watchdog process start, because entrypoint.sh supervisor can
+    # respawn MT5 long after the watchdog passed its initial 300s
+    # grace window. mt_launch_ts is reset every time we observe
+    # MT5 transitioning from absent to present in the PID namespace.
+    # Starts at 0.0 to mean 'no MT5 launch observed yet'; the
+    # grace check treats 0.0 as 'grace not yet active'.
+    mt_launch_ts: float = 0.0
+    # Last observed MT5 presence. Used to detect the absent->present
+    # transition that resets mt_launch_ts.
+    mt_observed_running: bool = False
     lock = threading.Lock()
 
 
@@ -495,6 +513,46 @@ def find_mt_processes() -> list[psutil.Process]:
     return out
 
 
+def update_mt_launch_tracker() -> None:
+    """Detect MT5 process re-launch events and reset the grace clock.
+
+    Called at the top of every watchdog_loop iteration BEFORE the
+    soft-cap and HEALTH-probe paths so the in_startup_grace check
+    below sees an up-to-date STATE.mt_launch_ts.
+
+    The watchdog originally measured startup grace from
+    STATE.start_ts (watchdog process start, == pod birth). That
+    works for the first MT5 boot but breaks on every subsequent
+    supervisor respawn (kubelet container restart, LiveUpdate
+    self-restart, watchdog SIGTERM cycle) because the watchdog
+    sidecar's STATE.start_ts is fixed for the pod lifetime while
+    MT5 inside the mt-node container can boot many times.
+
+    This helper closes the gap: every time MT5 transitions from
+    absent to present in the PID namespace, mt_launch_ts is
+    reset to time.time() so the watchdog's grace window starts
+    over for the new launch.
+
+    Audit ref: 2026-06-24 staging diagnostic, boot 2 MT5 lifetime
+    71s == MAX_FAILURES * POLL_INTERVAL (= 60s) because grace had
+    expired pod-wide before boot 2 ever launched.
+    """
+    is_running = bool(find_mt_processes())
+    with STATE.lock:
+        was_running = STATE.mt_observed_running
+        if is_running and not was_running:
+            STATE.mt_launch_ts = time.time()
+            STATE.mt_observed_running = True
+            log.info(
+                "MT process launch detected; startup grace clock reset (grace=%.0fs)",
+                STARTUP_GRACE_SECONDS,
+            )
+        elif not is_running and was_running:
+            STATE.mt_observed_running = False
+            log.info("MT process disappeared from PID namespace (supervisor will respawn)")
+        # If running state unchanged, no log, no state mutation needed.
+
+
 def terminate_mt_processes(reason: str) -> int:
     """Send SIGTERM to MT processes; entrypoint.sh's supervisor respawns.
     Returns number of processes signalled.
@@ -669,17 +727,45 @@ def maybe_enforce_memory_soft_cap() -> bool:
     return False
 
 
+def _in_startup_grace() -> tuple[bool, float]:
+    """Return (in_grace, time_since_launch_secs).
+
+    Grace is active iff we have observed at least one MT5 launch
+    AND less than STARTUP_GRACE_SECONDS has elapsed since the most
+    recent launch. Returns the elapsed seconds as well so callers
+    can log it without re-reading the timestamp.
+
+    Mt_launch_ts == 0.0 means 'no launch observed yet'; grace is
+    OFF in that case so consecutive_failures still accumulates and
+    the kubelet livenessProbe can eventually fire if MT5 never
+    spawns at all.
+    """
+    with STATE.lock:
+        launch_ts = STATE.mt_launch_ts
+    if launch_ts <= 0.0:
+        return False, 0.0
+    elapsed = time.time() - launch_ts
+    return elapsed < STARTUP_GRACE_SECONDS, elapsed
+
+
 def watchdog_loop() -> None:
     global _last_commands_count
     log.info(
-        "watchdog start: endpoint=%s poll=%.1fs max_failures=%d soft_cap=%.2f",
+        "watchdog start: endpoint=%s poll=%.1fs max_failures=%d soft_cap=%.2f grace=%.0fs (per-MT-launch)",
         ZMQ_ENDPOINT,
         POLL_INTERVAL,
         MAX_FAILURES,
         MEMORY_SOFT_CAP_FRACTION,
+        STARTUP_GRACE_SECONDS,
     )
     while True:
         try:
+            # MUST run before grace-gated paths so STATE.mt_launch_ts
+            # is up to date when _in_startup_grace() is called below.
+            # The helper also detects MT process disappearance for
+            # operator visibility on supervisor respawn events.
+            update_mt_launch_tracker()
+
             record_process_metrics()
             tripped = maybe_enforce_memory_soft_cap()
             if not tripped:
@@ -715,14 +801,15 @@ def watchdog_loop() -> None:
                 else:
                     STATE.consecutive_failures += 1
 
-            in_startup_grace = (time.time() - STATE.start_ts) < STARTUP_GRACE_SECONDS
+            in_grace, since_launch = _in_startup_grace()
             if STATE.consecutive_failures >= MAX_FAILURES:
-                if in_startup_grace:
+                if in_grace:
                     log.info(
-                        "startup grace active (%.0fs): %d consecutive EA failures "
-                        "(connected=%s authed=%s) NOT forcing restart while MT5 cold-boot "
-                        "compile completes",
+                        "startup grace active (%.0fs window, %.0fs elapsed since MT launch): "
+                        "%d consecutive EA failures (connected=%s authed=%s) NOT forcing "
+                        "restart while MT5 cold-boot completes",
                         STARTUP_GRACE_SECONDS,
+                        since_launch,
                         STATE.consecutive_failures,
                         connected,
                         authed,
@@ -741,13 +828,15 @@ def watchdog_loop() -> None:
                 STATE.consecutive_failures += 1
             log.warning("poll failed: %s (consecutive=%d)", e, STATE.consecutive_failures)
 
-            in_startup_grace = (time.time() - STATE.start_ts) < STARTUP_GRACE_SECONDS
+            in_grace, since_launch = _in_startup_grace()
             if STATE.consecutive_failures >= MAX_FAILURES:
-                if in_startup_grace:
+                if in_grace:
                     log.info(
-                        "startup grace active (%.0fs): %d consecutive HEALTH poll failures "
-                        "NOT forcing restart while MT5 cold-boot compile completes",
+                        "startup grace active (%.0fs window, %.0fs elapsed since MT launch): "
+                        "%d consecutive HEALTH poll failures NOT forcing restart while MT5 "
+                        "cold-boot completes",
                         STARTUP_GRACE_SECONDS,
+                        since_launch,
                         STATE.consecutive_failures,
                     )
                 else:

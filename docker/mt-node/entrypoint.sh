@@ -194,6 +194,23 @@ _drv_log() { log "INFO" "auto_login: $*"; }
 _drv_warn() { log "WARN" "auto_login: $*"; }
 _drv_err() { log "ERROR" "auto_login: $*"; }
 
+# Phase 3 stage-by-stage observability. Logs the currently-focused
+# window's WID and WM_NAME at the named stage so the operator can
+# correlate the credential-typing sequence against the dialog focus
+# state. NEVER logs credential values: only window identifiers and
+# the stage marker.
+_drv_phase3_log() {
+  local _stage="$1"
+  local _wid _name
+  _wid=$(DISPLAY=:99 xdotool getactivewindow 2>/dev/null || echo "unknown")
+  if [ "$_wid" != "unknown" ] && [ -n "$_wid" ]; then
+    _name=$(DISPLAY=:99 xdotool getwindowname "$_wid" 2>/dev/null || echo "unknown")
+  else
+    _name="unknown"
+  fi
+  _drv_log "phase3 stage=${_stage} focused_wid=${_wid} name=${_name}"
+}
+
 _drv_zmq_bound() {
   # :15B3 = 5555 dec. State 0A = TCP_LISTEN.
   awk 'NR>1 && $4 == "0A" && ($2 ~ /:15B3$/ || $3 ~ /:15B3$/){found=1; exit} END{exit !found}' \
@@ -260,38 +277,67 @@ _drv_wait_for_dialog() {
   return 1
 }
 
-# Phase 2c primary invocation: send Ctrl+Shift+L (MT5's documented
-# hotkey for File -> Login to Trade Account) with the main window
-# focused.
-_drv_invoke_login_via_hotkey() {
-  local _mwid="$1"
-  _drv_log "invoking File -> Login to Trade Account via Ctrl+Shift+L (main WID=${_mwid})"
-  _drv_dismiss_welcome_modal
-  DISPLAY=:99 xdotool windowactivate --sync "$_mwid" 2>/dev/null || true
-  sleep 0.3
-  DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
-  DISPLAY=:99 xdotool key --clearmodifiers ctrl+shift+l 2>/dev/null || true
-}
+# Phase 2c invocation helpers. Three attempts in sequence; each one
+# returns after sending its keystrokes. The caller (auto_login_driver)
+# polls for the Login dialog with _drv_wait_for_dialog() after each
+# attempt and proceeds to the next on timeout.
+#
+# Evidence basis for ordering (2026-06-24 research + staging):
+#
+#   - No keyboard accelerator exists for 'Login to Trade Account' on
+#     MT5 build 5836 (verified across 5 independent hotkey reference
+#     compilations including MetaQuotes' own). The previous
+#     Ctrl+Shift+L attempt was a hypothesis; staging confirmed it does
+#     nothing. REMOVED.
+#
+#   - Win32 menu mnemonics are the most build-stable invocation path
+#     because they bind to the displayed letter of a menu item, not
+#     to its position. MT5's 'Login to Trade Account' almost certainly
+#     uses 'L' as its mnemonic (standard Win32 convention; multiple
+#     L-mnemonic items in the menu cycle on repeated keypresses).
+#
+#   - Down-arrow counting is position-dependent and brittle to menu
+#     layout drift across MT5 revisions or broker-injected items.
+#     Kept as fallback for cases where the mnemonic is absent or
+#     bound to a different item.
 
-# Phase 2c fallback invocation: navigate File menu via keyboard.
-# Alt+F opens the File menu; nine Down keypresses move the
-# highlight to 'Login to Trade Account'. The position is empirically
-# stable across build 5836 minor revisions; if it drifts the
-# decision-matrix row in §3.6 of the runbook lists which counter
-# to tune. Return activates the highlighted item.
-_drv_invoke_login_via_menu() {
+# Phase 2c attempt 1: open File menu, press L mnemonic.
+_drv_invoke_login_via_mnemonic() {
   local _mwid="$1"
-  local _i
-  _drv_log "falling back to File menu navigation (main WID=${_mwid}, Alt+F then 9x Down then Return)"
+  _drv_log "Phase 2c attempt 1: File menu mnemonic (main WID=${_mwid}, Alt+F then L)"
   _drv_dismiss_welcome_modal
   DISPLAY=:99 xdotool windowactivate --sync "$_mwid" 2>/dev/null || true
   sleep 0.3
   DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
   DISPLAY=:99 xdotool key --clearmodifiers alt+f 2>/dev/null || true
   sleep 0.4
-  for _i in 1 2 3 4 5 6 7 8 9; do
+  DISPLAY=:99 xdotool key --clearmodifiers l 2>/dev/null || true
+}
+
+# Phase 2c attempts 2 + 3: open File menu, press Down N times, Return.
+# Parameter is the Down-press count. 9 is the position-stable guess
+# for MT5 build 5836 (File menu items: New Chart, Open Offline, Open
+# Deleted, Save As, Save As Picture, [sep], Open an Account, Open a
+# Demo Account, Login to Trade Account = position 9 if Win32 skips
+# separators on Down navigation, which it does by default). 10 covers
+# the over-by-one case in case separator counting drifts or a
+# broker-injected menu item shifts the position.
+_drv_invoke_login_via_menu_n() {
+  local _mwid="$1"
+  local _n="$2"
+  local _i
+  _drv_log "Phase 2c attempt: File menu arrow navigation (main WID=${_mwid}, Alt+F then ${_n}x Down then Return)"
+  _drv_dismiss_welcome_modal
+  DISPLAY=:99 xdotool windowactivate --sync "$_mwid" 2>/dev/null || true
+  sleep 0.3
+  DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
+  DISPLAY=:99 xdotool key --clearmodifiers alt+f 2>/dev/null || true
+  sleep 0.4
+  _i=0
+  while [ "$_i" -lt "$_n" ]; do
     DISPLAY=:99 xdotool key --clearmodifiers Down 2>/dev/null || true
     sleep 0.1
+    _i=$(( _i + 1 ))
   done
   DISPLAY=:99 xdotool key --clearmodifiers Return 2>/dev/null || true
 }
@@ -366,27 +412,37 @@ auto_login_driver() {
       main_wid=$(_drv_find_main_window)
       if [ -n "$main_wid" ]; then
         phase2c_attempted=1
-        _drv_log "main UI window WID=${main_wid} detected at +${elapsed}s; entering Phase 2c (menu-driven Login invocation)"
-        # Attempt 1: Ctrl+Shift+L hotkey.
-        _drv_invoke_login_via_hotkey "$main_wid"
+        _drv_log "main UI window WID=${main_wid} detected at +${elapsed}s; entering Phase 2c (3-attempt menu invocation)"
+        # Attempt 1: Alt+F then L (Win32 mnemonic).
+        _drv_invoke_login_via_mnemonic "$main_wid"
         wid=$(_drv_wait_for_dialog "$AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS")
         if [ -n "$wid" ]; then
           wid_first="$wid"
           dialog_seen=1
-          _drv_log "Login dialog WID=${wid} appeared after ctrl+shift+l at +$(( $(date +%s) - start_ts ))s"
+          _drv_log "Login dialog WID=${wid} appeared after mnemonic at +$(( $(date +%s) - start_ts ))s"
           break
         fi
-        _drv_warn "ctrl+shift+l did not surface the Login dialog within ${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS}s; falling back to Alt+F menu navigation"
-        # Attempt 2: Alt+F menu navigation.
-        _drv_invoke_login_via_menu "$main_wid"
+        _drv_warn "mnemonic Alt+F,L did not surface the Login dialog within ${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS}s; trying 9-down menu navigation"
+        # Attempt 2: Alt+F then 9x Down then Return.
+        _drv_invoke_login_via_menu_n "$main_wid" 9
         wid=$(_drv_wait_for_dialog "$AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS")
         if [ -n "$wid" ]; then
           wid_first="$wid"
           dialog_seen=1
-          _drv_log "Login dialog WID=${wid} appeared after alt+f menu at +$(( $(date +%s) - start_ts ))s"
+          _drv_log "Login dialog WID=${wid} appeared after 9-down menu at +$(( $(date +%s) - start_ts ))s"
           break
         fi
-        _drv_err "both ctrl+shift+l and alt+f menu path failed to surface Login dialog; exiting (supervisor will respawn)"
+        _drv_warn "9-down menu navigation did not surface the Login dialog within ${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS}s; trying 10-down menu navigation"
+        # Attempt 3: Alt+F then 10x Down then Return (over-by-one defence).
+        _drv_invoke_login_via_menu_n "$main_wid" 10
+        wid=$(_drv_wait_for_dialog "$AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS")
+        if [ -n "$wid" ]; then
+          wid_first="$wid"
+          dialog_seen=1
+          _drv_log "Login dialog WID=${wid} appeared after 10-down menu at +$(( $(date +%s) - start_ts ))s"
+          break
+        fi
+        _drv_err "all three Phase 2c attempts (mnemonic, 9-down menu, 10-down menu) failed to surface Login dialog; exiting (supervisor will respawn)"
         return 1
       fi
     fi
@@ -395,7 +451,7 @@ auto_login_driver() {
 
   # Phase 3: drive the dialog.
   # Strategy: focus the window, send Tab/Ctrl+A/type sequences through
-  # the standard MT5 Open-an-Account dialog field order:
+  # the standard MT5 Login-to-Trade-Account dialog field order:
   #   1. Login (text)
   #   2. Password (text)
   #   3. Server (combobox, auto-populated from servers.dat / startup.ini)
@@ -404,9 +460,17 @@ auto_login_driver() {
   # We do NOT assume initial cursor focus is on the Login field;
   # Ctrl+A in whatever field is focused selects-all, and typing
   # overwrites with the value. Tab moves focus deterministically.
+  #
+  # Stage-by-stage focused-window logging is added at each transition.
+  # If MT5 build 5836's dialog Tab order differs from our assumption,
+  # the log will show the active WID name diverging from the dialog's
+  # WID and an operator can read the log to pinpoint exactly which Tab
+  # went wrong. Never logs $MT_PASSWORD.
   if [ "$dialog_seen" -eq 1 ]; then
+    _drv_phase3_log "pre_activate"
     DISPLAY=:99 xdotool windowactivate --sync "$wid_first" 2>/dev/null || true
     sleep 0.4
+    _drv_phase3_log "post_activate"
     # Clear stuck modifiers (xdotool best practice for Xvfb).
     DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
 
@@ -414,15 +478,19 @@ auto_login_driver() {
     sleep 0.15
     DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
     sleep 0.1
+    _drv_phase3_log "after_tab_1"
     DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_LOGIN" 2>/dev/null || true
     sleep 0.2
+    _drv_phase3_log "after_login_type"
 
     DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
     sleep 0.15
     DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
     sleep 0.1
+    _drv_phase3_log "after_tab_2"
     DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_PASSWORD" 2>/dev/null || true
     sleep 0.2
+    _drv_phase3_log "after_pwd_type"
 
     DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
     sleep 0.15
@@ -431,8 +499,10 @@ auto_login_driver() {
     # where it has reset to the combobox default.
     DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
     sleep 0.1
+    _drv_phase3_log "after_tab_3"
     DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_SERVER" 2>/dev/null || true
     sleep 0.3
+    _drv_phase3_log "after_server_type"
 
     # Tab to "Save account information", toggle ON with Space so MT5
     # writes accounts.dat. Subsequent boots auto-login from that file
@@ -440,14 +510,18 @@ auto_login_driver() {
     # :5555 LISTEN.
     DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
     sleep 0.15
+    _drv_phase3_log "after_tab_4"
     DISPLAY=:99 xdotool key --clearmodifiers space 2>/dev/null || true
     sleep 0.2
+    _drv_phase3_log "after_space"
 
     # Submit via Return. Works whether focus is on the checkbox or
     # the Login button - Return is the dialog's default action.
+    _drv_phase3_log "pre_submit"
     DISPLAY=:99 xdotool key --clearmodifiers Return 2>/dev/null || true
     _drv_log "credentials typed and submitted (server=${MT_SERVER}, save-account=on)"
     sleep 1
+    _drv_phase3_log "post_submit_1s"
   fi
 
   # Phase 4: dismiss follow-up dialogs AND poll for :5555 bind. The
@@ -1113,13 +1187,63 @@ while :; do
   # Layer 4 (operability): detect the LiveUpdate self-restart pattern
   # and surface it LOUDLY so this symptom is never again misdiagnosed
   # as a slow boot / login failure. exit 143 = SIGTERM (MT's own
-  # self-restart to apply a LiveUpdate).
+  # self-restart to apply a LiveUpdate; also matches external SIGTERM
+  # from the watchdog sidecar or kubelet preStop, which is why the
+  # classifier MUST also check whether MT5 has already run past the
+  # most recent LiveUpdate event before treating exit-143 as a
+  # self-restart).
+  #
+  # Issue #3 of the 2026-06-24 staging diagnostic: the original
+  # grep matched on ANY persisted 'LiveUpdate ... downloaded' line
+  # in the (PVC-backed) journal. Once boot 1 ran LiveUpdate, every
+  # later exit-143 (watchdog SIGTERM, kubelet preStop, ...) got
+  # mis-classified as a LiveUpdate self-restart, and the supervisor
+  # never incremented restart_count, never exhausted the in-pod
+  # restart budget, and never let the kubelet recover the pod.
+  #
+  # Correct discriminator: is the LAST 'Terminal ... build NNNN
+  # started' line in the journal AFTER the LAST 'LiveUpdate ...
+  # downloaded successfully' line?
+  #   YES -> MT5 has already booted past that LiveUpdate. Exit-143
+  #          must be external. Classify as NOT LiveUpdate.
+  #   NO  -> MT5 has not yet booted past the most recent LiveUpdate.
+  #          Exit-143 is plausibly that LiveUpdate firing. Classify
+  #          as LiveUpdate self-restart.
   IS_LIVEUPDATE_RESTART=0
   if [ "$EXIT_CODE" = "143" ]; then
-    _lu=$(grep -ahiE 'LiveUpdate.*(downloaded|is available)' "$MT_DIR/logs/"*.log 2>/dev/null | tail -n1 || true)
-    if [ -n "$_lu" ]; then
-      IS_LIVEUPDATE_RESTART=1
-      log INFO "LiveUpdate self-restart detected (exit 143; '$_lu'). This is MetaQuotes' designed behaviour: the terminal swaps its own binary atomically and re-execs. Letting the kernel finalize the on-disk rename and relaunching cleanly. This should occur AT MOST ONCE per fresh PVC; if it loops, see docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md."
+    # Pick the most recent journal file. MT5 writes one .log per
+    # day so this is normally only one file, but the find/sort
+    # covers historical PVCs with multiple files.
+    _journal_file=$(ls -t "$MT_DIR/logs/"*.log 2>/dev/null | head -n1 || true)
+    if [ -n "$_journal_file" ]; then
+      # tr -d '\000' strips the UTF-16 NUL bytes the MT5 journal
+      # writes. grep -n prefixes each match with its line number;
+      # we parse the line number with cut to compare positions.
+      _last_lu_line=$(tr -d '\000' < "$_journal_file" 2>/dev/null \
+        | grep -nE 'LiveUpdate.*downloaded successfully' \
+        | tail -n1 | cut -d: -f1 || true)
+      _last_build_line=$(tr -d '\000' < "$_journal_file" 2>/dev/null \
+        | grep -nE 'Terminal[[:space:]]+MetaTrader [45].*build [0-9]+ started' \
+        | tail -n1 | cut -d: -f1 || true)
+      # Whether to classify as LiveUpdate self-restart:
+      #   - No LiveUpdate line in journal yet -> NOT a self-restart.
+      #   - LiveUpdate line exists but no later 'build started'
+      #     line -> IS a self-restart (current MT5 boot has not yet
+      #     run past that LiveUpdate event).
+      #   - LiveUpdate line exists AND a later 'build started' line
+      #     exists -> NOT a self-restart (current boot has already
+      #     run past that LiveUpdate event; this exit must be
+      #     external).
+      if [ -n "$_last_lu_line" ]; then
+        if [ -z "$_last_build_line" ] || [ "$_last_build_line" -le "$_last_lu_line" ]; then
+          IS_LIVEUPDATE_RESTART=1
+          log INFO "LiveUpdate self-restart detected (exit 143; LiveUpdate line ${_last_lu_line}, last build-started line ${_last_build_line:-none}). This is MetaQuotes' designed behaviour: the terminal swaps its own binary atomically and re-execs. Letting the kernel finalize the on-disk rename and relaunching cleanly. This should occur AT MOST ONCE per fresh PVC; if it loops, see docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md."
+        else
+          log INFO "exit 143 classified as external SIGTERM (LiveUpdate line ${_last_lu_line} predates last build-started line ${_last_build_line}; MT5 already ran past that LiveUpdate). Likely watchdog SIGTERM or kubelet preStop. Counting against in-pod restart budget."
+        fi
+      else
+        log INFO "exit 143 classified as external SIGTERM (no LiveUpdate event in journal yet). Counting against in-pod restart budget."
+      fi
     fi
   fi
 
