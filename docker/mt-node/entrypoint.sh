@@ -227,6 +227,20 @@ AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^MetaT
 # the per-attempt 15s window can absorb at least two retries if a
 # transient call genuinely times out.
 AUTO_LOGIN_XDOTOOL_TIMEOUT_SECS="${AUTO_LOGIN_XDOTOOL_TIMEOUT_SECS:-5}"
+# Per-character typing delay for Phase 3 credential typing. Industry
+# baseline for Wine-translated Win32 keystrokes is 100-200ms/char.
+# 50ms (the historical value) was too fast: empirical staging
+# evidence (2026-06-24 08:52 post-Phase-3 screenshot) showed
+# keystrokes being dropped at the X-event / Wine-message-pump
+# boundary: Login field got 0 chars, Password got 3 chars, Server
+# lost its trailing character. 150ms is the safe floor under our
+# fluxbox+Xvfb+Wine pipeline.
+AUTO_LOGIN_TYPE_DELAY_MS="${AUTO_LOGIN_TYPE_DELAY_MS:-150}"
+# Settle delay between field-focus transitions in Phase 3. The
+# message pump needs time to process the Tab event and fire the
+# focus-change handler on the new field before xdotool starts
+# typing. 0.5s is the canonical Wine-on-Xvfb value.
+AUTO_LOGIN_FIELD_SETTLE_SECS="${AUTO_LOGIN_FIELD_SETTLE_SECS:-0.5}"
 # Belt-and-braces hard-kill grace. The driver maintains its own
 # wall-clock kill-switch (forked at entry) so that even if a future
 # code path introduces a new blocking xdotool surface, the driver
@@ -611,58 +625,85 @@ auto_login_driver() {
   # went wrong. Never logs $MT_PASSWORD.
   if [ "$dialog_seen" -eq 1 ]; then
     _drv_phase3_log "pre_activate"
-    DISPLAY=:99 xdotool windowactivate --sync "$wid_first" 2>/dev/null || true
-    sleep 0.4
+    # Async activate (no --sync). --sync against a freshly-rendered
+    # Wine dialog can hang indefinitely because Wine's WM emulation
+    # does not always advance _NET_ACTIVE_WINDOW promptly on dialog
+    # creation. _xdo bounds the call by AUTO_LOGIN_XDOTOOL_TIMEOUT_SECS.
+    DISPLAY=:99 _xdo windowactivate "$wid_first" 2>/dev/null || true
+    # Extended settle for dialog activation: Wine's Win32 dialog
+    # initialization (focus assignment, control creation, default-text
+    # population) needs ~1s to complete on a fresh dialog. 0.4s was
+    # empirically too short under our fluxbox+Xvfb+Wine pipeline.
+    sleep 1.0
     _drv_phase3_log "post_activate"
     # Clear stuck modifiers (xdotool best practice for Xvfb).
-    DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
+    DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
 
-    DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
-    sleep 0.15
-    DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
-    sleep 0.1
-    _drv_phase3_log "after_tab_1"
-    DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_LOGIN" 2>/dev/null || true
+    # ── Field 1: Login ───────────────────────────────────────────
+    DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
+    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
+    DISPLAY=:99 _xdo key --clearmodifiers ctrl+a 2>/dev/null || true
     sleep 0.2
+    # Explicit clear-before-type: send Delete after ctrl+a. If ctrl+a
+    # correctly selected, Delete clears the field. If ctrl+a was
+    # misinterpreted (some Wine versions map it to default-button
+    # activation rather than select-all in non-edit controls), the
+    # Delete is a single-char backward delete which is a no-op on an
+    # empty field. The subsequent type then writes into a clean field
+    # either way.
+    DISPLAY=:99 _xdo key --clearmodifiers Delete 2>/dev/null || true
+    sleep 0.2
+    _drv_phase3_log "after_tab_1"
+    DISPLAY=:99 _xdo type --clearmodifiers --delay "$AUTO_LOGIN_TYPE_DELAY_MS" -- "$MT_LOGIN" 2>/dev/null || true
+    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
     _drv_phase3_log "after_login_type"
 
-    DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
-    sleep 0.15
-    DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
-    sleep 0.1
-    _drv_phase3_log "after_tab_2"
-    DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_PASSWORD" 2>/dev/null || true
+    # ── Field 2: Password ────────────────────────────────────────
+    DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
+    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
+    DISPLAY=:99 _xdo key --clearmodifiers ctrl+a 2>/dev/null || true
     sleep 0.2
+    DISPLAY=:99 _xdo key --clearmodifiers Delete 2>/dev/null || true
+    sleep 0.2
+    _drv_phase3_log "after_tab_2"
+    DISPLAY=:99 _xdo type --clearmodifiers --delay "$AUTO_LOGIN_TYPE_DELAY_MS" -- "$MT_PASSWORD" 2>/dev/null || true
+    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
     _drv_phase3_log "after_pwd_type"
 
-    DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
-    sleep 0.15
-    # The startup.ini we wrote should pre-select $MT_SERVER, but we
-    # type the server name explicitly as a defence against any state
-    # where it has reset to the combobox default.
-    DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
-    sleep 0.1
+    # ── Field 3: Server (combobox) ───────────────────────────────
+    # MT5's Server field is an editable combobox. Typing alone
+    # populates the filter prefix but does NOT select an item from
+    # the underlying server list. Without explicit selection MT5 may
+    # submit with the typed prefix string rather than the canonical
+    # server name, and the broker's access point may not recognize
+    # it. After typing, send Down (highlight first matching item) +
+    # Return (commit the selection).
+    DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
+    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
+    DISPLAY=:99 _xdo key --clearmodifiers ctrl+a 2>/dev/null || true
+    sleep 0.2
+    DISPLAY=:99 _xdo key --clearmodifiers Delete 2>/dev/null || true
+    sleep 0.2
     _drv_phase3_log "after_tab_3"
-    DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_SERVER" 2>/dev/null || true
-    sleep 0.3
+    DISPLAY=:99 _xdo type --clearmodifiers --delay "$AUTO_LOGIN_TYPE_DELAY_MS" -- "$MT_SERVER" 2>/dev/null || true
+    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
     _drv_phase3_log "after_server_type"
 
-    # Tab to "Save account information", toggle ON with Space so MT5
-    # writes accounts.dat. Subsequent boots auto-login from that file
-    # silently and the driver's fast path detects the immediate
-    # :5555 LISTEN.
-    DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
-    sleep 0.15
+    # ── Field 4: Save account information (checkbox) ─────────────
+    # Tab to checkbox, Space to toggle ON so MT5 writes accounts.dat.
+    DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
+    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
     _drv_phase3_log "after_tab_4"
-    DISPLAY=:99 xdotool key --clearmodifiers space 2>/dev/null || true
-    sleep 0.2
+    DISPLAY=:99 _xdo key --clearmodifiers space 2>/dev/null || true
+    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
     _drv_phase3_log "after_space"
 
-    # Submit via Return. Works whether focus is on the checkbox or
-    # the Login button - Return is the dialog's default action.
+    # ── Submit ───────────────────────────────────────────────────
+    # Return activates the dialog's default button (the OK / Login
+    # button on MT5's Login dialog).
     _drv_phase3_log "pre_submit"
-    DISPLAY=:99 xdotool key --clearmodifiers Return 2>/dev/null || true
-    _drv_log "credentials typed and submitted (server=${MT_SERVER}, save-account=on)"
+    DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
+    _drv_log "credentials typed and submitted (server=${MT_SERVER}, save-account=on, type_delay_ms=${AUTO_LOGIN_TYPE_DELAY_MS})"
     sleep 1
     _drv_phase3_log "post_submit_1s"
   fi
