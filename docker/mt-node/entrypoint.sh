@@ -189,22 +189,65 @@ AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an 
 AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS="${AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS:-30}"
 AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS="${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS:-15}"
 AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^MetaTrader [45] - (Netting|Hedging)}"
+# Wall-clock ceiling on a single xdotool invocation. xdotool's `search
+# --onlyvisible --name <re>` and `windowactivate --sync` calls can
+# block indefinitely against Wine override-redirect modal windows
+# whose WM_NAME atom or _NET_ACTIVE_WINDOW state has not yet stabilised
+# (jordansissel/xdotool issues #117 / #126, Wine bug 51924). Without
+# a per-call wall-clock cap, a single hung call wedges the entire
+# driver and renders AUTO_LOGIN_TOTAL_BUDGET_SECS inoperative — the
+# exact failure observed on the 2026-06-24 staging run
+# (docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md). The 5s default
+# is well above the happy-path latency of any single xdotool primitive
+# (~50ms) and well below AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS so
+# the per-attempt 15s window can absorb at least two retries if a
+# transient call genuinely times out.
+AUTO_LOGIN_XDOTOOL_TIMEOUT_SECS="${AUTO_LOGIN_XDOTOOL_TIMEOUT_SECS:-5}"
+# Belt-and-braces hard-kill grace. The driver maintains its own
+# wall-clock kill-switch (forked at entry) so that even if a future
+# code path introduces a new blocking xdotool surface, the driver
+# cannot exceed AUTO_LOGIN_TOTAL_BUDGET_SECS + this grace before
+# SIGTERMing itself. The supervisor then reaps it and the MT5 process
+# lifecycle continues unaffected (the driver is best-effort by
+# contract; its death does NOT kill MT5).
+AUTO_LOGIN_HARD_KILL_GRACE_SECS="${AUTO_LOGIN_HARD_KILL_GRACE_SECS:-30}"
 
 _drv_log() { log "INFO" "auto_login: $*"; }
 _drv_warn() { log "WARN" "auto_login: $*"; }
 _drv_err() { log "ERROR" "auto_login: $*"; }
 
+# _xdo wraps every xdotool invocation in `timeout`. coreutils
+# `timeout` is part of the base Ubuntu 24.04 image (verified at build
+# time; no Dockerfile change needed). Exit semantics:
+#   - 0       : xdotool ran and returned 0 (happy path).
+#   - 1       : xdotool ran and returned non-zero (e.g. no window
+#               matched the search regex). Caller treats as a no-op.
+#   - 124     : timeout fired before xdotool exited (the wedge case
+#               this helper exists to defend against). Caller treats
+#               as a no-op so the driver advances to its next step.
+#   - 125-127 : timeout itself failed (e.g. xdotool binary missing).
+#               Same no-op treatment — the driver continues so a
+#               cluster-wide xdotool regression cannot wedge the
+#               supervisor.
+# Callers retain the historical `2>/dev/null || true` postfix so the
+# pipefail-aware `set -e` shell behaviour does not abort on a timeout
+# exit. Stderr from xdotool is discarded by the caller; logs are
+# emitted by the driver helpers, not by xdotool itself.
+_xdo() {
+  timeout "${AUTO_LOGIN_XDOTOOL_TIMEOUT_SECS}" xdotool "$@"
+}
+
 # Phase 3 stage-by-stage observability. Logs the currently-focused
 # window's WID and WM_NAME at the named stage so the operator can
 # correlate the credential-typing sequence against the dialog focus
 # state. NEVER logs credential values: only window identifiers and
-# the stage marker.
+# the stage marker. xdotool calls are timeout-bounded via _xdo.
 _drv_phase3_log() {
   local _stage="$1"
   local _wid _name
-  _wid=$(DISPLAY=:99 xdotool getactivewindow 2>/dev/null || echo "unknown")
+  _wid=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "unknown")
   if [ "$_wid" != "unknown" ] && [ -n "$_wid" ]; then
-    _name=$(DISPLAY=:99 xdotool getwindowname "$_wid" 2>/dev/null || echo "unknown")
+    _name=$(DISPLAY=:99 _xdo getwindowname "$_wid" 2>/dev/null || echo "unknown")
   else
     _name="unknown"
   fi
@@ -229,9 +272,17 @@ _drv_mt_proc_alive() {
 # WID on stdout (empty if no match). Single source of truth for the
 # xdotool search shape so Phase 2a, Phase 2c, and the Phase 4
 # dismiss loop use identical semantics.
+#
+# The xdotool call is wrapped in `_xdo` (timeout-bounded) because
+# `search --onlyvisible --name <re>` performs an XGetWindowProperty
+# per visible window to fetch WM_NAME, and a Wine-rendered modal
+# whose name atom has not yet been published can hang the property
+# fetch indefinitely. On timeout the helper returns the empty string
+# (no match) and the caller treats it as 'window absent', which is
+# the correct semantic fallback.
 _drv_find_window_by_regex() {
   local _re="$1"
-  DISPLAY=:99 xdotool search --onlyvisible --name "$_re" 2>/dev/null | head -1 || true
+  DISPLAY=:99 _xdo search --onlyvisible --name "$_re" 2>/dev/null | head -1 || true
 }
 
 _drv_find_login_dialog() {
@@ -246,16 +297,58 @@ _drv_find_main_window() {
 # titled 'Welcome to LiveUpdate'). If left visible it steals focus
 # from any subsequent hotkey or menu navigation. Idempotent: a
 # missing modal is a no-op.
+#
+# Dismissal cascade (each step bounded by _xdo's timeout):
+#   1. Async windowactivate (NOT --sync; Wine WM may never confirm
+#      activation on an override-redirect modal — jordansissel/
+#      xdotool issues #117 / #126, Wine bug 51924). Followed by a
+#      bounded sleep so the keystroke target is the modal.
+#   2. Escape. Historical default; correct for most Win32 dialogs.
+#   3. Return. The 'Welcome to LiveUpdate' modal on build 5836 is a
+#      permissions prompt whose default action is OK (activates on
+#      Return). Escape may be ignored as 'cancel'; Return is the
+#      documented accept path.
+#   4. windowunmap. Last-resort removal so a modal whose keypresses
+#      are absorbed by Wine cannot continue stealing focus from the
+#      main UI window for the subsequent Alt+F menu navigation.
+#
+# Every step is bounded and best-effort. The helper always emits ONE
+# audit log line (either 'dismissing ... (WID=...)' or 'welcome
+# modal not present') so the staging diagnostic can prove which path
+# ran.
 _drv_dismiss_welcome_modal() {
   local _wmwid
   _wmwid=$(_drv_find_window_by_regex '^Welcome to LiveUpdate')
+  if [ -z "$_wmwid" ]; then
+    _drv_log "welcome modal not present"
+    return 0
+  fi
+  _drv_log "dismissing 'Welcome to LiveUpdate' modal (WID=${_wmwid})"
+  DISPLAY=:99 _xdo windowactivate "$_wmwid" 2>/dev/null || true
+  sleep 0.3
+  DISPLAY=:99 _xdo key --clearmodifiers Escape 2>/dev/null || true
+  sleep 0.4
+  # Re-probe; if still visible try Return (the modal's accept action
+  # on build 5836).
+  _wmwid=$(_drv_find_window_by_regex '^Welcome to LiveUpdate')
   if [ -n "$_wmwid" ]; then
-    _drv_log "dismissing 'Welcome to LiveUpdate' modal (WID=${_wmwid})"
-    DISPLAY=:99 xdotool windowactivate --sync "$_wmwid" 2>/dev/null || true
-    sleep 0.2
-    DISPLAY=:99 xdotool key --clearmodifiers Escape 2>/dev/null || true
+    _drv_log "welcome modal still visible after Escape; trying Return (WID=${_wmwid})"
+    DISPLAY=:99 _xdo windowactivate "$_wmwid" 2>/dev/null || true
+    sleep 0.3
+    DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
     sleep 0.4
   fi
+  # Re-probe again; if STILL visible, unmap it. windowunmap removes
+  # the window from the framebuffer without destroying its X resource
+  # so MT5 itself sees no error; the modal simply ceases to steal
+  # focus.
+  _wmwid=$(_drv_find_window_by_regex '^Welcome to LiveUpdate')
+  if [ -n "$_wmwid" ]; then
+    _drv_warn "welcome modal still visible after Escape+Return; unmapping (WID=${_wmwid})"
+    DISPLAY=:99 _xdo windowunmap "$_wmwid" 2>/dev/null || true
+    sleep 0.2
+  fi
+  return 0
 }
 
 # Poll _drv_find_login_dialog up to <budget_secs>. Echoes the WID
@@ -302,16 +395,18 @@ _drv_wait_for_dialog() {
 #     bound to a different item.
 
 # Phase 2c attempt 1: open File menu, press L mnemonic.
+# Every xdotool call is timeout-bounded via _xdo; `windowactivate` is
+# async (no --sync) to avoid Wine WM hangs on transient_for modals.
 _drv_invoke_login_via_mnemonic() {
   local _mwid="$1"
   _drv_log "Phase 2c attempt 1: File menu mnemonic (main WID=${_mwid}, Alt+F then L)"
   _drv_dismiss_welcome_modal
-  DISPLAY=:99 xdotool windowactivate --sync "$_mwid" 2>/dev/null || true
+  DISPLAY=:99 _xdo windowactivate "$_mwid" 2>/dev/null || true
   sleep 0.3
-  DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
-  DISPLAY=:99 xdotool key --clearmodifiers alt+f 2>/dev/null || true
+  DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
+  DISPLAY=:99 _xdo key --clearmodifiers alt+f 2>/dev/null || true
   sleep 0.4
-  DISPLAY=:99 xdotool key --clearmodifiers l 2>/dev/null || true
+  DISPLAY=:99 _xdo key --clearmodifiers l 2>/dev/null || true
 }
 
 # Phase 2c attempts 2 + 3: open File menu, press Down N times, Return.
@@ -328,26 +423,50 @@ _drv_invoke_login_via_menu_n() {
   local _i
   _drv_log "Phase 2c attempt: File menu arrow navigation (main WID=${_mwid}, Alt+F then ${_n}x Down then Return)"
   _drv_dismiss_welcome_modal
-  DISPLAY=:99 xdotool windowactivate --sync "$_mwid" 2>/dev/null || true
+  DISPLAY=:99 _xdo windowactivate "$_mwid" 2>/dev/null || true
   sleep 0.3
-  DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
-  DISPLAY=:99 xdotool key --clearmodifiers alt+f 2>/dev/null || true
+  DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
+  DISPLAY=:99 _xdo key --clearmodifiers alt+f 2>/dev/null || true
   sleep 0.4
   _i=0
   while [ "$_i" -lt "$_n" ]; do
-    DISPLAY=:99 xdotool key --clearmodifiers Down 2>/dev/null || true
+    DISPLAY=:99 _xdo key --clearmodifiers Down 2>/dev/null || true
     sleep 0.1
     _i=$(( _i + 1 ))
   done
-  DISPLAY=:99 xdotool key --clearmodifiers Return 2>/dev/null || true
+  DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
 }
 
 auto_login_driver() {
   local start_ts now elapsed wid wid_first dialog_seen=0 bind_until dismiss_until fwid w wname
   local main_wid="" phase2a_deadline phase2c_attempted=0
+  local hard_kill_pid="" hard_kill_budget driver_pid
   start_ts=$(date +%s)
 
   _drv_log "start (budget=${AUTO_LOGIN_TOTAL_BUDGET_SECS}s, login=${MT_LOGIN}, server=${MT_SERVER})"
+
+  # Hard wall-clock kill-switch. Forked sleeper that SIGTERMs THIS
+  # driver process at AUTO_LOGIN_TOTAL_BUDGET_SECS +
+  # AUTO_LOGIN_HARD_KILL_GRACE_SECS. Belt-and-braces against any future
+  # xdotool hang surface that escapes the per-call _xdo timeout (e.g.
+  # a new code path that forgets to use _xdo, or a libX11 hang inside
+  # timeout(1) itself). The supervisor reaps the driver normally; MT5
+  # is unaffected.
+  #
+  # `$$` inside a function in bash is the parent shell PID, which IS
+  # the driver subshell PID because auto_login_driver is invoked as
+  # `auto_login_driver &` (a background subshell). `kill -TERM $$`
+  # from the sleeper therefore targets the driver, not the entrypoint
+  # supervisor.
+  driver_pid=$$
+  hard_kill_budget=$(( AUTO_LOGIN_TOTAL_BUDGET_SECS + AUTO_LOGIN_HARD_KILL_GRACE_SECS ))
+  ( sleep "$hard_kill_budget"; kill -TERM "$driver_pid" 2>/dev/null || true ) &
+  hard_kill_pid=$!
+  # On any driver exit (success, timeout, internal error), reap the
+  # sleeper so it does not outlive the driver. The trap also handles
+  # the SIGTERM-from-self case from the sleeper itself.
+  trap 'if [ -n "${hard_kill_pid:-}" ] && kill -0 "$hard_kill_pid" 2>/dev/null; then kill -KILL "$hard_kill_pid" 2>/dev/null || true; fi' EXIT TERM
+  _drv_log "hard-kill watchdog armed (pid=${hard_kill_pid}, fires at +${hard_kill_budget}s)"
 
   # Phase 1: wait for terminal64.exe to be running.
   while :; do
