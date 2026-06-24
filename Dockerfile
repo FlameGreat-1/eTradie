@@ -12,7 +12,7 @@
 # Rotate this digest in lockstep with apt security updates by
 # re-running the local pull + commit + bumping the GHA cache scope
 # in .github/workflows/ci.yml.
-FROM python:3.12-slim@sha256:d764629ce0ddd8c71fd371e9901efb324a95789d2315a47db7e4d27e78f1b0e9 AS builder
+FROM python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061 AS builder
 
 WORKDIR /build
 
@@ -77,7 +77,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # share storage in BuildKit's cache and in containerd at the runtime
 # pull. Rotating one without the other defeats both the cache-share
 # and the reproducibility guarantee.
-FROM python:3.12-slim@sha256:d764629ce0ddd8c71fd371e9901efb324a95789d2315a47db7e4d27e78f1b0e9 AS runtime
+FROM python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061 AS runtime
 
 # Security: non-root user
 RUN groupadd --gid 1000 etradie \
