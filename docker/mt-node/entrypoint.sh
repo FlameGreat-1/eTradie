@@ -234,15 +234,29 @@ AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an 
 #   Login dialog after a Phase 2c invocation (hotkey or menu). Used
 #   twice -- once after Ctrl+Shift+L, once after Alt+F menu fallback.
 # AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX: WM_NAME pattern for the MT main
-#   UI window. Build 5836 emits 'MetaTrader 5 - Netting' (netting
-#   accounts) or 'MetaTrader 5 - Hedging' (hedging accounts); MT4
-#   uses 'MetaTrader 4 - <Account>'. The state machine additionally
-#   gates Phase 2c on MT_PLATFORM=mt5 because the MT5-on-Wine path
-#   is the only one with empirical evidence of skipping the Login
-#   prompt.
+#   UI window. Build 5836 emits TWO distinct shapes that BOTH must be
+#   matched by this regex:
+#     * PRE-login (Phase 2c entry): 'MetaTrader 5 - Netting' /
+#       'MetaTrader 5 - Hedging' / 'MetaTrader 4 - <Account>'. This is
+#       what Phase 2c sees when MT5 opens the main UI directly without
+#       a Login dialog.
+#     * POST-login (Phase 5 entry on the boot-2 / accounts.dat fast
+#       path): MT5 rewrites the title to '<login_id> -   - Netting' /
+#       '<login_id> -   - Hedging' the instant the broker login
+#       succeeds. The runbook captured this exact shape in the
+#       post_submit_1s log line: 'name=133978149 -   - Netting'.
+#   Phase 5's re-resolve block runs AFTER login, so without the
+#   post-login shape in the regex Phase 5 logs 'no main window WID
+#   provided; cannot drive menu navigation' and skips chart-attach
+#   entirely on every accounts.dat boot. Both shapes are anchored at
+#   start-of-string with '^' so log-window titles ('logs', 'Toolbox',
+#   ...) and broker-injected modals cannot accidentally match.
+#   The state machine additionally gates Phase 2c on MT_PLATFORM=mt5
+#   because the MT5-on-Wine path is the only one with empirical
+#   evidence of skipping the Login prompt.
 AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS="${AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS:-30}"
 AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS="${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS:-15}"
-AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^MetaTrader [45] - (Netting|Hedging)}"
+AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(MetaTrader [45] - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging))}"
 # Wall-clock ceiling on a single xdotool invocation. xdotool's `search
 # --onlyvisible --name <re>` and `windowactivate --sync` calls can
 # block indefinitely against Wine override-redirect modal windows
@@ -686,7 +700,16 @@ _drv_wait_for_dialog() {
 # AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS: settle between attempts so a
 #   half-opened menu has time to close before the next Alt+F.
 AUTO_LOGIN_PHASE5_ENABLED="${AUTO_LOGIN_PHASE5_ENABLED:-1}"
-AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS="${AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS:-25}"
+# Upper bound only: the settle loop early-exits the instant a
+# deterministic readiness signal fires (see
+# _drv_phase5_mql5_logs_present / _drv_phase5_welcome_modal_seen below).
+# Raised from 25 -> 60 because the 2026-06-24 18:11 staging run proved
+# 25s was racing the broker symbol-catalogue download on this Exness
+# account, with all three Phase 5 keystroke attempts then dispatched
+# against a still-initialising main window. The early-exit gate keeps
+# healthy boots fast (the gate typically fires within 5-15s) while
+# giving slow brokers and slow disks enough headroom not to race.
+AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS="${AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS:-60}"
 AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS="${AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS:-20}"
 AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX="${AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX:-^[A-Za-z0-9._#@!^+\-]+,[A-Za-z][0-9]+}"
 AUTO_LOGIN_PHASE5_BIND_WAIT_SECS="${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS:-30}"
@@ -710,6 +733,77 @@ AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS="${AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS:-30}"
 # under fluxbox), and Phase 4's follow-up windows.
 _drv_find_chart_window() {
   _drv_find_window_by_regex "$AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX"
+}
+
+# _drv_phase5_mql5_logs_present: returns 0 (true) if any *.log file
+# exists under the MT data directory's MQL5/Logs (or MQL4/Logs for
+# MT4) subdirectory.
+#
+# Why this is a deterministic readiness signal
+# --------------------------------------------
+# MT5 creates MQL5/Logs/<YYYYMMDD>.log the first time ANY MQL5
+# program (EA, indicator, script) writes a Print()/Comment()/Alert
+# line, OR when the terminal itself writes the daily Experts-tab log
+# header. Both happen ONLY after MT5 has finished its post-login
+# internal setup (broker handshake, Toolbox panel construction,
+# Experts subsystem boot). If MQL5/Logs/ has at least one file, MT5
+# has either:
+#   * already loaded an EA on a default chart MT5 opened on its own
+#     (in which case :5555 is seconds away and Phase 5 is
+#     unnecessary), or
+#   * finished initialising to the point where it CAN load an EA the
+#     moment a chart is opened (in which case Phase 5 keystrokes
+#     will actually be processed productively).
+#
+# This is observable via the same PVC-backed MT data directory the
+# entrypoint already populates ($MT_DIR is in scope inside
+# auto_login_driver because the entrypoint resolves it before forking
+# the driver). No xdotool involved; pure filesystem check.
+_drv_phase5_mql5_logs_present() {
+  local _logs_dir
+  if [ "${MT_PLATFORM:-mt5}" = "mt4" ]; then
+    _logs_dir="$MT_DIR/MQL4/Logs"
+  else
+    _logs_dir="$MT_DIR/MQL5/Logs"
+  fi
+  # ls -1 inside a non-existent directory returns 2 and prints to
+  # stderr; we suppress both. The wildcard expands ONLY when the
+  # directory exists AND contains at least one .log file, in which
+  # case ls prints the names and exits 0.
+  ls -1 "$_logs_dir"/*.log >/dev/null 2>&1
+}
+
+# _drv_phase5_welcome_modal_seen: returns 0 (true) if the currently-
+# active window is the 'Welcome to LiveUpdate' post-login modal.
+#
+# Why this is a deterministic readiness signal
+# --------------------------------------------
+# MT5 build 5836 surfaces the 'Welcome to LiveUpdate' modal at the
+# tail of its post-login synchronous work (broker access-server
+# handshake complete, account profile loaded, Toolbox panel
+# constructed). The exact moment this modal appears is the moment
+# MT5 is ready to process keystroke-driven menu / hotkey commands.
+# The 2026-06-24 18:11 staging run captured this modal at WID=12582941
+# inside the Phase 5 settle loop -- proving the signal exists; we
+# just were not gating on it.
+#
+# This helper is intended to be polled from the settle loop. The
+# caller turns the observation into a sticky flag: once true, exit
+# the settle (the modal-clear helper inside each attempt will
+# dismiss the modal a moment later). Same getactivewindow +
+# getwindowname path the modal-clear helper uses, so the two never
+# disagree on whether the modal is present.
+_drv_phase5_welcome_modal_seen() {
+  local _awid _aname
+  _awid=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "")
+  if [ -z "$_awid" ]; then
+    return 1
+  fi
+  _aname=$(DISPLAY=:99 _xdo getwindowname "$_awid" 2>/dev/null || echo "")
+  case "$_aname" in
+    Welcome\ to\ LiveUpdate*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 # _drv_wait_for_chart_window: poll _drv_find_chart_window until
@@ -956,14 +1050,50 @@ _drv_phase5_chart_attach() {
     return 0
   fi
 
-  _drv_log "phase5: settling ${AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS}s for post-login modal + Market Watch population"
-  # Settle in 1s chunks so we can early-exit on :5555 LISTEN and
-  # log progress to operator-readable cadence. Budget-guarded so the
-  # settle cannot consume the Phase 4 reservation.
+  _drv_log "phase5: settling up to ${AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS}s (early-exit on :5555 LISTEN | MQL5/Logs present | Welcome modal observed)"
+  # Settle in 1s chunks so we can early-exit on the first
+  # deterministic readiness signal AND log progress to an operator-
+  # readable cadence. Budget-guarded so the settle cannot consume the
+  # Phase 4 reservation.
+  #
+  # Three early-exit signals, polled every second:
+  #
+  #   (1) :5555 LISTEN -- EA already bound (accounts.dat fast path or
+  #       a broker that auto-opened a chart). Phase 5 is unnecessary;
+  #       return 0 immediately so Phase 4 short-circuits to success.
+  #
+  #   (2) MQL5/Logs/<date>.log exists -- MT5 has finished post-login
+  #       internal setup (broker handshake, Toolbox panel, Experts
+  #       subsystem) and either already ran an EA OnInit on a chart
+  #       it opened itself, or is now capable of running one. Exit
+  #       the settle EARLY (do not return) so the keystroke cascade
+  #       runs against an actually-ready MT5.
+  #
+  #   (3) 'Welcome to LiveUpdate' modal observed -- broker handshake
+  #       completed enough to surface the post-login modal. Sticky:
+  #       once seen, the loop breaks (the dismissal happens inside
+  #       _drv_phase5_attempt's modal-clear helper). Exit the settle
+  #       EARLY so the cascade runs while the main UI is reachable.
+  #
+  # When NO signal fires within the upper-bound budget, the cascade
+  # still runs (preserving the previous best-effort posture) but the
+  # operator gets a clear log line explaining that no readiness
+  # signal was observed.
+  local _welcome_seen=0
+  local _exit_reason=""
   while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS" ]; do
     if _drv_zmq_bound; then
       _drv_log "phase5: :5555 LISTEN at +${_waited}s during post-login settle; skipping chart-attach"
       return 0
+    fi
+    if _drv_phase5_mql5_logs_present; then
+      _exit_reason="MQL5/Logs present"
+      break
+    fi
+    if [ "$_welcome_seen" -eq 0 ] && _drv_phase5_welcome_modal_seen; then
+      _welcome_seen=1
+      _exit_reason="Welcome modal observed"
+      break
     fi
     if _drv_phase5_budget_exhausted "$_start_ts"; then
       _drv_warn "phase5: budget guard fired during settle (remaining < ${AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS}s); yielding to Phase 4"
@@ -972,6 +1102,11 @@ _drv_phase5_chart_attach() {
     sleep 1
     _waited=$(( _waited + 1 ))
   done
+  if [ -n "$_exit_reason" ]; then
+    _drv_log "phase5: settle early-exit at +${_waited}s (${_exit_reason}); proceeding to keystroke cascade"
+  else
+    _drv_warn "phase5: settle upper bound (${AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS}s) reached without any readiness signal; proceeding to keystroke cascade anyway (best-effort)"
+  fi
 
   # Attempt 1: Ctrl+M Market Watch + default action (highest certainty).
   if _drv_phase5_attempt "$_mwid" "attempt 1 (Ctrl+M default action)" "ctrl+m Tab Home Return"; then
