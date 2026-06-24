@@ -108,7 +108,9 @@ In chronological order:
 | `2248f1f7` | Cluster 4 - `entrypoint.sh`: add `DRIVER_PID` variable; extend `_shutdown` trap to tear the driver down BEFORE MT5 (xdotool mid-type into a closing window would otherwise inject keystrokes into nothing). |
 | `695f1116` | Cluster 4 - `entrypoint.sh`: add `auto_login_driver()` function (~190 lines). Full contract documented in the function's docstring; summary in §2.3. |
 | `2c675386` | Cluster 4 - `entrypoint.sh`: remove `/login /password /server` from wine launch (build 5836 ignores them; password no longer leaks into `/proc/<pid>/cmdline`). Fork `auto_login_driver` after MT5 launch; reap it (6s grace → SIGTERM → SIGKILL) on MT5 exit. |
-| (latest)  | Cluster 4 - `entrypoint.sh`: cleanup stale launch-flag comments in the supervisor loop so the documentation matches the code that actually runs. |
+| `26bf53b2` | Cluster 4 - `entrypoint.sh`: cleanup stale launch-flag comments in the supervisor loop so the documentation matches the code that actually runs. |
+| `b49500dd` | Cluster 4 (Phase 2c, part 1/2) - `entrypoint.sh`: extend `auto_login_driver()` contract docstring with Phase 2a/2b/2c/2-final state machine; add three new bash defaults (`AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS=30`, `AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS=15`, `AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX='^MetaTrader [45] - (Netting|Hedging)'`). |
+| `88d1b64c` | Cluster 4 (Phase 2c, part 2/2) - `entrypoint.sh`: implement the Phase 2c state machine. Adds helpers `_drv_find_window_by_regex` / `_drv_find_login_dialog` / `_drv_find_main_window` / `_drv_dismiss_welcome_modal` / `_drv_wait_for_dialog` / `_drv_invoke_login_via_hotkey` / `_drv_invoke_login_via_menu`. Driver now: (Phase 2a) polls for a Login-shaped dialog up to 30s; (Phase 2b) :5555 fast-path unchanged; (Phase 2c) on MT5 only, if the main UI window (`MetaTrader 5 - Netting|Hedging`) is visible, dismisses the `Welcome to LiveUpdate` modal, sends `Ctrl+Shift+L`, waits up to 15s, falls back to `Alt+F` → 9× `Down` → `Return` menu navigation, waits another 15s, and on dialog visible falls through to the unchanged Phase 3 typing logic. Phase 2-final keeps the original 120s budget for MT4 and any slow-render variant that does not match the main-window regex. Diagnosed from staging xwininfo (`MetaTrader 5 - Netting` + `Welcome to LiveUpdate` visible, no Login dialog ever rendered on build 5836 + pre-staged servers.dat + startup.ini). |
 
 ---
 
@@ -273,6 +275,7 @@ comes back to `3/3 Ready` in 20-40 seconds with NO new Login dialog
 | Login succeeds, but :5555 doesn't bind within 240s total | EA didn't load (template issue, EA binary missing) | Driver logs ERROR and exits 1; the watchdog will SIGTERM MT5 on its own loop and the supervisor will retry. Inspect `$MT_DIR/MQL5/Logs/*.log` for the EA's OnInit output. |
 | Multiple identical follow-up dialogs (e.g. EULA + Terms + Welcome) | Broker first-launch wizard | Driver loop dismisses each non-MetaTrader-titled visible window via Return for `AUTO_LOGIN_FOLLOWUP_DISMISS_SECS=60`s. |
 | Driver itself crashes | xdotool segfault, X server hiccup | The driver runs as a background child of entrypoint. The supervisor reaps it on MT5 exit (6s grace → SIGTERM → SIGKILL → `wait` to drain zombie); a driver crash does NOT force an MT5 respawn. |
+| MT5 opens straight to main UI without a Login dialog (build 5836 + pre-staged `servers.dat` + `startup.ini [Common]`) | Modern MT5 builds treat a populated config dir as a returning installation and skip the first-run wizard; commercial VPS providers' xdotool drivers were written for the bare-prefix path and never see this case. | Phase 2c fires automatically. Driver logs `main UI window WID=... detected at +Ns; entering Phase 2c (menu-driven Login invocation)`, dismisses `Welcome to LiveUpdate`, sends `Ctrl+Shift+L`, falls back to `Alt+F` → 9× `Down` → `Return` if the hotkey is absorbed. On dialog visible, Phase 3 typing runs unchanged. NOT a code fix - the production behaviour. |
 
 ### 2.6 NEXT ACTION (operator picking up cold reads here)
 
@@ -572,14 +575,17 @@ kubectl -n etradie-system exec -i postgres-0 -c postgres \
 
 ### 3.6 §Decision-matrix on the journal output from §3.5 step 2
 
-Look at the first NEW line that appears AFTER `LiveUpdate downloaded successfully`.
+Look at the first NEW line that appears AFTER `LiveUpdate downloaded successfully`. For the silent cases, ALSO grep the driver log (`kubectl ... logs ... | grep -iE 'auto_login'`) so you can discriminate between Phase 2a, Phase 2c hotkey, Phase 2c menu, and total-no-prompt.
 
-| Journal contains | Meaning | Next |
+| Journal + driver log | Meaning | Next |
 |---|---|---|
-| `Network '<server>': connecting to access point` + `Login <id>: ok` | Auto-login WORKED. `:5555` will bind once the EA loads. | Wait for `3/3 Ready`. Run the §3.8 smoking-gun proof. DONE. |
-| `Network ...` + `Login <id>: invalid account` / `invalid password` / `account is disabled` | GUI driver worked; credentials wrong (NOT a code fix). | Check broker creds with the user via the dashboard. |
-| `Network '<server>': server not found` / `unknown server` | GUI driver worked; `servers.dat` for the broker is missing or wrong. | Inspect bundle: `kubectl exec ... ls -la /broker-bundle/`. Fix the bundle's `servers.dat` upstream. |
-| Silent after `LiveUpdate downloaded successfully` (no `Network` line ever) | xdotool driver failed (dialog never appeared, or typing failed). | Run §3.7 driver-diagnostic. |
+| Journal: `Network '<server>': connecting to access point` + `Login <id>: ok`. Driver: `Login dialog WID=... detected` (Phase 2a) OR `Login dialog WID=... appeared after ctrl+shift+l` (Phase 2c primary) OR `Login dialog WID=... appeared after alt+f menu` (Phase 2c fallback). | Auto-login WORKED via whichever path. `:5555` will bind once the EA loads. | Wait for `3/3 Ready`. Run the §3.8 smoking-gun proof. DONE. |
+| Journal: `Network ...` + `Login <id>: invalid account` / `invalid password` / `account is disabled` | GUI driver worked; credentials wrong (NOT a code fix). | Check broker creds with the user via the dashboard. |
+| Journal: `Network '<server>': server not found` / `unknown server` | GUI driver worked; `servers.dat` for the broker is missing or wrong. | Inspect bundle: `kubectl exec ... ls -la /broker-bundle/`. Fix the bundle's `servers.dat` upstream. |
+| Journal: silent after `LiveUpdate downloaded successfully`. Driver: `main UI window WID=... detected ... entering Phase 2c`, then either `appeared after ctrl+shift+l` or `appeared after alt+f menu` line within 30-45s of the Phase 2c entry. | Phase 2c invoked the dialog successfully and Phase 3 is mid-typing the credentials. Slightly slower than Phase 2a but converging. | Wait up to the §3.5 6-min poll cycle for the journal to add `Network ... connecting` + `Login ... ok`. |
+| Journal: silent. Driver: `main UI window WID=... detected ... entering Phase 2c` followed by `both ctrl+shift+l and alt+f menu path failed to surface Login dialog`. | Phase 2c invoked but MT5 absorbed both the hotkey and the menu navigation (build-specific menu position drift, foreign keyboard layout under Wine, or modal grabbed focus mid-invoke). | Run §3.7 driver-diagnostic. Capture `xwininfo` after Phase 2c to see what windows were on the framebuffer when the hotkey/menu fired. If the `File` menu position has drifted from build 5836, tune the `Down` keypress count in `_drv_invoke_login_via_menu`. If the keyboard layout is misinterpreting `Ctrl+Shift+L`, set `AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS=0` to skip the hotkey attempt and go straight to menu navigation. |
+| Journal: silent. Driver: NO `main UI window WID=... detected` line at all, but `Login dialog never appeared within 120s and :5555 not bound` at +120s. | MT5 main UI never rendered with a matching title; OR the dialog never appeared with a matching title. | Run §3.7 driver-diagnostic. Inspect `xwininfo` for what windows ARE present. If `MetaTrader 5 -` appears with a different suffix (e.g. neither `Netting` nor `Hedging`), broaden `AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX`. If a Login-shaped window IS present but with an unexpected title, broaden `AUTO_LOGIN_DIALOG_TITLE_REGEX`. |
+| Journal: silent. Driver: NO `main UI window WID=...` line AND NO `Login dialog WID=...` line, then exits at +120s. | Neither path matched anything visible on the framebuffer. Likely Wine/Xvfb is genuinely broken (X server failed to start, or wineserver hung). | Run §3.7 driver-diagnostic + §3.9 quick fault map row for `Pod RESTARTS climbing every ~80s`. |
 
 ### 3.7 §Driver-diagnostic — inspect what xdotool saw
 
@@ -607,6 +613,55 @@ kubectl -n etradie-system cp etradie-system/"$POD":/tmp/screen.xwd \
 # Convert locally:
 convert mt5-screen.xwd mt5-screen.png   # requires imagemagick on the operator host
 ```
+
+#### Phase 2c verification sub-routine
+
+After the staging diagnostic on commits b49500dd + 88d1b64c, the
+driver MUST emit one of the following sentinel lines on any boot
+that does not hit the Phase 2b accounts.dat fast path. Use this
+sub-routine to verify the Phase 2c state machine actually ran the
+way it was designed to:
+
+```bash
+POD=$(kubectl -n etradie-system get pod \
+  -l app.kubernetes.io/name=etradie-mt-node \
+  -o jsonpath='{.items[0].metadata.name}')
+
+# Did Phase 2a find the dialog on its own? (Path the original
+# design assumed; happy path on fresh prefixes.)
+kubectl -n etradie-system logs "$POD" -c mt-node \
+  | grep -E 'auto_login:.*Login dialog WID=.* detected at \+[0-9]+s$' || \
+  echo 'Phase 2a did NOT find the dialog'
+
+# Did Phase 2c fire (build-5836 + pre-staged-config path)?
+kubectl -n etradie-system logs "$POD" -c mt-node \
+  | grep -E 'auto_login: main UI window WID=.* entering Phase 2c' || \
+  echo 'Phase 2c was NOT triggered (either Phase 2a won, or main UI never rendered)'
+
+# Which Phase 2c sub-path resolved the dialog?
+kubectl -n etradie-system logs "$POD" -c mt-node \
+  | grep -E 'auto_login: Login dialog WID=.* appeared after (ctrl\+shift\+l|alt\+f menu)' || \
+  echo 'Neither Phase 2c sub-path produced the dialog'
+
+# Did Phase 2c fail both sub-paths? (Indicates menu drift or
+# keyboard-layout problem.)
+kubectl -n etradie-system logs "$POD" -c mt-node \
+  | grep -E 'auto_login: both ctrl\+shift\+l and alt\+f menu path failed' && \
+  echo 'PHASE 2C FAILURE - tune _drv_invoke_login_via_menu Down count or AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX'
+
+# Capture the framebuffer state at the moment Phase 2c was supposed
+# to fire so you can see whether the main window really had a
+# matching title. Run this BEFORE the supervisor respawns MT5.
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
+  'DISPLAY=:99 xdotool search --onlyvisible --name ".+" 2>&1 | while read wid; do echo "WID=$wid name=$(DISPLAY=:99 xdotool getwindowname "$wid" 2>/dev/null)"; done'
+```
+
+If the visible-window list shows a `MetaTrader 5 -` title with a
+suffix that is NOT `Netting` or `Hedging` (e.g. some brokers tag the
+window with the account number, like `MetaTrader 5 - 12345678`),
+broaden `AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX` to match. Until then,
+Phase 2c will not fire and the driver will sit at the 120s Phase
+2-final timeout.
 
 ### 3.8 §E smoking-gun proof — restart the pod and verify silence
 
