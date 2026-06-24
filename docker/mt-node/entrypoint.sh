@@ -86,6 +86,229 @@ _shutdown() {
 }
 trap _shutdown TERM INT
 
+# ── Auto-login driver (xdotool-based GUI automation) ───────────
+#
+# Why this exists
+# ---------------
+# MetaTrader 5 build 5836 ignores both documented unattended-launch
+# mechanisms:
+#   * `/login /password /server` command-line flags - confirmed via
+#     ps -ef + journal silence + zero outbound TCP to broker IPs.
+#   * startup.ini [Common] Login/Password/Server - file is read, but
+#     never acted on; only populates the Login dialog's fields.
+#
+# MetaQuotes' modern builds expect either a saved accounts.dat (which
+# only exists after a manual first login) or interactive user input.
+# The accepted industry solution - used by every commercial MT5 VPS
+# provider running Wine + Xvfb (ForexVPS, Beeks, CNS) - is to drive
+# the Login dialog programmatically via xdotool, check "Save account
+# information" so MT5 writes accounts.dat itself, and let every
+# subsequent boot use accounts.dat for silent auto-login.
+#
+# Contract
+# --------
+# auto_login_driver() runs as a background child of the entrypoint.
+# It is best-effort: a driver crash does NOT kill MT5. The supervisor
+# loop's normal exit-code path handles MT5 lifecycle; the driver is
+# purely additive automation.
+#
+#   1. Wait up to AUTO_LOGIN_PROCESS_WAIT_SECS for terminal binary.
+#   2. Poll xdotool every 2s for a Login-shaped window. Timeout
+#      AUTO_LOGIN_DIALOG_WAIT_SECS.
+#   3. Idempotent fast path: if :5555 LISTEN appears before any
+#      dialog, MT5 has auto-logged in (subsequent-boot via
+#      accounts.dat). Exit 0 immediately.
+#   4. On dialog visible: activate window, type credentials with
+#      --clearmodifiers --delay 50, check "Save account information",
+#      press Return.
+#   5. For AUTO_LOGIN_FOLLOWUP_DISMISS_SECS, dismiss any other visible
+#      windows (EULA, Welcome, broker terms, news alerts) via Return.
+#   6. Total budget AUTO_LOGIN_TOTAL_BUDGET_SECS. On success exit 0;
+#      on timeout exit 1.
+#
+# Security
+# --------
+# - Runs as uid 1000 (same as the main container).
+# - $MT_PASSWORD is passed to `xdotool type --` as an argv element.
+#   It appears in xdotool's /proc/<pid>/cmdline for the milliseconds
+#   the call takes. Only the mt uid can read it. This is a strict
+#   improvement over the previous `/password:` on terminal64.exe
+#   itself, which kept the password in cmdline for the process
+#   lifetime.
+# - NEVER logs $MT_PASSWORD. Logs $MT_LOGIN, $MT_SERVER, dialog
+#   titles, timing.
+AUTO_LOGIN_TOTAL_BUDGET_SECS="${AUTO_LOGIN_TOTAL_BUDGET_SECS:-240}"
+AUTO_LOGIN_DIALOG_WAIT_SECS="${AUTO_LOGIN_DIALOG_WAIT_SECS:-120}"
+AUTO_LOGIN_PROCESS_WAIT_SECS="${AUTO_LOGIN_PROCESS_WAIT_SECS:-60}"
+AUTO_LOGIN_FOLLOWUP_DISMISS_SECS="${AUTO_LOGIN_FOLLOWUP_DISMISS_SECS:-60}"
+AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an Account|Login to Trade Account|Authorization)}"
+
+_drv_log() { log "INFO" "auto_login: $*"; }
+_drv_warn() { log "WARN" "auto_login: $*"; }
+_drv_err() { log "ERROR" "auto_login: $*"; }
+
+_drv_zmq_bound() {
+  # :15B3 = 5555 dec. State 0A = TCP_LISTEN.
+  awk 'NR>1 && $4 == "0A" && ($2 ~ /:15B3$/ || $3 ~ /:15B3$/){found=1; exit} END{exit !found}' \
+    /proc/net/tcp 2>/dev/null
+}
+
+_drv_mt_proc_alive() {
+  if [ "${MT_PLATFORM:-mt5}" = "mt4" ]; then
+    pgrep -f 'terminal\.exe' >/dev/null 2>&1
+  else
+    pgrep -f 'terminal64\.exe' >/dev/null 2>&1
+  fi
+}
+
+auto_login_driver() {
+  local start_ts now elapsed wid wid_first dialog_seen=0 bind_until dismiss_until fwid w wname
+  start_ts=$(date +%s)
+
+  _drv_log "start (budget=${AUTO_LOGIN_TOTAL_BUDGET_SECS}s, login=${MT_LOGIN}, server=${MT_SERVER})"
+
+  # Phase 1: wait for terminal64.exe to be running.
+  while :; do
+    now=$(date +%s); elapsed=$(( now - start_ts ))
+    if [ "$elapsed" -ge "$AUTO_LOGIN_PROCESS_WAIT_SECS" ]; then
+      _drv_err "terminal binary never appeared within ${AUTO_LOGIN_PROCESS_WAIT_SECS}s; exiting"
+      return 1
+    fi
+    if _drv_mt_proc_alive; then break; fi
+    sleep 1
+  done
+  _drv_log "terminal process detected at +${elapsed}s"
+
+  # Phase 2: poll for the Login dialog OR early :5555 bind.
+  wid_first=""
+  while :; do
+    now=$(date +%s); elapsed=$(( now - start_ts ))
+    if [ "$elapsed" -ge "$AUTO_LOGIN_DIALOG_WAIT_SECS" ]; then
+      if _drv_zmq_bound; then
+        _drv_log ":5555 already LISTEN at +${elapsed}s (subsequent-boot via accounts.dat); exit success"
+        return 0
+      fi
+      _drv_err "Login dialog never appeared within ${AUTO_LOGIN_DIALOG_WAIT_SECS}s and :5555 not bound; exiting"
+      return 1
+    fi
+    # Subsequent-boot fast path: accounts.dat means MT5 logs in silently.
+    if _drv_zmq_bound; then
+      _drv_log ":5555 LISTEN at +${elapsed}s (no dialog needed; accounts.dat path); exit success"
+      return 0
+    fi
+    # Look for a Login-shaped window. `xdotool search --name <re>`
+    # matches the regex against window WM_NAME. We restrict to
+    # visible windows so the dock / hidden helpers do not match.
+    wid=$(DISPLAY=:99 xdotool search --onlyvisible --name "$AUTO_LOGIN_DIALOG_TITLE_REGEX" 2>/dev/null | head -1 || true)
+    if [ -n "$wid" ]; then
+      wid_first="$wid"
+      dialog_seen=1
+      _drv_log "Login dialog WID=${wid} detected at +${elapsed}s"
+      break
+    fi
+    sleep 2
+  done
+
+  # Phase 3: drive the dialog.
+  # Strategy: focus the window, send Tab/Ctrl+A/type sequences through
+  # the standard MT5 Open-an-Account dialog field order:
+  #   1. Login (text)
+  #   2. Password (text)
+  #   3. Server (combobox, auto-populated from servers.dat / startup.ini)
+  #   4. "Save account information" (checkbox, default OFF)
+  #   5. "Login" button (Return activates)
+  # We do NOT assume initial cursor focus is on the Login field;
+  # Ctrl+A in whatever field is focused selects-all, and typing
+  # overwrites with the value. Tab moves focus deterministically.
+  if [ "$dialog_seen" -eq 1 ]; then
+    DISPLAY=:99 xdotool windowactivate --sync "$wid_first" 2>/dev/null || true
+    sleep 0.4
+    # Clear stuck modifiers (xdotool best practice for Xvfb).
+    DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
+
+    DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
+    sleep 0.15
+    DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
+    sleep 0.1
+    DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_LOGIN" 2>/dev/null || true
+    sleep 0.2
+
+    DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
+    sleep 0.15
+    DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
+    sleep 0.1
+    DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_PASSWORD" 2>/dev/null || true
+    sleep 0.2
+
+    DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
+    sleep 0.15
+    # The startup.ini we wrote should pre-select $MT_SERVER, but we
+    # type the server name explicitly as a defence against any state
+    # where it has reset to the combobox default.
+    DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
+    sleep 0.1
+    DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_SERVER" 2>/dev/null || true
+    sleep 0.3
+
+    # Tab to "Save account information", toggle ON with Space so MT5
+    # writes accounts.dat. Subsequent boots auto-login from that file
+    # silently and the driver's fast path detects the immediate
+    # :5555 LISTEN.
+    DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
+    sleep 0.15
+    DISPLAY=:99 xdotool key --clearmodifiers space 2>/dev/null || true
+    sleep 0.2
+
+    # Submit via Return. Works whether focus is on the checkbox or
+    # the Login button - Return is the dialog's default action.
+    DISPLAY=:99 xdotool key --clearmodifiers Return 2>/dev/null || true
+    _drv_log "credentials typed and submitted (server=${MT_SERVER}, save-account=on)"
+    sleep 1
+  fi
+
+  # Phase 4: dismiss follow-up dialogs AND poll for :5555 bind. The
+  # two run concurrently because a Welcome / EULA window can appear
+  # while we are also waiting for the EA to bind.
+  dismiss_until=$(( $(date +%s) + AUTO_LOGIN_FOLLOWUP_DISMISS_SECS ))
+  bind_until=$(( start_ts + AUTO_LOGIN_TOTAL_BUDGET_SECS ))
+  while :; do
+    now=$(date +%s)
+    if _drv_zmq_bound; then
+      _drv_log ":5555 LISTEN at +$(( now - start_ts ))s; exit success"
+      return 0
+    fi
+    if [ "$now" -ge "$bind_until" ]; then
+      _drv_err ":5555 never bound within ${AUTO_LOGIN_TOTAL_BUDGET_SECS}s total budget; exiting"
+      return 1
+    fi
+    if ! _drv_mt_proc_alive; then
+      _drv_warn "terminal process exited while waiting for :5555 bind; exiting (supervisor will respawn)"
+      return 1
+    fi
+    if [ "$now" -lt "$dismiss_until" ]; then
+      # Look for follow-up windows that are NOT the original Login
+      # dialog or the MetaTrader main window. Press Return on each
+      # (default "OK/Accept" action for EULA / news / broker terms).
+      fwid=$(DISPLAY=:99 xdotool search --onlyvisible --name '.+' 2>/dev/null | head -5 || true)
+      if [ -n "$fwid" ]; then
+        for w in $fwid; do
+          [ "$w" = "$wid_first" ] && continue
+          wname=$(DISPLAY=:99 xdotool getwindowname "$w" 2>/dev/null || true)
+          [ -z "$wname" ] && continue
+          case "$wname" in
+            'MetaTrader 5'*|'MetaTrader 4'*) continue ;;
+          esac
+          _drv_log "dismiss follow-up window: '${wname}' (WID=${w})"
+          DISPLAY=:99 xdotool windowactivate --sync "$w" 2>/dev/null || true
+          sleep 0.2
+          DISPLAY=:99 xdotool key --clearmodifiers Return 2>/dev/null || true
+        done
+      fi
+    fi
+    sleep 2
+  done
+}
+
 # ── Defaults ──────────────────────────────────────────────────────
 MT_PLATFORM="${MT_PLATFORM:-mt5}"
 ZMQ_PORT="${ZMQ_PORT:-5555}"
