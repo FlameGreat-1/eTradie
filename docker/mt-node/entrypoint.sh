@@ -434,7 +434,7 @@ auto_login_driver() {
 
   # Phase 3: drive the dialog.
   # Strategy: focus the window, send Tab/Ctrl+A/type sequences through
-  # the standard MT5 Open-an-Account dialog field order:
+  # the standard MT5 Login-to-Trade-Account dialog field order:
   #   1. Login (text)
   #   2. Password (text)
   #   3. Server (combobox, auto-populated from servers.dat / startup.ini)
@@ -443,9 +443,17 @@ auto_login_driver() {
   # We do NOT assume initial cursor focus is on the Login field;
   # Ctrl+A in whatever field is focused selects-all, and typing
   # overwrites with the value. Tab moves focus deterministically.
+  #
+  # Stage-by-stage focused-window logging is added at each transition.
+  # If MT5 build 5836's dialog Tab order differs from our assumption,
+  # the log will show the active WID name diverging from the dialog's
+  # WID and an operator can read the log to pinpoint exactly which Tab
+  # went wrong. Never logs $MT_PASSWORD.
   if [ "$dialog_seen" -eq 1 ]; then
+    _drv_phase3_log "pre_activate"
     DISPLAY=:99 xdotool windowactivate --sync "$wid_first" 2>/dev/null || true
     sleep 0.4
+    _drv_phase3_log "post_activate"
     # Clear stuck modifiers (xdotool best practice for Xvfb).
     DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
 
@@ -453,15 +461,19 @@ auto_login_driver() {
     sleep 0.15
     DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
     sleep 0.1
+    _drv_phase3_log "after_tab_1"
     DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_LOGIN" 2>/dev/null || true
     sleep 0.2
+    _drv_phase3_log "after_login_type"
 
     DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
     sleep 0.15
     DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
     sleep 0.1
+    _drv_phase3_log "after_tab_2"
     DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_PASSWORD" 2>/dev/null || true
     sleep 0.2
+    _drv_phase3_log "after_pwd_type"
 
     DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
     sleep 0.15
@@ -470,8 +482,10 @@ auto_login_driver() {
     # where it has reset to the combobox default.
     DISPLAY=:99 xdotool key --clearmodifiers ctrl+a 2>/dev/null || true
     sleep 0.1
+    _drv_phase3_log "after_tab_3"
     DISPLAY=:99 xdotool type --clearmodifiers --delay 50 -- "$MT_SERVER" 2>/dev/null || true
     sleep 0.3
+    _drv_phase3_log "after_server_type"
 
     # Tab to "Save account information", toggle ON with Space so MT5
     # writes accounts.dat. Subsequent boots auto-login from that file
@@ -479,14 +493,18 @@ auto_login_driver() {
     # :5555 LISTEN.
     DISPLAY=:99 xdotool key --clearmodifiers Tab 2>/dev/null || true
     sleep 0.15
+    _drv_phase3_log "after_tab_4"
     DISPLAY=:99 xdotool key --clearmodifiers space 2>/dev/null || true
     sleep 0.2
+    _drv_phase3_log "after_space"
 
     # Submit via Return. Works whether focus is on the checkbox or
     # the Login button - Return is the dialog's default action.
+    _drv_phase3_log "pre_submit"
     DISPLAY=:99 xdotool key --clearmodifiers Return 2>/dev/null || true
     _drv_log "credentials typed and submitted (server=${MT_SERVER}, save-account=on)"
     sleep 1
+    _drv_phase3_log "post_submit_1s"
   fi
 
   # Phase 4: dismiss follow-up dialogs AND poll for :5555 bind. The
