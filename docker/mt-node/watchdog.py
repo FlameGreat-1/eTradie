@@ -213,7 +213,25 @@ class State:
     last_success_ts: float = 0.0
     last_health: dict = {}
     consecutive_failures: int = 0
+    # Watchdog process start timestamp. Stable for the watchdog's
+    # entire lifetime (the watchdog sidecar container does not
+    # restart on MT5 supervisor respawns). Retained for /livez
+    # grace tracking and operator-visible 'how long has this
+    # watchdog been up' diagnostics.
     start_ts: float = time.time()
+    # MT5-launch grace tracking (issue #2 in the 2026-06-24
+    # staging diagnostic). The cold-boot startup-grace window must
+    # be measured from THIS PARTICULAR MT5 launch, not from the
+    # watchdog process start, because entrypoint.sh supervisor can
+    # respawn MT5 long after the watchdog passed its initial 300s
+    # grace window. mt_launch_ts is reset every time we observe
+    # MT5 transitioning from absent to present in the PID namespace.
+    # Starts at 0.0 to mean 'no MT5 launch observed yet'; the
+    # grace check treats 0.0 as 'grace not yet active'.
+    mt_launch_ts: float = 0.0
+    # Last observed MT5 presence. Used to detect the absent->present
+    # transition that resets mt_launch_ts.
+    mt_observed_running: bool = False
     lock = threading.Lock()
 
 
