@@ -840,33 +840,35 @@ while :; do
   log INFO "Launching $MT_EXE (platform=$MT_PLATFORM, server=$MT_SERVER, login=$MT_LOGIN, symbol=$MT_SYMBOL, symbol_resolved=$SYMBOL_RESOLVED, zmq_port=$ZMQ_PORT, restart_count=$restart_count)"
 
   cd "$MT_DIR"
-  # Launch contract for unattended headless MT5:
-  #   /portable        - pin config location to <install_dir>/config/
-  #                      (not AppData/Roaming/MetaQuotes/), so the
-  #                      startup.ini we write is the one MT5 reads.
-  #   /login:<id>      - account login number
-  #   /password:<pw>   - account password
-  #   /server:<name>   - broker server name (must match servers.dat)
+  # Launch contract for unattended headless MT5 build 5836:
   #
-  # /portable alone is INSUFFICIENT. It only changes WHERE MT5 stores
-  # config; it does NOT trigger auto-login. Live diagnostics on
-  # staging proved this: /portable boots leave
-  # AppData/Roaming/MetaQuotes/Terminal/<hash>/portable.txt as a
-  # marker, MT5 reads startup.ini and gets the credential values, but
-  # never executes a login -- the journal has zero Network/Login/
-  # Authentication/Chart/Expert lines and MQL5/Logs/ never gets
-  # created. startup.ini's [Common] Login/Password/Server block only
-  # POPULATES dialog fields; it does not trigger an action.
+  #   /portable - the ONLY flag we pass. It pins MT5's config location
+  #               to <install_dir>/config/ (not
+  #               AppData/Roaming/MetaQuotes/), so the startup.ini we
+  #               write is the one MT5 reads, AND so MT5 writes
+  #               accounts.dat to the PVC-mounted config dir (where
+  #               it persists across pod restarts).
   #
-  # The /login /password /server command-line flags are the
-  # documented MT5 unattended-launch trigger. They are processed
-  # BEFORE the GUI is shown and execute the full sequence
-  # automatically: login -> chart open (uses [Charts] Symbol/Period
-  # from startup.ini) -> template apply ([Charts] Template=) ->
-  # expert load (template's <expert> block). This is the contract
-  # every commercial headless MT5 deployment uses.
+  # We deliberately do NOT pass /login /password /server. MT5 build
+  # 5836 ignores those flags entirely - confirmed via ps -ef showing
+  # the flags reaching terminal64.exe + journal silence + zero
+  # outbound TCP to broker IPs (see runbook sections 1.2 / 2.x for
+  # the full empirical evidence trail). startup.ini's [Common]
+  # Login/Password/Server block is also ignored for auto-login: MT5
+  # reads the file (populates dialog fields) but never executes a
+  # login action.
   #
-  # See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
+  # Auto-login is instead driven by the xdotool-based
+  # auto_login_driver() shell function defined above, which forks
+  # immediately after this wine launch. The driver waits for MT5's
+  # Login dialog on the Xvfb display, types $MT_LOGIN / $MT_PASSWORD
+  # / $MT_SERVER with --clearmodifiers, ticks "Save account
+  # information" so MT5 writes accounts.dat, and presses Return.
+  # Every subsequent boot auto-loads silently from accounts.dat and
+  # the driver's fast path exits success on the immediate :5555
+  # LISTEN.
+  #
+  # See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md sections 2.x.
   #
   # Note on credential exposure: MT_PASSWORD is NOT on the wine
   # command line. The xdotool auto_login_driver (forked below) types
