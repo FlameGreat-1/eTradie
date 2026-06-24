@@ -3,7 +3,7 @@
 
 replicaCount: 1
 image:
-  tag: "acccb4cc9cf7750a07e92ea61eb51c519eb9267b"
+  tag: "4e1b17cdc5ea74ca50772b7c2791ce5205875489"
   pullPolicy: IfNotPresent
 podAnnotations:
   tier: staging
