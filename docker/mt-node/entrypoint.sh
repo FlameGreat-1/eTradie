@@ -194,6 +194,23 @@ _drv_log() { log "INFO" "auto_login: $*"; }
 _drv_warn() { log "WARN" "auto_login: $*"; }
 _drv_err() { log "ERROR" "auto_login: $*"; }
 
+# Phase 3 stage-by-stage observability. Logs the currently-focused
+# window's WID and WM_NAME at the named stage so the operator can
+# correlate the credential-typing sequence against the dialog focus
+# state. NEVER logs credential values: only window identifiers and
+# the stage marker.
+_drv_phase3_log() {
+  local _stage="$1"
+  local _wid _name
+  _wid=$(DISPLAY=:99 xdotool getactivewindow 2>/dev/null || echo "unknown")
+  if [ "$_wid" != "unknown" ] && [ -n "$_wid" ]; then
+    _name=$(DISPLAY=:99 xdotool getwindowname "$_wid" 2>/dev/null || echo "unknown")
+  else
+    _name="unknown"
+  fi
+  _drv_log "phase3 stage=${_stage} focused_wid=${_wid} name=${_name}"
+}
+
 _drv_zmq_bound() {
   # :15B3 = 5555 dec. State 0A = TCP_LISTEN.
   awk 'NR>1 && $4 == "0A" && ($2 ~ /:15B3$/ || $3 ~ /:15B3$/){found=1; exit} END{exit !found}' \
