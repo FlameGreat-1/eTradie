@@ -208,8 +208,97 @@ _drv_mt_proc_alive() {
   fi
 }
 
+# Generic visible-window WM_NAME search. Returns the first matching
+# WID on stdout (empty if no match). Single source of truth for the
+# xdotool search shape so Phase 2a, Phase 2c, and the Phase 4
+# dismiss loop use identical semantics.
+_drv_find_window_by_regex() {
+  local _re="$1"
+  DISPLAY=:99 xdotool search --onlyvisible --name "$_re" 2>/dev/null | head -1 || true
+}
+
+_drv_find_login_dialog() {
+  _drv_find_window_by_regex "$AUTO_LOGIN_DIALOG_TITLE_REGEX"
+}
+
+_drv_find_main_window() {
+  _drv_find_window_by_regex "$AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX"
+}
+
+# Pre-dismiss the LiveUpdate welcome modal (build 5836 emits one
+# titled 'Welcome to LiveUpdate'). If left visible it steals focus
+# from any subsequent hotkey or menu navigation. Idempotent: a
+# missing modal is a no-op.
+_drv_dismiss_welcome_modal() {
+  local _wmwid
+  _wmwid=$(_drv_find_window_by_regex '^Welcome to LiveUpdate')
+  if [ -n "$_wmwid" ]; then
+    _drv_log "dismissing 'Welcome to LiveUpdate' modal (WID=${_wmwid})"
+    DISPLAY=:99 xdotool windowactivate --sync "$_wmwid" 2>/dev/null || true
+    sleep 0.2
+    DISPLAY=:99 xdotool key --clearmodifiers Escape 2>/dev/null || true
+    sleep 0.4
+  fi
+}
+
+# Poll _drv_find_login_dialog up to <budget_secs>. Echoes the WID
+# of the matched window on success, returns 0 on success / 1 on
+# timeout. Used by Phase 2c after each invocation attempt to wait
+# for the Login dialog to appear.
+_drv_wait_for_dialog() {
+  local _budget="$1"
+  local _waited=0 _wid
+  while [ "$_waited" -lt "$_budget" ]; do
+    _wid=$(_drv_find_login_dialog)
+    if [ -n "$_wid" ]; then
+      printf '%s' "$_wid"
+      return 0
+    fi
+    sleep 1
+    _waited=$(( _waited + 1 ))
+  done
+  return 1
+}
+
+# Phase 2c primary invocation: send Ctrl+Shift+L (MT5's documented
+# hotkey for File -> Login to Trade Account) with the main window
+# focused.
+_drv_invoke_login_via_hotkey() {
+  local _mwid="$1"
+  _drv_log "invoking File -> Login to Trade Account via Ctrl+Shift+L (main WID=${_mwid})"
+  _drv_dismiss_welcome_modal
+  DISPLAY=:99 xdotool windowactivate --sync "$_mwid" 2>/dev/null || true
+  sleep 0.3
+  DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
+  DISPLAY=:99 xdotool key --clearmodifiers ctrl+shift+l 2>/dev/null || true
+}
+
+# Phase 2c fallback invocation: navigate File menu via keyboard.
+# Alt+F opens the File menu; nine Down keypresses move the
+# highlight to 'Login to Trade Account'. The position is empirically
+# stable across build 5836 minor revisions; if it drifts the
+# decision-matrix row in §3.6 of the runbook lists which counter
+# to tune. Return activates the highlighted item.
+_drv_invoke_login_via_menu() {
+  local _mwid="$1"
+  local _i
+  _drv_log "falling back to File menu navigation (main WID=${_mwid}, Alt+F then 9x Down then Return)"
+  _drv_dismiss_welcome_modal
+  DISPLAY=:99 xdotool windowactivate --sync "$_mwid" 2>/dev/null || true
+  sleep 0.3
+  DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
+  DISPLAY=:99 xdotool key --clearmodifiers alt+f 2>/dev/null || true
+  sleep 0.4
+  for _i in 1 2 3 4 5 6 7 8 9; do
+    DISPLAY=:99 xdotool key --clearmodifiers Down 2>/dev/null || true
+    sleep 0.1
+  done
+  DISPLAY=:99 xdotool key --clearmodifiers Return 2>/dev/null || true
+}
+
 auto_login_driver() {
   local start_ts now elapsed wid wid_first dialog_seen=0 bind_until dismiss_until fwid w wname
+  local main_wid="" phase2a_deadline phase2c_attempted=0
   start_ts=$(date +%s)
 
   _drv_log "start (budget=${AUTO_LOGIN_TOTAL_BUDGET_SECS}s, login=${MT_LOGIN}, server=${MT_SERVER})"
@@ -226,8 +315,21 @@ auto_login_driver() {
   done
   _drv_log "terminal process detected at +${elapsed}s"
 
-  # Phase 2: poll for the Login dialog OR early :5555 bind.
+  # Phase 2: dialog-first poll with main-window fallback.
+  # ----------------------------------------------------
+  # Phase 2a (dialog-first): poll up to AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS
+  # for a Login-shaped dialog. This was the original design contract
+  # and remains the happy path for fresh prefixes / any future MT5
+  # build that restores the on-launch Login prompt.
+  # Phase 2b (idempotent :5555 fast-path): exit 0 immediately on bind.
+  # Phase 2c (main-window menu invocation): build-5836 + pre-staged
+  # config opens the main UI directly; trigger File -> Login to Trade
+  # Account via hotkey, with Alt+F menu navigation as fallback.
+  # Phase 2-final: if neither yielded a dialog and the main UI is
+  # also absent, keep polling until AUTO_LOGIN_DIALOG_WAIT_SECS so MT4
+  # and any slow-render variant still has the original budget.
   wid_first=""
+  phase2a_deadline=$(( start_ts + AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS ))
   while :; do
     now=$(date +%s); elapsed=$(( now - start_ts ))
     if [ "$elapsed" -ge "$AUTO_LOGIN_DIALOG_WAIT_SECS" ]; then
@@ -243,15 +345,50 @@ auto_login_driver() {
       _drv_log ":5555 LISTEN at +${elapsed}s (no dialog needed; accounts.dat path); exit success"
       return 0
     fi
-    # Look for a Login-shaped window. `xdotool search --name <re>`
-    # matches the regex against window WM_NAME. We restrict to
-    # visible windows so the dock / hidden helpers do not match.
-    wid=$(DISPLAY=:99 xdotool search --onlyvisible --name "$AUTO_LOGIN_DIALOG_TITLE_REGEX" 2>/dev/null | head -1 || true)
+    # Phase 2a: look for a Login-shaped window. `xdotool search
+    # --name <re>` matches the regex against window WM_NAME. We
+    # restrict to visible windows so the dock / hidden helpers do
+    # not match.
+    wid=$(_drv_find_login_dialog)
     if [ -n "$wid" ]; then
       wid_first="$wid"
       dialog_seen=1
       _drv_log "Login dialog WID=${wid} detected at +${elapsed}s"
       break
+    fi
+    # Phase 2c entry. Only fires once, only on MT5, and only after
+    # the Phase 2a budget has elapsed without a dialog. Build 5836 is
+    # the empirically-known platform that skips the prompt; MT4 stays
+    # on the dialog-only path.
+    if [ "$phase2c_attempted" -eq 0 ] \
+       && [ "$now" -ge "$phase2a_deadline" ] \
+       && [ "${MT_PLATFORM:-mt5}" = "mt5" ]; then
+      main_wid=$(_drv_find_main_window)
+      if [ -n "$main_wid" ]; then
+        phase2c_attempted=1
+        _drv_log "main UI window WID=${main_wid} detected at +${elapsed}s; entering Phase 2c (menu-driven Login invocation)"
+        # Attempt 1: Ctrl+Shift+L hotkey.
+        _drv_invoke_login_via_hotkey "$main_wid"
+        wid=$(_drv_wait_for_dialog "$AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS")
+        if [ -n "$wid" ]; then
+          wid_first="$wid"
+          dialog_seen=1
+          _drv_log "Login dialog WID=${wid} appeared after ctrl+shift+l at +$(( $(date +%s) - start_ts ))s"
+          break
+        fi
+        _drv_warn "ctrl+shift+l did not surface the Login dialog within ${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS}s; falling back to Alt+F menu navigation"
+        # Attempt 2: Alt+F menu navigation.
+        _drv_invoke_login_via_menu "$main_wid"
+        wid=$(_drv_wait_for_dialog "$AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS")
+        if [ -n "$wid" ]; then
+          wid_first="$wid"
+          dialog_seen=1
+          _drv_log "Login dialog WID=${wid} appeared after alt+f menu at +$(( $(date +%s) - start_ts ))s"
+          break
+        fi
+        _drv_err "both ctrl+shift+l and alt+f menu path failed to surface Login dialog; exiting (supervisor will respawn)"
+        return 1
+      fi
     fi
     sleep 2
   done
