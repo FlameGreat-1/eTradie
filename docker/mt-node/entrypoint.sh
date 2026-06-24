@@ -260,38 +260,67 @@ _drv_wait_for_dialog() {
   return 1
 }
 
-# Phase 2c primary invocation: send Ctrl+Shift+L (MT5's documented
-# hotkey for File -> Login to Trade Account) with the main window
-# focused.
-_drv_invoke_login_via_hotkey() {
-  local _mwid="$1"
-  _drv_log "invoking File -> Login to Trade Account via Ctrl+Shift+L (main WID=${_mwid})"
-  _drv_dismiss_welcome_modal
-  DISPLAY=:99 xdotool windowactivate --sync "$_mwid" 2>/dev/null || true
-  sleep 0.3
-  DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
-  DISPLAY=:99 xdotool key --clearmodifiers ctrl+shift+l 2>/dev/null || true
-}
+# Phase 2c invocation helpers. Three attempts in sequence; each one
+# returns after sending its keystrokes. The caller (auto_login_driver)
+# polls for the Login dialog with _drv_wait_for_dialog() after each
+# attempt and proceeds to the next on timeout.
+#
+# Evidence basis for ordering (2026-06-24 research + staging):
+#
+#   - No keyboard accelerator exists for 'Login to Trade Account' on
+#     MT5 build 5836 (verified across 5 independent hotkey reference
+#     compilations including MetaQuotes' own). The previous
+#     Ctrl+Shift+L attempt was a hypothesis; staging confirmed it does
+#     nothing. REMOVED.
+#
+#   - Win32 menu mnemonics are the most build-stable invocation path
+#     because they bind to the displayed letter of a menu item, not
+#     to its position. MT5's 'Login to Trade Account' almost certainly
+#     uses 'L' as its mnemonic (standard Win32 convention; multiple
+#     L-mnemonic items in the menu cycle on repeated keypresses).
+#
+#   - Down-arrow counting is position-dependent and brittle to menu
+#     layout drift across MT5 revisions or broker-injected items.
+#     Kept as fallback for cases where the mnemonic is absent or
+#     bound to a different item.
 
-# Phase 2c fallback invocation: navigate File menu via keyboard.
-# Alt+F opens the File menu; nine Down keypresses move the
-# highlight to 'Login to Trade Account'. The position is empirically
-# stable across build 5836 minor revisions; if it drifts the
-# decision-matrix row in §3.6 of the runbook lists which counter
-# to tune. Return activates the highlighted item.
-_drv_invoke_login_via_menu() {
+# Phase 2c attempt 1: open File menu, press L mnemonic.
+_drv_invoke_login_via_mnemonic() {
   local _mwid="$1"
-  local _i
-  _drv_log "falling back to File menu navigation (main WID=${_mwid}, Alt+F then 9x Down then Return)"
+  _drv_log "Phase 2c attempt 1: File menu mnemonic (main WID=${_mwid}, Alt+F then L)"
   _drv_dismiss_welcome_modal
   DISPLAY=:99 xdotool windowactivate --sync "$_mwid" 2>/dev/null || true
   sleep 0.3
   DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
   DISPLAY=:99 xdotool key --clearmodifiers alt+f 2>/dev/null || true
   sleep 0.4
-  for _i in 1 2 3 4 5 6 7 8 9; do
+  DISPLAY=:99 xdotool key --clearmodifiers l 2>/dev/null || true
+}
+
+# Phase 2c attempts 2 + 3: open File menu, press Down N times, Return.
+# Parameter is the Down-press count. 9 is the position-stable guess
+# for MT5 build 5836 (File menu items: New Chart, Open Offline, Open
+# Deleted, Save As, Save As Picture, [sep], Open an Account, Open a
+# Demo Account, Login to Trade Account = position 9 if Win32 skips
+# separators on Down navigation, which it does by default). 10 covers
+# the over-by-one case in case separator counting drifts or a
+# broker-injected menu item shifts the position.
+_drv_invoke_login_via_menu_n() {
+  local _mwid="$1"
+  local _n="$2"
+  local _i
+  _drv_log "Phase 2c attempt: File menu arrow navigation (main WID=${_mwid}, Alt+F then ${_n}x Down then Return)"
+  _drv_dismiss_welcome_modal
+  DISPLAY=:99 xdotool windowactivate --sync "$_mwid" 2>/dev/null || true
+  sleep 0.3
+  DISPLAY=:99 xdotool keyup Shift Control Alt Meta 2>/dev/null || true
+  DISPLAY=:99 xdotool key --clearmodifiers alt+f 2>/dev/null || true
+  sleep 0.4
+  _i=0
+  while [ "$_i" -lt "$_n" ]; do
     DISPLAY=:99 xdotool key --clearmodifiers Down 2>/dev/null || true
     sleep 0.1
+    _i=$(( _i + 1 ))
   done
   DISPLAY=:99 xdotool key --clearmodifiers Return 2>/dev/null || true
 }
