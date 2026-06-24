@@ -691,6 +691,15 @@ AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS="${AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_
 AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX="${AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX:-^[A-Za-z0-9._#@!^+\-]+,[A-Za-z][0-9]+}"
 AUTO_LOGIN_PHASE5_BIND_WAIT_SECS="${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS:-30}"
 AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS="${AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS:-5}"
+# Budget guard: how much of the AUTO_LOGIN_TOTAL_BUDGET_SECS must be
+# reserved for Phase 4's poll-for-remainder loop. When the total
+# budget is about to be exhausted, Phase 5 skips remaining attempts
+# and falls through so Phase 4 can observe a late :5555 LISTEN that
+# occurs after Phase 5's chart-open keystrokes (chart open is fast
+# but the EA's OnInit + bind can lag a few seconds on a slow
+# wineprefix). 30s default leaves comfortable margin without
+# starving Phase 5 of attempt budget.
+AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS="${AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS:-30}"
 
 # _drv_find_chart_window: search Xvfb for an open MT5 chart window.
 # Returns the WID or empty. The MT5 chart title format is
@@ -873,8 +882,56 @@ _drv_phase5_attempt() {
 #     no-op (early return at step 2).
 #   * Never logs credentials. Logs only WIDs, names, attempt labels,
 #     keystroke sequences, and durations.
+# _drv_phase5_budget_exhausted: returns 0 (true) if the remaining
+# total auto-login budget is below AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS,
+# 1 (false) otherwise. Used as a gate before each Phase 5 attempt
+# and inside each :5555 poll loop so Phase 5 never consumes the
+# budget reserved for Phase 4's final poll-for-remainder.
+#
+# Contract:
+#   * $1 = auto_login_driver's start_ts (UNIX seconds).
+_drv_phase5_budget_exhausted() {
+  local _start_ts="$1"
+  local _now _elapsed _remaining
+  _now=$(date +%s)
+  _elapsed=$(( _now - _start_ts ))
+  _remaining=$(( AUTO_LOGIN_TOTAL_BUDGET_SECS - _elapsed ))
+  if [ "$_remaining" -le "$AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS" ]; then
+    return 0
+  fi
+  return 1
+}
+
+# _drv_phase5_poll_bind: poll :5555 LISTEN for up to either
+# AUTO_LOGIN_PHASE5_BIND_WAIT_SECS OR until the budget guard fires,
+# whichever is shorter. Returns 0 on LISTEN observed, 1 on timeout.
+# Used by each Phase 5 attempt instead of an inline while loop.
+#
+# Contract:
+#   * $1 = start_ts (UNIX seconds) for budget guard.
+#   * $2 = attempt label for logging.
+_drv_phase5_poll_bind() {
+  local _start_ts="$1"
+  local _label="$2"
+  local _waited=0
+  while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_BIND_WAIT_SECS" ]; do
+    if _drv_zmq_bound; then
+      _drv_log "phase5: :5555 LISTEN at +${_waited}s after ${_label}; EA OnInit succeeded"
+      return 0
+    fi
+    if _drv_phase5_budget_exhausted "$_start_ts"; then
+      _drv_warn "phase5: ${_label}: budget guard fired (remaining < ${AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS}s); yielding to Phase 4"
+      return 1
+    fi
+    sleep 1
+    _waited=$(( _waited + 1 ))
+  done
+  return 1
+}
+
 _drv_phase5_chart_attach() {
   local _mwid="$1"
+  local _start_ts="$2"
   local _waited=0
 
   if [ "${AUTO_LOGIN_PHASE5_ENABLED}" != "1" ]; then
@@ -887,6 +944,11 @@ _drv_phase5_chart_attach() {
     return 1
   fi
 
+  if [ -z "$_start_ts" ]; then
+    _drv_warn "phase5: no start_ts provided; budget guard disabled"
+    _start_ts=$(date +%s)
+  fi
+
   # Subsequent-boot short-circuit BEFORE the long settle so the
   # accounts.dat fast path is not delayed.
   if _drv_zmq_bound; then
@@ -896,11 +958,16 @@ _drv_phase5_chart_attach() {
 
   _drv_log "phase5: settling ${AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS}s for post-login modal + Market Watch population"
   # Settle in 1s chunks so we can early-exit on :5555 LISTEN and
-  # log progress to operator-readable cadence.
+  # log progress to operator-readable cadence. Budget-guarded so the
+  # settle cannot consume the Phase 4 reservation.
   while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS" ]; do
     if _drv_zmq_bound; then
       _drv_log "phase5: :5555 LISTEN at +${_waited}s during post-login settle; skipping chart-attach"
       return 0
+    fi
+    if _drv_phase5_budget_exhausted "$_start_ts"; then
+      _drv_warn "phase5: budget guard fired during settle (remaining < ${AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS}s); yielding to Phase 4"
+      return 1
     fi
     sleep 1
     _waited=$(( _waited + 1 ))
@@ -908,49 +975,38 @@ _drv_phase5_chart_attach() {
 
   # Attempt 1: Ctrl+M Market Watch + default action (highest certainty).
   if _drv_phase5_attempt "$_mwid" "attempt 1 (Ctrl+M default action)" "ctrl+m Tab Home Return"; then
-    # Chart visible; poll :5555.
-    _waited=0
-    while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_BIND_WAIT_SECS" ]; do
-      if _drv_zmq_bound; then
-        _drv_log "phase5: :5555 LISTEN at +${_waited}s after attempt 1; EA OnInit succeeded"
-        return 0
-      fi
-      sleep 1
-      _waited=$(( _waited + 1 ))
-    done
-    _drv_warn "phase5: attempt 1: chart opened but :5555 not bound within ${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS}s; falling through to next attempt"
+    if _drv_phase5_poll_bind "$_start_ts" "attempt 1"; then
+      return 0
+    fi
+    _drv_warn "phase5: attempt 1: chart opened but :5555 not bound within budget; falling through to next attempt"
   fi
 
+  if _drv_phase5_budget_exhausted "$_start_ts"; then
+    _drv_warn "phase5: budget guard fired before attempt 2 (remaining < ${AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS}s); yielding to Phase 4"
+    return 1
+  fi
   sleep "$AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS"
 
   # Attempt 2: Ctrl+M Market Watch + keyboard context menu (high certainty).
   if _drv_phase5_attempt "$_mwid" "attempt 2 (Ctrl+M context menu)" "ctrl+m Tab Home Menu Down Return"; then
-    _waited=0
-    while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_BIND_WAIT_SECS" ]; do
-      if _drv_zmq_bound; then
-        _drv_log "phase5: :5555 LISTEN at +${_waited}s after attempt 2; EA OnInit succeeded"
-        return 0
-      fi
-      sleep 1
-      _waited=$(( _waited + 1 ))
-    done
-    _drv_warn "phase5: attempt 2: chart opened but :5555 not bound within ${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS}s; falling through to next attempt"
+    if _drv_phase5_poll_bind "$_start_ts" "attempt 2"; then
+      return 0
+    fi
+    _drv_warn "phase5: attempt 2: chart opened but :5555 not bound within budget; falling through to next attempt"
   fi
 
+  if _drv_phase5_budget_exhausted "$_start_ts"; then
+    _drv_warn "phase5: budget guard fired before attempt 3 (remaining < ${AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS}s); yielding to Phase 4"
+    return 1
+  fi
   sleep "$AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS"
 
   # Attempt 3: Alt+F File menu navigation (last resort, defence-in-depth).
   if _drv_phase5_attempt "$_mwid" "attempt 3 (Alt+F File menu)" "alt+f Right Right Return"; then
-    _waited=0
-    while [ "$_waited" -lt "$AUTO_LOGIN_PHASE5_BIND_WAIT_SECS" ]; do
-      if _drv_zmq_bound; then
-        _drv_log "phase5: :5555 LISTEN at +${_waited}s after attempt 3; EA OnInit succeeded"
-        return 0
-      fi
-      sleep 1
-      _waited=$(( _waited + 1 ))
-    done
-    _drv_warn "phase5: attempt 3: chart opened but :5555 not bound within ${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS}s"
+    if _drv_phase5_poll_bind "$_start_ts" "attempt 3"; then
+      return 0
+    fi
+    _drv_warn "phase5: attempt 3: chart opened but :5555 not bound within budget"
   fi
 
   _drv_err "phase5: all three attempts failed to open a chart that binds :5555; falling through to Phase 4 poll for remaining budget"
@@ -1248,7 +1304,7 @@ auto_login_driver() {
     if [ -z "${main_wid:-}" ]; then
       main_wid=$(_drv_find_main_window) || true
     fi
-    if _drv_phase5_chart_attach "$main_wid"; then
+    if _drv_phase5_chart_attach "$main_wid" "$start_ts"; then
       _drv_log "phase5: chart-attach succeeded; :5555 bound; exit success"
       return 0
     else
