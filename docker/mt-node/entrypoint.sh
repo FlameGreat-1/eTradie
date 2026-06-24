@@ -193,6 +193,28 @@ trap _shutdown TERM INT
 # should never exceed ~500ms.
 AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS="${AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS:-3}"
 
+# Credential input strategy for Phase 3 (per-field).
+#
+#   paste_then_type (default, recommended):
+#       Try clipboard paste first; on paste failure, fall back to
+#       xdotool type with the hardened 150ms-delay profile. This is
+#       defence-in-depth: paste is the deterministic primary path,
+#       typing is the operational safety net.
+#
+#   paste:
+#       Paste-only. If paste fails, the field stays empty and the
+#       broker login will fail with a clear journal error. Use this
+#       for security-strict deployments where ANY cmdline exposure
+#       window (the typing fallback briefly exposes MT_PASSWORD in
+#       xdotool's /proc/<pid>/cmdline) is unacceptable.
+#
+#   type:
+#       Skip paste entirely; type every field. Useful for MT4 (where
+#       paste has not been empirically validated) and for diagnosing
+#       a paste-specific regression. Tunable per-pod via
+#       `kubectl set env` without rebuilding the image.
+AUTO_LOGIN_INPUT_STRATEGY="${AUTO_LOGIN_INPUT_STRATEGY:-paste_then_type}"
+
 AUTO_LOGIN_TOTAL_BUDGET_SECS="${AUTO_LOGIN_TOTAL_BUDGET_SECS:-240}"
 AUTO_LOGIN_DIALOG_WAIT_SECS="${AUTO_LOGIN_DIALOG_WAIT_SECS:-120}"
 AUTO_LOGIN_PROCESS_WAIT_SECS="${AUTO_LOGIN_PROCESS_WAIT_SECS:-60}"
@@ -358,6 +380,114 @@ _drv_scrub_clipboard() {
   : | timeout "$AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS" \
     xclip -display :99 -selection clipboard -in 2>/dev/null || true
   _drv_log "clipboard scrubbed"
+}
+
+# _drv_type_into_focused_field: deliver a credential value via
+# xdotool type. The fallback path for when clipboard paste fails.
+#
+# Contract:
+#   * $1 = value to type (passed as argv to xdotool).
+#   * $2 = field label for logging (never logs the value).
+#   * Caller MUST already have Tab'd to the target field.
+#
+# Steps:
+#   1. Ctrl+A + Delete to clear the field.
+#   2. xdotool type --clearmodifiers --delay <ms> -- <value>.
+#      The 150ms default per-character delay (commit 1c9cfac1) is the
+#      empirically-tuned baseline for Wine-translated Win32 input.
+#   3. Settle for AUTO_LOGIN_FIELD_SETTLE_SECS.
+#
+# Security:
+#   * The value appears in xdotool's /proc/<pid>/cmdline for the
+#     type duration only (~3.6s on a 24-char password at 150ms/char).
+#   * Only the mt uid (1000) can read other mt-uid processes' /proc.
+#   * Log records the byte length only, never the content.
+_drv_type_into_focused_field() {
+  local _value="$1"
+  local _label="$2"
+  local _len=${#_value}
+  # Step 1: clear field deterministically.
+  DISPLAY=:99 _xdo key --clearmodifiers ctrl+a 2>/dev/null || true
+  sleep 0.2
+  DISPLAY=:99 _xdo key --clearmodifiers Delete 2>/dev/null || true
+  sleep 0.2
+  # Step 2: type. Wrapped in _xdo so any per-call hang is bounded by
+  # AUTO_LOGIN_XDOTOOL_TIMEOUT_SECS. Note: a long password at 150ms/char
+  # can exceed the default 5s timeout; the type call's wall-clock is
+  # ~ length * delay_ms / 1000 + overhead. For a 24-char password at
+  # 150ms = ~3.6s, well under the 5s ceiling. If passwords longer than
+  # ~30 chars are expected, raise AUTO_LOGIN_XDOTOOL_TIMEOUT_SECS via
+  # env var.
+  if ! DISPLAY=:99 _xdo type --clearmodifiers \
+       --delay "$AUTO_LOGIN_TYPE_DELAY_MS" -- "$_value" 2>/dev/null; then
+    _drv_warn "type ${_label}: xdotool type failed or timed out (length=${_len})"
+    return 1
+  fi
+  sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
+  _drv_log "type ${_label}: ok (length=${_len}, content not logged)"
+  return 0
+}
+
+# _drv_deliver_credential: deliver a credential value to the
+# currently-focused field using the strategy in
+# AUTO_LOGIN_INPUT_STRATEGY. Single entry point so Phase 3 does not
+# have to repeat the strategy switch for each field.
+#
+# Contract:
+#   * $1 = value bytes (passed as argv; only typing path uses argv).
+#         For paste, the value is also piped via stdin to the paste
+#         helper. Passwords are never logged by either path.
+#   * $2 = field label for logging.
+#
+# Returns 0 on success, 1 on total failure (every configured strategy
+# attempt failed).
+#
+# Strategy semantics:
+#   * paste:           paste only; fail-loud on paste error.
+#   * type:            type only; skip paste.
+#   * paste_then_type: try paste; on failure, fall back to type.
+#                      This is the default and the recommended posture.
+#   * (other):         log WARN and behave as paste_then_type for
+#                      safety; do not refuse the field.
+_drv_deliver_credential() {
+  local _value="$1"
+  local _label="$2"
+  local _strategy="${AUTO_LOGIN_INPUT_STRATEGY:-paste_then_type}"
+
+  case "$_strategy" in
+    paste)
+      _drv_log "deliver ${_label}: paste strategy (no fallback)"
+      printf '%s' "$_value" | _drv_paste_into_focused_field "$_label"
+      return $?
+      ;;
+    type)
+      _drv_log "deliver ${_label}: type strategy (no paste)"
+      _drv_type_into_focused_field "$_value" "$_label"
+      return $?
+      ;;
+    paste_then_type)
+      _drv_log "deliver ${_label}: paste-then-type strategy; paste attempt"
+      if printf '%s' "$_value" | _drv_paste_into_focused_field "$_label"; then
+        _drv_log "deliver ${_label}: paste succeeded"
+        return 0
+      fi
+      _drv_warn "deliver ${_label}: paste failed, falling back to type"
+      if _drv_type_into_focused_field "$_value" "$_label"; then
+        _drv_log "deliver ${_label}: type fallback succeeded after paste failure"
+        return 0
+      fi
+      _drv_err "deliver ${_label}: BOTH paste and type failed"
+      return 1
+      ;;
+    *)
+      _drv_warn "deliver ${_label}: unknown strategy '${_strategy}'; defaulting to paste_then_type"
+      if printf '%s' "$_value" | _drv_paste_into_focused_field "$_label"; then
+        return 0
+      fi
+      _drv_type_into_focused_field "$_value" "$_label"
+      return $?
+      ;;
+  esac
 }
 
 # Phase 3 stage-by-stage observability. Logs the currently-focused
@@ -724,39 +854,39 @@ auto_login_driver() {
     # Clear stuck modifiers (xdotool best practice for Xvfb).
     DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
 
-    # ── Field 1: Login (paste) ────────────────────────────────────
-    # Tab into the Login field, then paste the value atomically via
-    # the X CLIPBOARD + Ctrl+V. This eliminates the keystroke-drop
-    # failure class previously seen with `xdotool type` (2026-06-24
-    # 08:52 staging screenshot).
+    # ── Field 1: Login (paste-then-type) ─────────────────────────────
+    # Tab into the Login field, then deliver the value using the
+    # configured strategy (default: paste with typing fallback).
+    # This eliminates the keystroke-drop failure class previously
+    # seen with `xdotool type` alone (2026-06-24 08:52 staging
+    # screenshot).
     DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
     sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
     _drv_phase3_log "after_tab_1"
-    printf '%s' "$MT_LOGIN" | _drv_paste_into_focused_field "login"
-    _drv_phase3_log "after_login_paste"
+    _drv_deliver_credential "$MT_LOGIN" "login"
+    _drv_phase3_log "after_login_deliver"
 
-    # ── Field 2: Password (paste) ──────────────────────────────────
-    # Password is piped via stdin to the helper, NEVER as argv.
-    # The helper logs the byte length only, never the content.
+    # ── Field 2: Password (paste-then-type) ──────────────────────────
+    # Password is piped via stdin to the paste helper (never as argv);
+    # if paste fails, the typing fallback exposes it briefly in
+    # xdotool's cmdline (security-strict deployments can opt out via
+    # AUTO_LOGIN_INPUT_STRATEGY=paste).
     DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
     sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
     _drv_phase3_log "after_tab_2"
-    printf '%s' "$MT_PASSWORD" | _drv_paste_into_focused_field "password"
-    _drv_phase3_log "after_pwd_paste"
+    _drv_deliver_credential "$MT_PASSWORD" "password"
+    _drv_phase3_log "after_pwd_deliver"
 
-    # ── Field 3: Server (paste; combobox edit portion) ─────────────────
+    # ── Field 3: Server (paste-then-type; combobox edit portion) ─────
     # MT5's Server field is an editable combobox (Win32 CBS_DROPDOWN
     # style). The edit portion accepts WM_PASTE exactly like a plain
     # edit control; MT5 reads the entry-portion text on dialog submit
-    # rather than the dropdown highlight. Verified via the 2026-06-24
-    # 08:52 staging screenshot which showed 'Exness-MT5Real' in the
-    # field after typing, proving the edit accepts text (the missing
-    # trailing '9' was a keystroke drop, not a combobox rejection).
+    # rather than the dropdown highlight.
     DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
     sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
     _drv_phase3_log "after_tab_3"
-    printf '%s' "$MT_SERVER" | _drv_paste_into_focused_field "server"
-    _drv_phase3_log "after_server_paste"
+    _drv_deliver_credential "$MT_SERVER" "server"
+    _drv_phase3_log "after_server_deliver"
 
     # ── Field 4: Save account information (checkbox) ─────────────
     # Tab to checkbox, Space to toggle ON so MT5 writes accounts.dat.
@@ -772,7 +902,7 @@ auto_login_driver() {
     # button on MT5's Login dialog).
     _drv_phase3_log "pre_submit"
     DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
-    _drv_log "credentials pasted and submitted (server=${MT_SERVER}, save-account=on)"
+    _drv_log "credentials delivered and submitted (server=${MT_SERVER}, save-account=on, strategy=${AUTO_LOGIN_INPUT_STRATEGY})"
     sleep 1
     _drv_phase3_log "post_submit_1s"
     # Scrub the X CLIPBOARD selection so no credential residue
