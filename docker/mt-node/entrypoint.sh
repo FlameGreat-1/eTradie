@@ -53,12 +53,24 @@ LIVEUPDATE_SETTLE_SECS="${LIVEUPDATE_SETTLE_SECS:-30}"
 MT_PID=""
 XVFB_PID=""
 DRIVER_PID=""
+WM_PID=""
+
+# Window manager wait budget. fluxbox normally registers its EWMH
+# atoms on the X root within ~200ms of starting under Xvfb. The 10s
+# ceiling here is paranoia for the slow-I/O case (PVC under heavy
+# write pressure during the wine seed) and is far below any other
+# startup budget in the pod. On timeout we log FATAL and exit so the
+# kubelet restarts the container with a clean slate rather than
+# launching MT5 against an X server that has no WM (which is exactly
+# the failure mode this commit closes; see audit ref in the commit
+# message).
+WM_READY_TIMEOUT_SECS="${WM_READY_TIMEOUT_SECS:-10}"
 
 log() { printf '%s [%s] %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$1" "$2" >&2; }
 
 # ── Signal handling ─────────────────────────────────────────────
 _shutdown() {
-  log INFO "Caught shutdown signal, terminating auto-login driver + MetaTrader + Xvfb"
+  log INFO "Caught shutdown signal, terminating auto-login driver + MetaTrader + fluxbox + Xvfb"
   # Tear down the driver FIRST so it does not race the MT5 SIGTERM
   # below (a driver mid-`xdotool type` would otherwise inject
   # keystrokes into a window that is being closed).
@@ -77,6 +89,18 @@ _shutdown() {
       sleep 0.1
     done
     kill -KILL "${MT_PID}" 2>/dev/null || true
+  fi
+  # Tear down fluxbox BEFORE Xvfb so it can release its X resources
+  # cleanly (managed-window list, root-window properties) rather than
+  # crashing on a dead X server. fluxbox normally exits within ~100ms
+  # of SIGTERM.
+  if [ -n "${WM_PID}" ] && kill -0 "${WM_PID}" 2>/dev/null; then
+    kill -TERM "${WM_PID}" 2>/dev/null || true
+    for _ in $(seq 1 30); do
+      kill -0 "${WM_PID}" 2>/dev/null || break
+      sleep 0.1
+    done
+    kill -KILL "${WM_PID}" 2>/dev/null || true
   fi
   if [ -n "${XVFB_PID}" ]; then
     kill -TERM "${XVFB_PID}" 2>/dev/null || true
@@ -970,6 +994,115 @@ if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
   exit 1
 fi
 log INFO "Xvfb ready"
+
+# ── Start window manager (fluxbox) ────────────────────────────────
+#
+# Why this exists
+# ---------------
+# Xvfb by itself is a bare X server with no window manager. xdotool's
+# windowactivate, focus tracking, and key-event delivery rely on the
+# EWMH spec (the _NET_ACTIVE_WINDOW root-window property and friends)
+# published by a window manager. Without a WM:
+#
+#   * `xdotool windowactivate <wid>` returns:
+#       "Your windowmanager claims not to support _NET_ACTIVE_WINDOW,
+#        so the attempt to activate the window was aborted."
+#     and the window never gets keyboard focus.
+#   * keystrokes sent via `xdotool key` go to whichever window holds
+#     raw XSetInputFocus (usually the X root), NOT the intended
+#     application window. MT5's Win32 menu system never sees Alt+F
+#     because there is no focused MT5 window from X's perspective.
+#
+# This is the empirical failure observed on the 2026-06-24 staging
+# diagnostic at 08:09 UTC: every keystroke the driver sent went into
+# the void, and the Phase 2c File-menu invocation could not work
+# regardless of which keystroke sequence we tried.
+#
+# Industry context: every commercial Wine+Xvfb MT5 VPS provider runs
+# a lightweight EWMH-compliant WM under Xvfb for exactly this reason.
+# fluxbox is the most common pick (ForexVPS, several MetaTrader CDN
+# automation guides). It registers _NET_ACTIVE_WINDOW + _NET_SUPPORTED
+# + the rest of the EWMH atom set within ~200ms of starting.
+#
+# Configuration
+# -------------
+# Headless-safe profile:
+#   * No screen, no toolbar, no slit (these would render decorations
+#     onto Xvfb that MT5 does not expect).
+#   * No menu (Wine apps never invoke fluxbox's right-click menu).
+#   * No window decorations on application windows (MT5 draws its own
+#     title bar; an additional fluxbox decoration would shift the
+#     content area and break xdotool coordinate math if we ever use
+#     it for click automation).
+#   * Focus model: ClickToFocus. We do not want sloppy/follow-mouse
+#     focus because the driver-issued windowactivate is the source of
+#     truth, not random mouse-positioned events from Xvfb.
+#
+# The config lives under $HOME/.fluxbox (uid 1000 / home is on the
+# PVC under $WINE_PREFIX_MOUNT but $HOME itself is /home/mt which is
+# the image-baked layer; we use /tmp/.fluxbox at runtime to satisfy
+# readOnlyRootFilesystem). /tmp is the emptyDir-backed writable mount
+# from the chart (helm/mt-node/templates/statefulset.yaml volumes).
+FLUXBOX_CONFIG_DIR="/tmp/.fluxbox"
+mkdir -p "$FLUXBOX_CONFIG_DIR"
+cat > "$FLUXBOX_CONFIG_DIR/init" <<'EOF'
+session.screen0.toolbar.visible: false
+session.screen0.slit.autoHide: true
+session.screen0.slit.maxOver: false
+session.screen0.slit.placement: BottomRight
+session.screen0.tab.placement: TopLeft
+session.screen0.tab.width: 64
+session.screen0.workspaces: 1
+session.screen0.workspaceNames: Default,
+session.screen0.windowPlacement: RowSmartPlacement
+session.screen0.rowPlacementDirection: LeftToRight
+session.screen0.colPlacementDirection: TopToBottom
+session.screen0.fullMaximization: true
+session.screen0.focusModel: ClickToFocus
+session.screen0.followModel: Ignore
+session.screen0.autoRaise: false
+session.screen0.clickRaises: true
+session.screen0.opaqueMove: true
+session.screen0.defaultDeco: NONE
+session.screen0.tab.placement: TopLeft
+session.screen0.allowRemoteActions: false
+session.screen0.iconbar.iconWidth: 0
+session.styleFile: /usr/share/fluxbox/styles/Squared_blue
+session.menuFile: /dev/null
+EOF
+# Empty keys file so no fluxbox keybinding can ever intercept a
+# keystroke that the driver intends to deliver to MT5. The driver's
+# xdotool key calls go straight through to the focused window.
+: > "$FLUXBOX_CONFIG_DIR/keys"
+# Empty apps file so fluxbox does not apply per-app overrides.
+: > "$FLUXBOX_CONFIG_DIR/apps"
+log INFO "Starting fluxbox window manager (config=$FLUXBOX_CONFIG_DIR)"
+fluxbox -display "$DISPLAY" -rc "$FLUXBOX_CONFIG_DIR/init" -no-slit -no-toolbar >/dev/null 2>&1 &
+WM_PID=$!
+# Wait for fluxbox to publish _NET_SUPPORTED on the root window.
+# xprop returns the property when the WM has finished registering its
+# EWMH atoms; that is the signal xdotool needs.
+_wm_ready=0
+for _i in $(seq 1 "$(( WM_READY_TIMEOUT_SECS * 10 ))"); do
+  if xprop -display "$DISPLAY" -root _NET_SUPPORTED 2>/dev/null \
+     | grep -q '_NET_ACTIVE_WINDOW'; then
+    _wm_ready=1
+    break
+  fi
+  # Surface a clean error if fluxbox crashed during startup so the
+  # operator does not have to grep through the kubelet event log.
+  if ! kill -0 "$WM_PID" 2>/dev/null; then
+    log FATAL "fluxbox exited during startup (pid=${WM_PID} no longer alive)"
+    exit 1
+  fi
+  sleep 0.1
+done
+if [ "$_wm_ready" -ne 1 ]; then
+  log FATAL "fluxbox did not publish _NET_SUPPORTED within ${WM_READY_TIMEOUT_SECS}s"
+  exit 1
+fi
+unset _wm_ready _i
+log INFO "fluxbox ready (pid=${WM_PID}); _NET_ACTIVE_WINDOW available"
 
 # ── Materialise MT directory layout (idempotent) ─────────────────
 mkdir -p "$MT_DIR/$(dirname "$EA_REL_DST")" \
