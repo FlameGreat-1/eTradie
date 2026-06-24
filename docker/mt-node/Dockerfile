@@ -99,7 +99,7 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends \
         ca-certificates wget gnupg apt-transport-https \
         software-properties-common procps lsof psmisc \
-        xvfb x11-utils unzip \
+        xvfb x11-utils x11-apps xdotool unzip \
         python3-minimal python3-pip python3-zmq python3-psutil python3-prometheus-client \
         tzdata; \
     install -d -m 0755 /etc/apt/keyrings; \

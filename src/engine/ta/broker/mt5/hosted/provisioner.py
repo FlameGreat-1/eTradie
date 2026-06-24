@@ -952,15 +952,23 @@ class HostedProvisioner:
             "WATCHDOG_CPU_THROTTLE_SOFT_CAP_FRACTION": "0.5",
             "WATCHDOG_CPU_THROTTLE_CONSECUTIVE_POLLS": "6",
             "WATCHDOG_LIVEZ_GRACE_SECONDS": "60",
-            # Cold-boot grace: MT5 build 5836 does a one-time full
-            # 453-file MQL5 recompilation (~100s) before the EA loads
-            # and binds :5555. Without this window the watchdog SIGTERMs
-            # MT after ~60s of failed HEALTH polls, killing the compile
-            # mid-flight every boot so the EA never comes up. Holds the
-            # in-pod terminate path for the first 180s; the compiled
-            # state then persists on the Wine-prefix PVC and later boots
-            # are fast. Matches docker/mt-node/watchdog.py default.
-            "WATCHDOG_STARTUP_GRACE_SECONDS": "180",
+            # Cold-boot grace. The genuine first-boot work-time on a
+            # fresh Wine prefix covers Wine seed (~10s) + Xvfb / MT5
+            # launch (~15s) + LiveUpdate download + exit-143 + 30s
+            # settle + relaunch (~60s; Cluster 1 fix, one-shot per
+            # fresh PVC) + 453-file MQL5 recompile (~100s; build 5836)
+            # + xdotool auto-login driver (~30s; Cluster 4 fix, see
+            # docker/mt-node/entrypoint.sh::auto_login_driver and
+            # docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md sections
+            # 2.x) + chart open + EA OnInit + :5555 bind (~10s).
+            # ~215s baseline; 300s gives ~40% headroom for I/O
+            # contention. Subsequent boots use accounts.dat (written by
+            # MT5 itself during the xdotool-driven first login) and
+            # complete in ~20-30s total. LOCKSTEP INVARIANT: must
+            # mirror helm/mt-node/values.yaml::sidecar.watchdog.config
+            # .startupGraceSeconds so engine-runtime-provisioned tenant
+            # pods are wire-identical to chart-rendered ones.
+            "WATCHDOG_STARTUP_GRACE_SECONDS": "300",
         }
         body = client.V1ConfigMap(
             metadata=client.V1ObjectMeta(

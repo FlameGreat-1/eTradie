@@ -215,18 +215,24 @@ sidecar:
       # wedged), K8s livenessProbe will fail and the kubelet will kill
       # the whole Pod. This is the LAST resort.
       livezGracePeriodSeconds: 60
-      # Cold-boot grace. MT5 build 5836 performs a one-time full
-      # 453-file MQL5 recompilation (~100s to usable) on a fresh Wine
-      # prefix BEFORE it loads the EA and the EA binds :5555. During
-      # this window the watchdog's HEALTH poll necessarily fails; without
-      # a grace period the watchdog reaches maxFailures (~60s) and
-      # SIGTERMs MT mid-compile every boot, so the compile never
-      # finishes and the EA never comes up. For the first
-      # startupGraceSeconds the watchdog logs failures but does NOT force
-      # an in-pod restart, letting the compile complete and persist on
-      # the Wine-prefix PVC (subsequent boots are fast). Memory/CPU
-      # soft-caps are unaffected.
-      startupGraceSeconds: 180
+      # Cold-boot grace. The genuine first-boot work-time on a fresh
+      # Wine prefix is:
+      #   ~10s   Wine seed from template
+      #   ~5s    Xvfb + MT5 launch
+      #   ~60s   LiveUpdate download + exit-143 self-restart + 30s
+      #          settle + relaunch (Cluster 1 fix; one-shot per fresh PVC)
+      #   ~100s  453-file MQL5 recompile (build 5836 first-boot)
+      #   ~30s   xdotool auto-login driver (Cluster 4 fix: types
+      #          credentials into MT5's Login dialog because build 5836
+      #          ignores /login /password /server cmdline flags and
+      #          startup.ini [Common] block; see runbook section 2.x)
+      #   ~10s   chart open + EA OnInit + :5555 bind
+      # = ~215s baseline; 300s gives ~40% headroom for I/O contention.
+      # Subsequent boots use accounts.dat (written by MT5 itself during
+      # the xdotool-driven first login) and complete in ~20-30s total,
+      # so the larger window is consumed only on the first boot per
+      # fresh PVC. Memory/CPU soft-caps are unaffected by this window.
+      startupGraceSeconds: 300
 
 # ---------------------------------------------------------------------
 # Persistence
