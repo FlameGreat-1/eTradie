@@ -43,27 +43,32 @@ The driver state machine:
     On paste failure, fall back to xdotool type with 150ms/char delay.
     Tick `Save account information` checkbox. Submit via Return.
     Final clipboard scrub.
-  - **Phase 5**: chart-attach via menu-driven `File -> New Chart`.
-    On build 5836 + `/portable` + a fresh Wine prefix MT5 does NOT
-    open a chart on its own after login; without a chart the
-    `startup.ini [Charts] Template=expert` directive has nowhere to
-    apply, so the EA never loads and `:5555` never binds. Phase 5
-    uses Alt+F + menu navigation -- the same proven mechanism
-    Phase 2c uses for Login to Trade Account -- to open a chart on
-    the broker-default Market Watch symbol. MT5 has NO documented
-    hotkey for New Chart (Ctrl+N toggles the Navigator panel, not a
-    dialog); the menu accelerator is the only reliable mechanism.
-    Three-attempt cascade, each preceded by a modal-clear sweep:
-      1. Alt+F then `Right` `Right` `Return` (canonical happy path:
-         File menu opens with New Chart highlighted, first Right
-         opens the symbol-group submenu, second Right opens the
-         first group's symbol list, Return accepts the first symbol).
-      2. Alt+F then `Return` `Right` `Return` (flat-menu fallback
-         for broker-customised builds that present New Chart as a
-         direct symbol picker).
-      3. Alt+F then `Down` `Up` `Right` `Return` (paranoia fallback
-         in case a future menu reorder demotes New Chart from
-         position 1).
+  - **Phase 5**: chart-attach via Ctrl+M Market Watch (with Alt+F
+    File menu as last-resort fallback). On build 5836 + `/portable`
+    + a fresh Wine prefix MT5 does NOT open a chart on its own
+    after login; without a chart the `startup.ini [Charts]
+    Template=expert` directive has nowhere to apply, so the EA
+    never loads and `:5555` never binds. Phase 5 uses Ctrl+M to
+    open Market Watch (empirically verified working on build 5836)
+    then keyboard-navigates to open a chart on the broker-default
+    first-row symbol. MT5 has NO documented hotkey for New Chart
+    (Ctrl+N toggles the Navigator panel, NOT a chart dialog).
+    Three-attempt cascade, ordered by empirical certainty, each
+    preceded by a modal-clear sweep:
+      1. `Ctrl+M` `Tab` `Home` `Return` (highest certainty:
+         Ctrl+M opens Market Watch, Tab focuses the list, Home
+         selects the first symbol row, Return triggers MT5's
+         default action which ships as 'Chart Window' on every
+         fresh install per MetaQuotes documentation).
+      2. `Ctrl+M` `Tab` `Home` `Menu` `Down` `Return` (high
+         certainty: same Ctrl+M + Tab + Home focus path, then the
+         XKB Menu key opens the right-click context menu in place,
+         Down moves from 'New Order' to 'Chart Window' at
+         position 2 per MetaQuotes default order, Return
+         activates).
+      3. `Alt+F` `Right` `Right` `Return` (last resort: File menu
+         + nested symbol-group submenu navigation, defence-in-depth
+         for cases where both Ctrl+M paths fail).
     Each attempt waits up to `AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS`
     (20s default) for a chart window WID matching the WM_NAME
     pattern `<SYMBOL>,<TIMEFRAME>` (e.g. `EURUSD,H1` or `XAUUSD.m,H1`)
@@ -287,10 +292,10 @@ Look at the FIRST new line in the MT5 journal AFTER
 
 | Journal + driver log | Meaning | Next |
 |---|---|---|
-| Driver: `phase5: :5555 LISTEN at +<N>s after attempt <1\|2\|3>; EA OnInit succeeded` | Phase 5 menu-driven chart-attach succeeded. EA bound. | Wait for `3/3 Ready`. Run §3.8. DONE. |
-| Driver: `phase5: attempt N: chart window WID=... visible after menu navigation` + `phase5: attempt N: chart opened but :5555 not bound within ...` | Chart opened but EA template did not auto-apply, OR EA OnInit failed silently. | Inspect EA log: §3.5 step 3. If `MQL5/Logs` is empty, the template directive in `startup.ini` did not apply -- check `config/startup.ini` `[Charts] Template=expert` is present. If EA log exists, look for an OnInit error. |
-| Driver: `phase5: all three attempts failed to open a chart` | The Alt+F File menu sequence did not produce a chart window on any of 3 keystroke variants. Either a modal stole focus on every attempt, or the broker's Market Watch is empty (no symbols to chart). | Run §3.7 with framebuffer screenshots from polls 4/8/12. Confirm Market Watch contains symbols. Check whether any persistent modal owns focus. |
-| Driver: `phase5: attempt <N>: no chart window appeared within <N>s` (every attempt) + `phase5: all three attempts failed` | The broker has not populated Market Watch yet, OR the File menu's New Chart item is in an unexpected position on this MT5 build. | Raise `AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS` via `kubectl set env statefulset/$REL -c mt-node AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS=45`. |
+| Driver: `phase5: :5555 LISTEN at +<N>s after attempt <1\|2\|3>; EA OnInit succeeded` | Phase 5 chart-attach succeeded. EA bound. The attempt number tells you which mechanism worked (1=Ctrl+M default, 2=Ctrl+M context menu, 3=Alt+F fallback). | Wait for `3/3 Ready`. Run §3.8. DONE. |
+| Driver: `phase5: attempt <N>: chart window WID=... visible after keystroke sequence` + `phase5: attempt <N>: chart opened but :5555 not bound within ...` | Chart opened but EA template did not auto-apply, OR EA OnInit failed silently. | Inspect EA log: §3.5 step 3. If `MQL5/Logs` is empty, the template directive in `startup.ini` did not apply -- check `config/startup.ini` `[Charts] Template=expert` is present. If EA log exists, look for an OnInit error. |
+| Driver: `phase5: all three attempts failed to open a chart` | None of the three keystroke cascades produced a chart window. Either a modal stole focus on every attempt, the broker's Market Watch is empty (no symbols to chart on), or build 5836's Market Watch default action has been changed away from 'Chart Window' AND the File menu structure changed. | Run §3.7 with framebuffer screenshots from polls 4/8/12. Confirm Market Watch contains symbols. Check whether any persistent modal owns focus. |
+| Driver: `phase5: attempt <N>: no chart window appeared within <N>s` (every attempt) + `phase5: all three attempts failed` | The broker has not populated Market Watch yet (the broker symbol-catalogue download has not landed by Phase 5 entry). | Raise `AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS` via `kubectl set env statefulset/$REL -c mt-node AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS=45`. |
 | Driver: `Login dialog WID=... observed at +<N>s BUT :5555 already LISTEN; treating as residual post-restart dialog` | Phase 2a precedence guard fired. Subsequent boot, EA already bound, MT5 raised a residual Login dialog after LiveUpdate restart. | Healthy. DONE. |
 | Journal: `Network '<server>': connecting` + `Login <id>: ok`. Driver: `Login dialog WID=... detected` (Phase 2a) OR `appeared after mnemonic / 9-down menu / 10-down menu` (Phase 2c) AND `deliver login: paste succeeded` etc. | Auto-login worked. `:5555` will bind once Phase 5 opens a chart and EA loads. | Wait for `3/3 Ready`. Run §3.8. DONE. |
 | Journal: `Network ... connecting` + `Login <id>: invalid account` / `invalid password` / `account is disabled` | Auto-login worked; broker rejected credentials. | Check credentials with the user via the dashboard. NOT a code issue. |
@@ -394,8 +399,8 @@ kubectl -n etradie-system logs "$POD" -c mt-node | grep -iE \
 | Driver log: `all three Phase 2c attempts ... failed to surface Login dialog` | File menu navigation isn't reaching Login. | Capture §3.7 screenshot. Inspect what's actually on the framebuffer. May need to tune `_drv_invoke_login_via_menu_n` Down count if MT5 build changes. |
 | Driver log: `deliver X: BOTH paste and type failed` | xclip and xdotool both failed. | Check `kubectl exec ... which xclip xdotool`. Verify fluxbox is up. |
 | Driver log: `:5555 never bound within 240s total budget` + journal silent | Login dialog actions never reached the broker connect layer. | Run §3.7. Compare paste vs type strategy via `AUTO_LOGIN_INPUT_STRATEGY=type`. |
-| Driver log: `phase5: all three attempts failed to open a chart` | None of the three Alt+F + menu sequences produced a chart window. Possible causes: a persistent modal stole focus on every attempt, the broker's Market Watch is empty, or the File menu structure has changed on this MT5 build. | Capture §3.7 framebuffer screenshots. Inspect for focus-stealing modals and confirm Market Watch has symbols. If Market Watch is empty post-login, raise `AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS` to 45s. |
-| Driver log: `phase5: attempt <N>: chart window WID=... visible` + `:5555 not LISTEN within 30s after attempt <N>` | Chart opened but EA template did not auto-apply, OR EA OnInit failed silently. | Check `config/startup.ini` carries `[Charts] Template=expert`. Check `MQL5/Logs` for an EA OnInit error. |
+| Driver log: `phase5: all three attempts failed to open a chart` | None of the three keystroke cascades (Ctrl+M default, Ctrl+M context menu, Alt+F File menu) produced a chart window. Possible causes: a persistent modal stole focus on every attempt, the broker's Market Watch is empty, or build 5836's Market Watch default action has been changed by an upstream Wine prefix mutation. | Capture §3.7 framebuffer screenshots. Inspect for focus-stealing modals and confirm Market Watch has symbols. If Market Watch is empty post-login, raise `AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS` to 45s. |
+| Driver log: `phase5: attempt <N>: chart window WID=... visible after keystroke sequence` + `:5555 not LISTEN within 30s after attempt <N>` | Chart opened but EA template did not auto-apply, OR EA OnInit failed silently. | Check `config/startup.ini` carries `[Charts] Template=expert`. Check `MQL5/Logs` for an EA OnInit error. |
 | Driver log: `Login dialog ... BUT :5555 already LISTEN; ... residual post-restart dialog` | Phase 2a precedence guard fired (subsequent-boot, EA already bound, MT5 raised a residual dialog after LiveUpdate restart). | Healthy -- no action. |
 | Pod terminates at exactly 600s | Engine readiness gate fired. Boot didn't complete in budget. | Inspect driver log on the now-gone pod's PVC (preserved by design). |
 | `:5555 LISTEN` present but pod still 2/3 | Watchdog HEALTH probe failing despite `:5555` bound. Usually means EA's AUTH_TOKEN doesn't match. | Inspect EA `.set` file: `MQL5/Profiles/Templates/ZeroMQ_EA.set`. |
