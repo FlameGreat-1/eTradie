@@ -23,52 +23,6 @@ PLEASE NOTE: DO NOT STOP UNTIL YOU ARE DONE EXAMINING ALL & COVERED EVERYTHING
 
 DO NOT DELEGATE TO AGENTS
 
-Every 2.0s: kubectl -n etradie-system get pod -l app.kubernetes.io/name=etradie-mt-node                                  Softverse: Tue Jun 23 18:19:09 2026
-
-No resources found in etradie-system namespace.
-
-
-
-
-softverse@Softverse:~$ POD=etradie-mt-7b9fd8c0-6a1-0
-
-# Allow it to reach the post-LiveUpdate phase + login attempt
-sleep 60
-
-# 1. Pod readiness
-kubectl -n etradie-system get pod "$POD"
-
-# 2. The journal — the key signal
-kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
-  'P="/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5"; \
-   f=$(ls -t "$P/logs"/*.log 2>/dev/null | head -1); \
-   echo "file: $f, size: $(wc -c < "$f") bytes"; \
-   tr -d "\000" < "$f"'
-
-# 3. EA's log (MQL5/Logs)
-kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
-  'P="/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5"; \
-   ls -la "$P/MQL5/Logs/" 2>&1 | head -10; \
-   f=$(ls -t "$P/MQL5/Logs"/*.log 2>/dev/null | head -1); \
-   [ -n "$f" ] && { echo "--- $f ---"; tr -d "\000" < "$f" | tail -60; }'
-
-# 4. :5555 socket state
-kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
-  'cat /proc/net/tcp | awk "NR>1 && (\$3 ~ /:15B3/ || \$2 ~ /:15B3/){print}"'
-
-# 5. DB row
-kubectl -n etradie-system exec -i postgres-0 -c postgres -- psql -U etradie -d etradie -c \
-  "SELECT id, status, status_message, mt5_symbol, is_active FROM broker_connections WHERE connection_type='hosted';"
-Error from server (NotFound): pods "etradie-mt-7b9fd8c0-6a1-0" not found
-Error from server (NotFound): pods "etradie-mt-7b9fd8c0-6a1-0" not found
-Error from server (NotFound): pods "etradie-mt-7b9fd8c0-6a1-0" not found
-Error from server (NotFound): pods "etradie-mt-7b9fd8c0-6a1-0" not found
-                  id                  | status |                                status_message                                | mt5_symbol | is_active
---------------------------------------+--------+------------------------------------------------------------------------------+------------+-----------
- 7b9fd8c0-6a1d-44e0-b382-59b06c7a305b | failed | Provisioning failed: mt-node StatefulSet did not become Ready within timeout |            | t
-(1 row)
-
-softverse@Softverse:~$
 
 
 
