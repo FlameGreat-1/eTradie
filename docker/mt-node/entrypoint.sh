@@ -868,22 +868,59 @@ while :; do
   #
   # See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md.
   #
-  # Note on credential exposure: MT_PASSWORD appears in the command
-  # line. /proc/<pid>/cmdline is readable only by the same uid (the
-  # mt user, 1000) which is the only uid in this pod. The shared PID
-  # namespace with the watchdog sidecar means the watchdog can also
-  # read it, but the watchdog already has the auth token from the
-  # same Vault-rendered credentials file. No new exposure surface vs
-  # today.
-  wine "$MT_EXE" /portable "/login:$MT_LOGIN" "/password:$MT_PASSWORD" "/server:$MT_SERVER" &
+  # Note on credential exposure: MT_PASSWORD is NOT on the wine
+  # command line. The xdotool auto_login_driver (forked below) types
+  # the password into MT5's Login dialog after launch; the password
+  # appears in xdotool's /proc/<pid>/cmdline ONLY for the milliseconds
+  # the `xdotool type` call takes. This is a strict improvement over
+  # the previous `/password:$MT_PASSWORD` on terminal64.exe, which
+  # kept the password in MT5's cmdline for the entire process
+  # lifetime. /portable is retained so MT5 reads/writes config in
+  # <install_dir>/config (PVC-mounted, persists across pod restarts);
+  # this lets MT5 save accounts.dat itself when the driver checks
+  # "Save account information", and subsequent boots auto-login
+  # silently from that file (the driver detects the immediate
+  # :5555 LISTEN and exits success on its fast path).
+  wine "$MT_EXE" /portable &
   MT_PID=$!
   log INFO "MetaTrader PID: $MT_PID"
+
+  # Fork the auto-login driver. Best-effort: a driver crash does NOT
+  # kill MT5. The driver's return code is logged but does not affect
+  # the supervisor loop; the supervisor reacts only to MT5's own exit.
+  # If MT5 dies before the driver finishes, the driver detects this
+  # via _drv_mt_proc_alive and exits cleanly within ~2s.
+  auto_login_driver &
+  DRIVER_PID=$!
+  log INFO "auto-login driver PID: $DRIVER_PID"
 
   set +e
   wait $MT_PID
   EXIT_CODE=$?
   set -e
   MT_PID=""
+
+  # Reap the driver. If MT5 exited before the driver finished its
+  # AUTO_LOGIN_TOTAL_BUDGET_SECS budget, give it a short grace to
+  # detect the dead terminal and exit on its own; SIGTERM+SIGKILL if
+  # it does not. This prevents orphaned drivers from accumulating
+  # across restart cycles.
+  if [ -n "$DRIVER_PID" ] && kill -0 "$DRIVER_PID" 2>/dev/null; then
+    log INFO "reaping auto-login driver PID=$DRIVER_PID (MT exited; driver still running)"
+    for _ in $(seq 1 30); do
+      kill -0 "$DRIVER_PID" 2>/dev/null || break
+      sleep 0.2
+    done
+    if kill -0 "$DRIVER_PID" 2>/dev/null; then
+      kill -TERM "$DRIVER_PID" 2>/dev/null || true
+      sleep 1
+      kill -KILL "$DRIVER_PID" 2>/dev/null || true
+    fi
+  fi
+  set +e
+  wait "$DRIVER_PID" 2>/dev/null
+  set -e
+  DRIVER_PID=""
 
   log WARN "MetaTrader exited with code $EXIT_CODE"
 
