@@ -1373,24 +1373,9 @@ auto_login_driver() {
       return 1
     fi
 
-    # Phase 5 (chart-attach via menu-driven File -> New Chart).
-    # On build 5836 + /portable + fresh Wine prefix, MT5 does NOT
-    # open a chart on its own after login; without a chart the
-    # startup.ini-pinned 'Template=expert' directive has nowhere to
-    # apply, the EA never loads, and :5555 never binds. Phase 5
-    # uses Alt+F + menu navigation (the same mechanism Phase 2c uses
-    # for Login to Trade Account) to open a chart on the broker-
-    # default Market Watch symbol; MT5 then auto-applies expert.tpl,
-    # the EA OnInit runs, and the EA binds :5555.
-    #
-    # Best-effort: any Phase 5 failure logs WARN and falls through to
-    # Phase 4 (poll :5555 for the remaining budget). A broker that
-    # happens to auto-open a chart on login is still serviced by the
-    # Phase 4 poll.
-    #
-    # Re-resolve main_wid here because Phase 2a may have populated
-    # wid_first without main_wid (the dialog-first path). On the
-    # Phase 2c path main_wid is already set.
+    # Chart-attach: open a chart so MT5 applies expert.tpl and the EA
+    # OnInit binds :5555. Best-effort; on failure fall through to the
+    # Phase 4 :5555 poll. Re-resolve main_wid for the Phase 2a path.
     if [ -z "${main_wid:-}" ]; then
       main_wid=$(_drv_find_main_window) || true
     fi
