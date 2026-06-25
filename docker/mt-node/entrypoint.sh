@@ -168,12 +168,19 @@ AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS="${AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS:-30}"
 AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS="${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS:-15}"
 AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(MetaTrader [45] - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging))}"
 # Authoritative login-confirmation regex matched against the MT5
-# journal (logs/<date>.log). Matches MT5's broker-handshake success
-# lines: a per-account 'login ... on <server>' / 'authorized on
-# <server>' line, or a 'Network '<server>': connected' line. Keep
-# permissive across broker wording variants; the LiveUpdate-only
-# cold-boot journal (which lacks ALL of these) never matches.
-AUTO_LOGIN_JOURNAL_AUTH_REGEX="${AUTO_LOGIN_JOURNAL_AUTH_REGEX:-(login( \\(.*\\))? on |authorized on |Network '.*': connected|connected to .* through)}"
+# journal (logs/<date>.log). Built from the real Exness journal
+# wording, keyed to THIS account's login id so another account's
+# line and MT5's pre-login broker-noise lines can never false-
+# positive. The three tokens below are emitted ONLY on a successful
+# session:
+#   '<login>': authorized on <server> through ...
+#   '<login>': terminal synchronized with <company> ...
+#   '<login>': trading has been enabled ...
+# The failure line '<login>': authorization on <server> failed
+# (Invalid account) contains NONE of these tokens, so a rejected
+# login is correctly NOT a match. Fully overridable for an
+# unforeseen broker format.
+AUTO_LOGIN_JOURNAL_AUTH_REGEX="${AUTO_LOGIN_JOURNAL_AUTH_REGEX:-'${MT_LOGIN}': (authorized on |terminal synchronized with |trading has been enabled)}"
 # Budget for the post-submit broker-handshake wait. The Login dialog
 # closing does NOT mean the broker accepted the credentials; MT5
 # contacts the access server and only then writes the connect line.
