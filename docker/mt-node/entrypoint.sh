@@ -176,10 +176,13 @@ AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(Meta
 AUTO_LOGIN_JOURNAL_AUTH_REGEX="${AUTO_LOGIN_JOURNAL_AUTH_REGEX:-}"
 # Budget for the post-submit broker-handshake wait. The Login dialog
 # closing does NOT mean the broker accepted the credentials; MT5
-# contacts the access server and only then writes the connect line.
-# 45s covers a slow access-server handshake on a fresh prefix without
-# consuming an unreasonable share of AUTO_LOGIN_TOTAL_BUDGET_SECS.
-AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS="${AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS:-45}"
+# probes server pools (often failing on wrong pools first) and only
+# then writes the authorize line. The operator's real Exness journal
+# showed ~87s between the first failed pool attempt and the successful
+# authorize, so 120s gives ~38% headroom while keeping worst-case
+# driver time (~60-90s to submit + 120s wait) within
+# AUTO_LOGIN_TOTAL_BUDGET_SECS=240.
+AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS="${AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS:-120}"
 # Wall-clock ceiling on a single xdotool invocation. xdotool's `search
 # --onlyvisible --name <re>` and `windowactivate --sync` calls can
 # block indefinitely against Wine override-redirect modal windows
