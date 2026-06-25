@@ -58,7 +58,7 @@
 #                       this on first boot, then the broker-bundle
 #                       initContainer's overlay installs MT)
 # ───────────────────────────────────────────────────────────────────
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 LABEL org.opencontainers.image.title="etradie-mt-node" \
       org.opencontainers.image.description="Headless MetaTrader 4/5 (Wine+Xvfb) for the eTradie self-hosted broker bridge. Runtime overlay model: the image carries no MT install; per-tenant branded MT is delivered at pod boot via the broker-bundle initContainer." \
