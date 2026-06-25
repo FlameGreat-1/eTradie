@@ -4,29 +4,36 @@
 #
 # Runs on any x86_64 Linux. No Windows license required.
 #
-# Build (production, full supply-chain pinning):
+# Architecture
+# ------------
+# The image carries Wine + Xvfb + fluxbox + xdotool + EA binaries +
+# the watchdog sidecar. It does NOT carry a MetaTrader install.
+# Every per-tenant Pod receives the broker-specific MT install at
+# runtime via the broker-bundle initContainer:
+#
+#   1. The engine provisioner (src/engine/ta/broker/mt5/hosted/
+#      provisioner.py) and the helm chart (helm/mt-node/templates/
+#      statefulset.yaml) attach an initContainer that downloads the
+#      per-broker portable zip from R2, verifies its sha256, and
+#      unpacks it into an emptyDir volume mounted at /broker-bundle.
+#   2. entrypoint.sh detects the branded MT root inside
+#      /broker-bundle/, overlays its full tree onto $MT_DIR (a
+#      subdirectory of the per-tenant Wine-prefix PVC), installs the
+#      EA binary + libzmq.dll + EA Include headers AFTER the overlay,
+#      writes per-tenant startup.ini + chart template, and launches
+#      the BRANDED terminal64.exe / terminal.exe from $MT_DIR.
+#
+# Build (production, supply-chain pinning):
 #   docker build \
-#     --build-arg MT5_INSTALLER_SHA256=<sha256-from-mql5.com> \
-#     --build-arg MT4_INSTALLER_SHA256=<sha256-from-mql5.com> \
+#     --build-arg WINEHQ_VERSION=<apt-version-string> \
 #     --build-arg EA_EX5_SHA256=<sha256-of-docker/mt-node/ea/ZeroMQ_EA.ex5> \
 #     --build-arg EA_EX4_SHA256=<sha256-of-docker/mt-node/ea/ZeroMQ_EA.ex4> \
-#     -t ghcr.io/flamegreat-1/etradie-mt-node:0.1.0 \
-#     docker/mt-node/
-#
-# Build (production, offline / air-gapped mirror):
-#   docker build \
-#     --build-arg MT5_INSTALLER_URL=https://artifactory.example.com/mql5/mt5setup-v5.0.123.exe \
-#     --build-arg MT5_INSTALLER_SHA256=<sha-of-that-blob> \
-#     --build-arg MT4_INSTALLER_URL=https://artifactory.example.com/mql5/mt4setup-v4.0.123.exe \
-#     --build-arg MT4_INSTALLER_SHA256=<sha-of-that-blob> \
-#     --build-arg EA_EX5_SHA256=<...> --build-arg EA_EX4_SHA256=<...> \
-#     -t ghcr.io/flamegreat-1/etradie-mt-node:0.1.0 \
+#     -t ghcr.io/<your-org>/etradie-mt-node:0.1.0 \
 #     docker/mt-node/
 #
 # Build (dev, SKIP all SHA enforcement — NOT for production):
 #   docker build \
-#     --build-arg MT5_INSTALLER_SHA256=skip \
-#     --build-arg MT4_INSTALLER_SHA256=skip \
+#     --build-arg WINEHQ_VERSION=skip \
 #     --build-arg EA_EX5_SHA256=skip \
 #     --build-arg EA_EX4_SHA256=skip \
 #     -t etradie-mt-node:dev \
@@ -38,29 +45,35 @@
 #   MT_LOGIN, MT_PASSWORD, MT_ZMQ_AUTH_TOKEN (per-tenant)
 #   DEFAULT_ZMQ_AUTH_TOKEN (platform fallback)
 #   MT_SERVER, MT_SYMBOL, ZMQ_PORT (chart env)
+#   BUNDLE_R2_PATH, BUNDLE_SHA256 (per-tenant broker bundle pin)
 #
 # Wine prefix layout:
-#   WINEPREFIX        = /home/mt/.wine            (runtime; PVC-mounted)
-#   WINE_TEMPLATE     = /opt/wine-template/.wine  (build-time bake;
-#                                                  non-mounted; seeded
-#                                                  into WINEPREFIX on
-#                                                  first boot by
-#                                                  entrypoint.sh)
+#   WINEPREFIX        = /home/mt/.wine                (mount-point;
+#                                                      runtime PVC root)
+#   WINEPREFIX/prefix = the Wine prefix the entrypoint uses
+#                       (sub-dir; entrypoint mkdir's it as uid 1000)
+#   WINE_TEMPLATE     = /opt/wine-template/.wine      (build-time bake:
+#                       wineboot --init only, NO MT5/MT4 install; the
+#                       entrypoint seeds the PVC-mounted prefix from
+#                       this on first boot, then the broker-bundle
+#                       initContainer's overlay installs MT)
 # ───────────────────────────────────────────────────────────────────
 FROM ubuntu:24.04
 
 LABEL org.opencontainers.image.title="etradie-mt-node" \
-      org.opencontainers.image.description="Headless MetaTrader 4/5 (Wine+Xvfb) for the eTradie self-hosted broker bridge" \
+      org.opencontainers.image.description="Headless MetaTrader 4/5 (Wine+Xvfb) for the eTradie self-hosted broker bridge. Runtime overlay model: the image carries no MT install; per-tenant branded MT is delivered at pod boot via the broker-bundle initContainer." \
       org.opencontainers.image.vendor="eTradie" \
       org.opencontainers.image.licenses="Proprietary" \
       org.opencontainers.image.source="https://github.com/FlameGreat-1/eTradie"
 
 # WINEPREFIX is the RUNTIME prefix path the entrypoint and watchdog
-# expect (/home/mt/.wine). At image-build time we install Wine + MT5 +
-# MT4 into the separate NON-MOUNTED template path
+# expect (/home/mt/.wine). At image-build time we initialise Wine
+# (no MT install) into the separate NON-MOUNTED template path
 # (/opt/wine-template/.wine) so the bake is not masked by the PVC
 # mount at runtime. The entrypoint then seeds /home/mt/.wine from the
-# template on first boot via 'cp -a' + 'wineboot -u'.
+# template on first boot via 'cp -a' + 'wineboot -u', and the broker-
+# bundle overlay (entrypoint.sh) installs the BRANDED terminal64.exe
+# afterwards.
 ENV DEBIAN_FRONTEND=noninteractive \
     WINEDEBUG=-all \
     WINEPREFIX=/home/mt/.wine \
@@ -70,10 +83,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Supply-chain build-arg gates. Empty -> build fails. "skip" -> dev-only.
-ARG MT5_INSTALLER_SHA256=""
-ARG MT4_INSTALLER_SHA256=""
-ARG MT5_INSTALLER_URL="https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe"
-ARG MT4_INSTALLER_URL="https://download.mql5.com/cdn/web/metaquotes.software.corp/mt4/mt4setup.exe"
+# The MT5/MT4 installer ARGs are intentionally absent: the image no
+# longer downloads any MT installer at build time. Branded MT is
+# delivered at runtime via the broker-bundle initContainer (R2 pin in
+# infrastructure/broker-catalog/<brand>.json).
 ARG EA_EX5_SHA256=""
 ARG EA_EX4_SHA256=""
 ARG TINI_VERSION=v0.19.0
@@ -163,6 +176,7 @@ RUN set -eux; \
         /home/mt/.wine \
         /home/mt/.cache \
         /opt/ea \
+        /opt/ea/deps \
         /opt/watchdog \
         /opt/wine-template \
         /opt/wine-template/.wine
@@ -173,146 +187,55 @@ RUN set -eux; \
 # /home/mt/.wine and masks anything baked there - so the bake has to
 # live somewhere the PVC can't see, and the entrypoint seeds the PVC
 # from this template on first boot via 'cp -a' + 'wineboot -u'.
+#
+# This step does NOT install MetaTrader. MT lands at runtime via the
+# broker-bundle initContainer's overlay (entrypoint.sh).
 USER mt
 WORKDIR /home/mt
 RUN set -eux; \
     WINEPREFIX="$WINE_TEMPLATE" wineboot --init 2>/dev/null || true; \
-    WINEPREFIX="$WINE_TEMPLATE" wineserver --wait 2>/dev/null || true
-
-# ── Install MT5 from a PRE-INSTALLED PORTABLE artifact ──────────────────────
-# MT5_INSTALLER_URL points at a .zip of an already-installed MetaTrader 5
-# directory (generated once on a Wine+Xvfb host and hosted on an anonymous
-# HTTPS bucket, e.g. Cloudflare R2). We do NOT run mtXsetup.exe at build
-# time: that installer is an interactive GUI web-installer that either
-# silently no-ops without a display or HANGS forever under xvfb waiting on a
-# prompt (defect #13). Download -> sha256 verify -> unzip is deterministic,
-# reproducible, and cannot hang. The zip carries a top-level `MetaTrader 5`
-# directory, so unzipping into 'Program Files/' yields
-# 'Program Files/MetaTrader 5/terminal64.exe'.
-USER root
-RUN set -eux; \
-    if [ -z "${MT5_INSTALLER_SHA256}" ]; then \
-        echo "FATAL: MT5_INSTALLER_SHA256 build-arg is required. Pass --build-arg MT5_INSTALLER_SHA256=<sha256-of-the-portable-zip> for production builds, or 'skip' for dev." >&2; \
+    WINEPREFIX="$WINE_TEMPLATE" wineserver --wait 2>/dev/null || true; \
+    # Sanity: every later step in the pipeline relies on system32
+    # existing in the template; entrypoint.sh uses its absence as the
+    # ONLY real corruption signal. Fail the build if wineboot did not
+    # produce it.
+    if [ ! -d "$WINE_TEMPLATE/drive_c/windows/system32" ]; then \
+        echo "FATAL: wineboot --init did not produce drive_c/windows/system32 in $WINE_TEMPLATE; aborting build." >&2; \
         exit 1; \
-    fi; \
-    MT5_DEST="$WINE_TEMPLATE/drive_c/Program Files"; \
-    MT5_EXE="$MT5_DEST/MetaTrader 5/terminal64.exe"; \
-    if [ "${MT5_INSTALLER_SHA256}" = "skip" ]; then \
-        echo "WARN: MT5_INSTALLER_SHA256=skip - skipping MT5 portable download/unzip (dev mode; image will NOT run a real MT5)." >&2; \
-    else \
-        wget -qO /tmp/mt5-portable.zip "${MT5_INSTALLER_URL}"; \
-        echo "${MT5_INSTALLER_SHA256}  /tmp/mt5-portable.zip" > /tmp/mt5-portable.zip.sha256; \
-        sha256sum -c /tmp/mt5-portable.zip.sha256; \
-        rm -f /tmp/mt5-portable.zip.sha256; \
-        mkdir -p "$MT5_DEST"; \
-        unzip -q -o /tmp/mt5-portable.zip -d "$MT5_DEST"; \
-        rm -f /tmp/mt5-portable.zip; \
-        if [ ! -f "$MT5_EXE" ]; then \
-            echo "FATAL: MT5 portable unzipped but terminal64.exe is missing at '$MT5_EXE'. The zip layout is wrong (expected a top-level 'MetaTrader 5/' dir). Failing the build instead of shipping a broken image." >&2; \
-            exit 1; \
-        fi; \
-        echo "INFO: MT5 terminal64.exe verified at '$MT5_EXE'." >&2; \
     fi
 
-# ── Install MT4 from a PRE-INSTALLED PORTABLE artifact ──────────────────────
-# Same deterministic download+verify+unzip as MT5 above. MT4 is a 32-bit
-# app and installs into the 'Program Files (x86)' tree; the zip carries a
-# top-level `MetaTrader 4` dir so unzipping into 'Program Files (x86)/'
-# yields 'Program Files (x86)/MetaTrader 4/terminal.exe'.
-USER root
-RUN set -eux; \
-    if [ -z "${MT4_INSTALLER_SHA256}" ]; then \
-        echo "FATAL: MT4_INSTALLER_SHA256 build-arg is required. Pass --build-arg MT4_INSTALLER_SHA256=<sha256-of-the-portable-zip> for production builds, or 'skip' for dev." >&2; \
-        exit 1; \
-    fi; \
-    MT4_DEST="$WINE_TEMPLATE/drive_c/Program Files (x86)"; \
-    MT4_EXE="$MT4_DEST/MetaTrader 4/terminal.exe"; \
-    if [ "${MT4_INSTALLER_SHA256}" = "skip" ]; then \
-        echo "WARN: MT4_INSTALLER_SHA256=skip - skipping MT4 portable download/unzip (dev mode; image will NOT run a real MT4)." >&2; \
-    else \
-        wget -qO /tmp/mt4-portable.zip "${MT4_INSTALLER_URL}"; \
-        echo "${MT4_INSTALLER_SHA256}  /tmp/mt4-portable.zip" > /tmp/mt4-portable.zip.sha256; \
-        sha256sum -c /tmp/mt4-portable.zip.sha256; \
-        rm -f /tmp/mt4-portable.zip.sha256; \
-        mkdir -p "$MT4_DEST"; \
-        unzip -q -o /tmp/mt4-portable.zip -d "$MT4_DEST"; \
-        rm -f /tmp/mt4-portable.zip; \
-        if [ ! -f "$MT4_EXE" ]; then \
-            echo "FATAL: MT4 portable unzipped but terminal.exe is missing at '$MT4_EXE'. The zip layout is wrong (expected a top-level 'MetaTrader 4/' dir). Failing the build instead of shipping a broken image." >&2; \
-            exit 1; \
-        fi; \
-        echo "INFO: MT4 terminal.exe verified at '$MT4_EXE'." >&2; \
-    fi; \
-    # Single ownership sweep for the whole template: this runs after BOTH
-    # the MT5 and MT4 unzips above, so the runtime 'mt' user (uid 1000)
-    # owns every file under $WINE_TEMPLATE. The entrypoint seeds the
-    # PVC-mounted prefix from here on first boot (see entrypoint.sh).
-    chown -R mt:mt "$WINE_TEMPLATE"
-
-# ── EA binaries + watchdog + entrypoint ─────────────────────────
+# ── EA binaries + dependencies + watchdog + entrypoint ─────────────
+# /opt/ea/      → ZeroMQ_EA.ex{5,4} (EA binaries verified by SHA below)
+# /opt/ea/deps → libzmq.dll + Include/{Zmq,JAson.mqh} for installation
+#                into the BRANDED MT root by entrypoint.sh AFTER the
+#                broker-bundle overlay lands.
 USER root
 COPY ea/ /opt/ea/
 COPY watchdog.py /opt/watchdog/watchdog.py
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 
-# ── Bake EA Dependencies into Wine Template ─────────────────────
-COPY ea/deps/ /tmp/ea_deps/
-
+# Move the EA deps subtree from the bundled COPY (ea/deps/...) into
+# the runtime install staging dir (/opt/ea/deps). entrypoint.sh expects:
+#   /opt/ea/deps/mt5/libzmq.dll
+#   /opt/ea/deps/mt4/libzmq.dll
+#   /opt/ea/deps/Include/Zmq/...
+#   /opt/ea/deps/Include/JAson.mqh
+# These are installed into the BRANDED MT root after the bundle overlay.
 RUN set -eux; \
-    MT5_ROOT="$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5"; \
-    MT4_ROOT="$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4"; \
-    # The portable MT zips are generated from a fresh install that has
-    # not yet created the MQL Libraries/Include trees (the terminal
-    # creates them on first run/compile). Create them so the EA dep
-    # copies below cannot fail with 'No such file or directory'.
-    mkdir -p "$MT5_ROOT/MQL5/Libraries" "$MT5_ROOT/MQL5/Include" \
-             "$MT4_ROOT/MQL4/Libraries" "$MT4_ROOT/MQL4/Include"; \
-    cp /tmp/ea_deps/mt5/libzmq.dll "$MT5_ROOT/MQL5/Libraries/libzmq.dll"; \
-    cp /tmp/ea_deps/mt4/libzmq.dll "$MT4_ROOT/MQL4/Libraries/libzmq.dll"; \
-    cp -r /tmp/ea_deps/Include/Zmq "$MT5_ROOT/MQL5/Include/Zmq"; \
-    cp -r /tmp/ea_deps/Include/Zmq "$MT4_ROOT/MQL4/Include/Zmq"; \
-    cp /tmp/ea_deps/Include/JAson.mqh "$MT5_ROOT/MQL5/Include/JAson.mqh"; \
-    cp /tmp/ea_deps/Include/JAson.mqh "$MT4_ROOT/MQL4/Include/JAson.mqh"; \
-    rm -rf /tmp/ea_deps; \
-    if [ ! -f "$WINE_TEMPLATE/drive_c/Program Files/MetaTrader 5/MQL5/Libraries/libzmq.dll" ]; then \
-        echo "FATAL: libzmq.dll missing in MT5 template" >&2; \
+    if [ ! -d /opt/ea/deps ]; then \
+        echo "FATAL: /opt/ea/deps not present; the COPY of ea/deps/ failed or the layout changed." >&2; \
         exit 1; \
     fi; \
-    if [ ! -f "$WINE_TEMPLATE/drive_c/Program Files (x86)/MetaTrader 4/MQL4/Libraries/libzmq.dll" ]; then \
-        echo "FATAL: libzmq.dll missing in MT4 template" >&2; \
-        exit 1; \
-    fi; \
-    # Defect #15: bake LiveUpdate-neutralization into the template so a
-    # freshly-seeded prefix ships with the updater disabled on first
-    # boot.
-    #
-    # PROVEN (staging, build 5836; see
-    # docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md): the
-    # [LiveUpdate] LastBuildDataPath key in terminal.ini does NOT stop
-    # LiveUpdate -- it was present in the exact terminal.ini the
-    # terminal reads and the terminal still downloaded mt5onnx64 and
-    # self-restarted (exit 143) in an infinite loop. It is retained
-    # below ONLY as a harmless tertiary, NOT as the mechanism.
-    #
-    # DEAD END -- the common.ini [Common] Source= neutralization was
-    # tried (baked here + re-asserted in entrypoint.sh) and is
-    # empirically DISPROVEN: MT5 build 5836 still downloaded mt5onnx64
-    # and self-restarted (see runbook). It has been REMOVED. The only
-    # working LiveUpdate control is the per-tenant NetworkPolicy egress
-    # block (runbook Layer 2), not any baked config.
-    #
-    # The terminal.ini LastBuildDataPath pin below is likewise INEFFECTIVE
-    # (proven), retained only as inert legacy so the seeded prefix shape
-    # is unchanged. Do not add a common.ini 'fix' here again.
-    mkdir -p "$MT5_ROOT/config" "$MT4_ROOT/config"; \
-    printf '[LiveUpdate]\nLastBuildDataPath=5836\n' > "$MT5_ROOT/config/terminal.ini"; \
-    printf '[LiveUpdate]\nLastBuildDataPath=5836\n' > "$MT4_ROOT/config/terminal.ini"; \
-    if ! grep -q 'LastBuildDataPath' "$MT5_ROOT/config/terminal.ini"; then \
-        echo "FATAL: LiveUpdate pin missing in MT5 template terminal.ini" >&2; \
-        exit 1; \
-    fi; \
-    if ! grep -q 'LastBuildDataPath' "$MT4_ROOT/config/terminal.ini"; then \
-        echo "FATAL: LiveUpdate pin missing in MT4 template terminal.ini" >&2; \
+    for f in /opt/ea/deps/mt5/libzmq.dll \
+             /opt/ea/deps/mt4/libzmq.dll \
+             /opt/ea/deps/Include/JAson.mqh; do \
+        if [ ! -f "$f" ]; then \
+            echo "FATAL: missing required EA dep at $f" >&2; \
+            exit 1; \
+        fi; \
+    done; \
+    if [ ! -d /opt/ea/deps/Include/Zmq ]; then \
+        echo "FATAL: missing required EA dep dir /opt/ea/deps/Include/Zmq" >&2; \
         exit 1; \
     fi
 
@@ -345,9 +268,6 @@ RUN set -eux; \
     chown -R mt:mt /opt/ea /opt/watchdog "$WINE_TEMPLATE"; \
     chmod +x /usr/local/bin/entrypoint.sh /opt/watchdog/watchdog.py
 
-# NOTE: the Wine template ownership sweep is done in the MT4 install step
-# above (it runs after both MT5 and MT4 unzip into $WINE_TEMPLATE), so no
-# separate `chown -R /opt/wine-template` is needed here.
 USER mt
 WORKDIR /home/mt
 
