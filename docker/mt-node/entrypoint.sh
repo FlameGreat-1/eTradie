@@ -1700,20 +1700,46 @@ WINE_TEMPLATE="${WINE_TEMPLATE:-/opt/wine-template/.wine}"
 export WINEPREFIX="$WINE_PREFIX"
 export WINEDEBUG="-all"
 
+# Platform-specific runtime layout. MT_DIR is resolved IN TWO STAGES:
+#
+#   (a) Pre-overlay default below: the generic Program Files path.
+#       Used only so the Wine-prefix corruption-detect block can run
+#       its 'is drive_c/windows/system32 present?' test against a
+#       stable path before the broker-bundle overlay runs.
+#   (b) Post-overlay actual: the BRANDED MT root (e.g. 'MetaTrader 5
+#       EXNESS', 'MetaTrader 5') is resolved from /broker-bundle/ by
+#       the bundle-install block further down. After the overlay
+#       copies the branded tree to that branded path INSIDE the Wine
+#       prefix, MT_DIR is REASSIGNED to that branded path and every
+#       later step (EA copy, .set write, chart template, startup.ini,
+#       MT_EXE launch) uses the branded path.
+#
+# MT_EXE is the binary FILENAME within MT_DIR; the same filename
+# works for every broker's branded build (terminal64.exe for MT5,
+# terminal.exe for MT4). What differs across brokers is the BYTES of
+# that file, which is what the bundle overlay delivers.
 if [ "$MT_PLATFORM" = "mt4" ]; then
   MT_DIR="$WINE_PREFIX/drive_c/Program Files (x86)/MetaTrader 4"
   MT_EXE="terminal.exe"
   EA_SRC="/opt/ea/ZeroMQ_EA.ex4"
   EA_REL_DST="MQL4/Experts/ZeroMQ_EA.ex4"
+  EA_DEPS_LIBZMQ_SRC="/opt/ea/deps/mt4/libzmq.dll"
+  EA_DEPS_LIBZMQ_DST_REL="MQL4/Libraries/libzmq.dll"
+  EA_DEPS_INCLUDE_DST_REL="MQL4/Include"
   SET_REL_DST="MQL4/Profiles/Templates/ZeroMQ_EA.set"
   TPL_REL_DST="templates/expert.tpl"
+  MT_PROGRAM_FILES_PARENT="$WINE_PREFIX/drive_c/Program Files (x86)"
 else
   MT_DIR="$WINE_PREFIX/drive_c/Program Files/MetaTrader 5"
   MT_EXE="terminal64.exe"
   EA_SRC="/opt/ea/ZeroMQ_EA.ex5"
   EA_REL_DST="MQL5/Experts/ZeroMQ_EA.ex5"
+  EA_DEPS_LIBZMQ_SRC="/opt/ea/deps/mt5/libzmq.dll"
+  EA_DEPS_LIBZMQ_DST_REL="MQL5/Libraries/libzmq.dll"
+  EA_DEPS_INCLUDE_DST_REL="MQL5/Include"
   SET_REL_DST="MQL5/Profiles/Templates/ZeroMQ_EA.set"
   TPL_REL_DST="Profiles/Templates/expert.tpl"
+  MT_PROGRAM_FILES_PARENT="$WINE_PREFIX/drive_c/Program Files"
 fi
 
 # ── Wine prefix corruption auto-reset ─────────────────────────────
@@ -1924,135 +1950,202 @@ fi
 unset _wm_ready _i
 log INFO "fluxbox ready (pid=${WM_PID}); _NET_ACTIVE_WINDOW available"
 
-# ── Materialise MT directory layout (idempotent) ─────────────────
+# ── Broker-bundle overlay (REQUIRED; installs branded MetaTrader) ─
+#
+# The mt-node image no longer carries any MetaTrader install. Every
+# per-tenant Pod receives the broker's BRANDED MetaTrader at runtime
+# via the broker-bundle initContainer, which:
+#
+#   1. wgets the per-broker portable zip from R2 (pin in the broker
+#      catalog, infrastructure/broker-catalog/<brand>.json).
+#   2. verifies sha256 against the pin.
+#   3. unpacks into the /broker-bundle emptyDir volume.
+#
+# This block then:
+#
+#   1. Finds the BRANDED MT root inside /broker-bundle/ by locating
+#      the single subdirectory containing terminal64.exe (MT5) or
+#      terminal.exe (MT4). The root name varies per broker:
+#        - Generic MetaTrader from MetaQuotes: 'MetaTrader 5'
+#        - Exness branded: 'MetaTrader 5 EXNESS'
+#        - Deriv branded: 'MetaTrader 5'  (some brokers reuse the
+#          generic name; only the BYTES differ)
+#      We do NOT assume the root name. We discover it.
+#
+#   2. Resolves the destination MT_DIR to
+#      <MT_PROGRAM_FILES_PARENT>/<root_basename> so the branded
+#      directory name is preserved inside the Wine prefix. The launch
+#      line (wine "$MT_EXE" /portable from MT_DIR) then runs the
+#      BRANDED terminal64.exe / terminal.exe.
+#
+#   3. Idempotent overlay via sentinel '.bundle-installed-from-<sha>':
+#      the overlay runs only when the sentinel is absent or carries a
+#      different sha. On subsequent boots over the same PVC the
+#      overlay is a no-op (the branded MT install is already in
+#      place, including all per-MT5 mutations like accounts.dat and
+#      the LiveUpdate-applied components).
+#
+#   4. After the overlay, installs the EA + libzmq.dll + Include
+#      headers + EA .set into the BRANDED MT root's MQL5/Experts,
+#      MQL5/Libraries, and MQL5/Include subtrees. Order matters: the
+#      bundle may carry empty MQL5/* subtrees, so EA install runs
+#      LAST (after the overlay copies the bundle's empty subtrees
+#      in, we copy the EA on top).
+#
+# This block FAILS LOUDLY if /broker-bundle/ is missing or carries no
+# terminal binary: the only mode in which that happens is a
+# misconfigured Pod (no initContainer, or initContainer failed
+# silently). The image has no MT install to fall back to, so we exit
+# FATAL rather than launching a binary that does not exist.
+#
+# Local docker-compose / dev: the operator can mount a pre-baked
+# branded MT tree at /broker-bundle/<root>/ (or skip the broker-bundle
+# entirely and bake the MT install into a derived dev image).
+#
+# Observability: every step logs structured detail so an operator
+# can deterministically diagnose a failed install from the mt-node
+# container log alone, without a debug pod against the preserved PVC.
+if [ ! -d "/broker-bundle" ]; then
+  log FATAL "/broker-bundle volume is not present. The mt-node image no longer carries any MetaTrader install; every Pod MUST receive the branded MT at runtime via the broker-bundle initContainer. Check that the StatefulSet/Pod spec includes the broker-bundle initContainer + emptyDir + volumeMount (see helm/mt-node/templates/statefulset.yaml and src/engine/ta/broker/mt5/hosted/provisioner.py::_upsert_statefulset)."
+  exit 1
+fi
+
+# Step 1: report the top-level listing of the bundle volume so the
+# operator can verify the initContainer actually extracted something.
+# If the initContainer wget / sha256 / unzip silently dropped to an
+# empty bundle, this listing surfaces that immediately.
+_bundle_top_level=$(ls -la /broker-bundle 2>&1 | tr '\n' '|' | sed 's/|$//')
+log INFO "broker-bundle volume present at /broker-bundle; top-level listing: ${_bundle_top_level}"
+
+# Step 2: locate the branded MT root inside the bundle. The bundle's
+# top-level directory holds the branded MT install; its name varies
+# per broker ('MetaTrader 5 EXNESS', 'MetaTrader 5', etc.). We
+# discover it by finding the single subdirectory that contains the
+# platform's terminal binary.
+if [ "$MT_PLATFORM" = "mt4" ]; then
+  _bundle_exe_name="terminal.exe"
+else
+  _bundle_exe_name="terminal64.exe"
+fi
+
+# find ... -maxdepth 4 covers the common 'MetaTrader 5 EXNESS/
+# terminal64.exe' layout AND a hypothetical broker that nests one
+# level deeper. -iname is case-insensitive because some installer
+# zips capitalise the .exe.
+_bundle_exe_finds=$(find /broker-bundle -maxdepth 4 -type f -iname "${_bundle_exe_name}" 2>/dev/null || true)
+if [ -z "$_bundle_exe_finds" ]; then
+  log FATAL "broker-bundle: no ${_bundle_exe_name} found under /broker-bundle (the initContainer extracted nothing, or the bundle layout is wrong). Re-bake the broker bundle per docs/MT5_Multi_Broker_Provisioning_Architecture.md §6 and republish the R2 zip with a fresh sha256."
+  exit 1
+fi
+_bundle_exe_count=$(printf '%s\n' "$_bundle_exe_finds" | wc -l)
+log INFO "broker-bundle: ${_bundle_exe_name} matches=${_bundle_exe_count}"
+printf '%s\n' "$_bundle_exe_finds" | while IFS= read -r _line; do
+  [ -n "$_line" ] || continue
+  log INFO "  - ${_line}"
+done
+if [ "$_bundle_exe_count" -gt 1 ]; then
+  log FATAL "broker-bundle: multiple ${_bundle_exe_name} candidates inside /broker-bundle (count=${_bundle_exe_count}). A healthy bundle contains exactly one branded MT install. Re-bake."
+  exit 1
+fi
+_bundle_exe=$(printf '%s\n' "$_bundle_exe_finds" | head -n1)
+_bundle_root=$(dirname "$_bundle_exe")
+_bundle_root_name=$(basename "$_bundle_root")
+log INFO "broker-bundle: detected branded MT root at '${_bundle_root}' (platform=${MT_PLATFORM}, root_name='${_bundle_root_name}')"
+
+# Step 3: resolve the runtime MT_DIR to <Program Files parent>/<branded
+# root name> so the branded directory layout is preserved on the Wine
+# prefix. From this point onward MT_DIR points at the branded path.
+MT_DIR="${MT_PROGRAM_FILES_PARENT}/${_bundle_root_name}"
+log INFO "broker-bundle: post-overlay MT_DIR='${MT_DIR}'"
+
+# Step 4: idempotent overlay via sentinel. The sentinel records the
+# BUNDLE_SHA256 that produced this install; on subsequent boots over
+# the same PVC the overlay is skipped when the sha matches. A catalog
+# bump (new bundle for the same connection) will mismatch the
+# sentinel and re-overlay, which is intentional: a fresh bundle MUST
+# land on the PVC.
+_sentinel_dir="$MT_DIR"
+_sentinel_file="${_sentinel_dir}/.bundle-installed-from-${BUNDLE_SHA256:-unknown}"
+_overlay_needed=1
+if [ -f "$_sentinel_file" ] && [ -f "$MT_DIR/$MT_EXE" ]; then
+  _overlay_needed=0
+  log INFO "broker-bundle overlay: sentinel '${_sentinel_file}' present and ${MT_EXE} on disk; skipping overlay (idempotent)"
+fi
+
+if [ "$_overlay_needed" -eq 1 ]; then
+  # Clean any stale sentinel files from a previous bundle version on
+  # this PVC so 'ls .bundle-installed-from-*' is always unambiguous.
+  rm -f "${_sentinel_dir}"/.bundle-installed-from-* 2>/dev/null || true
+  mkdir -p "$MT_DIR"
+  # cp -a preserves ownership/permissions/symlinks/timestamps. The
+  # trailing '/.' copies the CONTENTS of the bundle root (so the
+  # branded files land directly inside MT_DIR, not nested one level
+  # deeper inside MT_DIR/<root_name>/).
+  log INFO "broker-bundle overlay: cp -a '${_bundle_root}/.' -> '${MT_DIR}/'"
+  if ! cp -a "${_bundle_root}/." "${MT_DIR}/"; then
+    log FATAL "broker-bundle overlay: cp -a failed (src='${_bundle_root}', dst='${MT_DIR}'). The Wine prefix PVC may be full or unwritable."
+    exit 1
+  fi
+  printf '%s\n' "${BUNDLE_SHA256:-unknown}" > "$_sentinel_file" 2>/dev/null || true
+  log INFO "broker-bundle overlay: complete; sentinel written at '${_sentinel_file}'"
+fi
+
+# Step 5: assert the branded terminal is now in place and grab its
+# sha256 + size for the audit log. A mismatch between the bundle pin
+# and the installed bytes would point at a PVC-corruption event.
+if [ ! -f "$MT_DIR/$MT_EXE" ]; then
+  log FATAL "broker-bundle overlay: ${MT_EXE} not present at '${MT_DIR}/${MT_EXE}' after overlay. Aborting."
+  exit 1
+fi
+_terminal_size=$(wc -c < "$MT_DIR/$MT_EXE" 2>/dev/null || echo "?")
+_terminal_sha=$(sha256sum "$MT_DIR/$MT_EXE" 2>/dev/null | awk '{print $1}')
+log INFO "broker-bundle overlay summary: branded_terminal='${MT_DIR}/${MT_EXE}', size=${_terminal_size}, sha256=${_terminal_sha}, bundle_sha256=${BUNDLE_SHA256:-unset}"
+
+unset _bundle_top_level _bundle_exe_name _bundle_exe_finds _bundle_exe_count _bundle_exe _bundle_root _bundle_root_name _sentinel_dir _sentinel_file _overlay_needed _terminal_size _terminal_sha _line
+
+# ── Materialise MT directory layout under the branded root ────────
 mkdir -p "$MT_DIR/$(dirname "$EA_REL_DST")" \
          "$MT_DIR/$(dirname "$SET_REL_DST")" \
          "$MT_DIR/$(dirname "$TPL_REL_DST")" \
+         "$MT_DIR/$(dirname "$EA_DEPS_LIBZMQ_DST_REL")" \
+         "$MT_DIR/$EA_DEPS_INCLUDE_DST_REL" \
          "$MT_DIR/config"
 
-# ── Inject broker-specific servers.dat or *.srv if present ────────
-# The broker-bundle initContainer unzips the broker portable zip into
-# /broker-bundle. That zip carries a TOP-LEVEL 'MetaTrader 5/' (or
-# 'MetaTrader 5 <BRAND>/') directory -- the same layout the image
-# Dockerfile unzips and asserts terminal64.exe beneath -- so the
-# broker's servers.dat is at e.g.
-# /broker-bundle/MetaTrader 5/config/servers.dat, NOT
-# /broker-bundle/config/servers.dat. A per-instance Terminal data dir
-# layout is also possible. Per the architecture doc we therefore FIND
-# servers.dat rather than assume a fixed path, and install it (plus any
-# *.srv companions) into the terminal's config dir before launch. These
-# are the broker's OWN authoritative files -- installed verbatim, never
-# edited. Safe when the bundle is absent (dev/docker-compose): the find
-# returns nothing and the block is a no-op.
-#
-# Observability (added 2026-06-25): every step logs structured detail
-# so an operator can deterministically diagnose a failed install from
-# the mt-node container log alone, without a debug pod against the
-# preserved PVC. The 2026-06-25 staging diagnostic round was blocked
-# by the absence of these signals on the 'failed' pod
-# (see docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md Section B).
-if [ -d "/broker-bundle" ]; then
-  # Step 1: report the top-level listing of the bundle volume so the
-  # operator can verify the initContainer actually extracted something.
-  # If the initContainer wget / sha256 / unzip silently dropped to an
-  # empty bundle, this listing surfaces that immediately.
-  _bundle_top_level=$(ls -la /broker-bundle 2>&1 | tr '\n' '|' | sed 's/|$//')
-  log INFO "broker-bundle volume present at /broker-bundle; top-level listing: ${_bundle_top_level}"
-
-  # Step 2: enumerate all servers.dat candidates (every match, not just
-  # the first). On a healthy Exness bundle this is exactly one path
-  # ('/broker-bundle/MetaTrader 5 EXNESS/Config/servers.dat'); on a
-  # broken bundle (extraction failure, wrong zip layout, generic-only)
-  # this is either empty or unexpectedly multiple.
-  _servers_dat_finds=$(find /broker-bundle -type f -iname 'servers.dat' 2>/dev/null || true)
-  if [ -z "$_servers_dat_finds" ]; then
-    log WARN "broker-bundle find for servers.dat: NO MATCHES under /broker-bundle (initContainer may have failed to extract, or the bundle does not carry a servers.dat)"
-  else
-    _servers_dat_count=$(printf '%s\n' "$_servers_dat_finds" | wc -l)
-    log INFO "broker-bundle find for servers.dat matched ${_servers_dat_count} file(s):"
-    printf '%s\n' "$_servers_dat_finds" | while IFS= read -r _line; do
-      [ -n "$_line" ] || continue
-      log INFO "  - ${_line}"
-    done
-  fi
-
-  _bundle_installed=0
-  _servers_installed=0
-  while IFS= read -r _sd; do
-    [ -n "$_sd" ] || continue
-    # Capture src file size before the copy so a 0-byte source surfaces
-    # immediately.
-    _src_size=$(wc -c < "$_sd" 2>/dev/null || echo "?")
-    if cp -f "$_sd" "$MT_DIR/config/servers.dat"; then
-      _bundle_installed=1
-      _servers_installed=$(( _servers_installed + 1 ))
-      # Confirm the destination exists with the expected size and an
-      # operator-readable sha256 for cross-checking against the bundle.
-      # sha256sum lives in coreutils on Ubuntu 24.04 (the base image);
-      # this is the same path Vault Agent + bundle initContainer use.
-      _dst_size=$(wc -c < "$MT_DIR/config/servers.dat" 2>/dev/null || echo "?")
-      _dst_sha=$(sha256sum "$MT_DIR/config/servers.dat" 2>/dev/null | awk '{print $1}')
-      log INFO "Installed broker servers.dat from bundle (src='${_sd}', src_size=${_src_size}, dst='${MT_DIR}/config/servers.dat', dst_size=${_dst_size}, dst_sha256=${_dst_sha})"
-    else
-      _cp_rc=$?
-      log WARN "FAILED to install servers.dat from bundle (src='${_sd}', dst='${MT_DIR}/config/servers.dat', cp_exit=${_cp_rc}); broker login will use the baked generic servers.dat instead"
-    fi
-  done <<EOF
-$(printf '%s\n' "$_servers_dat_finds")
-EOF
-
-  # Step 3: enumerate *.srv companion files (broker-specific access
-  # server entries that some brokers ship alongside servers.dat).
-  _srv_finds=$(find /broker-bundle -type f -iname '*.srv' 2>/dev/null || true)
-  if [ -z "$_srv_finds" ]; then
-    log INFO "broker-bundle find for *.srv: no .srv companion files (this is normal for most brokers)"
-  else
-    _srv_count=$(printf '%s\n' "$_srv_finds" | wc -l)
-    log INFO "broker-bundle find for *.srv matched ${_srv_count} file(s):"
-    printf '%s\n' "$_srv_finds" | while IFS= read -r _line; do
-      [ -n "$_line" ] || continue
-      log INFO "  - ${_line}"
-    done
-  fi
-
-  _srv_installed=0
-  while IFS= read -r _srv; do
-    [ -n "$_srv" ] || continue
-    if cp -f "$_srv" "$MT_DIR/config/"; then
-      _bundle_installed=1
-      _srv_installed=$(( _srv_installed + 1 ))
-      log INFO "Installed broker .srv from bundle (${_srv} -> ${MT_DIR}/config/)"
-    else
-      _cp_rc=$?
-      log WARN "FAILED to install .srv from bundle (src='${_srv}', cp_exit=${_cp_rc})"
-    fi
-  done <<EOF
-$(printf '%s\n' "$_srv_finds")
-EOF
-
-  # Step 4: deterministic final summary so the operator can grep one
-  # line and know everything: 'broker-bundle install summary'.
-  _final_size="?"
-  if [ -f "$MT_DIR/config/servers.dat" ]; then
-    _final_size=$(wc -c < "$MT_DIR/config/servers.dat" 2>/dev/null || echo "?")
-  fi
-  log INFO "broker-bundle install summary: servers_installed=${_servers_installed}, srv_installed=${_srv_installed}, final_servers_dat='${MT_DIR}/config/servers.dat', final_servers_dat_size=${_final_size}"
-
-  if [ "$_bundle_installed" -eq 0 ]; then
-    log WARN "/broker-bundle present but no servers.dat/*.srv was successfully installed; MT will use the baked generic servers.dat (broker login may fail with 'server not found' or silently exit)"
-  fi
-
-  unset _bundle_top_level _servers_dat_finds _servers_dat_count _src_size _dst_size _dst_sha _cp_rc _srv_finds _srv_count _servers_installed _srv_installed _final_size _sd _srv _line
-else
-  log INFO "broker-bundle volume not present at /broker-bundle (dev / docker-compose mode); MT will use the baked generic servers.dat"
-fi
-
-# ── Copy EA binary ────────────────────────────────────────────────
+# ── Copy EA binary + dependencies (AFTER bundle overlay) ──────────
+# The bundle may have shipped empty MQL{4,5}/Experts and MQL{4,5}/
+# Libraries subtrees; the overlay above placed those empty trees
+# into MT_DIR. We now install our EA + libzmq.dll + Include headers
+# ON TOP of the overlaid tree so the branded MT loads our EA, not
+# whatever happened to be in the bundle's MQL{4,5}/Experts (which is
+# normally empty).
 if [ -f "$EA_SRC" ]; then
   cp -f "$EA_SRC" "$MT_DIR/$EA_REL_DST"
-  log INFO "EA copied to $MT_DIR/$EA_REL_DST"
+  log INFO "EA installed: ${MT_DIR}/${EA_REL_DST}"
 else
-  log WARN "EA binary not found at $EA_SRC (continuing; user-supplied EA may already be in the Wine prefix)"
+  log FATAL "EA binary not found at $EA_SRC. The image is missing /opt/ea/ZeroMQ_EA.ex{4,5}; rebuild the mt-node image."
+  exit 1
+fi
+
+if [ -f "$EA_DEPS_LIBZMQ_SRC" ]; then
+  cp -f "$EA_DEPS_LIBZMQ_SRC" "$MT_DIR/$EA_DEPS_LIBZMQ_DST_REL"
+  log INFO "EA dep installed: libzmq.dll -> ${MT_DIR}/${EA_DEPS_LIBZMQ_DST_REL}"
+else
+  log FATAL "EA dep missing at $EA_DEPS_LIBZMQ_SRC; rebuild the mt-node image."
+  exit 1
+fi
+if [ -d "/opt/ea/deps/Include/Zmq" ]; then
+  cp -a "/opt/ea/deps/Include/Zmq" "$MT_DIR/$EA_DEPS_INCLUDE_DST_REL/"
+  log INFO "EA dep installed: Include/Zmq -> ${MT_DIR}/${EA_DEPS_INCLUDE_DST_REL}/Zmq"
+else
+  log FATAL "EA dep dir missing at /opt/ea/deps/Include/Zmq; rebuild the mt-node image."
+  exit 1
+fi
+if [ -f "/opt/ea/deps/Include/JAson.mqh" ]; then
+  cp -f "/opt/ea/deps/Include/JAson.mqh" "$MT_DIR/$EA_DEPS_INCLUDE_DST_REL/JAson.mqh"
+  log INFO "EA dep installed: Include/JAson.mqh -> ${MT_DIR}/${EA_DEPS_INCLUDE_DST_REL}/JAson.mqh"
+else
+  log FATAL "EA dep missing at /opt/ea/deps/Include/JAson.mqh; rebuild the mt-node image."
+  exit 1
 fi
 
 # ── Write EA .set file (per-tenant AUTH_TOKEN + ZMQ_PORT) ────────
