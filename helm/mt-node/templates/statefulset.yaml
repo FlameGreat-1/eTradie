@@ -75,9 +75,12 @@ spec:
           export MT_ZMQ_AUTH_TOKEN={{`{{ .Data.data.mt5_zmq_auth_token }}`}}
           export MT_VAULT_RENDERED_AT={{`{{ timestamp "2006-01-02T15:04:05Z" }}`}}
           {{`{{- end -}}`}}
-        {{- if and .Values.mtConnection.brokerBundleR2Path .Values.mtConnection.brokerBundleSha256 }}
+        # Preflight (templates/_helpers.tpl::mt-node.preflight) enforces
+        # brokerBundleR2Path + brokerBundleSha256 on the per-tenant
+        # render path. The annotation stamps the bundle SHA onto the
+        # pod template so a catalog bump rolls the Pod via the same
+        # mechanism the Vault credentials checksum uses.
         etradie.io/broker-bundle-sha256: {{ .Values.mtConnection.brokerBundleSha256 | quote }}
-        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -122,14 +125,14 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if and .Values.mtConnection.brokerBundleR2Path .Values.mtConnection.brokerBundleSha256 }}
-      {{- /* Audit defect #1: wget cannot fetch the bespoke `r2://`
-             scheme. Operators handing the chart by hand sometimes paste
-             the catalog's r2:// alias; fail-fast at render time with a
-             clear message so the bad value never reaches the kubelet. */}}
-      {{- if not (or (hasPrefix "https://" .Values.mtConnection.brokerBundleR2Path) (hasPrefix "http://" .Values.mtConnection.brokerBundleR2Path)) }}
-      {{- fail (printf "helm/mt-node: .Values.mtConnection.brokerBundleR2Path must be an http(s):// URL the initContainer can wget (got %q). The catalog's r2:// alias is documentation-only; use the resolved public HTTPS URL of the R2 object." .Values.mtConnection.brokerBundleR2Path) }}
-      {{- end }}
+      # The broker-bundle initContainer is unconditional on the
+      # per-tenant render path: the mt-node image no longer carries
+      # any MetaTrader install, so the only way MT lands at runtime
+      # is via the bundle. The chart preflight (in
+      # templates/_helpers.tpl::mt-node.preflight) FAILS the render
+      # if brokerBundleR2Path is missing or non-http(s):// or if
+      # brokerBundleSha256 is missing or not 64 lowercase hex chars,
+      # so the values used below are guaranteed shape-correct.
       initContainers:
         - name: broker-bundle
           image: {{ include "mt-node.image" . | quote }}
@@ -155,7 +158,6 @@ spec:
           volumeMounts:
             - name: broker-bundle
               mountPath: /broker-bundle
-      {{- end }}
       containers:
         - name: mt-node
           image: {{ include "mt-node.image" . | quote }}
@@ -181,12 +183,10 @@ spec:
               value: {{ .Values.mtConnection.symbol | quote }}
             - name: ZMQ_PORT
               value: {{ .Values.service.zmqPort | default 5555 | quote }}
-            {{- if and .Values.mtConnection.brokerBundleR2Path .Values.mtConnection.brokerBundleSha256 }}
             - name: BUNDLE_R2_PATH
               value: {{ .Values.mtConnection.brokerBundleR2Path | quote }}
             - name: BUNDLE_SHA256
               value: {{ .Values.mtConnection.brokerBundleSha256 | quote }}
-            {{- end }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -227,11 +227,9 @@ spec:
             - name: vault-token
               mountPath: /var/run/secrets/vault
               readOnly: true
-            {{- if and .Values.mtConnection.brokerBundleR2Path .Values.mtConnection.brokerBundleSha256 }}
             - name: broker-bundle
               mountPath: /broker-bundle
               readOnly: true
-            {{- end }}
         {{- if .Values.sidecar.watchdog.enabled }}
         - name: watchdog
           image: {{ include "mt-node.image" . | quote }}
@@ -280,10 +278,8 @@ spec:
               mountPath: /tmp
         {{- end }}
       volumes:
-        {{- if and .Values.mtConnection.brokerBundleR2Path .Values.mtConnection.brokerBundleSha256 }}
         - name: broker-bundle
           emptyDir: {}
-        {{- end }}
         - name: mt-cache
           emptyDir:
             sizeLimit: 256Mi

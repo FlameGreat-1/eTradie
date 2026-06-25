@@ -477,6 +477,61 @@ class HostedProvisioner:
 
         resolved_broker = self._broker_registry.resolve(brand_id, entity_id, platform)
 
+        # Defence-in-depth: the registry loader already enforces
+        # bundle_r2_path / bundle_sha256 / live servers on every active
+        # platform entry. Re-validate the shapes here so a half-populated
+        # catalog entry (e.g. someone manually edited a JSON to flip
+        # status='pending_bake'->'active' without filling the bundle
+        # fields) can never reach the K8s API. The bundle pin is
+        # MANDATORY: the image no longer carries any MetaTrader install,
+        # so a missing bundle means the Pod has no terminal binary.
+        _bundle_r2_path = getattr(resolved_broker, "bundle_r2_path", "") or ""
+        _bundle_sha256 = getattr(resolved_broker, "bundle_sha256", "") or ""
+        if not _bundle_r2_path:
+            raise ConfigurationError(
+                "Resolved broker is missing bundle_r2_path; the mt-node "
+                "image carries no MetaTrader install, so a bundle is "
+                "required for every hosted provision.",
+                details={
+                    "connection_id": connection_id,
+                    "brand_id": brand_id,
+                    "entity_id": entity_id,
+                    "platform": platform,
+                },
+            )
+        if not (
+            _bundle_r2_path.startswith("https://") or _bundle_r2_path.startswith("http://")
+        ):
+            raise ConfigurationError(
+                "Resolved broker bundle_r2_path must be an http(s):// URL "
+                "the initContainer can wget; the catalog's r2:// alias is "
+                "documentation-only.",
+                details={
+                    "connection_id": connection_id,
+                    "brand_id": brand_id,
+                    "entity_id": entity_id,
+                    "platform": platform,
+                    "bundle_r2_path": _bundle_r2_path,
+                },
+            )
+        if (
+            not _bundle_sha256
+            or len(_bundle_sha256) != 64
+            or any(c not in "0123456789abcdef" for c in _bundle_sha256)
+        ):
+            raise ConfigurationError(
+                "Resolved broker bundle_sha256 must be 64 lowercase hex "
+                "characters; the initContainer verifies the downloaded "
+                "zip against this digest before unpacking.",
+                details={
+                    "connection_id": connection_id,
+                    "brand_id": brand_id,
+                    "entity_id": entity_id,
+                    "platform": platform,
+                    "bundle_sha256": _bundle_sha256,
+                },
+            )
+
         # Fall back to development token if not explicitly provided
         zmq_auth_token = per_user_zmq_token or os.environ.get("DEFAULT_ZMQ_AUTH_TOKEN", "")
 

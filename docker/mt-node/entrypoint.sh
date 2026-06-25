@@ -699,7 +699,35 @@ _drv_wait_for_dialog() {
 #   total budget.
 # AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS: settle between attempts so a
 #   half-opened menu has time to close before the next Alt+F.
-AUTO_LOGIN_PHASE5_ENABLED="${AUTO_LOGIN_PHASE5_ENABLED:-1}"
+#
+# Phase 5 default is OFF.
+#
+# Phase 5 was a 3-attempt keystroke cascade (Ctrl+M Market Watch /
+# File menu fallback) designed to force MT5 to open a chart after
+# Phase 3 submitted credentials. It was authored against the GENERIC
+# MetaQuotes terminal64.exe (which does NOT auto-open charts), back
+# when the image baked the generic install. That image no longer
+# exists: every Pod now receives the BRANDED terminal64.exe at
+# runtime via the broker-bundle overlay. Branded MT (Exness, Deriv,
+# ...) auto-opens its own default charts after login - confirmed on
+# the operator workstation for both Exness and Deriv (Wine + real X
+# display) and documented in docs/runbooks/HOSTED-MT-PROVISIONING-
+# SESSION.md Section A.2.
+#
+# On the failed 2026-06-25 staging run, Phase 5 attempt 3 actively
+# UNMAPPED MT5's own Toolbox/Journal panel ('WID=18874369 NAME=logs')
+# during its modal-clear cascade. That is destructive to MT5's UI
+# assembly. With the branded binary now running there is no scenario
+# in which Phase 5 helps: either MT5 auto-opens charts (Phase 5 races
+# MT5's own work) or it does not (the branded binary's chart-attach
+# is broker-side, not keystroke-driven).
+#
+# The Phase 5 code is RETAINED below so an operator can opt-in for a
+# specific Pod via
+#   kubectl -n etradie-system set env statefulset/<release> -c mt-node \
+#     AUTO_LOGIN_PHASE5_ENABLED=1
+# without an image rebuild. The default is 0.
+AUTO_LOGIN_PHASE5_ENABLED="${AUTO_LOGIN_PHASE5_ENABLED:-0}"
 # Upper bound only: the settle loop early-exits the instant a
 # deterministic readiness signal fires (see
 # _drv_phase5_mql5_logs_present / _drv_phase5_welcome_modal_seen below).
