@@ -2170,41 +2170,12 @@ EOF
 fi
 log INFO "Startup config written to $INI_FILE"
 
-# ── Disable MetaTrader LiveUpdate self-restart loop (defect #15) ──
-# Both MT5 (terminal64.exe) and MT4 (terminal.exe) run LiveUpdate on
-# every cold boot: the terminal contacts MetaQuotes' update servers,
-# downloads a component (e.g. mt5onnx64), and self-restarts to apply
-# (exit 143). The supervised loop then relaunches and re-runs the full
-# recompile + LiveUpdate from scratch -- an infinite, non-convergent
-# loop in which the EA OnInit never runs, MQL Logs is never created,
-# and :5555 never binds, so the pod never reaches Ready.
-#
-# DEAD ENDS -- DO NOT RE-IMPLEMENT (all empirically DISPROVEN on the
-# live cluster, build 5836; see
-# docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md §1.x):
-#   1. [LiveUpdate] LastBuildDataPath pin in terminal.ini  -> IGNORED.
-#   2. hostAliases / DNS sinkhole of download.mql5.com     -> IGNORED
-#      (updater dials MetaQuotes by hardcoded IP, bypassing /etc/hosts).
-#   3. common.ini [Common] Source= empty (+ NewsEnable=0), re-asserted
-#      every boot                                          -> IGNORED
-#      (confirmed present in the running prefix; MT5 still downloaded
-#      mt5onnx64 and self-restarted exit 143; :5555 never bound).
-#
-# NO in-container config or DNS lever stops LiveUpdate on this build.
-# The ONLY working control is a NETWORK EGRESS BLOCK (Layer 2) applied
-# by the per-tenant NetworkPolicy (default-deny egress + broker
-# access-server CIDR allowlist). That lives in the chart + provisioner,
-# NOT in this script. Do not add another config-write 'fix' here.
-#
-# The legacy terminal.ini LastBuildDataPath pin is still written below
-# only because the baked template carries it; it is INERT and retained
-# solely to avoid a no-op diff. It does nothing.
-
-# Resolve the baked terminal build so we never pin a stale number.
-# The terminal records the running build in its journal as
-# 'MetaTrader <4|5> ... build <N> started'; fall back to the known
-# baked MT5 build (5836) if the journal is not yet present (first
-# boot). MT4 journals carry the same 'build <N>' token.
+# ── LiveUpdate build pin (terminal.ini) ───────────────────────────
+# The only effective LiveUpdate control is the per-tenant
+# NetworkPolicy egress block (chart + provisioner), NOT a config
+# write. The terminal.ini LastBuildDataPath pin below is config-only
+# and harmless. Resolve the running build from the journal, falling
+# back to the baked MT5 build 5836 on first boot.
 MT_BUILD=""
 MT_JOURNAL_DIR="$MT_DIR/logs"
 if [ -d "$MT_JOURNAL_DIR" ]; then
@@ -2213,8 +2184,6 @@ if [ -d "$MT_JOURNAL_DIR" ]; then
 fi
 MT_BUILD="${MT_BUILD:-5836}"
 
-# Layer 1: pin [LiveUpdate] LastBuildDataPath in terminal.ini for the
-# active platform (MT4 and MT5 share this config file + section name).
 TERMINAL_INI="$MT_DIR/config/terminal.ini"
 if [ -f "$TERMINAL_INI" ]; then
   # Preserve any existing terminal.ini content but replace/append the
@@ -2237,16 +2206,6 @@ EOF
 fi
 log INFO "LiveUpdate pinned to build ${MT_BUILD} in $TERMINAL_INI ($MT_PLATFORM)"
 
-# NOTE: LiveUpdate is disabled solely via the [LiveUpdate]
-# LastBuildDataPath pin in terminal.ini above (the mechanism
-# confirmed from the actual install). No filesystem chmod and no
-# network block are applied: MetaTrader writes legitimate files at
-# the program-dir root on normal startup, so locking it risks
-# stopping the terminal from launching; and any network block is the
-# only lever that could endanger the broker connection. The ini pin
-# is config-only with zero side effect -- it cannot break the broker,
-# the EA, the ZMQ socket, or startup.
-
 # ── Supervised MT restart loop ───────────────────────────────────
 restart_count=0
 window_start=$(date +%s)
@@ -2255,49 +2214,11 @@ while :; do
   log INFO "Launching $MT_EXE (platform=$MT_PLATFORM, server=$MT_SERVER, login=$MT_LOGIN, symbol=$MT_SYMBOL, symbol_resolved=$SYMBOL_RESOLVED, zmq_port=$ZMQ_PORT, restart_count=$restart_count)"
 
   cd "$MT_DIR"
-  # Launch contract for unattended headless MT5 build 5836:
-  #
-  #   /portable - the ONLY flag we pass. It pins MT5's config location
-  #               to <install_dir>/config/ (not
-  #               AppData/Roaming/MetaQuotes/), so the startup.ini we
-  #               write is the one MT5 reads, AND so MT5 writes
-  #               accounts.dat to the PVC-mounted config dir (where
-  #               it persists across pod restarts).
-  #
-  # We deliberately do NOT pass /login /password /server. MT5 build
-  # 5836 ignores those flags entirely - confirmed via ps -ef showing
-  # the flags reaching terminal64.exe + journal silence + zero
-  # outbound TCP to broker IPs (see runbook sections 1.2 / 2.x for
-  # the full empirical evidence trail). startup.ini's [Common]
-  # Login/Password/Server block is also ignored for auto-login: MT5
-  # reads the file (populates dialog fields) but never executes a
-  # login action.
-  #
-  # Auto-login is instead driven by the xdotool-based
-  # auto_login_driver() shell function defined above, which forks
-  # immediately after this wine launch. The driver waits for MT5's
-  # Login dialog on the Xvfb display, types $MT_LOGIN / $MT_PASSWORD
-  # / $MT_SERVER with --clearmodifiers, ticks "Save account
-  # information" so MT5 writes accounts.dat, and presses Return.
-  # Every subsequent boot auto-loads silently from accounts.dat and
-  # the driver's fast path exits success on the immediate :5555
-  # LISTEN.
-  #
-  # See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md sections 2.x.
-  #
-  # Note on credential exposure: MT_PASSWORD is NOT on the wine
-  # command line. The xdotool auto_login_driver (forked below) types
-  # the password into MT5's Login dialog after launch; the password
-  # appears in xdotool's /proc/<pid>/cmdline ONLY for the milliseconds
-  # the `xdotool type` call takes. This is a strict improvement over
-  # the previous `/password:$MT_PASSWORD` on terminal64.exe, which
-  # kept the password in MT5's cmdline for the entire process
-  # lifetime. /portable is retained so MT5 reads/writes config in
-  # <install_dir>/config (PVC-mounted, persists across pod restarts);
-  # this lets MT5 save accounts.dat itself when the driver checks
-  # "Save account information", and subsequent boots auto-login
-  # silently from that file (the driver detects the immediate
-  # :5555 LISTEN and exits success on its fast path).
+  # /portable is the only flag: it pins config to <install_dir>/config
+  # (PVC-backed) so our startup.ini is read and MT5 persists
+  # accounts.dat across restarts. /login /password /server are NOT
+  # passed (ignored by build 5836); auto-login is driven by
+  # auto_login_driver(), keeping MT_PASSWORD off the wine cmdline.
   wine "$MT_EXE" /portable &
   MT_PID=$!
   log INFO "MetaTrader PID: $MT_PID"
