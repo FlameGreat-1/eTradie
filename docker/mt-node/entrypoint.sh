@@ -1916,27 +1916,107 @@ mkdir -p "$MT_DIR/$(dirname "$EA_REL_DST")" \
 # are the broker's OWN authoritative files -- installed verbatim, never
 # edited. Safe when the bundle is absent (dev/docker-compose): the find
 # returns nothing and the block is a no-op.
+#
+# Observability (added 2026-06-25): every step logs structured detail
+# so an operator can deterministically diagnose a failed install from
+# the mt-node container log alone, without a debug pod against the
+# preserved PVC. The 2026-06-25 staging diagnostic round was blocked
+# by the absence of these signals on the 'failed' pod
+# (see docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md Section B).
 if [ -d "/broker-bundle" ]; then
+  # Step 1: report the top-level listing of the bundle volume so the
+  # operator can verify the initContainer actually extracted something.
+  # If the initContainer wget / sha256 / unzip silently dropped to an
+  # empty bundle, this listing surfaces that immediately.
+  _bundle_top_level=$(ls -la /broker-bundle 2>&1 | tr '\n' '|' | sed 's/|$//')
+  log INFO "broker-bundle volume present at /broker-bundle; top-level listing: ${_bundle_top_level}"
+
+  # Step 2: enumerate all servers.dat candidates (every match, not just
+  # the first). On a healthy Exness bundle this is exactly one path
+  # ('/broker-bundle/MetaTrader 5 EXNESS/Config/servers.dat'); on a
+  # broken bundle (extraction failure, wrong zip layout, generic-only)
+  # this is either empty or unexpectedly multiple.
+  _servers_dat_finds=$(find /broker-bundle -type f -iname 'servers.dat' 2>/dev/null || true)
+  if [ -z "$_servers_dat_finds" ]; then
+    log WARN "broker-bundle find for servers.dat: NO MATCHES under /broker-bundle (initContainer may have failed to extract, or the bundle does not carry a servers.dat)"
+  else
+    _servers_dat_count=$(printf '%s\n' "$_servers_dat_finds" | wc -l)
+    log INFO "broker-bundle find for servers.dat matched ${_servers_dat_count} file(s):"
+    printf '%s\n' "$_servers_dat_finds" | while IFS= read -r _line; do
+      [ -n "$_line" ] || continue
+      log INFO "  - ${_line}"
+    done
+  fi
+
   _bundle_installed=0
+  _servers_installed=0
   while IFS= read -r _sd; do
     [ -n "$_sd" ] || continue
-    cp -f "$_sd" "$MT_DIR/config/servers.dat"
-    _bundle_installed=1
-    log INFO "Installed broker servers.dat from bundle ($_sd)"
+    # Capture src file size before the copy so a 0-byte source surfaces
+    # immediately.
+    _src_size=$(wc -c < "$_sd" 2>/dev/null || echo "?")
+    if cp -f "$_sd" "$MT_DIR/config/servers.dat"; then
+      _bundle_installed=1
+      _servers_installed=$(( _servers_installed + 1 ))
+      # Confirm the destination exists with the expected size and an
+      # operator-readable sha256 for cross-checking against the bundle.
+      # sha256sum lives in coreutils on Ubuntu 24.04 (the base image);
+      # this is the same path Vault Agent + bundle initContainer use.
+      _dst_size=$(wc -c < "$MT_DIR/config/servers.dat" 2>/dev/null || echo "?")
+      _dst_sha=$(sha256sum "$MT_DIR/config/servers.dat" 2>/dev/null | awk '{print $1}')
+      log INFO "Installed broker servers.dat from bundle (src='${_sd}', src_size=${_src_size}, dst='${MT_DIR}/config/servers.dat', dst_size=${_dst_size}, dst_sha256=${_dst_sha})"
+    else
+      _cp_rc=$?
+      log WARN "FAILED to install servers.dat from bundle (src='${_sd}', dst='${MT_DIR}/config/servers.dat', cp_exit=${_cp_rc}); broker login will use the baked generic servers.dat instead"
+    fi
   done <<EOF
-$(find /broker-bundle -type f -iname 'servers.dat' 2>/dev/null)
+$(printf '%s\n' "$_servers_dat_finds")
 EOF
+
+  # Step 3: enumerate *.srv companion files (broker-specific access
+  # server entries that some brokers ship alongside servers.dat).
+  _srv_finds=$(find /broker-bundle -type f -iname '*.srv' 2>/dev/null || true)
+  if [ -z "$_srv_finds" ]; then
+    log INFO "broker-bundle find for *.srv: no .srv companion files (this is normal for most brokers)"
+  else
+    _srv_count=$(printf '%s\n' "$_srv_finds" | wc -l)
+    log INFO "broker-bundle find for *.srv matched ${_srv_count} file(s):"
+    printf '%s\n' "$_srv_finds" | while IFS= read -r _line; do
+      [ -n "$_line" ] || continue
+      log INFO "  - ${_line}"
+    done
+  fi
+
+  _srv_installed=0
   while IFS= read -r _srv; do
     [ -n "$_srv" ] || continue
-    cp -f "$_srv" "$MT_DIR/config/"
-    _bundle_installed=1
-    log INFO "Installed broker .srv from bundle ($_srv)"
+    if cp -f "$_srv" "$MT_DIR/config/"; then
+      _bundle_installed=1
+      _srv_installed=$(( _srv_installed + 1 ))
+      log INFO "Installed broker .srv from bundle (${_srv} -> ${MT_DIR}/config/)"
+    else
+      _cp_rc=$?
+      log WARN "FAILED to install .srv from bundle (src='${_srv}', cp_exit=${_cp_rc})"
+    fi
   done <<EOF
-$(find /broker-bundle -type f -iname '*.srv' 2>/dev/null)
+$(printf '%s\n' "$_srv_finds")
 EOF
-  if [ "$_bundle_installed" -eq 0 ]; then
-    log WARN "/broker-bundle present but no servers.dat/*.srv found under it; MT will use the baked servers.dat (broker login may fail)"
+
+  # Step 4: deterministic final summary so the operator can grep one
+  # line and know everything: 'broker-bundle install summary'.
+  _final_size="?"
+  if [ -f "$MT_DIR/config/servers.dat" ]; then
+    _final_size=$(wc -c < "$MT_DIR/config/servers.dat" 2>/dev/null || echo "?")
   fi
+  log INFO "broker-bundle install summary: servers_installed=${_servers_installed}, srv_installed=${_srv_installed}, final_servers_dat='${MT_DIR}/config/servers.dat', final_servers_dat_size=${_final_size}"
+
+  if [ "$_bundle_installed" -eq 0 ]; then
+    log WARN "/broker-bundle present but no servers.dat/*.srv was successfully installed; MT will use the baked generic servers.dat (broker login may fail with 'server not found' or silently exit)"
+  fi
+
+  unset _bundle_top_level _servers_dat_finds _servers_dat_count _src_size _dst_size _dst_sha _cp_rc _srv_finds _srv_count _servers_installed _srv_installed _final_size _sd _srv _line
+else
+  log INFO "broker-bundle volume not present at /broker-bundle (dev / docker-compose mode); MT will use the baked generic servers.dat"
 fi
 
 # ── Copy EA binary ────────────────────────────────────────────────
