@@ -59,25 +59,42 @@ Evidence captured 2026-06-24 / 2026-06-25:
 
 Verified on operator's workstation 2026-06-25 (interactive Wine +
 real X display, NOT Xvfb), with both branded MT5 builds launched
-via `wine terminal64.exe /portable` (same flag the pod uses):
+via `wine terminal64.exe /portable` (same flag the pod uses).
+MT5 emits TWO distinct MDI frame title shapes post-login, and the
+regex / title-detection code must handle both:
+
+**Shape A — immediately after login, BEFORE any chart is focused:**
+  - Exness: `133978149 - Exness - MT5Real9 -Hedge - Exness Technologies Limited Ltd`
+  - Deriv:  `201415706 - Deriv - Demo: Demo Account - Hedge -Deriv.com Limited`
+
+**Shape B — when a default chart is FOCUSED (after MT5 opens its
+4-5 default charts and the user/automation clicks one):**
+  - Exness: `133978149 - Exness - MT5Real9 -Hedge - Exness Technologies Limited Ltd -XAUUSDm,1h`
+  - Deriv:  `201415706 - Deriv - Demo: Demo Account - Hedge -Deriv.com Limited - EURUSD,1h`
+
+In other words: Shape B = Shape A + ` -<SYMBOL>,<TIMEFRAME>`
+appended. The spacing of the trailing chart suffix varies between
+brokers (Exness uses ` -<sym>`, Deriv uses ` - <sym>`), so the
+regex must tolerate optional spaces around the trailing dash.
+
+Full observation per broker:
 
 - **Exness branded MT5**: relaunched against the preserved bake
   prefix → auto-loaded login from `accounts.dat` (saved during
-  the bake 3 days earlier) → MDI frame title shown as
-  `133978149 - Exness - MT5Real9 -Hedge - Exness Technologies
-  Limited Ltd` → **opened 5 default charts on its own**
-  (`XAUUSDm,H1` and variants; only the first symbol's chart
-  visually painted because the others are broker-specific
-  prefixed symbols whose data was not in the local prefix) →
-  Market Watch panel open with 5 symbols → Navigator panel
-  open. Clicking a child chart updates the MDI frame title to
-  `... - XAUUSDm,H1`. **No keystroke driving was needed; MT5
-  opened charts by itself.**
+  the bake 3 days earlier) → MDI frame title shown in Shape A →
+  **opened 5 default charts on its own** (`XAUUSDm,H1` and
+  variants; only the first symbol's chart visually painted
+  because the others are broker-specific prefixed symbols whose
+  data was not in the local prefix) → Market Watch panel open
+  with 5 symbols → Navigator panel open. Clicking a child chart
+  updates the MDI frame title from Shape A to Shape B with
+  `-XAUUSDm,1h` appended. **No keystroke driving was needed;
+  MT5 opened charts by itself.**
 - **Deriv branded MT5**: identical behaviour. Auto-loaded login
-  → MDI title `201415706 - Deriv - Demo: Demo Account - Hedge
-  -Deriv.com Limited` → **opened 4 default charts** (all
+  → MDI title in Shape A → **opened 4 default charts** (all
   visible: `EURUSD,H1` etc.) → Market Watch open with 9 symbols
-  → Navigator open. A one-shot residual `Login to Trade Account`
+  → Navigator open. Clicking a chart appends ` - EURUSD,1h`
+  (Shape B). A one-shot residual `Login to Trade Account`
   popup appeared on first relaunch but disappeared on the next
   relaunch; this is the same residual dialog Phase 2a's `:5555`
   precedence guard was designed to handle.
@@ -86,9 +103,10 @@ via `wine terminal64.exe /portable` (same flag the pod uses):
 DO auto-open charts after login. The original Phase 5 hypothesis
 ("MT5 never opens a chart on its own") was based on the pod's
 behaviour with a GENERIC servers.dat. We do not yet know
-whether the branded MT5 in the headless Wine+Xvfb pod behaves
-the same; that is what the next diagnostic must determine
-(Section C).
+whether the branded MT5 in the headless Wine+Xvfb pod also
+auto-opens charts; that is what the next diagnostic must
+determine (Section C). The title-regex implications are tracked
+in Section F.1.
 
 ### A.3 What is verified broken / unknown on the pod
 
@@ -154,7 +172,7 @@ obfuscated/encrypted binary form that `strings` cannot
 recover. The only reliable verification is to LAUNCH MT5
 against the bundle and watch it actually connect.
 
-### A.6 Engine recovery is re-creating the failed pod
+### A.6 Engine recovery was re-creating the failed pod (FIXED by MR !25)
 
 K8s events on 2026-06-25 05:39, 05:50, 06:00 (and continuing)
 show `recovery.py` re-creating the StatefulSet's pod on a
@@ -162,11 +180,49 @@ show `recovery.py` re-creating the StatefulSet's pod on a
 Each pod runs the bake's startup, MT5 launches, MT5 exits
 immediately after writing the cold-boot banner (as observed
 in A.4), startup probe fails, kubelet kills the container,
-recovery rebuilds.
+recovery rebuilds. The 2026-06-25 preserved-PVC inspection
+captured 63 such fresh cold-boot banners in 1.5 hours.
 
-**Critical:** the recovery sweep is the only thing currently
-writing NEW data to the PVC. If we do not gate it off,
-further diagnostics will be polluted by ongoing rebuilds.
+**Fixed in MR !25 (merged 2026-06-25):** `_reprovision()` now
+skips rows where `broker_connections.status='failed'`. Recovery
+only fires for rows in `ready / connected / disconnected /
+error / untested / provisioning` states. To re-test a failed
+connection an operator must DELETE the row + re-create from
+the dashboard (which writes a fresh row with
+`status='provisioning'`), or POST `/api/broker/connections/{id}/test`
+to transition off `failed`.
+
+### A.7 First reprovision after MR !25 + !26 merged (operator-reported)
+
+Operator confirmed (just before this runbook update) that a
+reprovision they ran after merging MRs !24 / !25 / !26
+**completed the login step and created the broker profile**
+on MT5's side (Vault credentials reached MT5, broker accepted
+the login, profile was created in MT5's account store).
+
+This indicates that MR !25 alone unblocked the destructive
+recovery-rebuild loop that was preventing MT5 from completing
+its post-login internal setup. The previous 63 cold-boot
+banners on the preserved PVC are now explained as: each pod
+was being killed by the startup probe (because :5555 had not
+yet bound) AND immediately re-created by recovery, leaving
+MT5 no contiguous window to finish its work.
+
+What is STILL unverified (the next staging run must capture):
+
+  - Whether the post-MR-!25 pod has reached :5555 LISTEN.
+  - Whether the pod's MDI frame title shows Shape A (full)
+    or the degraded `<login> -   - Netting`. The previous
+    staging run captured the degraded shape but that pod
+    was being thrashed by recovery; the post-!25 pod may
+    now produce Shape A.
+  - Whether the headless MT5 also auto-opens charts (and how
+    many, on what symbols).
+  - Whether `MQL5/Logs/` populated (proves EA OnInit ran).
+
+The operator will reprovision and capture this evidence via
+the full instrumented script in the new session. The pending
+fixes in Section F are gated on that evidence.
 
 ---
 
@@ -376,6 +432,131 @@ Then Phase 5 is still the suspect. The fix path is:
     no image rebuild needed for testing (override via
     `kubectl set env statefulset/<release> -c mt-node
     AUTO_LOGIN_PHASE5_ENABLED=0`).
+
+---
+
+## F. Pending Fixes — Not Yet Committed (decision criteria from next run)
+
+Two fixes have been identified but NOT yet committed because they
+depend on evidence we will only have after the next staging run
+completes against the post-MR-!25-merge image. Documenting them
+here so an incoming operator can commit the right fix without
+re-deriving the analysis from chat history.
+
+### F.1 Update AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX to match real titles
+
+Current regex (committed in commit `29f29a6f` via MR !23):
+
+```
+^(MetaTrader [45] - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging))
+```
+
+The two alternations are:
+  - PRE-login: `MetaTrader 5 - Netting` (correct, retained)
+  - POST-login degraded: `<login> -   - Netting` (the shape the
+    failed staging pod was producing under recovery thrashing;
+    likely NOT the shape a healthy pod will produce).
+
+The REAL post-login title shapes (per Section A.2) are:
+
+  - Shape A (post-login, no chart focused):
+    `<login> - <broker> - <server> -<account_type> -<entity>`
+    e.g. `133978149 - Exness - MT5Real9 -Hedge - Exness Technologies Limited Ltd`
+
+  - Shape B (chart focused):
+    Shape A + ` -<SYMBOL>,<TIMEFRAME>`
+    e.g. `133978149 - Exness - MT5Real9 -Hedge - Exness Technologies Limited Ltd -XAUUSDm,1h`
+
+#### Why this fix is NOT yet committed
+
+The regex must match whatever the POD actually emits, not what
+the workstation emits. The headless Wine+Xvfb runtime may produce
+a slightly different title shape (different spacing, different
+entity-name rendering, broker-specific quirks). Committing a
+regex that matches the workstation title but not the pod title
+would repeat the original mistake from `29f29a6f`.
+
+#### Decision criteria from next run
+
+In the next staging run, capture the running pod's MDI frame
+title via:
+
+```bash
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
+  'DISPLAY=:99 xdotool search --onlyvisible --name ".+" 2>&1 \
+   | while read wid; do echo "WID=$wid name=$(DISPLAY=:99 xdotool getwindowname "$wid" 2>/dev/null)"; done'
+```
+
+Then update `AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX` to add a third
+alternation matching the observed title. The expected commit
+shape, assuming the pod produces something close to Shape A:
+
+```
+^(MetaTrader [45] - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging)|[0-9]+ - [A-Za-z0-9.][A-Za-z0-9. _-]* - .+ -+(Hedge|Netting) ?-+ ?[A-Za-z0-9.,()' _-]+( -+ ?[A-Za-z0-9._#@!^+\-]+,[A-Za-z][0-9]+)?$)
+```
+
+The third alternation is intentionally permissive on the entity
+name (varies by broker / regulator) and on the trailing chart
+suffix (optional, Shape A vs Shape B). It is anchored at
+start-and-end so log-window titles ('logs', 'Toolbox', ...) cannot
+match.
+
+Verify the proposed regex against the pod's captured title with:
+
+```bash
+echo '133978149 - Exness - MT5Real9 -Hedge - Exness Technologies Limited Ltd' \
+  | grep -E '<proposed regex>'
+```
+
+before committing.
+
+### F.2 Phase 5 (keystroke chart-attach) — disable by default?
+
+Current default: `AUTO_LOGIN_PHASE5_ENABLED=1` (Phase 5 ACTIVE).
+Phase 5 runs a 3-attempt keystroke cascade (Ctrl+M Market Watch
+flow + File menu fallback) AFTER Phase 3 submit, on the theory
+that MT5 needs help to open a chart that loads the EA template.
+
+#### Why this fix is NOT yet committed
+
+The workstation verification proved branded MT5 builds DO
+auto-open charts on their own after login (Section A.2). This
+strongly suggests Phase 5 is unnecessary in the broker-branded
+MT5 path. But we have not yet verified the SAME behaviour in
+the headless Wine+Xvfb pod. The failed staging pod never
+reached the post-login state (Section A.4) so we have no
+in-pod evidence of whether headless branded MT5 auto-opens
+charts the way the workstation does.
+
+Committing `AUTO_LOGIN_PHASE5_ENABLED=0` as default before the
+in-pod evidence is captured risks: if the pod does NOT auto-open
+charts (Wine+Xvfb quirk), disabling Phase 5 would leave the pod
+with no chart-attach mechanism at all, and `:5555` would never
+bind even on a fully-working broker handshake.
+
+#### Decision criteria from next run
+
+From the next staging run, look at:
+
+  1. The visible-windows list in `windows-poll-NN.txt` after
+     Phase 3 submit succeeded.
+  2. The `MQL5/Logs/` directory presence.
+  3. Whether `:5555` bound WITHOUT Phase 5 ever running.
+
+Commit decision table:
+
+| Pod observation | Action |
+|---|---|
+| MT5 in pod auto-opens charts (Shape B title with chart suffix appears in the windows list) AND `MQL5/Logs/` populates AND `:5555` binds before Phase 5 dispatches any keystrokes | Commit `AUTO_LOGIN_PHASE5_ENABLED=0` as default. Phase 5 keystrokes are racing MT5's own chart-open. |
+| MT5 in pod stays on Shape A title (no chart opens on its own) AND Phase 5 attempts 1/2/3 individually open a chart matching `<symbol>,<timeframe>` AND `:5555` then binds | Keep Phase 5 ON. Validates the original Phase 5 design. |
+| MT5 in pod stays on Shape A title AND Phase 5 attempts all fail AND `:5555` never binds | Keep Phase 5 ON for now; the real bug is elsewhere (Wine+Xvfb quirk preventing keystroke dispatch). Investigate with framebuffer screenshots. |
+| MT5 in pod gets past login but `MQL5/Logs/` populates and `:5555` binds within seconds AFTER Phase 5 disrupts the Toolbox panel (the boot-1 18:11 pattern) | Commit `AUTO_LOGIN_PHASE5_ENABLED=0` as default — Phase 5 was the disruptor, the auto-open WAS happening but was being interrupted. |
+
+The Phase 5 code itself is RETAINED in `entrypoint.sh` regardless
+of which default we commit; only the env-var default flips.
+Operator can always override per-pod with
+`kubectl -n etradie-system set env statefulset/<release> -c mt-node
+AUTO_LOGIN_PHASE5_ENABLED=0|1` without an image rebuild.
 
 ---
 

@@ -836,7 +836,67 @@ jobs:
           COSIGN_YES: "true"
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          cosign sign "${IMAGE_BASE}/${{ matrix.service }}@${DIGEST}"
+          set -eu
+          IMAGE_REF="${IMAGE_BASE}/${{ matrix.service }}@${DIGEST}"
+          # The OIDC identity this workflow mints for keyless signing.
+          # Pinning identity + issuer makes `cosign verify` strict
+          # enough to confirm the existing signature was produced by
+          # THIS workflow, not by some attacker who happened to push
+          # a Fulcio-signed entry for the same digest.
+          IDENTITY_REGEX="^https://github\\.com/${GITHUB_REPOSITORY}/\\.github/workflows/ci\\.yml@refs/heads/main$"
+          OIDC_ISSUER="https://token.actions.githubusercontent.com"
+
+          verify_existing() {
+            cosign verify \
+              --certificate-identity-regexp "${IDENTITY_REGEX}" \
+              --certificate-oidc-issuer "${OIDC_ISSUER}" \
+              "${IMAGE_REF}" >/dev/null 2>&1
+          }
+
+          # Fast path: if a valid signature from THIS workflow already
+          # exists for this digest (e.g. a previous successful run, or
+          # a workflow re-run on the same SHA), skip signing. This
+          # avoids the cosign + Rekor "Signature already exists.
+          # Fetching and verifying inclusion proof" path that
+          # intermittently 404s (getLogEntryByUuidNotFound) due to
+          # Rekor read-path lag and fails the whole job.
+          if verify_existing; then
+            echo "cosign: ${IMAGE_REF} already signed by this workflow; skipping sign"
+            exit 0
+          fi
+
+          # No existing valid signature -> sign now. Capture stderr so
+          # we can detect the specific Rekor inclusion-proof 404 and
+          # decide whether to treat it as transient.
+          set +e
+          SIGN_LOG="$(mktemp)"
+          cosign sign "${IMAGE_REF}" 2> >(tee "${SIGN_LOG}" >&2)
+          rc=$?
+          set -e
+
+          if [ "${rc}" -eq 0 ]; then
+            echo "cosign: signed ${IMAGE_REF}"
+            exit 0
+          fi
+
+          # Known transient: Rekor returns 404 for an entry we (or a
+          # racing run) just uploaded because the read path has not
+          # caught up. If the signature is now verifiable under our
+          # identity, accept it; the bytes in OCI + the entry in Rekor
+          # are both present, the failure was purely a read race.
+          if grep -q 'getLogEntryByUuidNotFound' "${SIGN_LOG}"; then
+            echo "cosign: Rekor returned 404 for an existing entry; retrying verify after backoff" >&2
+            for attempt in 1 2 3 4 5; do
+              sleep $(( attempt * 5 ))
+              if verify_existing; then
+                echo "cosign: ${IMAGE_REF} verified after Rekor lag (attempt ${attempt})"
+                exit 0
+              fi
+            done
+            echo "cosign: signature still not verifiable after retries" >&2
+          fi
+
+          exit "${rc}"
 
       # Smoke-verify the engine image only (it is the one we used to
       # verify before this commit; the Go images are statically linked
