@@ -4,95 +4,382 @@
 system. Read top-to-bottom. Every command is copy-paste verbatim.**
 
 Historical context (Cluster 1-4 diagnoses, Issue #1-5 fixes, the
-xdotool/fluxbox/paste evolution) lives in `git log`. This runbook
-is strictly for operating the system as it stands today.
+xdotool/fluxbox/paste evolution, Phase 5 iterations) lives in
+`git log`. This runbook is strictly for operating the system as it
+stands today.
 
 ---
 
-## 1. Current state
+## A. Current Verified Ground Truth (read first)
 
-The hosted-MT pipeline runs MetaTrader 5 (build 5836) under Wine +
-Xvfb + fluxbox inside a per-tenant Kubernetes StatefulSet. A
-background `auto_login_driver` shell function in
-`docker/mt-node/entrypoint.sh` drives MT5's Login dialog using
-xdotool window control + xclip clipboard paste to deliver broker
-credentials. On first successful login MT5 writes `accounts.dat`;
-every subsequent pod boot auto-loads from that file silently.
+Evidence captured 2026-06-24 / 2026-06-25:
 
-The driver state machine:
+### A.1 What is verified working
 
-  - **Phase 1**: wait for `terminal64.exe` (max 60s).
-  - **Phase 2a**: poll for a Login-shaped dialog (max 30s; happy path).
-    Precedence guard: if `:5555` is already LISTEN when a Login
-    dialog is observed, exit success without driving Phase 3. This
-    closes the subsequent-boot double-paste race where MT5 raises a
-    residual Login dialog after a LiveUpdate-induced restart even
-    though the EA from boot 1 has already bound the socket.
-  - **Phase 2b**: `:5555` LISTEN fast-path (subsequent boots via
-    `accounts.dat`; exit success immediately).
-  - **Phase 2c**: main UI window detected without a dialog (MT5 build
-    5836 + pre-staged config). Three-attempt cascade to surface the
-    Login dialog via `File -> Login to Trade Account`:
-      1. Alt+F then L (Win32 mnemonic).
-      2. Alt+F then 9× Down then Return.
-      3. Alt+F then 10× Down then Return.
-    Pre-step: dismiss `Welcome to LiveUpdate` modal via Escape →
-    Return → windowunmap cascade.
-  - **Phase 3**: paste credentials into Login / Password / Server
-    fields via X CLIPBOARD + Ctrl+V (atomic, no per-character drops).
-    On paste failure, fall back to xdotool type with 150ms/char delay.
-    Tick `Save account information` checkbox. Submit via Return.
-    Final clipboard scrub.
-  - **Phase 5**: chart-attach via Ctrl+M Market Watch (with Alt+F
-    File menu as last-resort fallback). On build 5836 + `/portable`
-    + a fresh Wine prefix MT5 does NOT open a chart on its own
-    after login; without a chart the `startup.ini [Charts]
-    Template=expert` directive has nowhere to apply, so the EA
-    never loads and `:5555` never binds. Phase 5 uses Ctrl+M to
-    open Market Watch (empirically verified working on build 5836)
-    then keyboard-navigates to open a chart on the broker-default
-    first-row symbol. MT5 has NO documented hotkey for New Chart
-    (Ctrl+N toggles the Navigator panel, NOT a chart dialog).
-    Three-attempt cascade, ordered by empirical certainty, each
-    preceded by a modal-clear sweep:
-      1. `Ctrl+M` `Tab` `Home` `Return` (highest certainty:
-         Ctrl+M opens Market Watch, Tab focuses the list, Home
-         selects the first symbol row, Return triggers MT5's
-         default action which ships as 'Chart Window' on every
-         fresh install per MetaQuotes documentation).
-      2. `Ctrl+M` `Tab` `Home` `Menu` `Down` `Return` (high
-         certainty: same Ctrl+M + Tab + Home focus path, then the
-         XKB Menu key opens the right-click context menu in place,
-         Down moves from 'New Order' to 'Chart Window' at
-         position 2 per MetaQuotes default order, Return
-         activates).
-      3. `Alt+F` `Right` `Right` `Return` (last resort: File menu
-         + nested symbol-group submenu navigation, defence-in-depth
-         for cases where both Ctrl+M paths fail).
-    Each attempt waits up to `AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS`
-    (20s default) for a chart window WID matching the WM_NAME
-    pattern `<SYMBOL>,<TIMEFRAME>` (e.g. `EURUSD,H1` or `XAUUSD.m,H1`)
-    to appear, then polls `:5555` for up to
-    `AUTO_LOGIN_PHASE5_BIND_WAIT_SECS` (30s default). MT5 auto-applies
-    `expert.tpl` to the new chart per the `[Charts] Template=expert`
-    directive (which applies to charts opened both at startup AND
-    interactively post-launch), the EA OnInit runs, and the EA binds
-    `tcp://*:5555`. Phase 5 is best-effort: any failure logs WARN
-    and falls through to Phase 4 so the remaining budget is still
-    spent polling `:5555`. Skipped when `:5555` is already LISTEN
-    (idempotent on the `accounts.dat` fast path). Settles
-    `AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS` (25s default) before
-    keystroking to let MT5's post-login broker handshake +
-    Market Watch population + Welcome-to-LiveUpdate modal
-    materialisation all complete -- the modal is dismissed by the
-    pre-keystroke sweep on each attempt.
-  - **Phase 4**: dismiss follow-up dialogs (EULA, Welcome, news) for
-    60s while polling `:5555` LISTEN.
-  - **Total budget**: 240s (`AUTO_LOGIN_TOTAL_BUDGET_SECS`).
-  - **Hard-kill watchdog**: forked at driver entry; SIGTERMs the
-    driver at +270s if anything wedges past the budget.
+- The Vault Agent renders broker credentials to
+  `/vault/secrets/mt-credentials.env` correctly. Parsed by both
+  `entrypoint.sh` (literal-text parser, never `source`) and
+  `watchdog.py`. The historical `$$`-PID-prefix regression cannot
+  recur from this code path.
+- Fluxbox starts under Xvfb and publishes `_NET_ACTIVE_WINDOW` /
+  `_NET_SUPPORTED` within ~200ms (`fluxbox ready` line in driver log).
+- Phase 1 (terminal wait) reliably detects `terminal64.exe` at +0s.
+- Phase 2a (Login dialog poll) and Phase 2c (`Alt+F` + `L` menu
+  mnemonic) both work. The 2026-06-24 18:11 run captured Phase 2c
+  attempt 1 succeeding at +33s after main UI detection.
+- Phase 3 (paste credentials via X CLIPBOARD + Ctrl+V) works. The
+  same run delivered login (len=9), password (len=13), server
+  (len=15) atomically with no per-char drops. `accounts.dat`
+  (4635 bytes) was written by MT5 indicating the Save checkbox
+  was correctly ticked.
+- Phase 3 submit closes the Login dialog cleanly and MT5's MDI
+  frame title transitions to `<login> -   - Netting` (the
+  post-submit title shape on the headless pod).
+- The hard-kill watchdog (`AUTO_LOGIN_TOTAL_BUDGET_SECS +
+  AUTO_LOGIN_HARD_KILL_GRACE_SECS = 270s`) reliably reaps the
+  driver subshell.
+- Broker catalog registry (`infrastructure/broker-catalog/`) is
+  loaded fail-closed at engine boot via
+  `src/engine/ta/broker/registry.py`. Exness + Deriv entries are
+  present with `status: active`. Phase-1 bakes are uploaded to R2:
+    - Exness: `https://pub-5bdcacdedad6458298e8b8d5435f301a.r2.dev/broker-bundles/exness-portable.zip`
+      sha256 `eadee9c7a152514f9c904b381a9416cf3d88dc5e480a12a62544079743c5e11c`
+      (size 149 MB, contains `MetaTrader 5 EXNESS/Config/servers.dat`
+      at 471,796 bytes — verified by direct download + unzip
+      against the catalog pin).
+    - Deriv: similarly uploaded and pinned.
+- The `HostedProvisioner` attaches the `broker-bundle`
+  initContainer to every per-tenant StatefulSet. K8s events on
+  the 2026-06-25 05:39 pod recreation explicitly show
+  `Created container broker-bundle` and `Started container
+  broker-bundle` immediately before the `mt-node` container.
+  The broker bundle initContainer IS being delivered.
 
-Lockstep invariants (DO NOT TOUCH without updating all three):
+### A.2 What is verified about MT5's post-login behaviour
+
+Verified on operator's workstation 2026-06-25 (interactive Wine +
+real X display, NOT Xvfb), with both branded MT5 builds launched
+via `wine terminal64.exe /portable` (same flag the pod uses):
+
+- **Exness branded MT5**: relaunched against the preserved bake
+  prefix → auto-loaded login from `accounts.dat` (saved during
+  the bake 3 days earlier) → MDI frame title shown as
+  `133978149 - Exness - MT5Real9 -Hedge - Exness Technologies
+  Limited Ltd` → **opened 5 default charts on its own**
+  (`XAUUSDm,H1` and variants; only the first symbol's chart
+  visually painted because the others are broker-specific
+  prefixed symbols whose data was not in the local prefix) →
+  Market Watch panel open with 5 symbols → Navigator panel
+  open. Clicking a child chart updates the MDI frame title to
+  `... - XAUUSDm,H1`. **No keystroke driving was needed; MT5
+  opened charts by itself.**
+- **Deriv branded MT5**: identical behaviour. Auto-loaded login
+  → MDI title `201415706 - Deriv - Demo: Demo Account - Hedge
+  -Deriv.com Limited` → **opened 4 default charts** (all
+  visible: `EURUSD,H1` etc.) → Market Watch open with 9 symbols
+  → Navigator open. A one-shot residual `Login to Trade Account`
+  popup appeared on first relaunch but disappeared on the next
+  relaunch; this is the same residual dialog Phase 2a's `:5555`
+  precedence guard was designed to handle.
+
+**Conclusion:** branded MT5 builds with their own `servers.dat`
+DO auto-open charts after login. The original Phase 5 hypothesis
+("MT5 never opens a chart on its own") was based on the pod's
+behaviour with a GENERIC servers.dat. We do not yet know
+whether the branded MT5 in the headless Wine+Xvfb pod behaves
+the same; that is what the next diagnostic must determine
+(Section C).
+
+### A.3 What is verified broken / unknown on the pod
+
+2026-06-24 18:11 staging run captured in NOTE.md (14 polls,
+both boots of pod `etradie-mt-89660d92-9e3-0`):
+
+- Boot 1 (17:00:34 → 17:06:17): Phase 2c attempt 1 succeeded
+  (`Login dialog WID=12582938 detected at +33s`). Phase 3
+  paste delivered all three fields. Submit succeeded. Title
+  changed to `133978149 -   - Netting`. `accounts.dat` was
+  written.
+- **Then Phase 5 ran all three keystroke cascades and ALL
+  three failed.** Framebuffer screenshots from polls 4-12
+  are identical 3691-byte blanks (nothing rendering visually
+  for 4+ minutes). `MQL5/Logs/` never appeared. `:5555` never
+  bound. The supervisor saw the driver exit, MT5 was SIGTERM'd
+  at +270s by the hard-kill, exit code 143.
+- Phase 5 attempt 3 explicitly UNMAPPED `WID=18874369
+  NAME=logs` (MT5's own Journal/Toolbox panel materialising
+  post-login). This is destructive to MT5's UI assembly.
+- Boot 2 (17:06:47 → pod terminated by engine readiness
+  timeout): `accounts.dat` fast path. Login dialog at +9s,
+  paste succeeded. But Phase 5 logged `no main window WID
+  provided; cannot drive menu navigation` (the boot-2 title
+  regex bug fixed in commit 29f29a6f). Phase 4 polled `:5555`
+  to no avail. Pod killed at ~600s.
+
+### A.4 What was found on the preserved PVC (2026-06-25 05:30)
+
+Wine-prefix PVC `wine-prefix-etradie-mt-89660d92-9e3-0`
+survived all pod recreations (StatefulSet retention policy
+`Retain`). Inspected via a one-shot debug pod:
+
+- `config/servers.dat`: present, 472,364 bytes, sha256
+  `28ac48adebcbcd4c41b13806c749f09bafc90bff2b2c72c3a00a907be509083b`.
+  Same size as the workstation's local Exness bake's
+  `servers.dat` (472,364 bytes) — strongly suggests the Exness
+  bundle's `servers.dat` WAS installed by entrypoint.sh's
+  copy block, then mutated by MT5 on its own subsequent runs.
+- `config/accounts.dat`: present, 4,635 bytes (proves Phase 3
+  paste + Save-checkbox succeeded at SOME boot).
+- `MQL5/Logs/`: **DOES NOT EXIST**. Proves no EA's OnInit has
+  ever run successfully on this PVC.
+- `logs/<date>.log` (MT5 journal): **63 fresh `MetaTrader 5
+  x64 build 5836 started for MetaQuotes Ltd.` cold-boot banners
+  spanning 04:00 → 05:35 UTC on 2026-06-25, with NOTHING ELSE
+  between them.** Not a single `Network 'Exness-MT5Real9':
+  connecting` line. Not a single login attempt log entry.
+  MT5 launched 63 times and exited each time before doing
+  anything past cold boot.
+
+### A.5 What we learned about `strings | grep` as a verification gate
+
+The `strings | grep -i <brand>` gate from §3.5 of the
+MT5 Multi-Broker Provisioning Architecture document is
+**NOT a reliable signal**. The local Exness bake's
+`servers.dat` ALSO returns zero matches for
+`strings | grep -ic exness`, yet the workstation MT5 logged
+in successfully to Exness and rendered the full account
+title including `Exness Technologies Limited Ltd`. MetaTrader
+stores broker server names in `servers.dat` in an
+obfuscated/encrypted binary form that `strings` cannot
+recover. The only reliable verification is to LAUNCH MT5
+against the bundle and watch it actually connect.
+
+### A.6 Engine recovery is re-creating the failed pod
+
+K8s events on 2026-06-25 05:39, 05:50, 06:00 (and continuing)
+show `recovery.py` re-creating the StatefulSet's pod on a
+~10-minute cadence even though the DB row is `failed`.
+Each pod runs the bake's startup, MT5 launches, MT5 exits
+immediately after writing the cold-boot banner (as observed
+in A.4), startup probe fails, kubelet kills the container,
+recovery rebuilds.
+
+**Critical:** the recovery sweep is the only thing currently
+writing NEW data to the PVC. If we do not gate it off,
+further diagnostics will be polluted by ongoing rebuilds.
+
+---
+
+## B. Open Questions (the diagnostic gap)
+
+We cannot yet explain why MT5 launches and immediately exits
+after writing only the cold-boot banner. Candidates:
+
+1. **The Exness `servers.dat` from the bundle is not actually
+   recognised by MT5 inside the Wine+Xvfb pod environment.**
+   On the workstation MT5 worked because `accounts.dat` was
+   present and accounts.dat carries enough state to short-
+   circuit server-resolution. In the pod, `accounts.dat`
+   does not exist on the FIRST boot of a fresh PVC, so MT5
+   must resolve `Server=Exness-MT5Real9` against `servers.dat`,
+   and if that resolution fails MT5 may silently exit
+   (no journal entry beyond cold-boot banner). NEEDS
+   VERIFICATION: read the pod's mt-node container log to see
+   whether `entrypoint.sh` actually logged
+   `Installed broker servers.dat from bundle ($_sd)`.
+2. **The broker-bundle initContainer extracted the zip to a
+   path the entrypoint's find() does not locate.** The bundle
+   contains `MetaTrader 5 EXNESS/Config/servers.dat` (note the
+   capital `C`). The entrypoint runs
+   `find /broker-bundle -type f -iname 'servers.dat'` which IS
+   case-insensitive, but the install line copies the FIRST
+   match — if the bundle also contains some other
+   servers.dat earlier in the find order (unlikely from the
+   listing, but possible), the wrong file could win.
+3. **MT5 is crashing on launch under Wine+Xvfb specifically.**
+   The 63 cold-boot banners with nothing after them is
+   consistent with MT5 crashing immediately after writing
+   the banner. The workstation's interactive X display
+   doesn't reproduce this. A specific Wine+Xvfb interaction
+   that the branded Exness installer needs could be missing.
+4. **Phase 5's keystroke cascade is no longer the suspect**
+   for the cold-boot-only journal pattern. Phase 5 only
+   runs AFTER Phase 3 submit produces a Login dialog. The
+   2026-06-25 journal shows NO Login dialog was ever
+   surfaced on those 63 pod restarts — MT5 didn't get that
+   far. Phase 5 cannot affect a boot that exits before the
+   Login dialog opens. Phase 5 IS still suspected for the
+   original 18:11 boot-1 failure (where MT5 DID get to a
+   Login dialog and Phase 3 succeeded but Phase 5 then
+   disrupted post-login chart attach), but that is a
+   separate, downstream failure mode.
+
+---
+
+## C. Immediate Next Steps (run these next, in order)
+
+### C.1 Stop the recovery loop from clobbering diagnostics
+
+Before reading the live pod logs, pause the engine's recovery
+sweep so the pod does not get killed mid-`kubectl logs`. The
+recovery sweep restarts unhealthy pods after
+`ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS` (1200s) but
+the startupProbe is what's killing them. Easiest path: scale
+the StatefulSet to 0 (the connection_id stays in the DB,
+recovery rebuilds it but we have a window to grab logs from
+the current running pod first).
+
+```bash
+export KUBECONFIG=~/.kube/etradie-contabo.yaml
+kubectl get nodes
+
+# Get the current pod NOW while it's alive
+POD=$(kubectl -n etradie-system get pod \
+  -l app.kubernetes.io/name=etradie-mt-node \
+  -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+echo "POD=$POD"
+```
+
+Do NOT scale to 0 yet — grab logs first.
+
+### C.2 Capture the FULL mt-node container log + the broker-bundle initContainer log
+
+This is the smoking-gun evidence we are missing. The
+entrypoint logs to stderr; mt-node container's `kubectl logs`
+output is the full picture from container start.
+
+```bash
+# Full mt-node container log
+kubectl -n etradie-system logs "$POD" -c mt-node > /tmp/mt-node-full.log 2>&1
+wc -l /tmp/mt-node-full.log
+
+# Lines that prove broker-bundle handling
+grep -nE 'Vault credentials file|Loaded.*Vault-rendered|Installed broker|broker-bundle|servers.dat|Wine prefix|Xvfb ready|fluxbox ready|Launching|MetaTrader exited|auto_login: start|terminal process detected|Login dialog|Phase 2c|phase3 stage|deliver login|paste login|credentials delivered|phase5' /tmp/mt-node-full.log
+
+# broker-bundle initContainer log
+kubectl -n etradie-system logs "$POD" -c broker-bundle > /tmp/broker-bundle.log 2>&1
+cat /tmp/broker-bundle.log
+```
+
+Expected lines that PROVE the bundle was installed:
+  - broker-bundle log: `Downloading https://pub-5bdcacde.../exness-portable.zip...`
+  - broker-bundle log: `<sha>  /broker-bundle/bundle.zip: OK`
+  - broker-bundle log: `Bundle extracted successfully.`
+  - mt-node log: `Installed broker servers.dat from bundle (/broker-bundle/MetaTrader 5 EXNESS/Config/servers.dat)`
+
+If any of those four lines is missing, that is the bug.
+
+### C.3 Capture the MT5 journal AND directory listing from the live pod
+
+```bash
+P="/home/mt/.wine/prefix/drive_c/Program Files/MetaTrader 5"
+
+kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c "
+  echo '=== MT_DIR contents ==='
+  ls -la \"$P/config\"
+  echo
+  echo '=== Is the EXNESS bundle dir present at /broker-bundle/MetaTrader 5 EXNESS? ==='
+  ls -la '/broker-bundle/' 2>&1
+  echo
+  echo '=== servers.dat resolution ==='
+  find /broker-bundle -type f -iname 'servers.dat' 2>/dev/null
+  echo
+  echo '=== servers.dat installed in MT_DIR ==='
+  ls -la \"$P/config/servers.dat\" 2>&1
+  echo
+  echo '=== MT5 journal (latest 100 lines, NULL-stripped) ==='
+  f=\$(ls -t \"$P/logs\"/*.log 2>/dev/null | head -1)
+  if [ -n \"\$f\" ]; then
+    echo \"journal: \$f\"
+    tr -d '\\000' < \"\$f\" | tail -100
+  else
+    echo 'No journal yet'
+  fi
+  echo
+  echo '=== :5555 socket state ==='
+  awk 'NR>1 && (\$2 ~ /:15B3/ || \$3 ~ /:15B3/){print}' /proc/net/tcp
+"
+```
+
+### C.4 Decision based on C.2 / C.3 output
+
+See Section D below.
+
+---
+
+## D. Decision Tree (what to commit / what to test based on C output)
+
+### D.1 If broker-bundle log shows `Bundle extracted successfully.` AND mt-node log shows `Installed broker servers.dat from bundle ...`
+
+The bundle install path is working. The bug is elsewhere
+(MT5 crashing under Wine+Xvfb post-install, or some other
+post-bundle-install pipeline issue). Next diagnostic:
+
+  - Compare the size of `$MT_DIR/config/servers.dat` on the
+    pod against the local workstation Exness bake's
+    `servers.dat`. Should be identical (472,364 bytes).
+  - If sizes match, MT5 is launching with a perfectly good
+    servers.dat but still exiting after the cold-boot banner.
+    That points to a Wine+Xvfb runtime issue with the branded
+    binary. Possible next test: launch the EXNESS-baked
+    `terminal64.exe` under `xvfb-run` on the workstation to
+    reproduce the crash locally.
+
+### D.2 If broker-bundle log shows a failure (404, sha256 mismatch, unzip error)
+
+The initContainer is broken. Fix the initContainer's
+command string in
+`src/engine/ta/broker/mt5/hosted/provisioner.py::_upsert_statefulset`
+and mirror it in `helm/mt-node/templates/statefulset.yaml`.
+
+### D.3 If broker-bundle log shows success but mt-node log does NOT show `Installed broker servers.dat from bundle ...`
+
+The entrypoint's find() is not locating the bundle's
+`servers.dat`. Fix `docker/mt-node/entrypoint.sh` — possibly
+the `iname 'servers.dat'` find or the `<<EOF` heredoc loop.
+Run the find manually inside the pod to see what it would
+pick. The bundle's known path is
+`/broker-bundle/MetaTrader 5 EXNESS/Config/servers.dat`.
+
+### D.4 If servers.dat IS installed and MT5 STILL exits without Login dialog
+
+This is a real Wine+Xvfb runtime issue with the branded
+binary. Two options:
+
+  - Option 1: launch the branded binary on the workstation
+    under `xvfb-run` (not interactive X) to reproduce. If it
+    crashes there too, the bake itself has a Wine
+    incompatibility we missed. Likely fix: re-bake against
+    the exact WineHQ pin from `docker/mt-node/Dockerfile`
+    (`WINEHQ_VERSION` build-arg).
+  - Option 2: layer ONLY `servers.dat` (and any other config
+    files MT5 needs to resolve the broker) into the existing
+    GENERIC mt-node image, instead of running the broker-
+    branded `terminal64.exe`. Per the MT5 Multi-Broker
+    Provisioning Architecture doc §7.5, this was the
+    intended design from the start: "the chosen design layers
+    ONLY `servers.dat` (+ companions) via the bundle volume
+    and keeps the generic portable terminal as the base."
+    Check whether the current bundle is layering the WHOLE
+    branded MT5 install or just the config files.
+
+### D.5 If C.2 / C.3 reveal that boot-1 of the recovery-recreated pod actually DID get past cold-boot (Login dialog, Phase 3, etc.) and only failed in Phase 5
+
+Then Phase 5 is still the suspect. The fix path is:
+  - Disable Phase 5 by default
+    (`AUTO_LOGIN_PHASE5_ENABLED=0`).
+  - Trust MT5 to open its own charts after login (verified on
+    workstation for both Exness and Deriv).
+  - Phase 4 polls `:5555` for the remaining budget while
+    dismissing follow-up dialogs (already correct).
+  - One-line code change in `docker/mt-node/entrypoint.sh`,
+    no image rebuild needed for testing (override via
+    `kubectl set env statefulset/<release> -c mt-node
+    AUTO_LOGIN_PHASE5_ENABLED=0`).
+
+---
+
+## E. Lockstep invariants (DO NOT TOUCH without updating all locations)
 
 | Setting | Value | Locations |
 |---|---|---|
@@ -100,27 +387,22 @@ Lockstep invariants (DO NOT TOUCH without updating all three):
 | `startupProbe.failure_threshold` | 120 | `helm/mt-node/values.yaml`, `provisioner.py::_upsert_statefulset` |
 | `terminationGracePeriodSeconds` | 180 | `helm/mt-node/values.yaml`, `provisioner.py::_upsert_statefulset` |
 | `lifecycle.preStop` | `sleep 30` | same |
+| `AUTO_LOGIN_TOTAL_BUDGET_SECS` | 240 | `entrypoint.sh` |
+| `AUTO_LOGIN_HARD_KILL_GRACE_SECS` | 30 | `entrypoint.sh` |
+| `MT_NODE_READINESS_TIMEOUT_SECS` | 600 | engine ConfigMap |
+| `ENGINE_HOSTED_RECOVERY_UNHEALTHY_THRESHOLD_SECS` | 1200 | engine ConfigMap |
+| `ENGINE_HOSTED_RECOVERY_FRESH_PROVISION_GRACE_SECS` | 1800 | engine ConfigMap |
 
 ---
 
-## 2. Next action (incoming operator starts here)
+## 1. Step-by-step commands (operator reference)
 
-If you are picking this up cold:
+All the command blocks below are preserved from the previous
+runbook version and remain accurate as operational primitives.
+They are organised so the operator can run them in sequence
+for a clean diagnostic cycle.
 
-1. Confirm CI is green on the latest `main` commit.
-2. Read step 3 below and run the **§3.1 operator routine**.
-3. Run **§3.2 cleanup**.
-4. Re-provision a hosted connection from the dashboard.
-5. Run **§3.5 verdict block** and match against the **§3.6 decision
-   matrix**.
-6. On success, run **§3.8 smoking-gun proof**.
-7. On failure, consult **§3.7 driver diagnostic** + **§3.9 fault map**.
-
----
-
-## 3. Proven command sequences
-
-### 3.1 Operator routine (start every session here)
+### 1.1 Operator routine (start every session here)
 
 ```bash
 # Terminal 1: SSH tunnel to the K3s API
@@ -153,7 +435,7 @@ kubectl -n etradie-system exec deploy/etradie-engine -c engine -- printenv MT_NO
 # Expect: ghcr.io/flamegreat-1/etradie/mt-node:<PIN>
 ```
 
-### 3.2 Cleanup — wipe failed state before re-provisioning
+### 1.2 Cleanup — wipe failed state before re-provisioning
 
 ```bash
 # 1. Drop the failed DB row.
@@ -197,7 +479,7 @@ kubectl -n etradie-system exec -i postgres-0 -c postgres \
 
 Now re-provision a hosted connection from the dashboard.
 
-### 3.3 Race to the pod after provision
+### 1.3 Race to the pod after provision
 
 ```bash
 REL=""
@@ -225,7 +507,7 @@ kubectl -n etradie-system get pod "$POD" \
   -o jsonpath='{.spec.containers[?(@.name=="mt-node")].image}{"\n"}'
 ```
 
-### 3.4 Verify env on the running engine pod
+### 1.4 Verify env on the running engine pod
 
 ```bash
 EPOD=$(kubectl -n etradie-system get pod \
@@ -242,7 +524,7 @@ kubectl -n etradie-system exec "$EPOD" -c engine -- printenv \
 #   MT_NODE_IMAGE=ghcr.io/flamegreat-1/etradie/mt-node:<PIN>
 ```
 
-### 3.5 Verdict block — the 6-step success check
+### 1.5 Verdict block — 6-step success check
 
 ```bash
 POD=$(kubectl -n etradie-system get pod \
@@ -282,40 +564,22 @@ kubectl -n etradie-system exec -i postgres-0 -c postgres \
 
 # Driver sentinels:
 kubectl -n etradie-system logs "$POD" -c mt-node 2>&1 | grep -iE \
-  'fluxbox ready|hard-kill watchdog armed|welcome modal|appeared after|deliver|paste|type|phase3 stage|phase5|LISTEN.*exit success|never bound|exiting|residual post-restart|attempt [123]|all three attempts'
+  'fluxbox ready|hard-kill watchdog armed|welcome modal|appeared after|deliver|paste|type|phase3 stage|phase5|LISTEN.*exit success|never bound|exiting|residual post-restart|attempt [123]|all three attempts|Installed broker servers.dat|Bundle extracted'
 ```
 
-### 3.6 Decision matrix
-
-Look at the FIRST new line in the MT5 journal AFTER
-`LiveUpdate downloaded successfully`. Cross-reference with driver log.
-
-| Journal + driver log | Meaning | Next |
-|---|---|---|
-| Driver: `phase5: :5555 LISTEN at +<N>s after attempt <1\|2\|3>; EA OnInit succeeded` | Phase 5 chart-attach succeeded. EA bound. The attempt number tells you which mechanism worked (1=Ctrl+M default, 2=Ctrl+M context menu, 3=Alt+F fallback). | Wait for `3/3 Ready`. Run §3.8. DONE. |
-| Driver: `phase5: attempt <N>: chart window WID=... visible after keystroke sequence` + `phase5: attempt <N>: chart opened but :5555 not bound within ...` | Chart opened but EA template did not auto-apply, OR EA OnInit failed silently. | Inspect EA log: §3.5 step 3. If `MQL5/Logs` is empty, the template directive in `startup.ini` did not apply -- check `config/startup.ini` `[Charts] Template=expert` is present. If EA log exists, look for an OnInit error. |
-| Driver: `phase5: all three attempts failed to open a chart` | None of the three keystroke cascades produced a chart window. Either a modal stole focus on every attempt, the broker's Market Watch is empty (no symbols to chart on), or build 5836's Market Watch default action has been changed away from 'Chart Window' AND the File menu structure changed. | Run §3.7 with framebuffer screenshots from polls 4/8/12. Confirm Market Watch contains symbols. Check whether any persistent modal owns focus. |
-| Driver: `phase5: attempt <N>: no chart window appeared within <N>s` (every attempt) + `phase5: all three attempts failed` | The broker has not populated Market Watch yet (the broker symbol-catalogue download has not landed by Phase 5 entry). | Raise `AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS` via `kubectl set env statefulset/$REL -c mt-node AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS=45`. |
-| Driver: `Login dialog WID=... observed at +<N>s BUT :5555 already LISTEN; treating as residual post-restart dialog` | Phase 2a precedence guard fired. Subsequent boot, EA already bound, MT5 raised a residual Login dialog after LiveUpdate restart. | Healthy. DONE. |
-| Journal: `Network '<server>': connecting` + `Login <id>: ok`. Driver: `Login dialog WID=... detected` (Phase 2a) OR `appeared after mnemonic / 9-down menu / 10-down menu` (Phase 2c) AND `deliver login: paste succeeded` etc. | Auto-login worked. `:5555` will bind once Phase 5 opens a chart and EA loads. | Wait for `3/3 Ready`. Run §3.8. DONE. |
-| Journal: `Network ... connecting` + `Login <id>: invalid account` / `invalid password` / `account is disabled` | Auto-login worked; broker rejected credentials. | Check credentials with the user via the dashboard. NOT a code issue. |
-| Journal: `Network '<server>': server not found` / `unknown server` | Server name reached MT5 but broker access-server resolution failed. | Inspect `/broker-bundle/` `servers.dat`. May indicate the server typed/pasted does not match a `servers.dat` entry. Fix the bundle upstream. |
-| Journal: silent (no `Network` line at all). Driver: `deliver X: paste succeeded` + `phase3 stage=post_submit_1s focused_wid=<main>` | Phase 3 submit landed and the Login dialog closed, but MT5 never dispatched the broker connect. Field contents likely wrong (check §3.7 screenshot). | Run §3.7 driver-diagnostic with screenshot capture. |
-| Driver: `deliver X: paste failed, falling back to type` + `deliver X: type fallback succeeded after paste failure` | Paste path failed but typing fallback recovered. Investigate paste failure cause but the user is unblocked. | Inspect xclip behaviour in the pod. May indicate xclip package issue. |
-| Driver: `deliver X: BOTH paste and type failed` | Total Phase 3 delivery failure. | Run §3.7 driver-diagnostic. Check `kubectl exec ... which xclip xdotool` confirms binaries exist. Verify fluxbox `_NET_ACTIVE_WINDOW` via xprop. |
-| Driver: `all three Phase 2c attempts ... failed` | Login dialog never opened. Could be menu position drift, focus issue, or fluxbox failed. | Run §3.7 with screenshot of MT5 main window post-Phase-2c. |
-| Driver: `:5555 never bound within 240s total budget; exiting` (Phase 5 also failed) | Driver completed but EA didn't load. Could be: login succeeded but broker rejected, OR chart didn't open in Phase 5, OR template didn't auto-apply, OR EA `.set` issue. | Inspect Phase 5 sentinels first (`phase5:` lines). Then journal (case 2/3 above). If journal is silent AND Phase 5 reported chart open, the template directive did not apply -- check `config/startup.ini`. |
-
-### 3.7 Driver diagnostic
+### 1.6 Driver diagnostic (when verdict fails)
 
 ```bash
 POD=$(kubectl -n etradie-system get pod \
   -l app.kubernetes.io/name=etradie-mt-node \
   -o jsonpath='{.items[0].metadata.name}')
 
-# Driver log full.
-kubectl -n etradie-system logs "$POD" -c mt-node \
-  | grep -iE 'auto_login|fluxbox|MetaTrader exited|welcome modal|deliver|paste|type'
+# Full mt-node container log (the actual smoking gun)
+kubectl -n etradie-system logs "$POD" -c mt-node 2>&1 \
+  | grep -iE 'Vault credentials|Loaded.*Vault|Installed broker|servers.dat|Wine prefix|Xvfb|fluxbox|MetaTrader|auto_login|paste|type|deliver|phase[2-5]|exited with code|in-pod restart'
+
+# broker-bundle initContainer log
+kubectl -n etradie-system logs "$POD" -c broker-bundle 2>&1
 
 # Current visible windows on Xvfb.
 kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
@@ -334,13 +598,9 @@ kubectl -n etradie-system exec "$POD" -c mt-node -- sh -c \
 kubectl -n etradie-system cp etradie-system/"$POD":/tmp/screen.xwd \
   ./mt5-screen.xwd -c mt-node
 convert mt5-screen.xwd mt5-screen.png  # requires imagemagick on operator host
-# View locally: xdg-open mt5-screen.png
 ```
 
-#### Force the typing strategy (operator override)
-
-If paste is silently failing without falling back correctly, force
-typing-only:
+Force typing strategy (operator override):
 
 ```bash
 kubectl -n etradie-system set env statefulset/"$REL" \
@@ -355,11 +615,16 @@ kubectl -n etradie-system set env statefulset/"$REL" \
   -c mt-node AUTO_LOGIN_INPUT_STRATEGY-     # trailing dash = unset
 ```
 
-### 3.8 Smoking-gun proof — second-boot is fast and silent
+Disable Phase 5 (if D.5 is the diagnosis):
 
-After the first successful provision (`3/3 Ready`, `accounts.dat`
-written), delete the pod and verify it returns to `3/3 Ready` in
-20-40 seconds via the `accounts.dat` fast path.
+```bash
+kubectl -n etradie-system set env statefulset/"$REL" \
+  -c mt-node AUTO_LOGIN_PHASE5_ENABLED=0
+```
+
+### 1.7 Smoking-gun proof — second-boot is fast and silent
+
+Only run this AFTER the first provision reaches 3/3 Ready.
 
 ```bash
 POD=$(kubectl -n etradie-system get pod \
@@ -388,29 +653,14 @@ kubectl -n etradie-system logs "$POD" -c mt-node | grep -iE \
   ':5555 LISTEN.*(accounts.dat path|exit success)'
 ```
 
-### 3.9 Quick fault map
-
-| Symptom | Likely cause | First action |
-|---|---|---|
-| `LiveUpdate ... downloaded` repeating every boot; `restart_count` climbing | Cluster 1 regression (PVC destruction). | Verify `_best_effort_cleanup` in `provisioner.py` does NOT delete the wine-prefix PVC. |
-| `MT_PASSWORD` shows as `<pid><restofpassword>` in `ps -ef` (legacy artefact only — unreachable now that paste is default and typing is via argv only briefly) | Cluster 3 regression (bash-source of Vault file reintroduced). | Check `entrypoint.sh` for `. "$VAULT_SECRETS_FILE"` reappearance. |
-| Driver log: `Your windowmanager claims not to support _NET_ACTIVE_WINDOW` | fluxbox did not start or didn't publish EWMH atoms. | Check driver log for `fluxbox ready` line. If absent, fluxbox crashed; check the kubelet event log. |
-| Driver log: `welcome modal still visible after Escape+Return; unmapping` | Welcome to LiveUpdate modal is sticky beyond Escape/Return. | Confirmed working: unmap path runs and the modal disappears. No action required unless Phase 2c also fails. |
-| Driver log: `all three Phase 2c attempts ... failed to surface Login dialog` | File menu navigation isn't reaching Login. | Capture §3.7 screenshot. Inspect what's actually on the framebuffer. May need to tune `_drv_invoke_login_via_menu_n` Down count if MT5 build changes. |
-| Driver log: `deliver X: BOTH paste and type failed` | xclip and xdotool both failed. | Check `kubectl exec ... which xclip xdotool`. Verify fluxbox is up. |
-| Driver log: `:5555 never bound within 240s total budget` + journal silent | Login dialog actions never reached the broker connect layer. | Run §3.7. Compare paste vs type strategy via `AUTO_LOGIN_INPUT_STRATEGY=type`. |
-| Driver log: `phase5: all three attempts failed to open a chart` | None of the three keystroke cascades (Ctrl+M default, Ctrl+M context menu, Alt+F File menu) produced a chart window. Possible causes: a persistent modal stole focus on every attempt, the broker's Market Watch is empty, or build 5836's Market Watch default action has been changed by an upstream Wine prefix mutation. | Capture §3.7 framebuffer screenshots. Inspect for focus-stealing modals and confirm Market Watch has symbols. If Market Watch is empty post-login, raise `AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS` to 45s. |
-| Driver log: `phase5: attempt <N>: chart window WID=... visible after keystroke sequence` + `:5555 not LISTEN within 30s after attempt <N>` | Chart opened but EA template did not auto-apply, OR EA OnInit failed silently. | Check `config/startup.ini` carries `[Charts] Template=expert`. Check `MQL5/Logs` for an EA OnInit error. |
-| Driver log: `Login dialog ... BUT :5555 already LISTEN; ... residual post-restart dialog` | Phase 2a precedence guard fired (subsequent-boot, EA already bound, MT5 raised a residual dialog after LiveUpdate restart). | Healthy -- no action. |
-| Pod terminates at exactly 600s | Engine readiness gate fired. Boot didn't complete in budget. | Inspect driver log on the now-gone pod's PVC (preserved by design). |
-| `:5555 LISTEN` present but pod still 2/3 | Watchdog HEALTH probe failing despite `:5555` bound. Usually means EA's AUTH_TOKEN doesn't match. | Inspect EA `.set` file: `MQL5/Profiles/Templates/ZeroMQ_EA.set`. |
-
 ---
 
-## 4. Mounting the preserved PVC for offline inspection
+## 2. Mounting the preserved PVC for offline inspection
 
-When a pod is gone but the PVC survived (`_best_effort_cleanup`
-invariant), inspect its contents via a one-shot debug pod:
+When a pod is gone but the PVC survived (`whenDeleted: Retain`
+invariant), inspect its contents via a one-shot debug pod.
+This was used 2026-06-25 05:30 to discover the
+63-cold-boot-banner pattern documented in Section A.4.
 
 ```bash
 PVC=$(kubectl -n etradie-system get pvc \
@@ -477,27 +727,57 @@ kubectl -n etradie-system exec mt-debug-reader -- sh -c '
     | sed -E "s/(Password=).*/\1<REDACTED>/"
 '
 
+# Verify the broker bundle servers.dat was installed (binary file;
+# strings | grep is NOT reliable — see Section A.5).
+kubectl -n etradie-system exec mt-debug-reader -- sh -c '
+  P="/mnt/wine/prefix/drive_c/Program Files/MetaTrader 5/config"
+  ls -la "$P"
+  echo
+  if [ -f "$P/servers.dat" ]; then
+    echo "=== servers.dat size + sha256 ==="
+    wc -c "$P/servers.dat"
+    sha256sum "$P/servers.dat"
+  fi
+'
+
 # Cleanup.
 kubectl -n etradie-system delete pod mt-debug-reader --ignore-not-found
 ```
 
 ---
 
-## 5. References
+## 3. References
 
-- `docker/mt-node/entrypoint.sh` — driver state machine + helpers.
-- `docker/mt-node/watchdog.py` — health-probe sidecar.
+- `docker/mt-node/entrypoint.sh` — driver state machine + helpers,
+  broker-bundle install block, Vault credential parser, supervised
+  MT restart loop.
+- `docker/mt-node/watchdog.py` — health-probe sidecar, mirrors the
+  same Vault credential parser semantics.
 - `docker/mt-node/Dockerfile` — image build (xvfb, fluxbox, xdotool,
-  xclip, MT5, MT4, EA, watchdog).
+  xclip, generic MT5 portable zip, generic MT4 portable zip, EA,
+  watchdog).
 - `helm/mt-node/values.yaml` — chart defaults (lockstep with
   provisioner).
 - `helm/mt-node/templates/configmap-watchdog.yaml` — watchdog
   runtime tunables.
-- `helm/mt-node/templates/statefulset.yaml` — pod spec template.
+- `helm/mt-node/templates/statefulset.yaml` — pod spec template,
+  including the conditional `broker-bundle` initContainer and the
+  `emptyDir` volume.
 - `src/engine/ta/broker/mt5/hosted/provisioner.py` — engine-runtime
-  provisioner (creates StatefulSets via K8s API).
+  provisioner (creates StatefulSets via K8s API, attaches the
+  broker-bundle initContainer unconditionally for hosted releases).
 - `src/engine/ta/broker/mt5/hosted/recovery.py` — background recovery
-  sweep (rebuilds missing/unhealthy pods).
+  sweep (rebuilds missing/unhealthy pods; currently re-creating the
+  failed 89660d92 pod on a ~10-minute cadence).
+- `src/engine/ta/broker/registry.py` — broker catalog loader
+  (resolves `brand_id` + `entity_id` → bundle R2 URL + sha256).
+- `infrastructure/broker-catalog/exness.json` /
+  `infrastructure/broker-catalog/deriv.json` — Phase-1 broker bake
+  registry entries.
+- `MT5_Multi_Broker_Provisioning_Architecture.md` — authoritative
+  design + bake procedure.
+- `NOTE.md` — most recent staging diagnostic capture
+  (2026-06-24 18:11).
 
 Git history holds the full evolution. For the diagnostic narrative
 that led to the current design, read `git log --grep='mt-node'` and
