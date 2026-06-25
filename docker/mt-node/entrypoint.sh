@@ -167,20 +167,13 @@ AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an 
 AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS="${AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS:-30}"
 AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS="${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS:-15}"
 AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(MetaTrader [45] - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging))}"
-# Authoritative login-confirmation regex matched against the MT5
-# journal (logs/<date>.log). Built from the real Exness journal
-# wording, keyed to THIS account's login id so another account's
-# line and MT5's pre-login broker-noise lines can never false-
-# positive. The three tokens below are emitted ONLY on a successful
-# session:
-#   '<login>': authorized on <server> through ...
-#   '<login>': terminal synchronized with <company> ...
-#   '<login>': trading has been enabled ...
-# The failure line '<login>': authorization on <server> failed
-# (Invalid account) contains NONE of these tokens, so a rejected
-# login is correctly NOT a match. Fully overridable for an
-# unforeseen broker format.
-AUTO_LOGIN_JOURNAL_AUTH_REGEX="${AUTO_LOGIN_JOURNAL_AUTH_REGEX:-'${MT_LOGIN}': (authorized on |terminal synchronized with |trading has been enabled)}"
+# Optional operator override for the journal login-confirmation regex.
+# Leave EMPTY (default) to let _drv_login_authenticated() build a
+# login-id-keyed pattern at call time (MT_LOGIN is not yet populated
+# here - it is loaded from Vault later in the script). Set a non-empty
+# value only to force a specific pattern for an unforeseen broker
+# journal format; it is then used verbatim.
+AUTO_LOGIN_JOURNAL_AUTH_REGEX="${AUTO_LOGIN_JOURNAL_AUTH_REGEX:-}"
 # Budget for the post-submit broker-handshake wait. The Login dialog
 # closing does NOT mean the broker accepted the credentials; MT5
 # contacts the access server and only then writes the connect line.
@@ -412,20 +405,29 @@ _drv_find_main_window() {
 }
 
 # Authoritative login confirmation from the MT5 journal (Tier 2). The
-# journal is MT5's own record of the broker handshake and is far more
-# reliable than the MDI window title. On a successful login MT5 writes
-# lines such as:
-#   Network '<server>': connecting to <ip:port>
-#   '<login>': login (...) on <server> ...   |  authorized on <server>
-#   Network '<server>': connected ...
-# We confirm on a positive connect/authorize line keyed to the real
-# login id or server. Echoes the matched line on success (return 0).
+# journal is MT5's own record of the broker handshake, far more
+# reliable than the MDI window title. Real Exness journal success
+# lines (login-id keyed):
+#   '<login>': authorized on <server> through ...
+#   '<login>': terminal synchronized with <company> ...
+#   '<login>': trading has been enabled - hedging mode
+# The failure line "'<login>': authorization on <server> failed
+# (Invalid account)" shares none of these tokens, so a rejected login
+# is NOT a match. The effective pattern is built at call time keyed to
+# MT_LOGIN (now populated from Vault); an explicit
+# AUTO_LOGIN_JOURNAL_AUTH_REGEX override, if set, wins verbatim.
+# Echoes the matched line on success (return 0).
 _drv_login_authenticated() {
-  local _journal _match
+  local _journal _match _regex
+  if [ -n "${AUTO_LOGIN_JOURNAL_AUTH_REGEX:-}" ]; then
+    _regex="$AUTO_LOGIN_JOURNAL_AUTH_REGEX"
+  else
+    _regex="'${MT_LOGIN}': (authorized on |terminal synchronized with |trading has been enabled)"
+  fi
   _journal=$(ls -t "$MT_DIR/logs/"*.log 2>/dev/null | head -n1 || true)
   [ -n "$_journal" ] || return 1
   _match=$(tr -d '\000' < "$_journal" 2>/dev/null \
-    | grep -aE "$AUTO_LOGIN_JOURNAL_AUTH_REGEX" \
+    | grep -aE "$_regex" \
     | tail -n1 || true)
   if [ -n "$_match" ]; then
     printf '%s' "$_match"
@@ -1364,11 +1366,11 @@ auto_login_driver() {
     _drv_scrub_clipboard
 
     # Login-success gate. Submitting the dialog does NOT mean the
-    # broker authenticated the session. Confirm via the MDI title's
-    # non-empty server segment before proceeding. The accounts.dat
-    # fast path (:5555 already bound) short-circuits the gate.
+    # broker authenticated the session. Confirm via the MT5 journal's
+    # broker authorize/connect line before proceeding. The
+    # accounts.dat fast path (:5555 already bound) short-circuits it.
     if _drv_zmq_bound; then
-      _drv_log "login gate: :5555 already LISTEN (accounts.dat fast path); skipping title wait"
+      _drv_log "login gate: :5555 already LISTEN (accounts.dat fast path); skipping journal wait"
     elif _drv_wait_for_login_auth "$AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS" >/dev/null; then
       _drv_log "login gate: broker authentication confirmed; proceeding to chart-attach"
     else
