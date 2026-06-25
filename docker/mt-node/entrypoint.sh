@@ -167,19 +167,18 @@ AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an 
 AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS="${AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS:-30}"
 AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS="${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS:-15}"
 AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(MetaTrader [45] - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging))}"
-# Authenticated MDI title shape. Requires a NON-EMPTY server segment
-# between the login id and the (Netting|Hedging) margin-mode token, so
-# the in-flight/failed '<login> -   - Netting' (empty server) shape is
-# rejected. An optional trailing ' - <symbol>,<tf>' (chart focused)
-# is tolerated. Broker spacing around the dashes varies (Exness uses
-# ' - ', some brokers omit a space), so the separators allow optional
-# surrounding whitespace.
-AUTO_LOGIN_AUTHED_TITLE_REGEX="${AUTO_LOGIN_AUTHED_TITLE_REGEX:-^[0-9]+ *- *[^ ].* *- *(Netting|Hedging)}"
+# Authoritative login-confirmation regex matched against the MT5
+# journal (logs/<date>.log). Matches MT5's broker-handshake success
+# lines: a per-account 'login ... on <server>' / 'authorized on
+# <server>' line, or a 'Network '<server>': connected' line. Keep
+# permissive across broker wording variants; the LiveUpdate-only
+# cold-boot journal (which lacks ALL of these) never matches.
+AUTO_LOGIN_JOURNAL_AUTH_REGEX="${AUTO_LOGIN_JOURNAL_AUTH_REGEX:-(login( \\(.*\\))? on |authorized on |Network '.*': connected|connected to .* through)}"
 # Budget for the post-submit broker-handshake wait. The Login dialog
 # closing does NOT mean the broker accepted the credentials; MT5
-# contacts the access server and only then fills the title's server
-# segment. 45s covers a slow access-server handshake on a fresh prefix
-# without consuming an unreasonable share of AUTO_LOGIN_TOTAL_BUDGET_SECS.
+# contacts the access server and only then writes the connect line.
+# 45s covers a slow access-server handshake on a fresh prefix without
+# consuming an unreasonable share of AUTO_LOGIN_TOTAL_BUDGET_SECS.
 AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS="${AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS:-45}"
 # Wall-clock ceiling on a single xdotool invocation. xdotool's `search
 # --onlyvisible --name <re>` and `windowactivate --sync` calls can
@@ -405,61 +404,58 @@ _drv_find_main_window() {
   _drv_find_window_by_regex "$AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX"
 }
 
-# Authenticated-title detector. After a successful broker handshake MT5
-# rewrites the MDI frame title to '<login> - <server> - (Netting|
-# Hedging)[ - <symbol>,<tf>]' with a NON-EMPTY server segment. While
-# the login is still in flight (or has failed) the title is
-# '<login> -   - Netting' with an EMPTY server segment. The regex
-# below REQUIRES at least one non-space character in the middle
-# segment, so the in-flight/failed shape never matches.
+# Authoritative login confirmation from the MT5 journal (Tier 2). The
+# journal is MT5's own record of the broker handshake and is far more
+# reliable than the MDI window title. On a successful login MT5 writes
+# lines such as:
+#   Network '<server>': connecting to <ip:port>
+#   '<login>': login (...) on <server> ...   |  authorized on <server>
+#   Network '<server>': connected ...
+# We confirm on a positive connect/authorize line keyed to the real
+# login id or server. Echoes the matched line on success (return 0).
 _drv_login_authenticated() {
-  local _wid _name
-  _wid=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "")
-  if [ -n "$_wid" ]; then
-    _name=$(DISPLAY=:99 _xdo getwindowname "$_wid" 2>/dev/null || echo "")
-    if printf '%s' "$_name" | grep -qE "$AUTO_LOGIN_AUTHED_TITLE_REGEX"; then
-      printf '%s' "$_name"
-      return 0
-    fi
+  local _journal _match
+  _journal=$(ls -t "$MT_DIR/logs/"*.log 2>/dev/null | head -n1 || true)
+  [ -n "$_journal" ] || return 1
+  _match=$(tr -d '\000' < "$_journal" 2>/dev/null \
+    | grep -aE "$AUTO_LOGIN_JOURNAL_AUTH_REGEX" \
+    | tail -n1 || true)
+  if [ -n "$_match" ]; then
+    printf '%s' "$_match"
+    return 0
   fi
-  # Fall back to scanning all visible windows: the active window may be
-  # a transient modal (Welcome to LiveUpdate) covering the MDI frame.
-  local _w _wn
-  for _w in $(DISPLAY=:99 _xdo search --onlyvisible --name '.+' 2>/dev/null || true); do
-    _wn=$(DISPLAY=:99 _xdo getwindowname "$_w" 2>/dev/null || echo "")
-    if printf '%s' "$_wn" | grep -qE "$AUTO_LOGIN_AUTHED_TITLE_REGEX"; then
-      printf '%s' "$_wn"
-      return 0
-    fi
-  done
   return 1
 }
 
-# Poll _drv_login_authenticated up to AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS.
-# Echoes the authenticated title on success (return 0); returns 1 on
-# timeout. Logs the live MDI title each second so the exact moment the
-# broker handshake completes is observable in the driver log, and so a
-# stuck 'empty-server Netting' title is captured rather than silently
-# blind-waited.
+# Supplementary human-diagnostic only: returns the current active
+# window title (e.g. '<login> -   - Netting'). NOT used as a gate.
+_drv_active_title() {
+  local _w
+  _w=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "")
+  [ -n "$_w" ] && DISPLAY=:99 _xdo getwindowname "$_w" 2>/dev/null || true
+}
+
+# Poll the journal for a broker connect/authorize line up to
+# AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS. Echoes the matched journal line on
+# success (return 0); returns 1 on timeout. Logs the journal tail and
+# the live MDI title each second so the exact handshake moment and any
+# broker-side rejection are observable in the driver log.
 _drv_wait_for_login_auth() {
   local _budget="$1"
-  local _waited=0 _title _active_name
+  local _waited=0 _line _title
   while [ "$_waited" -lt "$_budget" ]; do
-    _title=$(_drv_login_authenticated)
-    if [ -n "$_title" ]; then
-      _drv_log "login authenticated at +${_waited}s; MDI title='${_title}'"
-      printf '%s' "$_title"
+    _line=$(_drv_login_authenticated)
+    if [ -n "$_line" ]; then
+      _drv_log "login confirmed via journal at +${_waited}s: ${_line}"
+      printf '%s' "$_line"
       return 0
     fi
     if ! _drv_mt_proc_alive; then
       _drv_warn "terminal process exited during login-auth wait at +${_waited}s"
       return 1
     fi
-    _active_name=$(
-      _w=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "")
-      [ -n "$_w" ] && DISPLAY=:99 _xdo getwindowname "$_w" 2>/dev/null || true
-    )
-    _drv_log "login-auth wait +${_waited}s: active title='${_active_name}' (awaiting non-empty server segment)"
+    _title=$(_drv_active_title)
+    _drv_log "login-auth wait +${_waited}s: active title='${_title}' (awaiting broker connect/authorize line in journal)"
     sleep 1
     _waited=$(( _waited + 1 ))
   done
@@ -1369,7 +1365,7 @@ auto_login_driver() {
     elif _drv_wait_for_login_auth "$AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS" >/dev/null; then
       _drv_log "login gate: broker authentication confirmed; proceeding to chart-attach"
     else
-      _drv_err "login gate: broker authentication NOT confirmed within ${AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS}s (MDI title never reached '<login> - <server> - (Netting|Hedging)'; server segment stayed empty). Credentials may be wrong, the server name may not resolve against servers.dat, or the access-server handshake failed. Exiting so the supervisor respawns."
+      _drv_err "login gate: broker authentication NOT confirmed within ${AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS}s (no broker connect/authorize line in the MT5 journal). Credentials may be wrong, the server name may not resolve against servers.dat, or the access-server handshake failed. Exiting so the supervisor respawns."
       return 1
     fi
 
