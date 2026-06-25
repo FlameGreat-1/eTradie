@@ -131,7 +131,7 @@ MAX_FAILURES = int(os.environ.get("WATCHDOG_MAX_FAILURES", "6"))
 # one-time compile finish and persist on the (persistent) Wine-prefix
 # PVC. After the window, normal MAX_FAILURES behaviour resumes. Memory
 # and CPU soft-caps are unaffected by this window.
-STARTUP_GRACE_SECONDS = float(os.environ.get("WATCHDOG_STARTUP_GRACE_SECONDS", "180"))
+STARTUP_GRACE_SECONDS = float(os.environ.get("WATCHDOG_STARTUP_GRACE_SECONDS", "450"))
 MEMORY_SOFT_CAP_FRACTION = float(os.environ.get("WATCHDOG_MEMORY_SOFT_CAP_FRACTION", "0.8"))
 LIVEZ_GRACE_SECONDS = float(os.environ.get("WATCHDOG_LIVEZ_GRACE_SECONDS", "60"))
 ZMQ_ENDPOINT = os.environ.get("WATCHDOG_ZMQ_ENDPOINT", "tcp://127.0.0.1:5555")
