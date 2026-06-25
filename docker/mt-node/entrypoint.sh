@@ -802,7 +802,17 @@ _drv_wait_for_dialog() {
 #   kubectl -n etradie-system set env statefulset/<release> -c mt-node \
 #     AUTO_LOGIN_PHASE5_ENABLED=1
 # without an image rebuild. The default is 0.
-AUTO_LOGIN_PHASE5_ENABLED="${AUTO_LOGIN_PHASE5_ENABLED:-0}"
+# Chart-attach is REQUIRED for the EA to load: the ZeroMQ_EA binds
+# tcp://*:5555 in OnInit(), and OnInit runs only when the EA is
+# attached to a chart. Branded MT5 auto-opens its OWN bundled
+# workspace charts after login, but those use the broker's per-chart
+# templates, not Profiles/Templates/expert.tpl, so our EA is never
+# attached by that path. This cascade opens a chart and lets MT5
+# apply expert.tpl (which names ZeroMQ_EA). It runs ONLY after the
+# login-success gate confirmed the broker handshake, so it can no
+# longer race a still-initialising terminal. Set to 0 only to
+# diagnose an unrelated regression without an image rebuild.
+AUTO_LOGIN_PHASE5_ENABLED="${AUTO_LOGIN_PHASE5_ENABLED:-1}"
 # Upper bound only: the settle loop early-exits the instant a
 # deterministic readiness signal fires (see
 # _drv_phase5_mql5_logs_present / _drv_phase5_welcome_modal_seen below).
