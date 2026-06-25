@@ -13,11 +13,7 @@ SO THEY CAN EITHER USE IT INSIDE THE SYSTEM THERE OR EXPORT IT AND USE
 
 PLEASE NOTE: THE TRADING SYSTEM REMAINS EXACTLY AS IT IS BECAUSE THE SYSTEM WILL BE USING THAT ONE IF THEY ARE TRADING FROM THE SYSTEM. AND THE TRADING SYSTEM CANNOT BE EXPORTED.
 
-Yes — now I understand exactly what you mean.
 
-You are **not** talking about another automated execution logic or another rules engine.
-
-You are talking about a:
 
 # Personalized 90-Day Trading Development Plan
 
