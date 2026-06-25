@@ -627,6 +627,52 @@ class HostedRecoveryService:
         if getattr(row, "mt5_symbol", None):
             existing_symbol = str(row.mt5_symbol).strip() or None
 
+        # Terminal-failure state guard.
+        #
+        # broker_connections.status tracks the LAST RECORDED PROVISION /
+        # OPERATOR OUTCOME, independently of the live K8s readiness state:
+        #   'provisioning' -> initial state on POST /api/broker/connections
+        #   'ready'        -> background provision succeeded
+        #   'failed'       -> background provision raised
+        #   'connected' / 'disconnected' / 'error' / 'untested'
+        #                  -> set by test/activate/health paths
+        # A row marked 'failed' represents a terminal failure outcome
+        # that the router has already recorded for the operator (and
+        # surfaced on the dashboard). The recovery loop was ignoring
+        # this column entirely and rebuilding such rows every
+        # reprovision_cooldown_secs (300s default), which:
+        #   1. Polluted the preserved PVC journal with repeated
+        #      cold-boot banners (2026-06-25 captured 63 fresh
+        #      'MetaTrader 5 x64 build 5836 started' lines in 1.5h)
+        #      making operator diagnostics substantially harder.
+        #   2. Wasted cluster resources rebuilding a pod that the
+        #      preceding provision flow already determined was broken.
+        #   3. Masked the original failure (the row's status_message
+        #      kept getting reset on each re-provision attempt).
+        # Recovery here is for HEALTHY rows whose K8s state drifted
+        # (StatefulSet evicted, namespace wipe, node drain leaving a
+        # stuck Pending). For status='failed' the operator must take
+        # explicit action -- delete the row and re-create from the
+        # dashboard, or POST /api/broker/connections/{id}/test if they
+        # believe the underlying broker side is now fixed. Either path
+        # transitions the row off 'failed' and the next sweep picks it
+        # back up.
+        row_status = (getattr(row, "status", None) or "").strip().lower()
+        if row_status == "failed":
+            logger.warning(
+                "hosted_recovery_skipped_terminal_failure_status",
+                extra={
+                    "connection_id": connection_id,
+                    "user_id": user_id,
+                    "reason": reason,
+                    "phase": phase,
+                    "row_status": row_status,
+                    "row_status_message": (getattr(row, "status_message", "") or "")[:300],
+                    "hint": "Row is marked 'failed' from a previous provision attempt. Recovery will NOT rebuild it. Operator must delete + re-create the connection from the dashboard, or POST /api/broker/connections/{id}/test to transition off the failed state.",
+                },
+            )
+            return
+
         # broker_id + broker_entity_id are REQUIRED by
         # HostedProvisioner.provision_account so it can resolve the
         # broker bundle (bundle_r2_path + bundle_sha256) from the
