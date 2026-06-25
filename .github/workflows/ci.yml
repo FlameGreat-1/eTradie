@@ -355,6 +355,8 @@ jobs:
             --set mtConnection.platform=mt5 \
             --set mtConnection.server=Exness-MT5Trial9 \
             --set mtConnection.sealedSecretName=test-conn-creds \
+            --set mtConnection.brokerBundleR2Path=https://example.invalid/broker-bundle.zip \
+            --set mtConnection.brokerBundleSha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 \
             --set externalSecrets.platform.vaultPath=etradie/services/mt-node/staging \
             > /tmp/mt-node-staging-tenant.yaml
           kubeconform -strict -kubernetes-version 1.30.0 \
@@ -372,6 +374,8 @@ jobs:
             --set mtConnection.platform=mt5 \
             --set mtConnection.server=Exness-MT5Trial9 \
             --set mtConnection.sealedSecretName=test-conn-creds \
+            --set mtConnection.brokerBundleR2Path=https://example.invalid/broker-bundle.zip \
+            --set mtConnection.brokerBundleSha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 \
             --set externalSecrets.platform.vaultPath=etradie/services/mt-node/production \
             > /tmp/mt-node-production-tenant.yaml
           kubeconform -strict -kubernetes-version 1.30.0 \

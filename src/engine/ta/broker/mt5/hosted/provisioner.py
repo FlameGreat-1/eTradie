@@ -499,9 +499,7 @@ class HostedProvisioner:
                     "platform": platform,
                 },
             )
-        if not (
-            _bundle_r2_path.startswith("https://") or _bundle_r2_path.startswith("http://")
-        ):
+        if not (_bundle_r2_path.startswith("https://") or _bundle_r2_path.startswith("http://")):
             raise ConfigurationError(
                 "Resolved broker bundle_r2_path must be an http(s):// URL "
                 "the initContainer can wget; the catalog's r2:// alias is "
@@ -514,11 +512,7 @@ class HostedProvisioner:
                     "bundle_r2_path": _bundle_r2_path,
                 },
             )
-        if (
-            not _bundle_sha256
-            or len(_bundle_sha256) != 64
-            or any(c not in "0123456789abcdef" for c in _bundle_sha256)
-        ):
+        if not _bundle_sha256 or len(_bundle_sha256) != 64 or any(c not in "0123456789abcdef" for c in _bundle_sha256):
             raise ConfigurationError(
                 "Resolved broker bundle_sha256 must be 64 lowercase hex "
                 "characters; the initContainer verifies the downloaded "
