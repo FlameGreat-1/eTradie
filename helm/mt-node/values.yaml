@@ -56,6 +56,33 @@ mtConnection:
   # pass --set mtConnection.symbol=<broker-actual-name> on the
   # helm command line.
   symbol: "__pending__"
+  # ---------------------------------------------------------------
+  # Broker bundle (REQUIRED on the per-tenant render path).
+  #
+  # The mt-node image no longer ships any MetaTrader install of its
+  # own. Every per-tenant Pod receives the branded MT at runtime via
+  # the broker-bundle initContainer, which:
+  #   1. wgets brokerBundleR2Path (must be the resolved http(s)://
+  #      URL of the R2 object - the catalog's r2:// alias is
+  #      documentation-only).
+  #   2. verifies the downloaded zip against brokerBundleSha256
+  #      (64 lowercase hex chars).
+  #   3. unpacks into the broker-bundle emptyDir volume.
+  #   4. The mt-node entrypoint then 'cp -a' the branded MT root onto
+  #      the per-tenant Wine-prefix PVC and launches the branded
+  #      terminal64.exe / terminal.exe.
+  #
+  # The chart preflight (templates/_helpers.tpl::mt-node.preflight)
+  # FAILS the render when either field is unset on the per-tenant
+  # path. The platform-only render path (mtConnection.enabled=false)
+  # skips the preflight, so the platform ArgoCD Application does NOT
+  # need to set these.
+  #
+  # The engine's HostedProvisioner --sets these from
+  # infrastructure/broker-catalog/<brand>.json::entities[].platforms.
+  # <mt4|mt5>.bundle_r2_path and .bundle_sha256.
+  brokerBundleR2Path: ""
+  brokerBundleSha256: ""
 # ---------------------------------------------------------------------
 # Vault Agent Injector
 #

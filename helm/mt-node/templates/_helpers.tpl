@@ -129,8 +129,13 @@ reference.
 {{- end -}}
 
 {{/*
-Preflight: hard-fails the render if mtConnection.connectionId or
-sealedSecretName are unset. Forces HostedProvisioner to set them.
+Preflight: hard-fails the render if any per-tenant required value is
+missing. The mt-node image no longer carries any MetaTrader install
+of its own; every per-tenant Pod MUST receive the branded MetaTrader
+at runtime via the broker-bundle initContainer, so the bundle pin
+(brokerBundleR2Path + brokerBundleSha256) is now part of the preflight
+contract. The platform-only render path (mtConnection.enabled=false)
+skips this preflight entirely via the guard in statefulset.yaml.
 */}}
 {{- define "mt-node.preflight" -}}
 {{- if not .Values.mtConnection.connectionId -}}
@@ -144,5 +149,17 @@ sealedSecretName are unset. Forces HostedProvisioner to set them.
 {{- end -}}
 {{- if not .Values.mtConnection.server -}}
 {{- fail "helm/mt-node: .Values.mtConnection.server is REQUIRED. Engine must --set this from broker_connections.mt5_server." -}}
+{{- end -}}
+{{- if not .Values.mtConnection.brokerBundleR2Path -}}
+{{- fail "helm/mt-node: .Values.mtConnection.brokerBundleR2Path is REQUIRED. The mt-node image no longer bakes any MetaTrader install; every per-tenant Pod receives the branded MT at runtime via the broker-bundle initContainer. The engine's HostedProvisioner --sets this from infrastructure/broker-catalog/<brand>.json::entities[].platforms.<mt4|mt5>.bundle_r2_path. Must be the resolved http(s):// URL of the R2 object (the catalog's r2:// alias is documentation-only)." -}}
+{{- end -}}
+{{- if not (or (hasPrefix "https://" .Values.mtConnection.brokerBundleR2Path) (hasPrefix "http://" .Values.mtConnection.brokerBundleR2Path)) -}}
+{{- fail (printf "helm/mt-node: .Values.mtConnection.brokerBundleR2Path must be an http(s):// URL the initContainer can wget (got %q). The catalog's r2:// alias is documentation-only; use the resolved public HTTPS URL of the R2 object." .Values.mtConnection.brokerBundleR2Path) -}}
+{{- end -}}
+{{- if not .Values.mtConnection.brokerBundleSha256 -}}
+{{- fail "helm/mt-node: .Values.mtConnection.brokerBundleSha256 is REQUIRED. The initContainer verifies the downloaded bundle.zip against this digest before unpacking; without it a tampered or stale R2 object would deploy silently." -}}
+{{- end -}}
+{{- if not (regexMatch "^[0-9a-f]{64}$" .Values.mtConnection.brokerBundleSha256) -}}
+{{- fail (printf "helm/mt-node: .Values.mtConnection.brokerBundleSha256 must be 64 lowercase hex characters (got %q)." .Values.mtConnection.brokerBundleSha256) -}}
 {{- end -}}
 {{- end -}}

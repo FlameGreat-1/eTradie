@@ -733,19 +733,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # CHECKLIST hardening (Gap #12): mt-node production builds
-      # MUST pin Wine version AND MUST NOT depend on the public
-      # mql5.com CDN unless explicitly opted in. This guard runs
-      # ONLY on main-branch builds (PR builds skip so contributors
-      # can iterate); it short-circuits the matrix step with a
-      # clear error message instead of producing an image that is
-      # silently non-reproducible / supply-chain-unsafe.
+      # CHECKLIST hardening: mt-node production builds MUST pin Wine
+      # version. The previous MT5_INSTALLER_URL / public-CDN guard was
+      # removed alongside the generic-MT install in the Dockerfile;
+      # branded MT is now delivered at runtime via the broker-bundle
+      # initContainer (R2 pin in infrastructure/broker-catalog/<brand>.json),
+      # not at image build time, so this guard's CDN check has no
+      # surface left to defend.
       - name: Production build guard - mt-node
         if: matrix.service == 'mt-node' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           WINEHQ_VERSION: ${{ secrets.WINEHQ_VERSION }}
-          MT5_INSTALLER_URL: ${{ secrets.MT5_INSTALLER_URL }}
-          ALLOW_PUBLIC: ${{ secrets.ETRADIE_ALLOW_PUBLIC_INSTALLER_CDN }}
         run: |
           set -eu
           if [ -z "$WINEHQ_VERSION" ]; then
@@ -756,20 +754,6 @@ jobs:
             echo "       and add it as a GitHub Actions repo secret." >&2
             exit 1
           fi
-          case "${MT5_INSTALLER_URL:-https://download.mql5.com/}" in
-            *download.mql5.com*)
-              if [ "${ALLOW_PUBLIC:-false}" != "true" ]; then
-                echo "FATAL: production mt-node builds must NOT depend on the public" >&2
-                echo "       mql5.com CDN. Set secrets.MT5_INSTALLER_URL to your" >&2
-                echo "       internal mirror (Artifactory / S3 / Nexus). To override" >&2
-                echo "       this guard temporarily (e.g. during initial bootstrap)," >&2
-                echo "       set secrets.ETRADIE_ALLOW_PUBLIC_INSTALLER_CDN to the" >&2
-                echo "       literal string 'true'." >&2
-                exit 1
-              fi
-              echo "WARN: building against public mql5.com CDN (opt-in acknowledged via ETRADIE_ALLOW_PUBLIC_INSTALLER_CDN)" >&2
-              ;;
-          esac
           echo "production build guard passed: WINEHQ_VERSION=$WINEHQ_VERSION"
 
       - name: Build${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && ' and push' || '' }} ${{ matrix.service }}
@@ -813,11 +797,12 @@ jobs:
           sbom: true
           # mt-node needs the supply-chain build-args plumbed in;
           # other services have no build args and ignore this block.
+          # The MT5/MT4 installer URLs + SHAs are intentionally absent:
+          # the image no longer downloads any MT installer at build
+          # time. Branded MT is delivered at runtime via the
+          # broker-bundle initContainer; the per-tenant R2 pin lives
+          # in infrastructure/broker-catalog/<brand>.json.
           build-args: |
-            MT5_INSTALLER_SHA256=${{ matrix.service == 'mt-node' && (secrets.MT5_INSTALLER_SHA256 || 'skip') || '' }}
-            MT4_INSTALLER_SHA256=${{ matrix.service == 'mt-node' && (secrets.MT4_INSTALLER_SHA256 || 'skip') || '' }}
-            MT5_INSTALLER_URL=${{ matrix.service == 'mt-node' && (secrets.MT5_INSTALLER_URL || 'https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe') || '' }}
-            MT4_INSTALLER_URL=${{ matrix.service == 'mt-node' && (secrets.MT4_INSTALLER_URL || 'https://download.mql5.com/cdn/web/metaquotes.software.corp/mt4/mt4setup.exe') || '' }}
             EA_EX5_SHA256=${{ matrix.service == 'mt-node' && (secrets.EA_EX5_SHA256 || 'skip') || '' }}
             EA_EX4_SHA256=${{ matrix.service == 'mt-node' && (secrets.EA_EX4_SHA256 || 'skip') || '' }}
             WINEHQ_VERSION=${{ matrix.service == 'mt-node' && secrets.WINEHQ_VERSION || '' }}
