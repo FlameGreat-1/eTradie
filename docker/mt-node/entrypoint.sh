@@ -113,108 +113,18 @@ _shutdown() {
 trap _shutdown TERM INT
 
 # ── Auto-login driver (xdotool-based GUI automation) ───────────
-#
-# Why this exists
-# ---------------
-# MetaTrader 5 build 5836 ignores both documented unattended-launch
-# mechanisms:
-#   * `/login /password /server` command-line flags - confirmed via
-#     ps -ef + journal silence + zero outbound TCP to broker IPs.
-#   * startup.ini [Common] Login/Password/Server - file is read, but
-#     never acted on; only populates the Login dialog's fields.
-#
-# MetaQuotes' modern builds expect either a saved accounts.dat (which
-# only exists after a manual first login) or interactive user input.
-# The accepted industry solution - used by every commercial MT5 VPS
-# provider running Wine + Xvfb (ForexVPS, Beeks, CNS) - is to drive
-# the Login dialog programmatically via xdotool, check "Save account
-# information" so MT5 writes accounts.dat itself, and let every
-# subsequent boot use accounts.dat for silent auto-login.
-#
-# Contract
-# --------
-# auto_login_driver() runs as a background child of the entrypoint.
-# It is best-effort: a driver crash does NOT kill MT5. The supervisor
-# loop's normal exit-code path handles MT5 lifecycle; the driver is
-# purely additive automation.
-#
-#   1. Wait up to AUTO_LOGIN_PROCESS_WAIT_SECS for terminal binary.
-#   2. Phase 2 (dialog-first, with main-window fallback):
-#      a) Phase 2a -- poll xdotool every 2s for a Login-shaped window
-#         (AUTO_LOGIN_DIALOG_TITLE_REGEX). Wait at most
-#         AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS (default 30s) for the
-#         dialog before considering Phase 2c. The dialog path was the
-#         original design contract; it remains the happy path for
-#         fresh prefixes and for any future MT5 build that reinstates
-#         the on-launch Login prompt.
-#      b) Phase 2b -- idempotent :5555 fast path. If :5555 LISTEN
-#         appears at any time, MT5 has auto-logged in via
-#         accounts.dat (subsequent boot). Exit 0 immediately.
-#      c) Phase 2c -- main-window menu-driven invocation. After
-#         AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS of NEITHER dialog NOR
-#         :5555 bind, check whether MT5's main UI window is visible
-#         (AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX). If yes, this is the
-#         empirical build-5836 + pre-staged-config path -- MT5
-#         opened straight to the main window without prompting.
-#         Phase 2c dismisses the 'Welcome to LiveUpdate' modal
-#         (Escape), focuses the main window, sends Ctrl+Shift+L
-#         (MT5's 'Login to Trade Account' hotkey), waits up to
-#         AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS for the dialog,
-#         and falls back to the Alt+F (File menu) -> arrow Down ->
-#         Return menu navigation if the hotkey was absorbed. On
-#         dialog visible after either path, falls through to Phase
-#         3 unchanged. Platform-gated to MT_PLATFORM=mt5; MT4 keeps
-#         the dialog-only Phase 2a path because MT4 build behaviour
-#         on this code path has not been empirically validated.
-#      Phase 2 overall budget remains AUTO_LOGIN_DIALOG_WAIT_SECS;
-#      if neither dialog nor :5555 bind happens within that budget,
-#      exit 1 (supervisor handles).
-#   3. Phase 3 -- on dialog visible: activate window, type credentials
-#      with --clearmodifiers --delay 50, check 'Save account
-#      information', press Return. Unchanged from previous design.
-#   4. Phase 4 -- for AUTO_LOGIN_FOLLOWUP_DISMISS_SECS, dismiss any
-#      other visible windows (EULA, Welcome, broker terms, news
-#      alerts) via Return. Unchanged.
-#   5. Total budget AUTO_LOGIN_TOTAL_BUDGET_SECS. On success exit 0;
-#      on timeout exit 1.
-#
-# Security
-# --------
-# - Runs as uid 1000 (same as the main container).
-# - $MT_PASSWORD is passed to `xdotool type --` as an argv element.
-#   It appears in xdotool's /proc/<pid>/cmdline for the milliseconds
-#   the call takes. Only the mt uid can read it. This is a strict
-#   improvement over the previous `/password:` on terminal64.exe
-#   itself, which kept the password in cmdline for the process
-#   lifetime.
-# - NEVER logs $MT_PASSWORD. Logs $MT_LOGIN, $MT_SERVER, dialog
-#   titles, timing.
-# Clipboard paste timeout for credential fields. Bounds any xclip hang
-# against a wedged X server. 3s is the safe ceiling: xclip's happy
-# path is ~10ms (set the selection, return); under heavy I/O load it
-# should never exceed ~500ms.
+# MT5 build 5836 ignores /login /password /server flags and the
+# startup.ini [Common] block, so the Login dialog is driven via
+# xdotool. Phases: 1 wait for terminal; 2a/2b/2c surface or invoke
+# the Login dialog (or fast-path on an existing :5555 bind); 3 fill
+# + submit credentials; login-auth gate; chart-attach; 4 poll :5555
+# + dismiss follow-ups. Best-effort: a driver crash never kills MT5.
+# NEVER logs $MT_PASSWORD.
 AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS="${AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS:-3}"
 
-# Credential input strategy for Phase 3 (per-field).
-#
-#   paste_then_type (default, recommended):
-#       Try clipboard paste first; on paste failure, fall back to
-#       xdotool type with the hardened 150ms-delay profile. This is
-#       defence-in-depth: paste is the deterministic primary path,
-#       typing is the operational safety net.
-#
-#   paste:
-#       Paste-only. If paste fails, the field stays empty and the
-#       broker login will fail with a clear journal error. Use this
-#       for security-strict deployments where ANY cmdline exposure
-#       window (the typing fallback briefly exposes MT_PASSWORD in
-#       xdotool's /proc/<pid>/cmdline) is unacceptable.
-#
-#   type:
-#       Skip paste entirely; type every field. Useful for MT4 (where
-#       paste has not been empirically validated) and for diagnosing
-#       a paste-specific regression. Tunable per-pod via
-#       `kubectl set env` without rebuilding the image.
+# Phase 3 per-field input strategy: paste_then_type (default; paste
+# first, fall back to xdotool type), paste (paste only), or type
+# (type only). Tunable per-pod via `kubectl set env`.
 AUTO_LOGIN_INPUT_STRATEGY="${AUTO_LOGIN_INPUT_STRATEGY:-paste_then_type}"
 
 AUTO_LOGIN_TOTAL_BUDGET_SECS="${AUTO_LOGIN_TOTAL_BUDGET_SECS:-240}"
@@ -312,64 +222,17 @@ _drv_log() { log "INFO" "auto_login: $*"; }
 _drv_warn() { log "WARN" "auto_login: $*"; }
 _drv_err() { log "ERROR" "auto_login: $*"; }
 
-# _xdo wraps every xdotool invocation in `timeout`. coreutils
-# `timeout` is part of the base Ubuntu 24.04 image (verified at build
-# time; no Dockerfile change needed). Exit semantics:
-#   - 0       : xdotool ran and returned 0 (happy path).
-#   - 1       : xdotool ran and returned non-zero (e.g. no window
-#               matched the search regex). Caller treats as a no-op.
-#   - 124     : timeout fired before xdotool exited (the wedge case
-#               this helper exists to defend against). Caller treats
-#               as a no-op so the driver advances to its next step.
-#   - 125-127 : timeout itself failed (e.g. xdotool binary missing).
-#               Same no-op treatment — the driver continues so a
-#               cluster-wide xdotool regression cannot wedge the
-#               supervisor.
-# Callers retain the historical `2>/dev/null || true` postfix so the
-# pipefail-aware `set -e` shell behaviour does not abort on a timeout
-# exit. Stderr from xdotool is discarded by the caller; logs are
-# emitted by the driver helpers, not by xdotool itself.
+# Wrap every xdotool call in `timeout` so a wedged X interaction
+# (Wine modal whose WM_NAME atom never stabilises) cannot hang the
+# driver. Any non-zero exit (including timeout 124) is treated by
+# callers as a no-op via their `2>/dev/null || true` postfix.
 _xdo() {
   timeout "${AUTO_LOGIN_XDOTOOL_TIMEOUT_SECS}" xdotool "$@"
 }
 
-# _drv_paste_into_focused_field: deliver a credential value to the
-# currently-focused MT5 dialog field via the X CLIPBOARD selection +
-# Ctrl+V (Win32 WM_PASTE).
-#
-# This is the deterministic alternative to `xdotool type --` for
-# Wine-translated Win32 input. Empirical evidence (2026-06-24 08:52
-# staging screenshot) showed `xdotool type` dropping characters at
-# the X-event / Wine-message-pump boundary under load: Login field
-# got 0 chars, Password 3 chars, Server lost trailing char. Clipboard
-# paste delivers the value atomically via a single WM_PASTE message;
-# no per-character pipeline, no drops possible.
-#
-# Contract:
-#   * $1 = field label for logging (never logs the value itself).
-#   * stdin = the literal byte sequence to paste.
-#   * Caller MUST already have Tab'd to the target field. This helper
-#     does not move focus; it only clears + pastes.
-#
-# Steps:
-#   1. Ctrl+A + Delete to guarantee empty field (closes the case where
-#      a focus race left MT5's default text in the field).
-#   2. Pipe stdin to xclip with --loops 1. xclip serves exactly one
-#      paste consumer, then exits, so the selection lives only until
-#      Ctrl+V consumes it (~50ms).
-#   3. timeout AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS bounds the call.
-#   4. LC_ALL=C on the subshell so non-ASCII bytes are byte-preserved
-#      (no locale-specific UTF-8 re-encoding).
-#   5. Send Ctrl+V via _xdo so it inherits the existing per-call
-#      timeout.
-#   6. Settle for AUTO_LOGIN_FIELD_SETTLE_SECS so MT5's message pump
-#      consumes the WM_PASTE before the next operation.
-#
-# Security:
-#   * stdin is read by xclip; the value NEVER appears in argv or
-#     /proc/<pid>/cmdline of any process.
-#   * Logs only the label and a derived integer length, never the
-#     content.
+# Deliver a credential to the focused field via X CLIPBOARD + Ctrl+V
+# (atomic WM_PASTE; no per-char drops). Caller must have Tab'd to the
+# field. $1=label (never logs the value); stdin=the literal bytes.
 _drv_paste_into_focused_field() {
   local _label="$1"
   local _bytes_read
@@ -412,26 +275,10 @@ _drv_scrub_clipboard() {
   _drv_log "clipboard scrubbed"
 }
 
-# _drv_type_into_focused_field: deliver a credential value via
-# xdotool type. The fallback path for when clipboard paste fails.
-#
-# Contract:
-#   * $1 = value to type (passed as argv to xdotool).
-#   * $2 = field label for logging (never logs the value).
-#   * Caller MUST already have Tab'd to the target field.
-#
-# Steps:
-#   1. Ctrl+A + Delete to clear the field.
-#   2. xdotool type --clearmodifiers --delay <ms> -- <value>.
-#      The 150ms default per-character delay (commit 1c9cfac1) is the
-#      empirically-tuned baseline for Wine-translated Win32 input.
-#   3. Settle for AUTO_LOGIN_FIELD_SETTLE_SECS.
-#
-# Security:
-#   * The value appears in xdotool's /proc/<pid>/cmdline for the
-#     type duration only (~3.6s on a 24-char password at 150ms/char).
-#   * Only the mt uid (1000) can read other mt-uid processes' /proc.
-#   * Log records the byte length only, never the content.
+# Fallback delivery via xdotool type (per-char, 150ms delay tuned for
+# Wine-translated Win32 input). $1=value (argv), $2=label. The value
+# is briefly visible in xdotool's /proc cmdline (readable only by the
+# mt uid); logs the byte length only.
 _drv_type_into_focused_field() {
   local _value="$1"
   local _label="$2"
@@ -458,27 +305,9 @@ _drv_type_into_focused_field() {
   return 0
 }
 
-# _drv_deliver_credential: deliver a credential value to the
-# currently-focused field using the strategy in
-# AUTO_LOGIN_INPUT_STRATEGY. Single entry point so Phase 3 does not
-# have to repeat the strategy switch for each field.
-#
-# Contract:
-#   * $1 = value bytes (passed as argv; only typing path uses argv).
-#         For paste, the value is also piped via stdin to the paste
-#         helper. Passwords are never logged by either path.
-#   * $2 = field label for logging.
-#
-# Returns 0 on success, 1 on total failure (every configured strategy
-# attempt failed).
-#
-# Strategy semantics:
-#   * paste:           paste only; fail-loud on paste error.
-#   * type:            type only; skip paste.
-#   * paste_then_type: try paste; on failure, fall back to type.
-#                      This is the default and the recommended posture.
-#   * (other):         log WARN and behave as paste_then_type for
-#                      safety; do not refuse the field.
+# Deliver a credential to the focused field using
+# AUTO_LOGIN_INPUT_STRATEGY. $1=value, $2=label. Returns 0 on
+# success, 1 when every configured strategy attempt failed.
 _drv_deliver_credential() {
   local _value="$1"
   local _label="$2"
