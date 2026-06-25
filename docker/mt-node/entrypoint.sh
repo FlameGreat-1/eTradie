@@ -127,7 +127,16 @@ AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS="${AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS:-3}"
 # (type only). Tunable per-pod via `kubectl set env`.
 AUTO_LOGIN_INPUT_STRATEGY="${AUTO_LOGIN_INPUT_STRATEGY:-paste_then_type}"
 
-AUTO_LOGIN_TOTAL_BUDGET_SECS="${AUTO_LOGIN_TOTAL_BUDGET_SECS:-240}"
+# Overall driver budget. Covers worst-case first boot: Phase 1-2
+# (~60s) + Phase 3 (~10s) + login-auth gate (up to 120s; real Exness
+# handshake measured at 87s) + Phase 5 settle (up to 60s, early-exits)
+# + Phase 5 attempt 1 (chart-window-wait 20s + bind-wait 30s). ~305s
+# baseline; 420s gives headroom. Stays under the startupProbe budget
+# (620s) and the engine readiness timeout (600s) so the driver always
+# completes before those outer gates fire. The hard-kill fires at
+# 420 + AUTO_LOGIN_HARD_KILL_GRACE_SECS. Subsequent boots use
+# accounts.dat and finish in ~20-30s.
+AUTO_LOGIN_TOTAL_BUDGET_SECS="${AUTO_LOGIN_TOTAL_BUDGET_SECS:-420}"
 AUTO_LOGIN_DIALOG_WAIT_SECS="${AUTO_LOGIN_DIALOG_WAIT_SECS:-120}"
 AUTO_LOGIN_PROCESS_WAIT_SECS="${AUTO_LOGIN_PROCESS_WAIT_SECS:-60}"
 AUTO_LOGIN_FOLLOWUP_DISMISS_SECS="${AUTO_LOGIN_FOLLOWUP_DISMISS_SECS:-60}"
