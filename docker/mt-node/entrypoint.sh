@@ -775,6 +775,129 @@ _drv_phase5_welcome_modal_seen() {
   esac
 }
 
+# ── Bundle Config-dir case resolver ───────────────────────────────
+# The broker bundles are baked on case-INSENSITIVE Windows. On the
+# case-SENSITIVE Linux/ext4 PVC the baked config directory may be
+# 'Config' (exness mt5), 'config' (exness mt4), or BOTH as two
+# distinct directories (deriv mt5). MT5/MT4 on Wine read whichever
+# their build opens; our entrypoint must write startup.ini /
+# terminal.ini into THAT directory or they are silently ignored.
+#
+# Resolve a single canonical config dir for $1 (the branded MT root):
+#   * If only one case exists, echo it.
+#   * If BOTH exist, canonicalize on 'Config' (the case the live MT5
+#     builds in these bundles use): migrate any files unique to the
+#     lowercase 'config' into 'Config', then remove the lowercase
+#     duplicate so MT's read path is deterministic. Echo 'Config'.
+#   * If neither exists, create 'Config' and echo it.
+# Echoes the ABSOLUTE path on stdout. Idempotent.
+_resolve_mt_config_dir() {
+  local _root="$1"
+  local _cap="$_root/Config"
+  local _low="$_root/config"
+  if [ -d "$_cap" ] && [ -d "$_low" ]; then
+    # Merge lowercase -> Config (do not clobber existing Config files),
+    # then drop the duplicate so precedence is unambiguous.
+    cp -an "$_low/." "$_cap/" 2>/dev/null || true
+    rm -rf "$_low" 2>/dev/null || true
+    printf '%s' "$_cap"
+    return 0
+  fi
+  if [ -d "$_low" ]; then
+    printf '%s' "$_low"
+    return 0
+  fi
+  # Default (only Config, or neither): use/create Config.
+  mkdir -p "$_cap" 2>/dev/null || true
+  printf '%s' "$_cap"
+}
+
+# ── Bundle overlay normalizer ─────────────────────────────────────
+# Neutralizes the baked broker state that blocks deterministic EA
+# attach. See the call site (inside the _overlay_needed block) for
+# the full rationale (classes A/B/C). $1=branded MT root, $2=platform
+# ('mt4'|'mt5'). Idempotent; safe to re-run.
+_normalize_overlay() {
+  local _root="$1"
+  local _plat="$2"
+  local _cfg _common _ai
+
+  # (A) Strip the saved chart WORKSPACE so MT cold-boots a fresh
+  #     chart that startup.ini Template=expert applies our EA to.
+  #     Both the legacy <root>/Profiles/Charts and the live
+  #     MQL5/Profiles/Charts copies are removed on MT5; MT4 uses a
+  #     lowercase profiles/ tree with per-profile chart dirs +
+  #     lastprofile.ini. Templates/ and SymbolSets/ are preserved.
+  if [ "$_plat" = "mt4" ]; then
+    if [ -d "$_root/profiles" ]; then
+      log INFO "overlay-normalize(mt4): stripping baked profiles/* chart workspace (keeping nothing under profiles/; MT4 recreates a default profile on cold boot)"
+      # MT4 stores each profile as profiles/<name>/chartNN.chr plus
+      # profiles/lastprofile.ini. Remove every profile dir AND
+      # lastprofile.ini so no saved workspace is restored.
+      find "$_root/profiles" -mindepth 1 -maxdepth 1 \( -type d -o -name 'lastprofile.ini' \) \
+        -exec rm -rf {} + 2>/dev/null || true
+    fi
+  else
+    if [ -d "$_root/Profiles/Charts" ]; then
+      log INFO "overlay-normalize(mt5): stripping baked Profiles/Charts workspace"
+      rm -rf "$_root/Profiles/Charts" 2>/dev/null || true
+    fi
+    if [ -d "$_root/MQL5/Profiles/Charts" ]; then
+      log INFO "overlay-normalize(mt5): stripping baked MQL5/Profiles/Charts workspace"
+      rm -rf "$_root/MQL5/Profiles/Charts" 2>/dev/null || true
+    fi
+  fi
+
+  # Resolve the canonical config dir ONCE (also de-dups Deriv's
+  # Config+config). Export it so the later startup.ini / terminal.ini
+  # / journal logic uses the same directory MT actually reads.
+  _cfg=$(_resolve_mt_config_dir "$_root")
+  MT_CONFIG_DIR="$_cfg"
+  export MT_CONFIG_DIR
+  log INFO "overlay-normalize: canonical config dir resolved to '${MT_CONFIG_DIR}'"
+
+  # (B) MT5 only: neutralize common.ini profile-restore + foreign
+  #     account. The keys we touch are ASCII; rewrite as text with
+  #     awk. We (1) blank ProfileLast and force PreloadCharts=0 in
+  #     [Charts], and (2) drop Login=/Server=/Environment= from
+  #     [Common]. Other sections/keys are passed through verbatim.
+  if [ "$_plat" != "mt4" ]; then
+    _common="$MT_CONFIG_DIR/common.ini"
+    if [ -f "$_common" ]; then
+      log INFO "overlay-normalize(mt5): neutralizing common.ini (blank ProfileLast, PreloadCharts=0, strip foreign Login/Server/Environment)"
+      # tr -d '\000' tolerates any UTF-16 NULs MT may have written;
+      # the gated keys are single-byte ASCII either way.
+      tr -d '\000' < "$_common" 2>/dev/null > "${_common}.tmp" || cp -f "$_common" "${_common}.tmp"
+      awk '
+        /^[[:space:]]*[Ll]ogin[[:space:]]*=/      { next }
+        /^[[:space:]]*[Ss]erver[[:space:]]*=/     { next }
+        /^[[:space:]]*[Ee]nvironment[[:space:]]*=/{ next }
+        /^[[:space:]]*ProfileLast[[:space:]]*=/   { print "ProfileLast="; next }
+        /^[[:space:]]*PreloadCharts[[:space:]]*=/ { print "PreloadCharts=0"; next }
+        { print }
+      ' "${_common}.tmp" > "$_common" 2>/dev/null || mv -f "${_common}.tmp" "$_common"
+      rm -f "${_common}.tmp" 2>/dev/null || true
+    fi
+  fi
+
+  # (C) Delete the baked saved-account cache so the per-tenant Vault
+  #     creds are the ONLY login path. MT5 -> accounts.dat (re-created
+  #     after first login). MT4 -> accounts.ini (encrypted; cannot be
+  #     safely edited, so delete; MT4 recreates it after login).
+  if [ "$_plat" = "mt4" ]; then
+    _ai="$MT_CONFIG_DIR/accounts.ini"
+    if [ -f "$_ai" ]; then
+      log INFO "overlay-normalize(mt4): removing baked accounts.ini (foreign account; MT4 recreates after auto-login)"
+      rm -f "$_ai" 2>/dev/null || true
+    fi
+  else
+    if [ -f "$MT_CONFIG_DIR/accounts.dat" ]; then
+      log INFO "overlay-normalize(mt5): removing baked accounts.dat (foreign account; MT5 recreates after auto-login)"
+      rm -f "$MT_CONFIG_DIR/accounts.dat" 2>/dev/null || true
+    fi
+  fi
+}
+
 # ── Chart-attach evidence helpers (MQL5/Logs grep) ────────────────
 # EA bind happens ONLY after chart-open -> EA-attach -> OnInit ->
 # g_socket.bind(). These helpers read the EA's own Experts-tab log
@@ -2175,20 +2298,48 @@ if [ "$_overlay_needed" -eq 1 ]; then
   printf '%s\n' "${BUNDLE_SHA256:-unknown}" > "$_sentinel_file" 2>/dev/null || true
   log INFO "broker-bundle overlay: complete; sentinel written at '${_sentinel_file}'"
 
-  # Primary deterministic chart-attach: remove the bundle's pre-baked
-  # default chart workspace. MT5 restores Profiles/Default on boot
-  # using the BROKER's per-chart templates and ignores our
-  # startup.ini [Charts] Template=expert when a profile exists, so our
-  # EA would never attach. With Profiles/Default gone, MT5 cold-boots
-  # a fresh chart and applies expert.tpl (which names ZeroMQ_EA),
-  # OnInit runs, and the EA binds :5555 - no GUI automation needed.
-  # Runs only on (re-)overlay (sentinel-gated), so MT5's OWN saved
-  # profile on subsequent boots is preserved. Profiles/Templates/
-  # (expert.tpl + broker templates) and config/ are untouched.
-  if [ -d "$MT_DIR/Profiles/Default" ]; then
-    log INFO "broker-bundle overlay: removing bundled Profiles/Default workspace so MT5 cold-boots a fresh chart via startup.ini Template=expert (deterministic EA attach)"
-    rm -rf "$MT_DIR/Profiles/Default" 2>/dev/null || true
-  fi
+  # ── Overlay normalizer (deterministic chart-attach prerequisites) ──
+  #
+  # The pre-baked broker bundles are built on case-INSENSITIVE Windows
+  # and ship state that actively BLOCKS our deterministic EA attach on
+  # case-SENSITIVE Linux/Wine. Verified against the three sha-matched
+  # catalog bundles (exness mt5, deriv mt5, exness mt4). Three classes
+  # of baked state must be neutralized, ONCE, on (re-)overlay only
+  # (sentinel-gated), so MT5's OWN saved profile + accounts cache on
+  # subsequent boots over the same PVC are preserved:
+  #
+  #   (A) Saved chart WORKSPACE. The bundles do NOT ship Profiles/
+  #       Default; the real workspace is Profiles/Charts/* AND
+  #       MQL5/Profiles/Charts/* (MT5) or profiles/* + lastprofile.ini
+  #       (MT4). While a saved profile exists, MT5 restores it and
+  #       IGNORES startup.ini [Charts] Template=expert, so our EA never
+  #       attaches. Removing the chart workspace forces MT5 to cold-
+  #       boot a fresh chart that Template=expert applies expert.tpl
+  #       to (naming ZeroMQ_EA), OnInit runs, :5555 binds -- no GUI
+  #       automation. Templates/ + SymbolSets/ are KEPT.
+  #
+  #   (B) common.ini profile-restore + FOREIGN account (MT5 only).
+  #       Both MT5 bundles ship [Charts] ProfileLast=Default +
+  #       PreloadCharts=1 (forces profile restore) and a third-party
+  #       [Common] Login=/Server=/Environment= (the bundle builder's
+  #       own account). Left in place MT5 would auto-restore a foreign
+  #       session and race our Vault-sourced auto-login. We blank
+  #       ProfileLast, set PreloadCharts=0, and strip the foreign
+  #       Login/Server/Environment.
+  #
+  #   (C) Saved-account cache. MT5 ships Config/accounts.dat; MT4
+  #       ships the encrypted Config/accounts.ini. Both carry the
+  #       foreign account. We DELETE them so the only login path is
+  #       auto_login_driver() with the per-tenant Vault creds. MT5
+  #       re-creates accounts.dat itself after the first successful
+  #       login (the driver ticks 'Save account information') and the
+  #       PVC persists it, so the subsequent-boot fast path is intact.
+  #
+  # MT_CONFIG_DIR (resolved below, BEFORE this block uses it) is the
+  # single canonical Config directory; on Deriv (which ships BOTH
+  # 'Config' and 'config') it is de-duplicated so MT5's read path is
+  # deterministic.
+  _normalize_overlay "$MT_DIR" "$MT_PLATFORM"
 fi
 
 # Step 5: assert the branded terminal is now in place and grab its
