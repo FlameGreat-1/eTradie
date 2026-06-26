@@ -2355,13 +2355,26 @@ log INFO "broker-bundle overlay summary: branded_terminal='${MT_DIR}/${MT_EXE}',
 
 unset _bundle_top_level _bundle_exe_name _bundle_exe_finds _bundle_exe_count _bundle_exe _bundle_root _bundle_root_name _sentinel_dir _sentinel_file _overlay_needed _terminal_size _terminal_sha _line
 
+# Ensure MT_CONFIG_DIR is set on EVERY boot path. The normalizer sets
+# + exports it on the overlay path; on the overlay-SKIPPED subsequent-
+# boot path (sentinel matched) it is still unset here, so resolve it
+# now against the existing on-disk layout (also de-dups a stray
+# Config/config pair if a prior boot left one). All later config /
+# journal writes derive from this so they land in the directory MT
+# actually reads (case-correct on Linux/Wine).
+if [ -z "${MT_CONFIG_DIR:-}" ]; then
+  MT_CONFIG_DIR=$(_resolve_mt_config_dir "$MT_DIR")
+  export MT_CONFIG_DIR
+  log INFO "config dir resolved (overlay-skipped path) to '${MT_CONFIG_DIR}'"
+fi
+
 # ── Materialise MT directory layout under the branded root ────────
 mkdir -p "$MT_DIR/$(dirname "$EA_REL_DST")" \
          "$MT_DIR/$(dirname "$SET_REL_DST")" \
          "$MT_DIR/$(dirname "$TPL_REL_DST")" \
          "$MT_DIR/$(dirname "$EA_DEPS_LIBZMQ_DST_REL")" \
          "$MT_DIR/$EA_DEPS_INCLUDE_DST_REL" \
-         "$MT_DIR/config"
+         "$MT_CONFIG_DIR"
 
 # ── Copy EA binary + dependencies (AFTER bundle overlay) ──────────
 # The bundle may have shipped empty MQL{4,5}/Experts and MQL{4,5}/
@@ -2427,7 +2440,7 @@ log INFO "EA .set written to $MT_DIR/$SET_REL_DST"
 # default chart and the EA attaches there; the engine resolves the
 # broker-actual symbol via GET_ALL_SYMBOLS and patches MT_SYMBOL,
 # triggering a single rolling restart with the real value.
-INI_FILE="$MT_DIR/config/startup.ini"
+INI_FILE="$MT_CONFIG_DIR/startup.ini"
 if [ "$SYMBOL_RESOLVED" = "true" ]; then
   cat > "$MT_DIR/$TPL_REL_DST" <<EOF
 <chart>
@@ -2532,6 +2545,8 @@ log INFO "Startup config written to $INI_FILE"
 # NetworkPolicy is).
 MT_BUILD_FALLBACK="${MT_BUILD_FALLBACK:-}"
 MT_BUILD=""
+# MT5/MT4 write the journal to <root>/logs (lowercase) at runtime;
+# this is created by MT itself, not baked, so it is case-stable.
 MT_JOURNAL_DIR="$MT_DIR/logs"
 if [ -d "$MT_JOURNAL_DIR" ]; then
   MT_BUILD=$(grep -ahoE 'build [0-9]+ started' "$MT_JOURNAL_DIR"/*.log 2>/dev/null \
@@ -2539,7 +2554,7 @@ if [ -d "$MT_JOURNAL_DIR" ]; then
 fi
 MT_BUILD="${MT_BUILD:-$MT_BUILD_FALLBACK}"
 
-TERMINAL_INI="$MT_DIR/config/terminal.ini"
+TERMINAL_INI="$MT_CONFIG_DIR/terminal.ini"
 if [ -z "$MT_BUILD" ]; then
   log INFO "LiveUpdate build pin SKIPPED: running build not yet resolvable from the journal ($MT_JOURNAL_DIR) and MT_BUILD_FALLBACK is unset. The journal-derived build will be pinned on a subsequent boot; LiveUpdate is gated by the NetworkPolicy egress block regardless, so this is non-fatal ($MT_PLATFORM)."
 elif [ -f "$TERMINAL_INI" ]; then
