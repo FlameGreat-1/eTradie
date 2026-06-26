@@ -786,14 +786,46 @@ _drv_account_wizard_advance_attempt() {
   return 0
 }
 
+# Master switch for the in-Phase-2a wizard handler. DEFAULT OFF.
+#
+# When OFF (default), Phase 2a does NOT run the wizard handler. It
+# polls for the Login dialog and after AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS
+# (30s default) falls through to Phase 2c which deterministically
+# invokes File -> Login to Trade Account via Alt+F,L against the main
+# MT5 window (after _drv_clear_modals_for_main_window Escape-dismisses
+# any embedded wizard or Open-a-Demo-Account registration form). This
+# is the path that was provisioning successfully before the wizard
+# handler was added; the operator's 2026-06-26 17:15 staging run
+# (NOTE.md) proves that an in-Phase-2a wizard handler returning 0
+# every iteration starves Phase 2c and the Login dialog is never
+# reached.
+#
+# When ON, the wizard handler runs at the top of every Phase 2a
+# iteration and attempts the focus-click + Alt+F,L + Alt+N cascade
+# against the wizard pane directly. Reserved for hypothetical future
+# broker bundles where Phase 2c's Alt+F,L proves insufficient.
+# Enable via `kubectl -n etradie-system set env statefulset/<release>
+# -c mt-node AUTO_LOGIN_WIZARD_HANDLER_ENABLED=1`. No image rebuild
+# required.
+AUTO_LOGIN_WIZARD_HANDLER_ENABLED="${AUTO_LOGIN_WIZARD_HANDLER_ENABLED:-0}"
+
 # _drv_handle_account_wizard: drive the embedded Open-an-Account wizard
 # through the main MT5 window. Gated so it only runs when:
+#   - the master switch AUTO_LOGIN_WIZARD_HANDLER_ENABLED is 1, AND
 #   - the main MT5 window is visible, AND
 #   - no real Login dialog is visible (so we never act after the wizard
 #     already advanced), AND
 #   - :5555 is NOT bound (so we never disturb a healthy session).
 _drv_handle_account_wizard() {
   local _wid _i _ld _aname _aw
+  # Gate 0: master switch. Default OFF so Phase 2c (the operator-
+  # verified Alt+F,L path with Escape-dismiss-first via
+  # _drv_clear_modals_for_main_window) is reachable after the 30s
+  # phase2a_deadline. Returning 1 here makes the Phase 2a loop fall
+  # through to its Phase 2c gate instead of `continue`ing.
+  if [ "${AUTO_LOGIN_WIZARD_HANDLER_ENABLED:-0}" != "1" ]; then
+    return 1
+  fi
   # Unconditional observability: on EVERY call, log the active window
   # name so the Phase 2a loop's per-iteration state is visible even
   # when this handler is a no-op. This is what the four staging
