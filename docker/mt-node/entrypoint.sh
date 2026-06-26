@@ -772,6 +772,70 @@ _drv_phase5_welcome_modal_seen() {
   esac
 }
 
+# ── Chart-attach evidence helpers (MQL5/Logs grep) ────────────────
+# EA bind happens ONLY after chart-open -> EA-attach -> OnInit ->
+# g_socket.bind(). These helpers read the EA's own Experts-tab log
+# (MQL5/Logs/<date>.log for MT5, MQL4/Logs/<date>.log for MT4) so the
+# keystroke-fallback decision branches on the ACTUAL chart/EA state,
+# not on the coarse 'is :5555 LISTEN?' symptom. A missing bind can
+# mean (a) no chart/EA yet [keystrokes help], (b) chart+EA attached
+# but OnInit still running [keep waiting], or (c) chart+EA attached
+# but bind FAILED [keystrokes are harmful: the EA's duplicate-instance
+# guard would reject a second attach]. Only (a) is a keystroke case.
+#
+# The grep patterns are anchored to the EA's literal Print() strings
+# from src/engine/ta/broker/mt5/zmq/ZeroMQ_EA.mq5 and the terminal's
+# own Experts-tab line, both verified against a real MT5 build 5833
+# journal capture:
+#   S1 attach:      'expert ZeroMQ_EA (EURUSDm,H1) loaded successfully'
+#   S2 bind ok:     '... [ZMQ_EA] ... === eTradie ZeroMQ Bridge Started ==='
+#   S2 bind fail:   '... [ZMQ_EA] ... FATAL: Failed to bind to tcp://*:5555'
+#                   '... [ZMQ_EA] ... Duplicate EA instance on port 5555 ...'
+# All reads strip the UTF-16 NUL bytes the MT5 log writer emits.
+_drv_mql5_logs_dir() {
+  if [ "${MT_PLATFORM:-mt5}" = "mt4" ]; then
+    printf '%s' "$MT_DIR/MQL4/Logs"
+  else
+    printf '%s' "$MT_DIR/MQL5/Logs"
+  fi
+}
+
+# _drv_grep_mql5_logs: grep -aE the given ERE across the newest MQL5/
+# MQL4 log file (NUL-stripped). Returns 0 on a match. Newest file
+# only: the EA rewrites a fresh daily log per boot, and matching the
+# newest avoids a stale match from a previous PVC boot's log.
+_drv_grep_mql5_logs() {
+  local _re="$1"
+  local _dir _log
+  _dir=$(_drv_mql5_logs_dir)
+  _log=$(ls -t "$_dir"/*.log 2>/dev/null | head -n1 || true)
+  [ -n "$_log" ] || return 1
+  tr -d '\000' < "$_log" 2>/dev/null | grep -aqE "$_re"
+}
+
+# S1: a chart was opened AND the EA was attached to it. The terminal
+# writes this Experts-tab line the instant the EA loads onto a chart,
+# BEFORE OnInit's bind result is known.
+_drv_chart_ea_attached() {
+  _drv_grep_mql5_logs 'expert[[:space:]]+ZeroMQ_EA[[:space:]]*\(.*\)[[:space:]]+loaded successfully'
+}
+
+# S2: OnInit ran and g_socket.bind() SUCCEEDED (the EA prints the
+# startup banner only on the bind-success path). Redundant safety
+# signal alongside the authoritative _drv_zmq_bound port check.
+_drv_ea_bind_succeeded() {
+  _drv_grep_mql5_logs '\[ZMQ_EA\].*(=== eTradie ZeroMQ Bridge Started ===|Endpoint: tcp://\*:)'
+}
+
+# S2-fail: OnInit ran but g_socket.bind() FAILED, or the duplicate-
+# instance guard rejected the attach. Either way a fresh chart-open
+# via keystrokes cannot fix it and would stack a second EA into the
+# same guard. The operator-facing remedy is DLL/AutoTrading config or
+# a clean restart, not another chart.
+_drv_ea_bind_failed() {
+  _drv_grep_mql5_logs '\[ZMQ_EA\].*(FATAL: Failed to bind|Duplicate EA instance on port)'
+}
+
 # _drv_wait_for_chart_window: poll _drv_find_chart_window until
 # visible or budget exhausted. Echoes WID on success, returns 0;
 # returns 1 on timeout. Same shape as _drv_wait_for_dialog so Phase 5
@@ -1401,34 +1465,83 @@ auto_login_driver() {
     # PRIMARY chart-attach (deterministic, GUI-free). With the bundle's
     # Profiles/Default workspace stripped on overlay, MT5 cold-boots a
     # fresh chart from startup.ini [Charts] Template=expert, attaches
-    # ZeroMQ_EA, and OnInit binds :5555 with no keystrokes. Poll for
-    # that bind before resorting to the keystroke fallback.
+    # ZeroMQ_EA, and OnInit binds :5555 with no keystrokes.
+    #
+    # The fallback decision is EVIDENCE-BASED, not a bare port-bind
+    # timeout. EA bind happens only after chart-open -> EA-attach ->
+    # OnInit -> g_socket.bind(), so a missing :5555 within the wait can
+    # mean three different things, only one of which keystrokes fix:
+    #   (a) no chart/EA attached yet          -> keystrokes help
+    #   (b) chart+EA attached, OnInit running  -> keep waiting
+    #   (c) chart+EA attached, bind FAILED     -> keystrokes HARMFUL
+    #       (the EA's duplicate-instance guard rejects a 2nd attach)
+    # Each poll classifies the state from the EA's own MQL5/Logs lines
+    # and the /proc/net/tcp LISTEN check, and only escalates to the
+    # keystroke fallback when there is genuinely no chart+EA AND no
+    # bind by the end of the wait.
     _det_waited=0
     while [ "$_det_waited" -lt "$AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS" ]; do
+      # Authoritative success: the EA's REP socket is LISTENing. The
+      # bind-success log line is a redundant confirmation for slow
+      # /proc visibility windows.
       if _drv_zmq_bound; then
         _drv_log "deterministic attach: :5555 LISTEN at +${_det_waited}s (startup.ini Template=expert applied to fresh chart); exit success"
         return 0
+      fi
+      if _drv_ea_bind_succeeded && _drv_zmq_bound; then
+        _drv_log "deterministic attach: EA reported bind success at +${_det_waited}s and :5555 LISTEN; exit success"
+        return 0
+      fi
+      # State (c): chart+EA attached but OnInit's bind FAILED. A second
+      # chart-open would stack a second EA into the same duplicate-
+      # instance guard (INIT_FAILED). Do NOT keystroke; surface the
+      # real cause and let the supervisor respawn cleanly.
+      if _drv_ea_bind_failed; then
+        _drv_err "deterministic attach: EA attached to a chart but OnInit bind FAILED at +${_det_waited}s (MQL5/Logs shows 'FATAL: Failed to bind' or 'Duplicate EA instance on port'). A keystroke chart-open would stack a SECOND EA into the same duplicate-instance guard, so the keystroke fallback is intentionally skipped. Likely cause: a prior EA still holds :5555, DLL imports / automated trading disabled, or libzmq.dll failed to load. Exiting so the supervisor respawns MT5 with a clean prefix."
+        return 1
       fi
       if ! _drv_mt_proc_alive; then
         _drv_warn "deterministic attach: terminal exited at +${_det_waited}s; exiting (supervisor will respawn)"
         return 1
       fi
+      # State (b): chart+EA attached, OnInit still running. Observed
+      # ~10s between the 'loaded successfully' line and the EA's bind
+      # banner on a real MT5 build 5833 capture, so this is the
+      # expected healthy-but-slow path. Keep waiting; do NOT escalate.
+      if _drv_chart_ea_attached; then
+        _drv_log "deterministic attach: chart+EA attached at +${_det_waited}s, OnInit still binding (no :5555 yet); waiting (NOT escalating to keystrokes)"
+      fi
       sleep 2
       _det_waited=$(( _det_waited + 2 ))
     done
-    _drv_warn "deterministic attach: :5555 not bound within ${AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS}s; falling back to keystroke chart-attach"
 
-    # FALLBACK chart-attach (xdotool keystroke cascade). Only reached
-    # when the deterministic path did not bind. Re-resolve main_wid
-    # for the Phase 2a path.
-    if [ -z "${main_wid:-}" ]; then
-      main_wid=$(_drv_find_main_window) || true
+    # Wait elapsed without a bind. Classify ONE more time to decide
+    # whether the keystroke fallback is appropriate.
+    if _drv_ea_bind_failed; then
+      _drv_err "deterministic attach: bind FAILED (see MQL5/Logs); skipping keystroke fallback to avoid a duplicate-instance double-attach; exiting for a clean respawn"
+      return 1
     fi
-    if _drv_phase5_chart_attach "$main_wid" "$start_ts"; then
-      _drv_log "phase5 fallback: chart-attach succeeded; :5555 bound; exit success"
-      return 0
+    if _drv_chart_ea_attached; then
+      _drv_warn "deterministic attach: chart+EA attached but :5555 not bound within ${AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS}s and no explicit bind-failure line. The chart-open keystroke fallback cannot help (a chart+EA already exists); yielding to the Phase 4 poll for the remaining budget in case OnInit binds late."
     else
-      _drv_log "phase5 fallback: chart-attach did not bind :5555; continuing to Phase 4 follow-up poll for remaining budget"
+      _drv_warn "deterministic attach: NO chart+EA attached and :5555 not bound within ${AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS}s; engaging keystroke chart-attach fallback (genuine no-chart state)"
+      # FALLBACK chart-attach (xdotool keystroke cascade). Only reached
+      # when there is genuinely no chart+EA attached. Re-resolve
+      # main_wid for the Phase 2a path.
+      if [ -z "${main_wid:-}" ]; then
+        main_wid=$(_drv_find_main_window) || true
+      fi
+      # Final guard against a race: a chart+EA may have attached in the
+      # interval between the check above and here. Re-check so the
+      # cascade never double-attaches.
+      if _drv_chart_ea_attached; then
+        _drv_log "phase5 fallback: chart+EA attached just before cascade dispatch; skipping keystrokes and yielding to Phase 4 poll"
+      elif _drv_phase5_chart_attach "$main_wid" "$start_ts"; then
+        _drv_log "phase5 fallback: chart-attach succeeded; :5555 bound; exit success"
+        return 0
+      else
+        _drv_log "phase5 fallback: chart-attach did not bind :5555; continuing to Phase 4 follow-up poll for remaining budget"
+      fi
     fi
   fi
 
