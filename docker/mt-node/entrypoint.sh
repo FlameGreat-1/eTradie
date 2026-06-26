@@ -561,6 +561,23 @@ _drv_wait_for_login_auth() {
       _drv_warn "terminal process exited during login-auth wait at +${_waited}s"
       return 1
     fi
+    # Action any Welcome-to-LiveUpdate modal that surfaces during the
+    # post-login broker-handshake window. MT5's post-login synchronous
+    # work (broker access-server handshake, Toolbox panel construction,
+    # Experts subsystem boot) frequently surfaces a pending LiveUpdate
+    # modal at +20-30s after submit; while it is up, MT5's main message
+    # pump is blocked and the journal authorize line is never written,
+    # so this loop would time out at AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS
+    # (120s) with the credentials accepted but the auth gate failing
+    # (NOTE.md 2026-06-26 19:41 staging run captured this exactly).
+    # The handler is idempotent: returns 1 (no-op) when no modal is
+    # active, returns 0 after clicking Alt+R Restart. On Restart, MT5
+    # exits 143; the supervisor's LiveUpdate-self-restart classifier
+    # then settles LIVEUPDATE_SETTLE_SECS and relaunches into the
+    # post-update prefix, at which point the accounts.dat written by
+    # Phase 3's 'Save account information' tick takes over and the
+    # next driver's Phase 2a finds :5555 already LISTEN.
+    _drv_handle_liveupdate_restart >/dev/null 2>&1 || true
     _title=$(_drv_active_title)
     _drv_log "login-auth wait +${_waited}s: active title='${_title}' (awaiting broker connect/authorize line in journal)"
     sleep 1
