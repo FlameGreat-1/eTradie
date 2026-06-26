@@ -1961,7 +1961,6 @@ else
   # read path on build 58xx). TPL_REL_DST_ALT is the legacy root-level
   # tree the bundles also ship; written as a mirror so whichever tree
   # the build reads, expert.tpl is present.
-  SET_REL_DST="MQL5/Profiles/Templates/ZeroMQ_EA.set"
   TPL_REL_DST="MQL5/Profiles/Templates/expert.tpl"
   TPL_REL_DST_ALT="Profiles/Templates/expert.tpl"
   MT_PROGRAM_FILES_PARENT="$WINE_PREFIX/drive_c/Program Files"
