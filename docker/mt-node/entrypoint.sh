@@ -514,8 +514,12 @@ _drv_wait_for_login_auth() {
 _drv_handle_liveupdate_restart() {
   local _awid _aname
   _awid=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "")
-  [ -n "$_awid" ] || return 1
+  [ -n "$_awid" ] || { _drv_log "liveupdate-handler: no active window (skip)"; return 1; }
   _aname=$(DISPLAY=:99 _xdo getwindowname "$_awid" 2>/dev/null || echo "")
+  # Unconditional observability: log what window is active on EVERY
+  # call so the Phase 2a loop's per-iteration state is visible even
+  # when this handler is a no-op.
+  _drv_log "liveupdate-handler: active WID=${_awid} name='${_aname}'"
   case "$_aname" in
     Welcome\ to\ LiveUpdate*)
       _drv_log "LiveUpdate modal active (WID=${_awid}); clicking Restart (Alt+R) so MT5 installs the update and self-restarts (supervisor handles exit 143)"
@@ -665,27 +669,40 @@ _drv_account_wizard_advance_attempt() {
 #     already advanced), AND
 #   - :5555 is NOT bound (so we never disturb a healthy session).
 _drv_handle_account_wizard() {
-  local _wid _i
+  local _wid _i _ld _aname _aw
+  # Unconditional observability: on EVERY call, log the active window
+  # name so the Phase 2a loop's per-iteration state is visible even
+  # when this handler is a no-op. This is what the four staging
+  # captures were missing (the handler returned 1 through silent gates).
+  _aw=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "")
+  _aname=$([ -n "$_aw" ] && DISPLAY=:99 _xdo getwindowname "$_aw" 2>/dev/null || echo "")
+  _drv_log "wizard-handler: active WID=${_aw} name='${_aname}'"
   # Gate 1: never act if :5555 is already bound (accounts.dat fast path
   # or a healthy session). The Phase 2a loop's own :5555 fast-path will
   # return success; we just bail here.
   if _drv_zmq_bound; then
+    _drv_log "wizard-handler: gate1 :5555 bound; skip"
     return 1
   fi
   # Gate 2: never act if the real Login dialog is already up. Phase 2a's
   # next iteration will pick it up via _drv_find_login_dialog and Phase
-  # 3 will paste credentials.
-  if [ -n "$(_drv_find_login_dialog)" ]; then
+  # 3 will paste credentials. NOTE: AUTO_LOGIN_DIALOG_TITLE_REGEX also
+  # matches 'Open an Account', so log the matched WID+name to confirm
+  # whether the embedded wizard is being mis-matched as a Login dialog.
+  _ld=$(_drv_find_login_dialog)
+  if [ -n "$_ld" ]; then
+    _drv_log "wizard-handler: gate2 login-dialog match WID=${_ld} name='$(DISPLAY=:99 _xdo getwindowname "$_ld" 2>/dev/null || echo "")'; skip (Phase 2a will drive it)"
     return 1
   fi
   # Gate 3: only act on MT5 (wizard is build-5836 MT5 branded behaviour).
   if [ "${MT_PLATFORM:-mt5}" != "mt5" ]; then
+    _drv_log "wizard-handler: gate3 platform=${MT_PLATFORM:-mt5} != mt5; skip"
     return 1
   fi
   # Find the main MT5 MDI window. If it's not up yet, defer to the
   # next Phase 2a iteration.
   _wid=$(_drv_find_main_window)
-  [ -n "$_wid" ] || return 1
+  [ -n "$_wid" ] || { _drv_log "wizard-handler: gate4 main MT5 window not found yet; defer"; return 1; }
   _drv_log "Open-an-Account wizard handler engaged via main MT5 window (WID=${_wid}); focus + Alt+N to advance to the Login dialog (verified, up to 3 attempts)"
   # Up to 3 VERIFIED attempts. Each focuses the embedded wizard pane
   # then sends Alt+N, and we confirm advance by polling for the real
