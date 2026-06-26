@@ -1940,7 +1940,12 @@ if [ "$MT_PLATFORM" = "mt4" ]; then
   EA_DEPS_LIBZMQ_DST_REL="MQL4/Libraries/libzmq.dll"
   EA_DEPS_INCLUDE_DST_REL="MQL4/Include"
   SET_REL_DST="MQL4/Profiles/Templates/ZeroMQ_EA.set"
-  TPL_REL_DST="templates/expert.tpl"
+  # Primary template path: co-located with ZeroMQ_EA.set so MT4 loads
+  # the <expert> inputs from the same directory. TPL_REL_DST_ALT is
+  # the legacy root-level location, written as a mirror so whichever
+  # tree the build reads, expert.tpl is present.
+  TPL_REL_DST="MQL4/Profiles/Templates/expert.tpl"
+  TPL_REL_DST_ALT="templates/expert.tpl"
   MT_PROGRAM_FILES_PARENT="$WINE_PREFIX/drive_c/Program Files (x86)"
 else
   MT_DIR="$WINE_PREFIX/drive_c/Program Files/MetaTrader 5"
@@ -1951,7 +1956,14 @@ else
   EA_DEPS_LIBZMQ_DST_REL="MQL5/Libraries/libzmq.dll"
   EA_DEPS_INCLUDE_DST_REL="MQL5/Include"
   SET_REL_DST="MQL5/Profiles/Templates/ZeroMQ_EA.set"
-  TPL_REL_DST="Profiles/Templates/expert.tpl"
+  # Primary template path: co-located with ZeroMQ_EA.set so MT5 loads
+  # the <expert> inputs from the same directory (the authoritative
+  # read path on build 58xx). TPL_REL_DST_ALT is the legacy root-level
+  # tree the bundles also ship; written as a mirror so whichever tree
+  # the build reads, expert.tpl is present.
+  SET_REL_DST="MQL5/Profiles/Templates/ZeroMQ_EA.set"
+  TPL_REL_DST="MQL5/Profiles/Templates/expert.tpl"
+  TPL_REL_DST_ALT="Profiles/Templates/expert.tpl"
   MT_PROGRAM_FILES_PARENT="$WINE_PREFIX/drive_c/Program Files"
 fi
 
@@ -2376,6 +2388,7 @@ fi
 mkdir -p "$MT_DIR/$(dirname "$EA_REL_DST")" \
          "$MT_DIR/$(dirname "$SET_REL_DST")" \
          "$MT_DIR/$(dirname "$TPL_REL_DST")" \
+         "$MT_DIR/$(dirname "$TPL_REL_DST_ALT")" \
          "$MT_DIR/$(dirname "$EA_DEPS_LIBZMQ_DST_REL")" \
          "$MT_DIR/$EA_DEPS_INCLUDE_DST_REL" \
          "$MT_CONFIG_DIR"
@@ -2455,7 +2468,10 @@ name=ZeroMQ_EA
 </expert>
 </chart>
 EOF
-  log INFO "Chart template written ($MT_SYMBOL)"
+  # Mirror to the legacy template tree so whichever Profiles/Templates
+  # location the build reads, expert.tpl is present and byte-identical.
+  cp -f "$MT_DIR/$TPL_REL_DST" "$MT_DIR/$TPL_REL_DST_ALT" 2>/dev/null || true
+  log INFO "Chart template written to '$TPL_REL_DST' (+ mirror '$TPL_REL_DST_ALT') symbol=$MT_SYMBOL"
 
   cat > "$INI_FILE" <<EOF
 [Common]
@@ -2504,7 +2520,9 @@ name=ZeroMQ_EA
 </expert>
 </chart>
 EOF
-  log INFO "Bootstrap chart template written (no symbol pinned)"
+  # Mirror to the legacy template tree (see symbol-resolved branch).
+  cp -f "$MT_DIR/$TPL_REL_DST" "$MT_DIR/$TPL_REL_DST_ALT" 2>/dev/null || true
+  log INFO "Bootstrap chart template written to '$TPL_REL_DST' (+ mirror '$TPL_REL_DST_ALT'), no symbol pinned"
 
   cat > "$INI_FILE" <<EOF
 [Common]
