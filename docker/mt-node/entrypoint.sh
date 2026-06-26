@@ -673,6 +673,13 @@ AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS="${AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_
 AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX="${AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX:-^[A-Za-z0-9._#@!^+\-]+,[A-Za-z][0-9]+}"
 AUTO_LOGIN_PHASE5_BIND_WAIT_SECS="${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS:-30}"
 AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS="${AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS:-5}"
+# Deterministic-attach wait. After login is confirmed and the bundle's
+# Profiles/Default workspace has been stripped on overlay, MT5 should
+# cold-boot a fresh chart from startup.ini [Charts] Template=expert and
+# the EA should bind :5555 on its own with NO keystrokes. Poll :5555
+# for this long before falling back to the Phase 5 keystroke cascade.
+# 60s covers MT5's post-login chart open + EA OnInit on a fresh prefix.
+AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS="${AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS:-60}"
 # Budget guard: how much of the AUTO_LOGIN_TOTAL_BUDGET_SECS must be
 # reserved for Phase 4's poll-for-remainder loop. When the total
 # budget is about to be exhausted, Phase 5 skips remaining attempts
@@ -1390,17 +1397,37 @@ auto_login_driver() {
       return 1
     fi
 
-    # Chart-attach: open a chart so MT5 applies expert.tpl and the EA
-    # OnInit binds :5555. Best-effort; on failure fall through to the
-    # Phase 4 :5555 poll. Re-resolve main_wid for the Phase 2a path.
+    # PRIMARY chart-attach (deterministic, GUI-free). With the bundle's
+    # Profiles/Default workspace stripped on overlay, MT5 cold-boots a
+    # fresh chart from startup.ini [Charts] Template=expert, attaches
+    # ZeroMQ_EA, and OnInit binds :5555 with no keystrokes. Poll for
+    # that bind before resorting to the keystroke fallback.
+    _det_waited=0
+    while [ "$_det_waited" -lt "$AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS" ]; do
+      if _drv_zmq_bound; then
+        _drv_log "deterministic attach: :5555 LISTEN at +${_det_waited}s (startup.ini Template=expert applied to fresh chart); exit success"
+        return 0
+      fi
+      if ! _drv_mt_proc_alive; then
+        _drv_warn "deterministic attach: terminal exited at +${_det_waited}s; exiting (supervisor will respawn)"
+        return 1
+      fi
+      sleep 2
+      _det_waited=$(( _det_waited + 2 ))
+    done
+    _drv_warn "deterministic attach: :5555 not bound within ${AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS}s; falling back to keystroke chart-attach"
+
+    # FALLBACK chart-attach (xdotool keystroke cascade). Only reached
+    # when the deterministic path did not bind. Re-resolve main_wid
+    # for the Phase 2a path.
     if [ -z "${main_wid:-}" ]; then
       main_wid=$(_drv_find_main_window) || true
     fi
     if _drv_phase5_chart_attach "$main_wid" "$start_ts"; then
-      _drv_log "phase5: chart-attach succeeded; :5555 bound; exit success"
+      _drv_log "phase5 fallback: chart-attach succeeded; :5555 bound; exit success"
       return 0
     else
-      _drv_log "phase5: chart-attach did not bind :5555; continuing to Phase 4 follow-up poll for remaining budget"
+      _drv_log "phase5 fallback: chart-attach did not bind :5555; continuing to Phase 4 follow-up poll for remaining budget"
     fi
   fi
 
