@@ -908,43 +908,33 @@ _normalize_overlay() {
   export MT_CONFIG_DIR
   log INFO "overlay-normalize: canonical config dir resolved to '${MT_CONFIG_DIR}'"
 
-  # (B) MT5 only: neutralize common.ini. It holds ONLY the bundle
-  #     builder's FOREIGN account ([Common] Login/Server/Environment)
-  #     and saved UI/profile state ([Charts] ProfileLast=Default +
-  #     PreloadCharts=1, which forces a profile restore that makes MT5
-  #     ignore startup.ini Template=expert). A fresh MT5 install has no
-  #     common.ini and creates it on first run, so DELETING the baked
-  #     one returns the file to its fresh-install state: nothing to
-  #     mis-parse, no foreign account or saved profile to restore. We
-  #     delete rather than text-rewrite because the file is UTF-16LE
-  #     and an encoding-changing rewrite is an unverified assumption.
-  #     Our per-tenant session comes from startup.ini [Common] +
-  #     auto_login_driver(); MT5 re-creates common.ini after first
-  #     login and the PVC persists it.
-  if [ "$_plat" != "mt4" ]; then
-    _common="$MT_CONFIG_DIR/common.ini"
-    if [ -f "$_common" ]; then
-      log INFO "overlay-normalize(mt5): removing baked common.ini (foreign account + ProfileLast/PreloadCharts profile-restore; MT5 recreates it from our startup.ini after first login)"
-      rm -f "$_common" 2>/dev/null || true
-    fi
-  fi
-
-  # (C) Delete the baked saved-account cache so the per-tenant Vault
-  #     creds are the ONLY login path. MT5 -> accounts.dat (re-created
-  #     after first login). MT4 -> accounts.ini (encrypted; cannot be
-  #     safely edited, so delete; MT4 recreates it after login).
-  if [ "$_plat" = "mt4" ]; then
-    _ai="$MT_CONFIG_DIR/accounts.ini"
-    if [ -f "$_ai" ]; then
-      log INFO "overlay-normalize(mt4): removing baked accounts.ini (foreign account; MT4 recreates after auto-login)"
-      rm -f "$_ai" 2>/dev/null || true
-    fi
-  else
-    if [ -f "$MT_CONFIG_DIR/accounts.dat" ]; then
-      log INFO "overlay-normalize(mt5): removing baked accounts.dat (foreign account; MT5 recreates after auto-login)"
-      rm -f "$MT_CONFIG_DIR/accounts.dat" 2>/dev/null || true
-    fi
-  fi
+  # (B)/(C) INTENTIONALLY NOT DELETED: common.ini, accounts.dat (mt5)
+  # / accounts.ini (mt4).
+  #
+  # We previously deleted these to remove the bundle builder's foreign
+  # account + saved profile. That was a REGRESSION: with common.ini
+  # (which carries [Common] Login=/Server=) and accounts.dat present,
+  # MT5 has a known account/server context and boots straight to the
+  # Login-to-Trade-Account dialog -- the path auto_login_driver()
+  # drives and the path that worked. With them DELETED, MT5 has no
+  # account context and instead shows the 'Open an Account / Select a
+  # company' first-run WIZARD, which the driver does not drive, so
+  # Phase 2 stalls for the full AUTO_LOGIN_DIALOG_WAIT_SECS and the
+  # provision fails (confirmed by the 2026-06-26 staging capture +
+  # operator screenshots showing the account-creation wizard).
+  #
+  # The foreign Login= baked into common.ini is harmless: build 5836
+  # ignores common.ini/startup.ini for the actual broker login (hence
+  # the keystroke driver), and the driver overwrites the dialog fields
+  # with the per-tenant Vault creds. The foreign profile-restore keys
+  # ([Charts] ProfileLast=Default/PreloadCharts=1) are also harmless
+  # here because class (A) above already removed Profiles/Charts, so
+  # there is no saved workspace left to restore -> MT5 cold-boots a
+  # fresh chart and startup.ini [Charts] Template=expert still applies
+  # our EA template. So chart-attach determinism is preserved WITHOUT
+  # touching common.ini. Leave both files exactly as the bundle
+  # shipped them; MT5 rewrites them itself after the first login and
+  # the PVC persists them.
 
   # Deterministic success status. entrypoint.sh runs under `set -e`
   # and this function is invoked as a bare statement; without an
