@@ -6,7 +6,7 @@ replicaCount: 1
 image:
   repository: ghcr.io/flamegreat-1/etradie/gateway
   pullPolicy: IfNotPresent
-  tag: "f9b271258954ba768cb3a075201747eded3b7d20"
+  tag: "ab2a4755cc07309ff3c924153628b7837c09887e"
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8080"
