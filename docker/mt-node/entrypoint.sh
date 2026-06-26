@@ -1922,7 +1922,22 @@ auto_login_driver() {
     if [ "$phase2c_attempted" -eq 0 ] \
        && [ "$now" -ge "$phase2a_deadline" ] \
        && [ "${MT_PLATFORM:-mt5}" = "mt5" ]; then
+      # Resolve the main MT5 window. Try title-based finder first
+      # (post-init / accounts.dat boots where WM_NAME is set), then
+      # fall back to PID-based finder. The Exness branded MT5 build
+      # 5836 leaves WM_NAME EMPTY during the first ~60s of init AND
+      # while the embedded Open-an-Account wizard is visible, so the
+      # title regex cannot match (NOTE.md 2026-06-26 captures show
+      # active WID=12582913 / 12582936 name=''). Without this PID
+      # fallback, Phase 2c was never entered on the wizard-state
+      # boot and the Login dialog never appeared.
       main_wid=$(_drv_find_main_window)
+      if [ -z "$main_wid" ]; then
+        main_wid=$(_drv_find_main_window_by_pid)
+        if [ -n "$main_wid" ]; then
+          _drv_log "main UI window resolved by PID (WID=${main_wid}; WM_NAME empty during init -- title regex could not match)"
+        fi
+      fi
       if [ -n "$main_wid" ]; then
         phase2c_attempted=1
         _drv_log "main UI window WID=${main_wid} detected at +${elapsed}s; entering Phase 2c (3-attempt menu invocation)"
