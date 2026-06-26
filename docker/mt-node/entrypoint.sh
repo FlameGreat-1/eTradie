@@ -2677,6 +2677,55 @@ if [ -f "$_sentinel_file" ] && [ -f "$MT_DIR/$MT_EXE" ]; then
   log INFO "broker-bundle overlay: sentinel '${_sentinel_file}' present and ${MT_EXE} on disk; skipping overlay (idempotent)"
 fi
 
+# Legacy-PVC self-heal. PVCs that were overlay-installed by the
+# deletion-era normalizer (commits e16b70bf / c85b5d7e / bc1b96566)
+# have the sentinel + MT_EXE present, but the bundle's shipped
+# Config/common.ini + Config/accounts.dat (MT5) or Config/accounts.ini
+# (MT4) were DELETED at overlay time. On those PVCs the sentinel-gated
+# skip above would leave the prefix permanently in the deletion state
+# and every boot would land on the Open-an-Account wizard (the wizard
+# handler in Phase 2a is the safety net, but the supportable steady
+# state is 'common.ini present; MT5 boots straight to the Login
+# dialog'). Detect this state and bust the sentinel so the overlay
+# re-runs and the preserving normalizer restores the files from the
+# bundle. Idempotent: only fires when a real mismatch is observed.
+if [ "$_overlay_needed" -eq 0 ]; then
+  _legacy_cfg=$(_resolve_mt_config_dir "$MT_DIR")
+  _bundle_cfg="${_bundle_root}/Config"
+  if [ ! -d "$_bundle_cfg" ]; then
+    # Some MT4 bundles ship 'config' (lowercase). The bundle Config-dir
+    # resolution itself is the normalizer's job, but for the heal-check
+    # we just look at whichever case the bundle ships.
+    _bundle_cfg="${_bundle_root}/config"
+  fi
+  _legacy_state_detected=0
+  _legacy_missing=""
+  if [ "$MT_PLATFORM" = "mt4" ]; then
+    if [ -f "${_bundle_cfg}/accounts.ini" ] && [ ! -f "${_legacy_cfg}/accounts.ini" ]; then
+      _legacy_state_detected=1
+      _legacy_missing="accounts.ini"
+    fi
+  else
+    if [ -f "${_bundle_cfg}/common.ini" ] && [ ! -f "${_legacy_cfg}/common.ini" ]; then
+      _legacy_state_detected=1
+      _legacy_missing="common.ini"
+    fi
+    if [ -f "${_bundle_cfg}/accounts.dat" ] && [ ! -f "${_legacy_cfg}/accounts.dat" ]; then
+      _legacy_state_detected=1
+      if [ -n "$_legacy_missing" ]; then
+        _legacy_missing="${_legacy_missing}+accounts.dat"
+      else
+        _legacy_missing="accounts.dat"
+      fi
+    fi
+  fi
+  if [ "$_legacy_state_detected" -eq 1 ]; then
+    log WARN "broker-bundle overlay: legacy-PVC state detected (sentinel present, ${MT_EXE} on disk, but bundle-shipped ${_legacy_missing} missing under '${_legacy_cfg}'). This PVC was overlay-installed by a deletion-era normalizer (commits e16b70bf/c85b5d7e/bc1b96566). Busting the sentinel so the overlay re-runs and the preserving normalizer (commit 4b371085) restores the missing file(s) from the bundle. One-shot per affected PVC; idempotent on subsequent boots."
+    _overlay_needed=1
+  fi
+  unset _legacy_cfg _bundle_cfg _legacy_state_detected _legacy_missing
+fi
+
 if [ "$_overlay_needed" -eq 1 ]; then
   # Clean any stale sentinel files from a previous bundle version on
   # this PVC so 'ls .bundle-installed-from-*' is always unambiguous.
