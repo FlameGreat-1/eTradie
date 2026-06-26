@@ -2016,9 +2016,11 @@ auto_login_driver() {
       _drv_warn "deterministic attach: NO chart+EA attached and :5555 not bound within ${AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS}s; engaging keystroke chart-attach fallback (genuine no-chart state)"
       # FALLBACK chart-attach (xdotool keystroke cascade). Only reached
       # when there is genuinely no chart+EA attached. Re-resolve
-      # main_wid for the Phase 2a path.
+      # main_wid for the Phase 2a path. Title finder first, then the
+      # PID-based finder (MT5's window may still have an empty WM_NAME).
       if [ -z "${main_wid:-}" ]; then
         main_wid=$(_drv_find_main_window) || true
+        [ -n "${main_wid:-}" ] || main_wid=$(_drv_find_main_window_by_pid) || true
       fi
       # Final guard against a race: a chart+EA may have attached in the
       # interval between the check above and here. Re-check so the
@@ -2040,9 +2042,11 @@ auto_login_driver() {
   #
   # Ensure main_wid is populated so we can skip it below. In the
   # Phase 2a path (dialog detected without Phase 2c), main_wid is
-  # still empty; grab it now.
+  # still empty; grab it now. Title finder first, then the PID-based
+  # finder (MT5's window may still have an empty WM_NAME post-login).
   if [ -z "${main_wid:-}" ]; then
     main_wid=$(_drv_find_main_window) || true
+    [ -n "${main_wid:-}" ] || main_wid=$(_drv_find_main_window_by_pid) || true
   fi
   dismiss_until=$(( $(date +%s) + AUTO_LOGIN_FOLLOWUP_DISMISS_SECS ))
   bind_until=$(( start_ts + AUTO_LOGIN_TOTAL_BUDGET_SECS ))
