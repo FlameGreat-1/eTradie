@@ -1015,11 +1015,11 @@ class HostedProvisioner:
             # complete in ~20-30s total. LOCKSTEP INVARIANT: must mirror
             # helm/mt-node/values.yaml::sidecar.watchdog.config
             # .startupGraceSeconds so engine-runtime-provisioned tenant
-            # pods are wire-identical to chart-rendered ones. 450s is
-            # >= the entrypoint auto-login driver budget (420s) + hard-
-            # kill grace (30s) so the watchdog never SIGTERMs MT5 while
-            # the driver is still completing login + chart-attach.
-            "WATCHDOG_STARTUP_GRACE_SECONDS": "450",
+            # pods are wire-identical to chart-rendered ones. 480s is
+            # > the entrypoint auto-login driver hard-kill (420s budget
+            # + 30s grace = 450s), giving a clean margin so the driver
+            # is always reaped before the watchdog can SIGTERM MT5.
+            "WATCHDOG_STARTUP_GRACE_SECONDS": "480",
         }
         body = client.V1ConfigMap(
             metadata=client.V1ObjectMeta(
