@@ -29,21 +29,14 @@ DO NOT DELEGATE TO AGENTS
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Hosted-MT staging verification — current main (overlay-normalizer +
-# Config-case resolver + evidence-based chart-attach + template co-location)
+# Hosted-MT staging verification — current main
+# (overlay-normalizer + Config-case resolver + evidence-based
+#  chart-attach + template co-location + Open-an-Account wizard
+#  select-company/Alt+N advance)
 #
-# This script DISCOVERS the branded MT root and the resolved config dir
-# at runtime (they are no longer "MetaTrader 5" + "config"); it asserts
-# the behaviour shipped in the latest commits:
-#   - broker-bundle overlay + normalizer (Profiles/Charts strip,
-#     common.ini / accounts.dat / accounts.ini removal)
-#   - MT_CONFIG_DIR case resolution (Config vs config; Deriv dual-dir)
-#   - expert.tpl co-located with ZeroMQ_EA.set (+ legacy mirror)
-#   - evidence-based deterministic attach vs keystroke fallback
-#   - :5555 bind, EA OnInit, broker journal handshake
-#   - recovery skips status='failed'
-#
-# Saves all artifacts to a timestamped dir.
+# DISCOVERS the branded MT root and resolved config dir at runtime
+# (authoritatively, from the entrypoint's own resolved log line, with a
+# find() fallback) so the harness never reports a false empty MT_DIR.
 # ─────────────────────────────────────────────────────────────────────
 set -u
 
@@ -155,22 +148,63 @@ kubectl -n $NS logs "$POD" -c broker-bundle 2>&1 | tee broker-bundle-init.log
 echo "Expect: 'Downloading ...exness-portable.zip', 'eadee9c7... OK', 'Bundle extracted successfully.'"
 
 # ── STAGE 8b — DISCOVER the branded MT root + resolved config dir ─────
-# Everything downstream uses these discovered values, NOT hardcoded paths.
+# AUTHORITATIVE source #1: the entrypoint's own resolved log line
+#   "canonical config dir resolved to '<MT_DIR>/Config'"
+#   "config dir resolved (overlay-skipped path) to '<MT_DIR>/Config'"
+# Source #2 (fallback): a CORRECTLY-parenthesised find() in the prefix.
+# This removes the false-empty MT_DIR that the previous harness produced
+# (its `find ... -iname A -o -iname B` had broken -o precedence).
 echo "=== STAGE 8b: discover MT_DIR (branded root) + MT_CONFIG_DIR ==="
 sleep 8
-MT_DIR=$(kubectl -n $NS exec "$POD" -c mt-node -- sh -c '
-  base="/home/mt/.wine/prefix/drive_c/Program Files"
-  base32="/home/mt/.wine/prefix/drive_c/Program Files (x86)"
-  d=$(find "$base" "$base32" -maxdepth 2 -type f -iname "terminal64.exe" -o -iname "terminal.exe" 2>/dev/null | head -1)
-  [ -n "$d" ] && dirname "$d"
-' 2>/dev/null)
+
+# Source #1: parse the resolved config dir out of the entrypoint log and
+# strip the trailing /Config (or /config) to get MT_DIR.
+RESOLVED_CFG=$(kubectl -n $NS logs "$POD" -c mt-node 2>/dev/null \
+  | grep -aoE "config dir resolved[^']*'[^']+'" \
+  | tail -1 | sed -E "s/.*'([^']+)'.*/\1/")
+if [ -z "$RESOLVED_CFG" ]; then
+  RESOLVED_CFG=$(kubectl -n $NS logs "$POD" -c mt-node 2>/dev/null \
+    | grep -aoE "canonical config dir resolved to '[^']+'" \
+    | tail -1 | sed -E "s/.*'([^']+)'.*/\1/")
+fi
+
+MT_DIR=""
+MT_CONFIG_DIR=""
+if [ -n "$RESOLVED_CFG" ]; then
+  MT_CONFIG_DIR="$RESOLVED_CFG"
+  # Strip a trailing /Config or /config component to recover MT_DIR.
+  MT_DIR=$(printf '%s\n' "$RESOLVED_CFG" | sed -E 's#/[Cc]onfig/?$##')
+  echo "MT_DIR/MT_CONFIG_DIR resolved from entrypoint log."
+fi
+
+# Source #2: find() fallback with CORRECT -o precedence (parentheses)
+# and -type f bound to the whole OR group. Covers MT5 (terminal64.exe)
+# and MT4 (terminal.exe) at the branded depth.
+if [ -z "$MT_DIR" ]; then
+  echo "Entrypoint log did not yield MT_DIR; falling back to find()."
+  MT_DIR=$(kubectl -n $NS exec "$POD" -c mt-node -- sh -c '
+    for base in "/home/mt/.wine/prefix/drive_c/Program Files" \
+                "/home/mt/.wine/prefix/drive_c/Program Files (x86)"; do
+      [ -d "$base" ] || continue
+      f=$(find "$base" -maxdepth 3 -type f \( -iname "terminal64.exe" -o -iname "terminal.exe" \) 2>/dev/null | head -1)
+      [ -n "$f" ] && { dirname "$f"; break; }
+    done
+  ' 2>/dev/null)
+fi
+
 echo "Discovered MT_DIR: '$MT_DIR'"
 echo "$MT_DIR" > mt-dir.txt
-[ -n "$MT_DIR" ] || { echo "FATAL: could not discover branded MT root (terminal*.exe not found)."; }
+if [ -z "$MT_DIR" ]; then
+  echo "WARN: could not discover branded MT root from log OR find(). Downstream"
+  echo "      on-disk asserts that need MT_DIR will be SKIPPED (not run against '/')."
+fi
 
-MT_CONFIG_DIR=$(kubectl -n $NS exec "$POD" -c mt-node -- sh -c "
-  for c in \"$MT_DIR/Config\" \"$MT_DIR/config\"; do [ -d \"\$c\" ] && { echo \"\$c\"; break; }; done
-" 2>/dev/null)
+# Resolve MT_CONFIG_DIR case-correctly if not already from the log.
+if [ -z "$MT_CONFIG_DIR" ] && [ -n "$MT_DIR" ]; then
+  MT_CONFIG_DIR=$(kubectl -n $NS exec "$POD" -c mt-node -- sh -c "
+    for c in \"$MT_DIR/Config\" \"$MT_DIR/config\"; do [ -d \"\$c\" ] && { echo \"\$c\"; break; }; done
+  " 2>/dev/null)
+fi
 echo "Discovered MT_CONFIG_DIR: '$MT_CONFIG_DIR'"
 echo "$MT_CONFIG_DIR" > mt-config-dir.txt
 
@@ -183,7 +217,7 @@ kubectl -n $NS logs "$POD" -c mt-node 2>&1 \
 kubectl -n $NS exec "$POD" -c mt-node -- sh -c \
   'DISPLAY=:99 xprop -root _NET_SUPPORTED 2>&1 | tr "," "\n" | grep -i _NET_ACTIVE_WINDOW | head -3' 2>&1
 
-# ── STAGE 10 — overlay-normalizer evidence (NEW behaviour) ───────────
+# ── STAGE 10 — overlay-normalizer evidence ───────────────────────────
 echo "=== STAGE 10: overlay normalizer + config-resolve log lines ==="
 kubectl -n $NS logs "$POD" -c mt-node 2>&1 \
   | grep -iE 'overlay-normalize|canonical config dir|broker-bundle overlay|config dir resolved' \
@@ -196,25 +230,29 @@ echo "  overlay-normalize(mt5): removing baked common.ini ..."
 echo "  overlay-normalize(mt5): removing baked accounts.dat ..."
 echo "  overlay-normalize: canonical config dir resolved to '<MT_DIR>/Config'"
 
-# ── STAGE 10b — assert normalizer RESULT on disk ─────────────────────
+# ── STAGE 10b — assert normalizer RESULT on disk (skips if no MT_DIR) ─
 echo "=== STAGE 10b: assert baked state was actually neutralized ==="
-kubectl -n $NS exec "$POD" -c mt-node -- sh -c "
-  echo '--- Profiles/Charts (MUST be absent or empty) ---'
-  ls -la \"$MT_DIR/Profiles/Charts\" 2>&1 | head -3
-  ls -la \"$MT_DIR/MQL5/Profiles/Charts\" 2>&1 | head -3
-  echo '--- common.ini (MUST be absent until MT5 recreates it) ---'
-  ls -la \"$MT_CONFIG_DIR/common.ini\" 2>&1
-  echo '--- stray lowercase config dir (MUST be absent on Deriv after de-dup) ---'
-  ls -la \"$MT_DIR/config\" 2>&1 | head -2
-  echo '--- expert.tpl co-located with the .set (BOTH MUST exist) ---'
-  ls -la \"$MT_DIR/MQL5/Profiles/Templates/expert.tpl\" \"$MT_DIR/MQL5/Profiles/Templates/ZeroMQ_EA.set\" 2>&1
-  echo '--- expert.tpl legacy mirror ---'
-  ls -la \"$MT_DIR/Profiles/Templates/expert.tpl\" 2>&1
-  echo '--- our startup.ini in the resolved config dir ---'
-  ls -la \"$MT_CONFIG_DIR/startup.ini\" 2>&1
-  echo '--- servers.dat present (broker server list) ---'
-  ls -la \"$MT_CONFIG_DIR/servers.dat\" 2>&1
-" 2>&1 | tee on-disk-asserts.txt
+if [ -n "$MT_DIR" ]; then
+  kubectl -n $NS exec "$POD" -c mt-node -- sh -c "
+    echo '--- Profiles/Charts (MUST be absent or empty) ---'
+    ls -la \"$MT_DIR/Profiles/Charts\" 2>&1 | head -3
+    ls -la \"$MT_DIR/MQL5/Profiles/Charts\" 2>&1 | head -3
+    echo '--- common.ini (MUST be absent until MT5 recreates it) ---'
+    ls -la \"$MT_CONFIG_DIR/common.ini\" 2>&1
+    echo '--- stray lowercase config dir (MUST be absent on Deriv after de-dup) ---'
+    ls -la \"$MT_DIR/config\" 2>&1 | head -2
+    echo '--- expert.tpl co-located with the .set (BOTH MUST exist) ---'
+    ls -la \"$MT_DIR/MQL5/Profiles/Templates/expert.tpl\" \"$MT_DIR/MQL5/Profiles/Templates/ZeroMQ_EA.set\" 2>&1
+    echo '--- expert.tpl legacy mirror ---'
+    ls -la \"$MT_DIR/Profiles/Templates/expert.tpl\" 2>&1
+    echo '--- our startup.ini in the resolved config dir ---'
+    ls -la \"$MT_CONFIG_DIR/startup.ini\" 2>&1
+    echo '--- servers.dat present (broker server list) ---'
+    ls -la \"$MT_CONFIG_DIR/servers.dat\" 2>&1
+  " 2>&1 | tee on-disk-asserts.txt
+else
+  echo "SKIPPED: MT_DIR empty (see STAGE 8b WARN); not running ls against '/'." | tee on-disk-asserts.txt
+fi
 
 # ── STAGE 11 — 8-minute poll loop ────────────────────────────────────
 echo "=== STAGE 11: poll loop ==="
@@ -223,23 +261,25 @@ for i in $(seq 1 $TOTAL_POLLS); do
   echo ""; echo "===== poll $i/$TOTAL_POLLS  $(date -u +%H:%M:%S) ====="
   kubectl -n $NS get pod "$POD" --no-headers 2>&1 || { echo "POD GONE"; break; }
 
-  echo "--- driver log (auto_login / deterministic / phase5 / overlay) ---"
+  echo "--- driver log (auto_login / wizard / deterministic / phase5 / overlay) ---"
   kubectl -n $NS logs "$POD" -c mt-node --tail=400 2>&1 \
-    | grep -iE 'auto_login|deterministic attach|chart\+EA|phase5|deliver|paste|type|phase3 stage|login gate|MetaTrader exited|overlay-normalize' \
-    | tail -40
+    | grep -iE 'auto_login|account wizard|selecting company|wizard advanced|deterministic attach|chart\+EA|phase5|deliver|paste|type|phase3 stage|login gate|MetaTrader exited|overlay-normalize' \
+    | tail -45
 
   echo "--- :5555 LISTEN state (0A) ---"
   kubectl -n $NS exec "$POD" -c mt-node -- sh -c \
     'awk "NR>1 && \$4==\"0A\" && (\$2 ~ /:15B3\$/ || \$3 ~ /:15B3\$/){print}" /proc/net/tcp' 2>&1
 
-  echo "--- EA Experts log (chart+EA attach + bind banner) ---"
-  kubectl -n $NS exec "$POD" -c mt-node -- sh -c "
-    f=\$(ls -t \"$MT_DIR/MQL5/Logs\"/*.log 2>/dev/null | head -1)
-    [ -n \"\$f\" ] && tr -d '\000' < \"\$f\" | grep -aE 'loaded successfully|ZeroMQ Bridge Started|Failed to bind|Duplicate EA' | tail -6 || echo '(no MQL5/Logs yet)'
-  " 2>&1
+  if [ -n "$MT_DIR" ]; then
+    echo "--- EA Experts log (chart+EA attach + bind banner) ---"
+    kubectl -n $NS exec "$POD" -c mt-node -- sh -c "
+      f=\$(ls -t \"$MT_DIR/MQL5/Logs\"/*.log 2>/dev/null | head -1)
+      [ -n \"\$f\" ] && tr -d '\000' < \"\$f\" | grep -aE 'loaded successfully|ZeroMQ Bridge Started|Failed to bind|Duplicate EA' | tail -6 || echo '(no MQL5/Logs yet)'
+    " 2>&1
 
-  echo "--- accounts.dat (recreated after first login?) ---"
-  kubectl -n $NS exec "$POD" -c mt-node -- sh -c "ls -la \"$MT_CONFIG_DIR/accounts.dat\" 2>&1 | head -2" 2>&1
+    echo "--- accounts.dat (recreated after first login?) ---"
+    kubectl -n $NS exec "$POD" -c mt-node -- sh -c "ls -la \"$MT_CONFIG_DIR/accounts.dat\" 2>&1 | head -2" 2>&1
+  fi
 
   kubectl -n $NS exec "$POD" -c mt-node -- sh -c \
     'DISPLAY=:99 xwd -root -silent > /tmp/screen.xwd 2>&1 && wc -c /tmp/screen.xwd' 2>/dev/null || true
@@ -254,10 +294,14 @@ done
 echo "=== STAGE 12: final artifacts ==="
 kubectl -n $NS logs "$POD" -c mt-node > driver-log-full.txt 2>&1
 kubectl -n $NS logs "$POD" -c broker-bundle > broker-bundle-init.log 2>&1
-kubectl -n $NS exec "$POD" -c mt-node -- sh -c \
-  "f=\$(ls -t \"$MT_DIR/logs\"/*.log 2>/dev/null | head -1); [ -n \"\$f\" ] && tr -d '\000' < \"\$f\"" > mt5-journal.txt 2>&1
-kubectl -n $NS exec "$POD" -c mt-node -- sh -c \
-  "f=\$(ls -t \"$MT_DIR/MQL5/Logs\"/*.log 2>/dev/null | head -1); [ -n \"\$f\" ] && { echo \"=== \$f ===\"; tr -d '\000' < \"\$f\"; } || echo '(no MQL5/Logs file)'" > ea-log.txt 2>&1
+if [ -n "$MT_DIR" ]; then
+  kubectl -n $NS exec "$POD" -c mt-node -- sh -c \
+    "f=\$(ls -t \"$MT_DIR/logs\"/*.log 2>/dev/null | head -1); [ -n \"\$f\" ] && tr -d '\000' < \"\$f\"" > mt5-journal.txt 2>&1
+  kubectl -n $NS exec "$POD" -c mt-node -- sh -c \
+    "f=\$(ls -t \"$MT_DIR/MQL5/Logs\"/*.log 2>/dev/null | head -1); [ -n \"\$f\" ] && { echo \"=== \$f ===\"; tr -d '\000' < \"\$f\"; } || echo '(no MQL5/Logs file)'" > ea-log.txt 2>&1
+else
+  echo "(MT_DIR empty; journal/EA log not collected)" | tee mt5-journal.txt > ea-log.txt
+fi
 kubectl -n $NS exec "$POD" -c mt-node -- sh -c \
   'DISPLAY=:99 xdotool search --onlyvisible --name ".+" 2>/dev/null | while read w; do echo "WID=$w name=$(DISPLAY=:99 xdotool getwindowname "$w" 2>/dev/null)"; done' > windows-final.txt 2>&1
 kubectl -n $NS exec "$POD" -c mt-node -- sh -c \
@@ -285,6 +329,8 @@ kubectl -n $NS exec -i postgres-0 -c postgres -- psql -U etradie -d etradie -c \
 echo "=== STAGE 14: driver sentinels ==="
 echo "--- overlay normalizer ---"
 grep -iE 'overlay-normalize|canonical config dir' driver-log-full.txt | head -20
+echo "--- Open-an-Account wizard (NEW: select-company + Alt+N + verify) ---"
+grep -iE 'Open-an-Account wizard|account wizard advance|selecting company by click|account wizard advanced|account wizard still present' driver-log-full.txt | head -30
 echo "--- deterministic attach decision (evidence-based) ---"
 grep -iE 'deterministic attach' driver-log-full.txt | head -20
 echo "--- chart+EA presence gating ---"
@@ -298,6 +344,7 @@ grep -iE 'LISTEN.*exit success|never bound|login gate|hard-kill|all three attemp
 echo "=== STAGE 15: artifacts in $DIAG_DIR ==="
 ls -la "$DIAG_DIR"
 echo "DONE. Diagnostic dir: $DIAG_DIR"
+
 
 
 
