@@ -2017,6 +2017,21 @@ if [ "$_overlay_needed" -eq 1 ]; then
   fi
   printf '%s\n' "${BUNDLE_SHA256:-unknown}" > "$_sentinel_file" 2>/dev/null || true
   log INFO "broker-bundle overlay: complete; sentinel written at '${_sentinel_file}'"
+
+  # Primary deterministic chart-attach: remove the bundle's pre-baked
+  # default chart workspace. MT5 restores Profiles/Default on boot
+  # using the BROKER's per-chart templates and ignores our
+  # startup.ini [Charts] Template=expert when a profile exists, so our
+  # EA would never attach. With Profiles/Default gone, MT5 cold-boots
+  # a fresh chart and applies expert.tpl (which names ZeroMQ_EA),
+  # OnInit runs, and the EA binds :5555 - no GUI automation needed.
+  # Runs only on (re-)overlay (sentinel-gated), so MT5's OWN saved
+  # profile on subsequent boots is preserved. Profiles/Templates/
+  # (expert.tpl + broker templates) and config/ are untouched.
+  if [ -d "$MT_DIR/Profiles/Default" ]; then
+    log INFO "broker-bundle overlay: removing bundled Profiles/Default workspace so MT5 cold-boots a fresh chart via startup.ini Template=expert (deterministic EA attach)"
+    rm -rf "$MT_DIR/Profiles/Default" 2>/dev/null || true
+  fi
 fi
 
 # Step 5: assert the branded terminal is now in place and grab its
