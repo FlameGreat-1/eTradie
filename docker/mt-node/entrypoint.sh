@@ -486,6 +486,53 @@ _drv_wait_for_login_auth() {
   return 1
 }
 
+# _drv_handle_liveupdate_restart: if the CURRENTLY-ACTIVE window is the
+# 'Welcome to LiveUpdate' modal ('Updates have been downloaded ... Press
+# "Restart" to restart the terminal and install the updates'), click
+# RESTART so MT5 applies the update and self-restarts. Returns 0 if it
+# actioned the modal, 1 if the modal was not the active window.
+#
+# Why Restart (not Later/Escape)
+# ------------------------------
+# MT5 downloaded a LiveUpdate component and will not finish booting into a
+# usable Login flow until it restarts to install it. 'Later'/Escape leaves
+# a stale build and the modal re-nags, blocking Phase 2a indefinitely
+# (observed on the 2026-06-26 staging capture: the modal sat up for the
+# whole 120s dialog wait and the Login dialog never appeared). Clicking
+# Restart triggers MT5's own exit 143, which the supervisor classifies as a
+# LiveUpdate self-restart (settle + relaunch, NOT counted against the
+# in-pod restart budget). It is one-shot per fresh PVC: the next boot has
+# the update applied and proceeds to login. This therefore cannot loop.
+#
+# Why Alt+R
+# ---------
+# 'Restart' is a standard Win32 push button whose mnemonic is the
+# underlined 'R' (Alt+R activates it regardless of which button currently
+# holds focus). We send Alt+R first (deterministic), then a bare Return as
+# a secondary in case this broker build made Restart the default button.
+# All xdotool calls are timeout-bounded via _xdo and best-effort.
+_drv_handle_liveupdate_restart() {
+  local _awid _aname
+  _awid=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "")
+  [ -n "$_awid" ] || return 1
+  _aname=$(DISPLAY=:99 _xdo getwindowname "$_awid" 2>/dev/null || echo "")
+  case "$_aname" in
+    Welcome\ to\ LiveUpdate*)
+      _drv_log "LiveUpdate modal active (WID=${_awid}); clicking Restart (Alt+R) so MT5 installs the update and self-restarts (supervisor handles exit 143)"
+      DISPLAY=:99 _xdo windowactivate "$_awid" 2>/dev/null || true
+      sleep 0.3
+      DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
+      DISPLAY=:99 _xdo key --clearmodifiers alt+r 2>/dev/null || true
+      sleep 0.4
+      DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # _drv_clear_modals_for_main_window: aggressively dismiss any open modals
 # (like the nameless "Open an Account" wizard or the "Welcome to LiveUpdate"
 # standalone permissions dialog) that might steal focus from the main UI
@@ -526,6 +573,11 @@ _drv_clear_modals_for_main_window() {
     
     case "$_aname" in
       Welcome\ to\ LiveUpdate*)
+        # Click Restart (Alt+R) so MT5 applies the update and self-
+        # restarts; the supervisor handles the resulting exit 143.
+        # Bare Return is ambiguous about which button is focused.
+        DISPLAY=:99 _xdo key --clearmodifiers alt+r 2>/dev/null || true
+        sleep 0.2
         DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
         ;;
       *)
@@ -1437,6 +1489,19 @@ auto_login_driver() {
     if _drv_zmq_bound; then
       _drv_log ":5555 LISTEN at +${elapsed}s (no dialog needed; accounts.dat path); exit success"
       return 0
+    fi
+    # LiveUpdate gate. On a fresh prefix MT5 downloads a LiveUpdate
+    # component and raises a 'Welcome to LiveUpdate ... Press Restart'
+    # modal that BLOCKS the Login flow until actioned. Sweep for it on
+    # every Phase 2a iteration and click Restart so MT5 installs the
+    # update and self-restarts (supervisor handles exit 143, one-shot
+    # per fresh PVC). Without this the modal sits up for the whole
+    # AUTO_LOGIN_DIALOG_WAIT_SECS window and the Login dialog never
+    # appears (2026-06-26 staging capture). After actioning, continue
+    # the loop; MT5 will exit 143 and the next boot proceeds to login.
+    if _drv_handle_liveupdate_restart; then
+      sleep 2
+      continue
     fi
     # Phase 2a: look for a Login-shaped window. `xdotool search
     # --name <re>` matches the regex against window WM_NAME. We
