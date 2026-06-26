@@ -723,23 +723,64 @@ _drv_account_wizard_focus_embedded() {
   return 0
 }
 
-# _drv_account_wizard_advance_attempt: ONE focus + Alt+N pass against
-# the main MT5 window ($1 = main WID, $2 = log label).
+# _drv_account_wizard_advance_attempt: ONE keystroke pass against the
+# main MT5 window ($1 = main WID, $2 = log label).
+#
+# Strategy: PRIMARY is Alt+F, L (the operator-verified MT5 File-menu
+# mnemonic that opens 'Login to Trade Account' as a separate top-level
+# Login dialog from ANY wizard page). This is the broker-agnostic
+# bypass that skips every wizard page -- page 1 (Select a company),
+# page 2 (account-type radios: Open a demo / Open a real / Connect
+# with an existing trade account), and page 3 (demo-registration
+# form with First name / Second name / DOB / Email / Mobile fields
+# whose Next > button is disabled until they are filled, as captured
+# in the 2026-06-26 17:15 staging run and the operator screenshot).
+# SECONDARY is the prior Alt+N action, kept so any future broker
+# bundle that exposes a wizard where Alt+F,L is suppressed by a modal
+# still has the original select-a-company -> Next advance path.
+#
+# The focus-click preamble is retained because some wizard pages
+# (notably page 1) require focus on the embedded wizard pane before
+# ANY menu keystroke is processed -- the click activates the wizard
+# pane and the subsequent windowactivate ensures the main window
+# receives the mnemonic. Both keystrokes go to the main window; the
+# mnemonic is delivered as two consecutive xdotool 'key' calls
+# (alt+f then a bare l) to match the operator's manual sequence (Alt
+# held, F tapped, L tapped) verbatim, with a 0.4s settle between
+# alt+f and l to cover the Wine File-menu paint window.
 _drv_account_wizard_advance_attempt() {
   local _wid="$1"
   local _label="$2"
-  _drv_log "account wizard advance (${_label}): focusing embedded wizard then Alt+N (operator-verified)"
+  _drv_log "account wizard advance (${_label}): focusing main window then Alt+F,L mnemonic (operator-verified File->Login to Trade Account bypass); Alt+N retained as fallback"
   _drv_account_wizard_focus_embedded "$_wid"
-  # Re-activate before the mnemonic in case the click moved focus into
-  # a child control we did not intend; clear any stuck modifiers first.
+  # Re-activate before the mnemonic in case the click moved focus
+  # into a child control we did not intend; clear any stuck
+  # modifiers first so a held key from a prior attempt cannot
+  # corrupt the mnemonic delivery.
   DISPLAY=:99 _xdo windowactivate "$_wid" 2>/dev/null || true
   sleep 0.2
   DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
-  # Alt+N: the operator-verified action that advances Next > once a
-  # company is selected. The branded wizard opens with the only
-  # company (Exness Technologies Ltd) already highlighted, so Alt+N
-  # alone is sufficient. The focus-click above guarantees the wizard
-  # pane (not Market Watch / Navigator) is the keystroke target.
+  # PRIMARY: Alt+F, L (operator-verified, 2026-06-26). Opens MT5's
+  # File menu via the Win32 mnemonic, then activates 'Login to Trade
+  # Account' via its L mnemonic. The Login dialog appears as a
+  # separate top-level window which _drv_account_wizard_advanced
+  # then verifies via _drv_find_login_dialog (regex tightened in the
+  # prior commit so the wizard cannot be mis-matched as the Login
+  # dialog -- only the real dialog matches).
+  DISPLAY=:99 _xdo key --clearmodifiers alt+f 2>/dev/null || true
+  sleep 0.4
+  DISPLAY=:99 _xdo key --clearmodifiers l 2>/dev/null || true
+  sleep 0.6
+  # SECONDARY (defence-in-depth): Alt+N. On the historical select-a-
+  # company variant this advances page 1; if the primary mnemonic
+  # already opened the Login dialog, this is a no-op against the
+  # already-up dialog (Alt+N has no binding on the Login dialog and
+  # the dialog has no focus on the main window anyway). On any
+  # build where the File menu is modal-suppressed, this preserves
+  # the previous advance behaviour.
+  DISPLAY=:99 _xdo windowactivate "$_wid" 2>/dev/null || true
+  sleep 0.2
+  DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
   DISPLAY=:99 _xdo key --clearmodifiers alt+n 2>/dev/null || true
   sleep 0.4
   return 0
