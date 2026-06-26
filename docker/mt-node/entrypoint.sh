@@ -419,6 +419,66 @@ _drv_find_main_window() {
   _drv_find_window_by_regex "$AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX"
 }
 
+# _drv_find_main_window_by_pid: find MT5's own window by PROCESS PID,
+# independent of WM_NAME. ROOT-CAUSE FIX for the empty-WM_NAME window:
+# during the first ~120s of init (and while the embedded 'Open an
+# Account' wizard is up) MT5's main window has an EMPTY WM_NAME, so the
+# title-regex search in _drv_find_main_window matches nothing. xdotool
+# `search --pid` matches by the owning process, which works regardless
+# of title.
+#
+# Selection rule:
+#   * Prefer the currently-active window IF it belongs to the MT
+#     process -- that is the window the wizard / login UI is painted in
+#     (the instrumented 2026-06-26 12:07 capture showed the active
+#     WID=12582936 with name='' was exactly this window).
+#   * Otherwise pick the largest visible window owned by the MT PID
+#     (the MDI frame, not a transient zero-size child).
+# Echoes the WID on stdout (empty if the MT process / no window yet).
+_drv_find_main_window_by_pid() {
+  local _pids _pid _wids _w _awid _geo _area _best _best_area _ww _wh
+  if [ "${MT_PLATFORM:-mt5}" = "mt4" ]; then
+    _pids=$(pgrep -f 'terminal\.exe' 2>/dev/null || true)
+  else
+    _pids=$(pgrep -f 'terminal64\.exe' 2>/dev/null || true)
+  fi
+  [ -n "$_pids" ] || return 1
+  # Collect all visible windows owned by any MT pid.
+  _wids=""
+  for _pid in $_pids; do
+    _w=$(DISPLAY=:99 _xdo search --onlyvisible --pid "$_pid" 2>/dev/null || true)
+    [ -n "$_w" ] && _wids="$_wids $_w"
+  done
+  _wids=$(printf '%s\n' $_wids | awk 'NF' | sort -u)
+  [ -n "$_wids" ] || return 1
+  # Prefer the active window if it is one of the MT-owned windows.
+  _awid=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "")
+  if [ -n "$_awid" ]; then
+    for _w in $_wids; do
+      if [ "$_w" = "$_awid" ]; then
+        printf '%s' "$_awid"
+        return 0
+      fi
+    done
+  fi
+  # Else pick the largest-area MT-owned window (the MDI frame).
+  _best=""; _best_area=0
+  for _w in $_wids; do
+    _geo=$(DISPLAY=:99 _xdo getwindowgeometry --shell "$_w" 2>/dev/null || true)
+    _ww=$(printf '%s\n' "$_geo" | sed -n 's/^WIDTH=//p' | head -1)
+    _wh=$(printf '%s\n' "$_geo" | sed -n 's/^HEIGHT=//p' | head -1)
+    [ -n "$_ww" ] && [ -n "$_wh" ] || continue
+    _area=$(( _ww * _wh ))
+    if [ "$_area" -gt "$_best_area" ]; then
+      _best_area=$_area; _best=$_w
+    fi
+  done
+  [ -n "$_best" ] && { printf '%s' "$_best"; return 0; }
+  # Fallback: first window owned by the MT pid.
+  printf '%s' "$(printf '%s\n' $_wids | head -1)"
+  return 0
+}
+
 # Authoritative login confirmation from the MT5 journal (Tier 2). The
 # journal is MT5's own record of the broker handshake, far more
 # reliable than the MDI window title. Real Exness journal success
@@ -699,10 +759,21 @@ _drv_handle_account_wizard() {
     _drv_log "wizard-handler: gate3 platform=${MT_PLATFORM:-mt5} != mt5; skip"
     return 1
   fi
-  # Find the main MT5 MDI window. If it's not up yet, defer to the
-  # next Phase 2a iteration.
+  # Find the main MT5 MDI window. Try the title-based finder first
+  # (post-init / accounts.dat boots where the WM_NAME is set), then
+  # fall back to the PID-based finder. ROOT CAUSE: during init and
+  # while the embedded wizard is up, MT5's window has an EMPTY WM_NAME
+  # (instrumented capture 2026-06-26 12:07: active WID=12582936
+  # name=''), so the title search can NEVER match it; the PID finder
+  # locates MT5's own window regardless of title.
   _wid=$(_drv_find_main_window)
-  [ -n "$_wid" ] || { _drv_log "wizard-handler: gate4 main MT5 window not found yet; defer"; return 1; }
+  if [ -z "$_wid" ]; then
+    _wid=$(_drv_find_main_window_by_pid)
+    if [ -n "$_wid" ]; then
+      _drv_log "wizard-handler: main window resolved by PID (WID=${_wid}; WM_NAME empty during init -- title search could not match)"
+    fi
+  fi
+  [ -n "$_wid" ] || { _drv_log "wizard-handler: gate4 main MT5 window not found by title OR pid yet; defer"; return 1; }
   _drv_log "Open-an-Account wizard handler engaged via main MT5 window (WID=${_wid}); focus + Alt+N to advance to the Login dialog (verified, up to 3 attempts)"
   # Up to 3 VERIFIED attempts. Each focuses the embedded wizard pane
   # then sends Alt+N, and we confirm advance by polling for the real
@@ -1945,9 +2016,11 @@ auto_login_driver() {
       _drv_warn "deterministic attach: NO chart+EA attached and :5555 not bound within ${AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS}s; engaging keystroke chart-attach fallback (genuine no-chart state)"
       # FALLBACK chart-attach (xdotool keystroke cascade). Only reached
       # when there is genuinely no chart+EA attached. Re-resolve
-      # main_wid for the Phase 2a path.
+      # main_wid for the Phase 2a path. Title finder first, then the
+      # PID-based finder (MT5's window may still have an empty WM_NAME).
       if [ -z "${main_wid:-}" ]; then
         main_wid=$(_drv_find_main_window) || true
+        [ -n "${main_wid:-}" ] || main_wid=$(_drv_find_main_window_by_pid) || true
       fi
       # Final guard against a race: a chart+EA may have attached in the
       # interval between the check above and here. Re-check so the
@@ -1969,9 +2042,11 @@ auto_login_driver() {
   #
   # Ensure main_wid is populated so we can skip it below. In the
   # Phase 2a path (dialog detected without Phase 2c), main_wid is
-  # still empty; grab it now.
+  # still empty; grab it now. Title finder first, then the PID-based
+  # finder (MT5's window may still have an empty WM_NAME post-login).
   if [ -z "${main_wid:-}" ]; then
     main_wid=$(_drv_find_main_window) || true
+    [ -n "${main_wid:-}" ] || main_wid=$(_drv_find_main_window_by_pid) || true
   fi
   dismiss_until=$(( $(date +%s) + AUTO_LOGIN_FOLLOWUP_DISMISS_SECS ))
   bind_until=$(( start_ts + AUTO_LOGIN_TOTAL_BUDGET_SECS ))
