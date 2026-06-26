@@ -1266,48 +1266,59 @@ _normalize_overlay() {
   export MT_CONFIG_DIR
   log INFO "overlay-normalize: canonical config dir resolved to '${MT_CONFIG_DIR}'"
 
-  # (B) MT5 only: PRESERVE the bundle's common.ini. ROOT-CAUSE FIX.
-  #     common.ini carries the [Common] broker-account CONTEXT
-  #     (Login/Server/Environment). When this context is PRESENT, MT5
-  #     build 5836 boots onto the LOGIN DIALOG path that
-  #     auto_login_driver() is designed to drive. When it was DELETED
-  #     (previous behaviour), MT5 saw a prefix with no configured
-  #     account and instead opened the first-run 'Open an Account ->
-  #     Select a company' WIZARD embedded in the main MDI window, which
-  #     auto_login_driver cannot fill -> every staging run ended with
-  #     'Login dialog never appeared within 120s' and provisioning
-  #     failed (captures 2026-06-26 08:08 / 09:36 / 10:27).
+  # (B) MT5 only: DELETE the bundle's baked common.ini. Operationally
+  #     verified against PREVIOUS.md (the working entrypoint before
+  #     the recent refactoring): the bundle ships a foreign [Common]
+  #     Login/Server/Environment that MT5 build 5836 REJECTS on a
+  #     fresh Wine prefix because the Environment hash / trusted-
+  #     device check fails against the per-tenant machine-id. With
+  #     common.ini PRESENT, MT5 surfaces the 'Open a Demo Account'
+  #     REGISTRATION FORM (page 3 of the wizard) which holds modal
+  #     focus and suppresses the File menu, so Phase 2c's Alt+F,L
+  #     cannot open the Login dialog (NOTE.md 2026-06-26 17:15 and
+  #     18:43 staging runs both ended with 'Login dialog never
+  #     appeared within 120s'). With common.ini DELETED, MT5 falls
+  #     into the SHALLOWER 'Select a company' wizard (page 1) which
+  #     Phase 2c's _drv_clear_modals_for_main_window Escape-dismisses
+  #     before sending Alt+F,L. PREVIOUS.md proves this path works.
   #
-  #     The baked [Common] account is a FOREIGN account, but that is
-  #     harmless: Phase 3 types the per-tenant Vault Login/Password/
-  #     Server into the Login dialog and ticks 'Save account
-  #     information', OVERWRITING it. We therefore DO NOT delete
-  #     common.ini. (The earlier git history toggled this twice;
-  #     commit 4c5fafe7 had the correct diagnosis and bc1b9656 reverted
-  #     it on a premise the staging captures disprove.)
+  #     The per-tenant credentials reach the broker exclusively via
+  #     Phase 3's xdotool paste into the Login dialog; MT5 then
+  #     writes a fresh accounts.dat with those credentials when
+  #     Phase 3 ticks 'Save account information', and every
+  #     subsequent boot uses that file for silent auto-login.
+  #
+  #     Earlier history: commit 4c5fafe7 had this delete logic
+  #     (working); bc1b96566 preserved it (still working);
+  #     4b371085 reverted to PRESERVE on an incorrect theory which
+  #     this commit now reverses based on operational evidence.
   if [ "$_plat" != "mt4" ]; then
     _common="$MT_CONFIG_DIR/common.ini"
     if [ -f "$_common" ]; then
-      log INFO "overlay-normalize(mt5): PRESERVING baked common.ini ([Common] account CONTEXT keeps MT5 on the Login-dialog path; Phase 3 overwrites the foreign Login/Server with the per-tenant Vault creds). Deleting it forces the Open-an-Account wizard -- see commit 4c5fafe7."
+      log INFO "overlay-normalize(mt5): deleting baked common.ini (foreign [Common] account context blocked by trusted-device check on fresh Wine prefix -- surfaces demo-registration wizard; MT5 recreates the file after Phase 3's per-tenant login)"
+      rm -f "$_common" 2>/dev/null || true
     fi
   fi
 
-  # (C) PRESERVE the baked saved-account cache for the same reason.
-  #     MT5 -> accounts.dat ; MT4 -> accounts.ini. Keeping it means MT5
-  #     either pre-fills the Login dialog or silently auto-logs in --
-  #     both already handled by Phase 2a's :5555 fast-path and the
-  #     residual-dialog precedence guard. Deleting it (with common.ini
-  #     also gone) is what tipped MT5 into the first-run wizard. The
-  #     foreign account is overwritten by Phase 3's 'Save account
-  #     information' tick on first successful per-tenant login.
+  # (C) DELETE the baked saved-account cache for the same reason.
+  #     MT5 -> accounts.dat ; MT4 -> accounts.ini. The bundle ships
+  #     a saved-account record for the bundle builder's own foreign
+  #     account; MT5 cannot auto-restore it on a per-tenant Wine
+  #     prefix and the rejection contributes to the wizard-state
+  #     drift documented above. MT5 recreates accounts.dat itself
+  #     after Phase 3's first successful per-tenant login (Phase 3
+  #     ticks 'Save account information'), and the PVC persists it
+  #     so the subsequent-boot fast path is intact.
   if [ "$_plat" = "mt4" ]; then
     _ai="$MT_CONFIG_DIR/accounts.ini"
     if [ -f "$_ai" ]; then
-      log INFO "overlay-normalize(mt4): PRESERVING baked accounts.ini (keeps MT4 on the Login path; Phase 3 + Save overwrites the foreign account)."
+      log INFO "overlay-normalize(mt4): deleting baked accounts.ini (foreign account; MT4 recreates after Phase 3's per-tenant login)"
+      rm -f "$_ai" 2>/dev/null || true
     fi
   else
     if [ -f "$MT_CONFIG_DIR/accounts.dat" ]; then
-      log INFO "overlay-normalize(mt5): PRESERVING baked accounts.dat (keeps MT5 on the Login path; Phase 3 + Save overwrites the foreign account)."
+      log INFO "overlay-normalize(mt5): deleting baked accounts.dat (foreign account; MT5 recreates after Phase 3's per-tenant auto-login)"
+      rm -f "$MT_CONFIG_DIR/accounts.dat" 2>/dev/null || true
     fi
   fi
 
