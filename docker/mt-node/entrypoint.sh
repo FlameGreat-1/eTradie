@@ -533,6 +533,49 @@ _drv_handle_liveupdate_restart() {
   esac
 }
 
+# _drv_handle_account_wizard: if the CURRENTLY-ACTIVE (or first visible)
+# window is MT5's 'Open an Account' first-run wizard ('Select a company to
+# open an account with'), click NEXT (Alt+N) to advance it to the Login
+# dialog. Returns 0 if it actioned the wizard, 1 otherwise.
+#
+# Confirmed flow on the branded Exness build (operator, 2026-06-26): MT5
+# opens this wizard with the company already selected; pressing 'Next >'
+# opens the Login-to-Trade-Account dialog. The driver must click Next or
+# it sits on the wizard until the dialog-wait times out (observed: the
+# wizard stayed up the whole 120s and 'Login dialog never appeared').
+#
+# Why this must run BEFORE _drv_find_login_dialog:
+# AUTO_LOGIN_DIALOG_TITLE_REGEX matches 'Open an Account', so the wizard
+# would otherwise be picked up as the Login dialog and Phase 3 would paste
+# credentials into the wizard. Intercepting + advancing it here guarantees
+# Phase 3 only ever sees the real Login dialog.
+#
+# Alt+N is the Win32 'Next' mnemonic. It is a harmless no-op if it ever
+# fires against the Login dialog (which has no Next button). All xdotool
+# calls are timeout-bounded via _xdo and best-effort.
+_drv_find_account_wizard() {
+  # Match the wizard by its window title. Build 5836 names this window
+  # 'Open an Account' (the inner label is 'Select a company to open an
+  # account with'); match either shape, anchored, so the real Login
+  # dialog ('Login' / 'Login to Trade Account') is NOT matched here.
+  _drv_find_window_by_regex '^(Open an Account|Select a company)'
+}
+
+_drv_handle_account_wizard() {
+  local _wid
+  _wid=$(_drv_find_account_wizard)
+  [ -n "$_wid" ] || return 1
+  _drv_log "Open-an-Account wizard detected (WID=${_wid}); clicking Next (Alt+N) to advance to the Login dialog"
+  DISPLAY=:99 _xdo windowactivate "$_wid" 2>/dev/null || true
+  sleep 0.4
+  DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
+  DISPLAY=:99 _xdo key --clearmodifiers alt+n 2>/dev/null || true
+  sleep 0.4
+  # Some builds make Next the default button; Return is a secondary nudge.
+  DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
+  return 0
+}
+
 # _drv_clear_modals_for_main_window: aggressively dismiss any open modals
 # (like the nameless "Open an Account" wizard or the "Welcome to LiveUpdate"
 # standalone permissions dialog) that might steal focus from the main UI
@@ -1490,6 +1533,18 @@ auto_login_driver() {
     # appears (2026-06-26 staging capture). After actioning, continue
     # the loop; MT5 will exit 143 and the next boot proceeds to login.
     if _drv_handle_liveupdate_restart; then
+      sleep 2
+      continue
+    fi
+    # Open-an-Account wizard gate. MT5's branded first-run flow opens an
+    # 'Open an Account / Select a company' wizard that gates the Login
+    # dialog: the operator-confirmed flow is select-company -> Next ->
+    # Login dialog. Advance it with Alt+N here, BEFORE the login-dialog
+    # detection below (the dialog regex also matches 'Open an Account',
+    # so without this the wizard would be mistaken for the Login dialog
+    # and Phase 3 would paste into it). After clicking Next, continue
+    # the loop so the next iteration detects the real Login dialog.
+    if _drv_handle_account_wizard; then
       sleep 2
       continue
     fi
