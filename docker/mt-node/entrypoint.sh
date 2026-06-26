@@ -1161,6 +1161,7 @@ auto_login_driver() {
   local start_ts now elapsed wid wid_first dialog_seen=0 bind_until dismiss_until fwid w wname
   local main_wid="" phase2a_deadline phase2c_attempted=0
   local hard_kill_pid="" hard_kill_budget driver_pid
+  local _det_waited=0
   start_ts=$(date +%s)
 
   _drv_log "start (budget=${AUTO_LOGIN_TOTAL_BUDGET_SECS}s, login=${MT_LOGIN}, server=${MT_SERVER})"
