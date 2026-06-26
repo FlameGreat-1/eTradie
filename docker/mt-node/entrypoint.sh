@@ -2231,11 +2231,19 @@ if [ -r "${VAULT_SECRETS_FILE}" ]; then
   # clear log entry plus a journal-grep is enough for an operator to
   # escalate.
   _self_pid=$$
-  case "${MT_PASSWORD:-}" in
-    "${_self_pid}"*)
-      log WARN "MT_PASSWORD appears to start with this shell's PID (${_self_pid}). This is the historical signature of bash-source corruption of /vault/secrets/. If the broker rejects the login as 'invalid password', someone has reintroduced a shell-source pattern upstream of this entrypoint. See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md."
-      ;;
-  esac
+  # Defensive guard: an empty _self_pid would degenerate the case
+  # glob to '*', firing the regression WARN on every boot regardless
+  # of password content (false positive). $$ is the entrypoint's own
+  # PID and is essentially never empty in bash, but skipping the
+  # match when it IS empty keeps the guard from ever turning into a
+  # log-pollution source.
+  if [ -n "$_self_pid" ]; then
+    case "${MT_PASSWORD:-}" in
+      "${_self_pid}"*)
+        log WARN "MT_PASSWORD appears to start with this shell's PID (${_self_pid}). This is the historical signature of bash-source corruption of /vault/secrets/. If the broker rejects the login as 'invalid password', someone has reintroduced a shell-source pattern upstream of this entrypoint. See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md."
+        ;;
+    esac
+  fi
   unset _self_pid _line _key _val
 
   if [ -n "$_vault_rendered_at" ]; then
@@ -3000,7 +3008,15 @@ MT_BUILD=""
 # this is created by MT itself, not baked, so it is case-stable.
 MT_JOURNAL_DIR="$MT_DIR/logs"
 if [ -d "$MT_JOURNAL_DIR" ]; then
-  MT_BUILD=$(grep -ahoE 'build [0-9]+ started' "$MT_JOURNAL_DIR"/*.log 2>/dev/null \
+  # MT5/MT4 build 58xx writes the journal as UTF-16LE (ASCII bytes
+  # interleaved with 0x00 NUL). Strip the NULs before grepping or
+  # the ASCII regex literally never matches. Same posture every
+  # other journal reader in this script uses
+  # (_drv_login_authenticated, _drv_grep_mql5_logs, the LiveUpdate
+  # self-restart classifier in the supervisor loop).
+  MT_BUILD=$(cat "$MT_JOURNAL_DIR"/*.log 2>/dev/null \
+    | tr -d '\000' \
+    | grep -ahoE 'build [0-9]+ started' \
     | grep -oE '[0-9]+' | sort -rn | head -n1 || true)
 fi
 MT_BUILD="${MT_BUILD:-$MT_BUILD_FALLBACK}"
