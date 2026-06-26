@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────
-# etradie-mt-node entrypoint
+# etradie-mt-node entrypoint  (CI nudge: 2026-06-26)
 #
 # Launches a headless MetaTrader 4 or MetaTrader 5 terminal inside
 # Wine with a virtual framebuffer (Xvfb). The Exoper ZeroMQ EA is
