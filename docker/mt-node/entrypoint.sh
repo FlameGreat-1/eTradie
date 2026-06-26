@@ -2066,9 +2066,16 @@ auto_login_driver() {
     fi
     if [ "$now" -lt "$dismiss_until" ]; then
       # Look for follow-up windows that are NOT the original Login
-      # dialog or the MetaTrader main window. Press Return on each
-      # (default "OK/Accept" action for EULA / news / broker terms).
-      fwid=$(DISPLAY=:99 xdotool search --onlyvisible --name '.+' 2>/dev/null | head -5 || true)
+      # dialog, the MetaTrader main window, or the Open-an-Account
+      # wizard (the wizard has its own dedicated handler in Phase 2a).
+      # Press Return on each (default "OK/Accept" action for EULA /
+      # news / broker terms). All xdotool calls are timeout-bounded
+      # via _xdo (Wine override-redirect modals can hang raw xdotool
+      # property reads -- jordansissel/xdotool #117/#126; bounding
+      # them keeps Phase 4 from wedging the driver). windowactivate
+      # is async (no --sync) for the same reason every other driver
+      # site is async against Wine.
+      fwid=$(DISPLAY=:99 _xdo search --onlyvisible --name '.+' 2>/dev/null | head -5 || true)
       if [ -n "$fwid" ]; then
         for w in $fwid; do
           [ "$w" = "$wid_first" ] && continue
@@ -2077,15 +2084,16 @@ auto_login_driver() {
           # '<account> - - Netting', so name-only matching is not
           # sufficient.
           [ -n "${main_wid:-}" ] && [ "$w" = "$main_wid" ] && continue
-          wname=$(DISPLAY=:99 xdotool getwindowname "$w" 2>/dev/null || true)
+          wname=$(DISPLAY=:99 _xdo getwindowname "$w" 2>/dev/null || true)
           [ -z "$wname" ] && continue
           case "$wname" in
             'MetaTrader 5'*|'MetaTrader 4'*|*'- Netting'*|*'- Hedging'*) continue ;;
+            'Open an Account'*|*'Select a company'*) continue ;;
           esac
           _drv_log "dismiss follow-up window: '${wname}' (WID=${w})"
-          DISPLAY=:99 xdotool windowactivate --sync "$w" 2>/dev/null || true
+          DISPLAY=:99 _xdo windowactivate "$w" 2>/dev/null || true
           sleep 0.2
-          DISPLAY=:99 xdotool key --clearmodifiers Return 2>/dev/null || true
+          DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
         done
       fi
     fi
