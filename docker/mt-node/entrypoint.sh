@@ -915,7 +915,7 @@ _resolve_mt_config_dir() {
 _normalize_overlay() {
   local _root="$1"
   local _plat="$2"
-  local _cfg
+  local _cfg _common _ai
 
   # (A) Strip the saved chart WORKSPACE so MT cold-boots a fresh
   #     chart that startup.ini Template=expert applies our EA to.
@@ -951,33 +951,43 @@ _normalize_overlay() {
   export MT_CONFIG_DIR
   log INFO "overlay-normalize: canonical config dir resolved to '${MT_CONFIG_DIR}'"
 
-  # (B)/(C) INTENTIONALLY NOT DELETED: common.ini, accounts.dat (mt5)
-  # / accounts.ini (mt4).
-  #
-  # We previously deleted these to remove the bundle builder's foreign
-  # account + saved profile. That was a REGRESSION: with common.ini
-  # (which carries [Common] Login=/Server=) and accounts.dat present,
-  # MT5 has a known account/server context and boots straight to the
-  # Login-to-Trade-Account dialog -- the path auto_login_driver()
-  # drives and the path that worked. With them DELETED, MT5 has no
-  # account context and instead shows the 'Open an Account / Select a
-  # company' first-run WIZARD, which the driver does not drive, so
-  # Phase 2 stalls for the full AUTO_LOGIN_DIALOG_WAIT_SECS and the
-  # provision fails (confirmed by the 2026-06-26 staging capture +
-  # operator screenshots showing the account-creation wizard).
-  #
-  # The foreign Login= baked into common.ini is harmless: build 5836
-  # ignores common.ini/startup.ini for the actual broker login (hence
-  # the keystroke driver), and the driver overwrites the dialog fields
-  # with the per-tenant Vault creds. The foreign profile-restore keys
-  # ([Charts] ProfileLast=Default/PreloadCharts=1) are also harmless
-  # here because class (A) above already removed Profiles/Charts, so
-  # there is no saved workspace left to restore -> MT5 cold-boots a
-  # fresh chart and startup.ini [Charts] Template=expert still applies
-  # our EA template. So chart-attach determinism is preserved WITHOUT
-  # touching common.ini. Leave both files exactly as the bundle
-  # shipped them; MT5 rewrites them itself after the first login and
-  # the PVC persists them.
+  # (B) MT5 only: delete the bundle builder's FOREIGN common.ini. It
+  #     carries [Common] Login=133978149 / Server=Exness-MT5Real9 /
+  #     Environment=<hex> (a third-party account) plus [Charts]
+  #     ProfileLast=Default / PreloadCharts=1 (profile restore). It is
+  #     someone else's account/profile and must not persist on a per-
+  #     tenant pod. The Open-an-Account wizard is MT5's normal branded
+  #     first-run flow and appears whether or not common.ini exists
+  #     (operator-confirmed), so deleting this does NOT cause the
+  #     wizard -- the driver advances the wizard with Next (Alt+N) to
+  #     reach the Login dialog, then types the per-tenant Vault creds.
+  #     Delete (not rewrite): the file is UTF-16LE and an encoding-
+  #     changing rewrite is an unverified assumption. MT5 recreates
+  #     common.ini itself after the first login; the PVC persists it.
+  if [ "$_plat" != "mt4" ]; then
+    _common="$MT_CONFIG_DIR/common.ini"
+    if [ -f "$_common" ]; then
+      log INFO "overlay-normalize(mt5): removing baked common.ini (foreign account [Common] Login/Server/Environment + ProfileLast/PreloadCharts; MT5 recreates it after first login)"
+      rm -f "$_common" 2>/dev/null || true
+    fi
+  fi
+
+  # (C) Delete the baked saved-account cache so the foreign account is
+  #     not auto-restored. MT5 -> accounts.dat (re-created after first
+  #     login). MT4 -> accounts.ini (encrypted; cannot be safely
+  #     edited, so delete; MT4 recreates it after login).
+  if [ "$_plat" = "mt4" ]; then
+    _ai="$MT_CONFIG_DIR/accounts.ini"
+    if [ -f "$_ai" ]; then
+      log INFO "overlay-normalize(mt4): removing baked accounts.ini (foreign account; MT4 recreates after auto-login)"
+      rm -f "$_ai" 2>/dev/null || true
+    fi
+  else
+    if [ -f "$MT_CONFIG_DIR/accounts.dat" ]; then
+      log INFO "overlay-normalize(mt5): removing baked accounts.dat (foreign account; MT5 recreates after auto-login)"
+      rm -f "$MT_CONFIG_DIR/accounts.dat" 2>/dev/null || true
+    fi
+  fi
 
   # Deterministic success status. entrypoint.sh runs under `set -e`
   # and this function is invoked as a bare statement; without an
