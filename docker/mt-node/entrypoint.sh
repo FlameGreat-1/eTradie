@@ -194,14 +194,22 @@ AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS="${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_
 # verified live in commit 3321d2e3 as WID=12582913). The brand token
 # is constrained to '[A-Z][A-Za-z0-9]*' (a single capitalised
 # alphanumeric word) so the regex cannot accidentally match unrelated
-# child windows like 'MetaTrader 5 Help' or 'MetaTrader 5 Settings'
-# (those titles do not end in ' - Netting'/' - Hedging' so they
-# could not match anyway, but the explicit constraint makes the
-# intent unambiguous). The post-login shape and MT4 shapes are
-# unchanged. The empty-WM_NAME path during init / wizard is still
-# handled by _drv_find_main_window_by_pid as a fallback after this
-# regex search returns nothing.
-AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(MetaTrader [45]( [A-Z][A-Za-z0-9]*)? - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging))}"
+# child windows like 'MetaTrader 5 Help' or 'MetaTrader 5 Settings'.
+#
+# The login-id-keyed branch covers two distinct post-submit shapes:
+#   * Intermediate (post-submit, pre-auth): '<login> -   - Netting'
+#     -- empty middle field, broker session slot not yet filled.
+#   * Fully logged-in: '<login> - <server> - <broker>' optionally
+#     followed by ' - <SYMBOL>,<TIMEFRAME>' when a chart is open.
+#     Operator-verified on Exness: '133978149 - Exness-MT5Real9 -
+#     Exness Technologies Ltd' / '... - EURUSDm,H1'.
+# The two login-id branches are mutually exclusive: the intermediate
+# shape uses '<spaces only>' in the middle field (' +'), the
+# logged-in shape requires a non-space first character ('[^ ]'). The
+# empty-WM_NAME path during init / wizard is handled by
+# _drv_find_main_window_by_pid as a fallback after this regex search
+# returns nothing.
+AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(MetaTrader [45]( [A-Z][A-Za-z0-9]*)? - (Netting|Hedging)|[0-9]+ -  +- (Netting|Hedging)|[0-9]+ - [^ ].* - [^ ].*)}"
 # Optional operator override for the journal login-confirmation regex.
 # Leave EMPTY (default) to let _drv_login_authenticated() build a
 # login-id-keyed pattern at call time (MT_LOGIN is not yet populated
@@ -1100,7 +1108,17 @@ AUTO_LOGIN_PHASE5_ENABLED="${AUTO_LOGIN_PHASE5_ENABLED:-1}"
 # giving slow brokers and slow disks enough headroom not to race.
 AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS="${AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS:-60}"
 AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS="${AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS:-20}"
-AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX="${AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX:-^[A-Za-z0-9._#@!^+\-]+,[A-Za-z][0-9]+}"
+# The chart window's WM_NAME on the Exness branded build is the
+# main window title WITH ' - <SYMBOL>,<TIMEFRAME>' appended (operator-
+# verified: '133978149 - Exness-MT5Real9 - Exness Technologies Ltd -
+# EURUSDm,H1'). We must match the SYMBOL,TIMEFRAME token wherever it
+# appears in the title, not only at start-of-string. The token shape
+# itself is unchanged (broker-specific suffix punctuation '.', '#',
+# '_', '-', '^', '+', '@', '!' plus alphanumerics, then comma, then
+# the timeframe '[A-Za-z][0-9]+'). The leading / trailing character-
+# class constraints enforce a word boundary so the token cannot
+# accidentally match inside a longer alphanumeric run.
+AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX="${AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX:-(^|[^A-Za-z0-9._#@!^+\-])[A-Za-z0-9._#@!^+\-]+,[A-Za-z][0-9]+($|[^0-9])}"
 AUTO_LOGIN_PHASE5_BIND_WAIT_SECS="${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS:-30}"
 AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS="${AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS:-5}"
 # Deterministic-attach wait. After login is confirmed and the bundle's
