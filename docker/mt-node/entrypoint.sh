@@ -550,9 +550,11 @@ _drv_handle_liveupdate_restart() {
 # credentials into the wizard. Intercepting + advancing it here guarantees
 # Phase 3 only ever sees the real Login dialog.
 #
-# Alt+N is the Win32 'Next' mnemonic. It is a harmless no-op if it ever
-# fires against the Login dialog (which has no Next button). All xdotool
-# calls are timeout-bounded via _xdo and best-effort.
+# The operator verified manually (2026-06-26) on a real MT5: once a
+# company is SELECTED in this wizard, pressing Alt+N opens the Login
+# dialog. The earlier failure was that the company was shown but NEVER
+# selected, so 'Next >' stayed disabled and Alt+N/Return were no-ops.
+# All xdotool calls are timeout-bounded via _xdo and best-effort.
 _drv_find_account_wizard() {
   # Match the wizard by its window title. Build 5836 names this window
   # 'Open an Account' (the inner label is 'Select a company to open an
@@ -561,18 +563,116 @@ _drv_find_account_wizard() {
   _drv_find_window_by_regex '^(Open an Account|Select a company)'
 }
 
-_drv_handle_account_wizard() {
-  local _wid
-  _wid=$(_drv_find_account_wizard)
-  [ -n "$_wid" ] || return 1
-  _drv_log "Open-an-Account wizard detected (WID=${_wid}); clicking Next (Alt+N) to advance to the Login dialog"
+# _drv_account_wizard_advanced: returns 0 (true) if the wizard has
+# advanced -- the wizard window is no longer present, OR a Login dialog
+# has appeared. Used to VERIFY each advance attempt instead of firing
+# keystrokes blindly and assuming success.
+_drv_account_wizard_advanced() {
+  if [ -z "$(_drv_find_account_wizard)" ]; then
+    return 0
+  fi
+  if [ -n "$(_drv_find_login_dialog)" ]; then
+    return 0
+  fi
+  return 1
+}
+
+# _drv_account_wizard_select_company: SELECT the company entry in the
+# wizard's company list so 'Next >' becomes enabled. This is the step
+# whose absence caused the stuck wizard.
+#
+# The wizard is rendered EMBEDDED inside the MT5 MDI (operator
+# screenshot: only 'File View Tools Help' with Market Watch / Navigator
+# around it), so a blind Tab/Home keyboard walk cannot be trusted to
+# land focus on the company list. We therefore SELECT by clicking the
+# company row directly. Coordinates are derived from the wizard window
+# geometry (NOT absolute screen pixels) so they track the window
+# wherever fluxbox places it.
+#
+# Geometry math: the 'Open an Account' wizard lays out, top-to-bottom,
+# a 'Find your company' search box, then the company tree
+# (Exness > Accounts > 'Exness Technologies Ltd'). The single visible
+# company entry sits in the upper-middle of the wizard client area.
+# We click at x = left + 45% width, y = top + 42% height, which lands
+# on the company entry for both the single-company (pre-filtered
+# broker) and first-row (multi-company) layouts. A double-click both
+# selects the row AND, on builds where the list's default action is
+# 'choose', advances directly; where it only selects, the subsequent
+# Alt+N advances. Either way the company ends up SELECTED.
+_drv_account_wizard_select_company() {
+  local _wid="$1"
+  local _geo _w _h _x _y _cx _cy
   DISPLAY=:99 _xdo windowactivate "$_wid" 2>/dev/null || true
-  sleep 0.4
+  sleep 0.3
+  # Pull window geometry. Output includes 'Geometry: WxH' and
+  # 'Position: X,Y (screen: N)'. Parse defensively; fall back to the
+  # Xvfb default 1024x768 origin if parsing fails.
+  _geo=$(DISPLAY=:99 _xdo getwindowgeometry --shell "$_wid" 2>/dev/null || true)
+  if printf '%s' "$_geo" | grep -q '^WIDTH='; then
+    _w=$(printf '%s\n' "$_geo" | sed -n 's/^WIDTH=//p' | head -1)
+    _h=$(printf '%s\n' "$_geo" | sed -n 's/^HEIGHT=//p' | head -1)
+    _x=$(printf '%s\n' "$_geo" | sed -n 's/^X=//p' | head -1)
+    _y=$(printf '%s\n' "$_geo" | sed -n 's/^Y=//p' | head -1)
+  fi
+  _w="${_w:-1024}"; _h="${_h:-768}"; _x="${_x:-0}"; _y="${_y:-0}"
+  _cx=$(( _x + (_w * 45) / 100 ))
+  _cy=$(( _y + (_h * 42) / 100 ))
+  _drv_log "account wizard: selecting company by click at (${_cx},${_cy}) [win ${_w}x${_h}+${_x}+${_y}]"
+  # Move + click to focus the company list, then double-click the row
+  # to select it deterministically.
+  DISPLAY=:99 _xdo mousemove "$_cx" "$_cy" 2>/dev/null || true
+  sleep 0.2
+  DISPLAY=:99 _xdo click 1 2>/dev/null || true
+  sleep 0.3
+  DISPLAY=:99 _xdo click --repeat 2 --delay 120 1 2>/dev/null || true
+  sleep 0.3
+  return 0
+}
+
+# _drv_account_wizard_advance_attempt: ONE verified select-company +
+# Alt+N advance pass against wizard window $1 ($2 = log label).
+_drv_account_wizard_advance_attempt() {
+  local _wid="$1"
+  local _label="$2"
+  _drv_log "account wizard advance (${_label}): selecting company then Alt+N (operator-verified)"
+  _drv_account_wizard_select_company "$_wid"
+  # Re-activate before the mnemonic in case the click moved focus into
+  # a child control; clear any stuck modifiers first.
+  DISPLAY=:99 _xdo windowactivate "$_wid" 2>/dev/null || true
+  sleep 0.2
   DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
+  # Alt+N: the operator-verified action that opens the Login dialog
+  # once a company is selected.
   DISPLAY=:99 _xdo key --clearmodifiers alt+n 2>/dev/null || true
   sleep 0.4
-  # Some builds make Next the default button; Return is a secondary nudge.
-  DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
+  return 0
+}
+
+_drv_handle_account_wizard() {
+  local _wid _i
+  _wid=$(_drv_find_account_wizard)
+  [ -n "$_wid" ] || return 1
+  _drv_log "Open-an-Account wizard detected (WID=${_wid}); selecting company + Alt+N to advance to the Login dialog (verified, up to 3 attempts)"
+  # Up to 3 VERIFIED attempts. Each attempt selects the company row
+  # (enabling 'Next >') then sends the operator-verified Alt+N, and we
+  # confirm the wizard advanced (window gone or Login dialog up) before
+  # declaring success -- instead of the previous fire-once-and-hope.
+  for _i in 1 2 3; do
+    _drv_account_wizard_advance_attempt "$_wid" "attempt ${_i}"
+    # Give the wizard a moment to transition to the Login dialog.
+    sleep 1
+    if _drv_account_wizard_advanced; then
+      _drv_log "account wizard advanced after attempt ${_i} (wizard gone or Login dialog present)"
+      return 0
+    fi
+    # Re-resolve the wizard WID in case it was re-created/re-stacked.
+    _wid=$(_drv_find_account_wizard)
+    [ -n "$_wid" ] || { _drv_log "account wizard no longer present after attempt ${_i}; treating as advanced"; return 0; }
+    _drv_warn "account wizard still present after attempt ${_i}; retrying select + Alt+N"
+  done
+  _drv_warn "account wizard still present after 3 verified advance attempts; the Phase 2a loop will re-poll and retry next iteration"
+  # Return 0 so the caller's Phase 2a loop continues (sleep 2; continue)
+  # and re-polls; the next iteration re-detects the wizard and retries.
   return 0
 }
 
