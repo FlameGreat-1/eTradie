@@ -872,7 +872,7 @@ _resolve_mt_config_dir() {
 _normalize_overlay() {
   local _root="$1"
   local _plat="$2"
-  local _cfg _common _ai
+  local _cfg
 
   # (A) Strip the saved chart WORKSPACE so MT cold-boots a fresh
   #     chart that startup.ini Template=expert applies our EA to.
