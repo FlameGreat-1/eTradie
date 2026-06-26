@@ -150,8 +150,11 @@ AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an 
 #   pre-staged config, MT5 will never prompt and Phase 2c must
 #   invoke File -> Login to Trade Account explicitly.
 # AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS: per-attempt wait for the
-#   Login dialog after a Phase 2c invocation (hotkey or menu). Used
-#   twice -- once after Ctrl+Shift+L, once after Alt+F menu fallback.
+#   Login dialog after a Phase 2c invocation (mnemonic or menu). Used
+#   per attempt -- after the Alt+F,L mnemonic and after each Alt+F
+#   arrow-navigation fallback. (An earlier design polled after a
+#   Ctrl+Shift+L hotkey; that accelerator does not exist on MT5 build
+#   5836 and was removed -- see the Phase 2c evidence-basis note below.)
 # AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX: WM_NAME pattern for the MT main
 #   UI window. Build 5836 emits TWO distinct shapes that BOTH must be
 #   matched by this regex:
@@ -190,7 +193,7 @@ AUTO_LOGIN_JOURNAL_AUTH_REGEX="${AUTO_LOGIN_JOURNAL_AUTH_REGEX:-}"
 # showed ~87s between the first failed pool attempt and the successful
 # authorize, so 120s gives ~38% headroom while keeping worst-case
 # driver time (~60-90s to submit + 120s wait) within
-# AUTO_LOGIN_TOTAL_BUDGET_SECS=240.
+# AUTO_LOGIN_TOTAL_BUDGET_SECS=420.
 AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS="${AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS:-120}"
 # Wall-clock ceiling on a single xdotool invocation. xdotool's `search
 # --onlyvisible --name <re>` and `windowactivate --sync` calls can
@@ -1115,6 +1118,19 @@ _drv_phase5_chart_attach() {
     if _drv_zmq_bound; then
       _drv_log "phase5: :5555 LISTEN at +${_waited}s during post-login settle; skipping chart-attach"
       return 0
+    fi
+    # Higher-priority than the readiness signal below: if a chart+EA is
+    # ALREADY attached (S1) we must NOT keystroke, because opening a
+    # second chart would attach a second EA that the EA's own
+    # duplicate-instance guard rejects with INIT_FAILED. The bind is
+    # either still in progress (OnInit) or has failed; either way the
+    # correct action is to yield to the Phase 4 poll, which keeps
+    # watching :5555 for the remaining budget. Returning 1 (not 0)
+    # signals 'chart-attach not completed here' so the caller's Phase 4
+    # loop owns the final bind verdict.
+    if _drv_chart_ea_attached; then
+      _drv_warn "phase5: chart+EA already attached at +${_waited}s during settle (no :5555 yet); NOT keystroking (would double-attach into the EA duplicate-instance guard); yielding to Phase 4 poll"
+      return 1
     fi
     if _drv_phase5_mql5_logs_present; then
       _exit_reason="MQL5/Logs present"
@@ -2347,18 +2363,35 @@ log INFO "Startup config written to $INI_FILE"
 # The only effective LiveUpdate control is the per-tenant
 # NetworkPolicy egress block (chart + provisioner), NOT a config
 # write. The terminal.ini LastBuildDataPath pin below is config-only
-# and harmless. Resolve the running build from the journal, falling
-# back to the baked MT5 build 5836 on first boot.
+# and harmless.
+#
+# Build resolution is JOURNAL-FIRST and authoritative: the running
+# build is read from the broker-bundle terminal's own journal
+# ('Terminal ... build NNNN started'). The image no longer bakes any
+# MetaTrader install -- the branded terminal arrives at runtime via
+# the broker bundle -- so there is NO single 'baked build' to assume
+# as a fallback (real captures span build 5833 on Deriv, 5830 on the
+# Exness access server, etc.). When the journal does not yet exist
+# (cold first boot, before MT5 has written it), the build is UNKNOWN
+# unless an operator pins MT_BUILD_FALLBACK explicitly. In the unknown
+# case we SKIP writing the [LiveUpdate] pin rather than fabricate a
+# build number: a wrong LastBuildDataPath is at best inert and at
+# worst misleading to an operator reading terminal.ini, and the pin
+# is not the mechanism that actually gates LiveUpdate (the egress
+# NetworkPolicy is).
+MT_BUILD_FALLBACK="${MT_BUILD_FALLBACK:-}"
 MT_BUILD=""
 MT_JOURNAL_DIR="$MT_DIR/logs"
 if [ -d "$MT_JOURNAL_DIR" ]; then
   MT_BUILD=$(grep -ahoE 'build [0-9]+ started' "$MT_JOURNAL_DIR"/*.log 2>/dev/null \
     | grep -oE '[0-9]+' | sort -rn | head -n1 || true)
 fi
-MT_BUILD="${MT_BUILD:-5836}"
+MT_BUILD="${MT_BUILD:-$MT_BUILD_FALLBACK}"
 
 TERMINAL_INI="$MT_DIR/config/terminal.ini"
-if [ -f "$TERMINAL_INI" ]; then
+if [ -z "$MT_BUILD" ]; then
+  log INFO "LiveUpdate build pin SKIPPED: running build not yet resolvable from the journal ($MT_JOURNAL_DIR) and MT_BUILD_FALLBACK is unset. The journal-derived build will be pinned on a subsequent boot; LiveUpdate is gated by the NetworkPolicy egress block regardless, so this is non-fatal ($MT_PLATFORM)."
+elif [ -f "$TERMINAL_INI" ]; then
   # Preserve any existing terminal.ini content but replace/append the
   # [LiveUpdate] section deterministically.
   if grep -qi '^\[LiveUpdate\]' "$TERMINAL_INI"; then
