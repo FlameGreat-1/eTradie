@@ -856,27 +856,24 @@ _normalize_overlay() {
   export MT_CONFIG_DIR
   log INFO "overlay-normalize: canonical config dir resolved to '${MT_CONFIG_DIR}'"
 
-  # (B) MT5 only: neutralize common.ini profile-restore + foreign
-  #     account. The keys we touch are ASCII; rewrite as text with
-  #     awk. We (1) blank ProfileLast and force PreloadCharts=0 in
-  #     [Charts], and (2) drop Login=/Server=/Environment= from
-  #     [Common]. Other sections/keys are passed through verbatim.
+  # (B) MT5 only: neutralize common.ini. It holds ONLY the bundle
+  #     builder's FOREIGN account ([Common] Login/Server/Environment)
+  #     and saved UI/profile state ([Charts] ProfileLast=Default +
+  #     PreloadCharts=1, which forces a profile restore that makes MT5
+  #     ignore startup.ini Template=expert). A fresh MT5 install has no
+  #     common.ini and creates it on first run, so DELETING the baked
+  #     one returns the file to its fresh-install state: nothing to
+  #     mis-parse, no foreign account or saved profile to restore. We
+  #     delete rather than text-rewrite because the file is UTF-16LE
+  #     and an encoding-changing rewrite is an unverified assumption.
+  #     Our per-tenant session comes from startup.ini [Common] +
+  #     auto_login_driver(); MT5 re-creates common.ini after first
+  #     login and the PVC persists it.
   if [ "$_plat" != "mt4" ]; then
     _common="$MT_CONFIG_DIR/common.ini"
     if [ -f "$_common" ]; then
-      log INFO "overlay-normalize(mt5): neutralizing common.ini (blank ProfileLast, PreloadCharts=0, strip foreign Login/Server/Environment)"
-      # tr -d '\000' tolerates any UTF-16 NULs MT may have written;
-      # the gated keys are single-byte ASCII either way.
-      tr -d '\000' < "$_common" 2>/dev/null > "${_common}.tmp" || cp -f "$_common" "${_common}.tmp"
-      awk '
-        /^[[:space:]]*[Ll]ogin[[:space:]]*=/      { next }
-        /^[[:space:]]*[Ss]erver[[:space:]]*=/     { next }
-        /^[[:space:]]*[Ee]nvironment[[:space:]]*=/{ next }
-        /^[[:space:]]*ProfileLast[[:space:]]*=/   { print "ProfileLast="; next }
-        /^[[:space:]]*PreloadCharts[[:space:]]*=/ { print "PreloadCharts=0"; next }
-        { print }
-      ' "${_common}.tmp" > "$_common" 2>/dev/null || mv -f "${_common}.tmp" "$_common"
-      rm -f "${_common}.tmp" 2>/dev/null || true
+      log INFO "overlay-normalize(mt5): removing baked common.ini (foreign account + ProfileLast/PreloadCharts profile-restore; MT5 recreates it from our startup.ini after first login)"
+      rm -f "$_common" 2>/dev/null || true
     fi
   fi
 
