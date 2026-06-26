@@ -550,25 +550,41 @@ _drv_handle_liveupdate_restart() {
 # credentials into the wizard. Intercepting + advancing it here guarantees
 # Phase 3 only ever sees the real Login dialog.
 #
-# The operator verified manually (2026-06-26) on a real MT5: once a
-# company is SELECTED in this wizard, pressing Alt+N opens the Login
-# dialog. The earlier failure was that the company was shown but NEVER
-# selected, so 'Next >' stayed disabled and Alt+N/Return were no-ops.
+# Operator-verified ground truth (2026-06-26 09:36 capture):
+#
+#   - The "Select a company to open an account with" wizard is NOT a
+#     separate X11 top-level window on the branded Exness build. It is
+#     drawn by MT5 INSIDE the main MDI window, on top of the Market
+#     Watch / Navigator / Journal panels. The full 8-minute capture
+#     showed exactly ONE visible top-level window the entire time:
+#       WID=12582913 name='MetaTrader 5 EXNESS - Netting'
+#     so any handler that searches for a wizard-titled window will
+#     never match. The wizard must be driven through the main window.
+#   - Once a company is selected in the wizard, pressing Alt+N opens
+#     the Login dialog (hard proof: operator's own MT5).
+#
+# Therefore: 'find' the wizard by finding the main MT5 window, and
+# advance it by (a) clicking into the MDI client area at the wizard's
+# visual center to put focus on the embedded wizard pane (otherwise
+# Market Watch / Navigator hold focus), then (b) sending Alt+N to the
+# focused main window. Verification = the real Login dialog appears
+# as a separate top-level window (it DOES become one on this build).
 # All xdotool calls are timeout-bounded via _xdo and best-effort.
 _drv_find_account_wizard() {
-  # Match the wizard by its window title. Build 5836 names this window
-  # 'Open an Account' (the inner label is 'Select a company to open an
-  # account with'); match either shape, anchored, so the real Login
-  # dialog ('Login' / 'Login to Trade Account') is NOT matched here.
-  _drv_find_window_by_regex '^(Open an Account|Select a company)'
+  # The wizard is embedded in the main MT5 MDI window; reuse the
+  # main-window finder so we drive the wizard through the main window.
+  # This intentionally returns the main-window WID, not a separate
+  # wizard WID (which does not exist on this build).
+  _drv_find_main_window
 }
 
-# _drv_account_wizard_advanced: returns 0 (true) if the wizard has
-# advanced -- the wizard window is no longer present, OR a Login dialog
-# has appeared. Used to VERIFY each advance attempt instead of firing
-# keystrokes blindly and assuming success.
+# _drv_account_wizard_advanced: returns 0 (true) if the embedded wizard
+# has advanced -- i.e. the real Login dialog has appeared as a separate
+# top-level window, OR :5555 is already LISTEN (subsequent-boot fast
+# path landed us past the wizard between polls). Used to VERIFY each
+# advance attempt instead of firing keystrokes blindly.
 _drv_account_wizard_advanced() {
-  if [ -z "$(_drv_find_account_wizard)" ]; then
+  if _drv_zmq_bound; then
     return 0
   fi
   if [ -n "$(_drv_find_login_dialog)" ]; then
@@ -577,36 +593,28 @@ _drv_account_wizard_advanced() {
   return 1
 }
 
-# _drv_account_wizard_select_company: SELECT the company entry in the
-# wizard's company list so 'Next >' becomes enabled. This is the step
-# whose absence caused the stuck wizard.
+# _drv_account_wizard_focus_embedded: click into the main MT5 MDI client
+# area at the wizard's visual center so the embedded wizard pane (not
+# Market Watch / Navigator / Journal) holds focus inside MT5. Without
+# this, Alt+N is dispatched to whichever child pane MT5 last focused,
+# and the wizard never sees the keystroke.
 #
-# The wizard is rendered EMBEDDED inside the MT5 MDI (operator
-# screenshot: only 'File View Tools Help' with Market Watch / Navigator
-# around it), so a blind Tab/Home keyboard walk cannot be trusted to
-# land focus on the company list. We therefore SELECT by clicking the
-# company row directly. Coordinates are derived from the wizard window
-# geometry (NOT absolute screen pixels) so they track the window
-# wherever fluxbox places it.
-#
-# Geometry math: the 'Open an Account' wizard lays out, top-to-bottom,
-# a 'Find your company' search box, then the company tree
-# (Exness > Accounts > 'Exness Technologies Ltd'). The single visible
-# company entry sits in the upper-middle of the wizard client area.
-# We click at x = left + 45% width, y = top + 42% height, which lands
-# on the company entry for both the single-company (pre-filtered
-# broker) and first-row (multi-company) layouts. A double-click both
-# selects the row AND, on builds where the list's default action is
-# 'choose', advances directly; where it only selects, the subsequent
-# Alt+N advances. Either way the company ends up SELECTED.
-_drv_account_wizard_select_company() {
+# Geometry math: the wizard renders as a centered modal pane inside
+# the MDI client area. The MDI client area sits below MT5's menu bar
+# (~50 px) and above MT5's status bar (~30 px) and to the right of
+# any docked Navigator panel (~200 px on default layout). The wizard
+# itself is roughly centered horizontally and slightly above vertical
+# center (the company row sits in the upper-middle of the wizard).
+# Clicking at x = left + 55% width, y = top + 45% height lands on the
+# wizard's company-list area for the default Xvfb 1024x768 layout AND
+# scales with window size if MT5 ever runs at a different resolution.
+_drv_account_wizard_focus_embedded() {
   local _wid="$1"
   local _geo _w _h _x _y _cx _cy
   DISPLAY=:99 _xdo windowactivate "$_wid" 2>/dev/null || true
   sleep 0.3
-  # Pull window geometry. Output includes 'Geometry: WxH' and
-  # 'Position: X,Y (screen: N)'. Parse defensively; fall back to the
-  # Xvfb default 1024x768 origin if parsing fails.
+  # Pull window geometry. --shell emits WIDTH=, HEIGHT=, X=, Y= lines.
+  # Parse defensively; fall back to the Xvfb default 1024x768 origin.
   _geo=$(DISPLAY=:99 _xdo getwindowgeometry --shell "$_wid" 2>/dev/null || true)
   if printf '%s' "$_geo" | grep -q '^WIDTH='; then
     _w=$(printf '%s\n' "$_geo" | sed -n 's/^WIDTH=//p' | head -1)
@@ -615,64 +623,87 @@ _drv_account_wizard_select_company() {
     _y=$(printf '%s\n' "$_geo" | sed -n 's/^Y=//p' | head -1)
   fi
   _w="${_w:-1024}"; _h="${_h:-768}"; _x="${_x:-0}"; _y="${_y:-0}"
-  _cx=$(( _x + (_w * 45) / 100 ))
-  _cy=$(( _y + (_h * 42) / 100 ))
-  _drv_log "account wizard: selecting company by click at (${_cx},${_cy}) [win ${_w}x${_h}+${_x}+${_y}]"
-  # Move + click to focus the company list, then double-click the row
-  # to select it deterministically.
+  _cx=$(( _x + (_w * 55) / 100 ))
+  _cy=$(( _y + (_h * 45) / 100 ))
+  _drv_log "account wizard: focusing embedded wizard pane by click at (${_cx},${_cy}) [main win ${_w}x${_h}+${_x}+${_y}]"
   DISPLAY=:99 _xdo mousemove "$_cx" "$_cy" 2>/dev/null || true
   sleep 0.2
+  # Single click to focus the embedded wizard pane (do NOT double-click
+  # here: a double-click on the highlighted company row could open a
+  # nested 'Exness account types' sub-list instead of just focusing).
   DISPLAY=:99 _xdo click 1 2>/dev/null || true
-  sleep 0.3
-  DISPLAY=:99 _xdo click --repeat 2 --delay 120 1 2>/dev/null || true
-  sleep 0.3
+  sleep 0.4
   return 0
 }
 
-# _drv_account_wizard_advance_attempt: ONE verified select-company +
-# Alt+N advance pass against wizard window $1 ($2 = log label).
+# _drv_account_wizard_advance_attempt: ONE focus + Alt+N pass against
+# the main MT5 window ($1 = main WID, $2 = log label).
 _drv_account_wizard_advance_attempt() {
   local _wid="$1"
   local _label="$2"
-  _drv_log "account wizard advance (${_label}): selecting company then Alt+N (operator-verified)"
-  _drv_account_wizard_select_company "$_wid"
+  _drv_log "account wizard advance (${_label}): focusing embedded wizard then Alt+N (operator-verified)"
+  _drv_account_wizard_focus_embedded "$_wid"
   # Re-activate before the mnemonic in case the click moved focus into
-  # a child control; clear any stuck modifiers first.
+  # a child control we did not intend; clear any stuck modifiers first.
   DISPLAY=:99 _xdo windowactivate "$_wid" 2>/dev/null || true
   sleep 0.2
   DISPLAY=:99 _xdo keyup Shift Control Alt Meta 2>/dev/null || true
-  # Alt+N: the operator-verified action that opens the Login dialog
-  # once a company is selected.
+  # Alt+N: the operator-verified action that advances Next > once a
+  # company is selected. The branded wizard opens with the only
+  # company (Exness Technologies Ltd) already highlighted, so Alt+N
+  # alone is sufficient. The focus-click above guarantees the wizard
+  # pane (not Market Watch / Navigator) is the keystroke target.
   DISPLAY=:99 _xdo key --clearmodifiers alt+n 2>/dev/null || true
   sleep 0.4
   return 0
 }
 
+# _drv_handle_account_wizard: drive the embedded Open-an-Account wizard
+# through the main MT5 window. Gated so it only runs when:
+#   - the main MT5 window is visible, AND
+#   - no real Login dialog is visible (so we never act after the wizard
+#     already advanced), AND
+#   - :5555 is NOT bound (so we never disturb a healthy session).
 _drv_handle_account_wizard() {
   local _wid _i
-  _wid=$(_drv_find_account_wizard)
+  # Gate 1: never act if :5555 is already bound (accounts.dat fast path
+  # or a healthy session). The Phase 2a loop's own :5555 fast-path will
+  # return success; we just bail here.
+  if _drv_zmq_bound; then
+    return 1
+  fi
+  # Gate 2: never act if the real Login dialog is already up. Phase 2a's
+  # next iteration will pick it up via _drv_find_login_dialog and Phase
+  # 3 will paste credentials.
+  if [ -n "$(_drv_find_login_dialog)" ]; then
+    return 1
+  fi
+  # Gate 3: only act on MT5 (wizard is build-5836 MT5 branded behaviour).
+  if [ "${MT_PLATFORM:-mt5}" != "mt5" ]; then
+    return 1
+  fi
+  # Find the main MT5 MDI window. If it's not up yet, defer to the
+  # next Phase 2a iteration.
+  _wid=$(_drv_find_main_window)
   [ -n "$_wid" ] || return 1
-  _drv_log "Open-an-Account wizard detected (WID=${_wid}); selecting company + Alt+N to advance to the Login dialog (verified, up to 3 attempts)"
-  # Up to 3 VERIFIED attempts. Each attempt selects the company row
-  # (enabling 'Next >') then sends the operator-verified Alt+N, and we
-  # confirm the wizard advanced (window gone or Login dialog up) before
-  # declaring success -- instead of the previous fire-once-and-hope.
+  _drv_log "Open-an-Account wizard handler engaged via main MT5 window (WID=${_wid}); focus + Alt+N to advance to the Login dialog (verified, up to 3 attempts)"
+  # Up to 3 VERIFIED attempts. Each focuses the embedded wizard pane
+  # then sends Alt+N, and we confirm advance by polling for the real
+  # Login dialog (which DOES appear as a separate top-level window on
+  # this build) -- instead of the previous fire-once-and-hope.
   for _i in 1 2 3; do
     _drv_account_wizard_advance_attempt "$_wid" "attempt ${_i}"
     # Give the wizard a moment to transition to the Login dialog.
-    sleep 1
+    sleep 2
     if _drv_account_wizard_advanced; then
-      _drv_log "account wizard advanced after attempt ${_i} (wizard gone or Login dialog present)"
+      _drv_log "account wizard advanced after attempt ${_i} (Login dialog present or :5555 LISTEN)"
       return 0
     fi
-    # Re-resolve the wizard WID in case it was re-created/re-stacked.
-    _wid=$(_drv_find_account_wizard)
-    [ -n "$_wid" ] || { _drv_log "account wizard no longer present after attempt ${_i}; treating as advanced"; return 0; }
-    _drv_warn "account wizard still present after attempt ${_i}; retrying select + Alt+N"
+    _drv_warn "account wizard still not advanced after attempt ${_i}; retrying focus + Alt+N"
   done
-  _drv_warn "account wizard still present after 3 verified advance attempts; the Phase 2a loop will re-poll and retry next iteration"
+  _drv_warn "account wizard did not advance after 3 attempts; the Phase 2a loop will re-poll and retry next iteration"
   # Return 0 so the caller's Phase 2a loop continues (sleep 2; continue)
-  # and re-polls; the next iteration re-detects the wizard and retries.
+  # and re-polls; the next iteration re-enters this handler and retries.
   return 0
 }
 
