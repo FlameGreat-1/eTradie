@@ -2404,13 +2404,14 @@ elif [ -f "$TERMINAL_INI" ]; then
     mv "${TERMINAL_INI}.tmp" "$TERMINAL_INI"
   fi
   printf '\n[LiveUpdate]\nLastBuildDataPath=%s\n' "$MT_BUILD" >> "$TERMINAL_INI"
+  log INFO "LiveUpdate pinned to build ${MT_BUILD} in $TERMINAL_INI ($MT_PLATFORM)"
 else
   cat > "$TERMINAL_INI" <<EOF
 [LiveUpdate]
 LastBuildDataPath=${MT_BUILD}
 EOF
+  log INFO "LiveUpdate pinned to build ${MT_BUILD} in $TERMINAL_INI ($MT_PLATFORM)"
 fi
-log INFO "LiveUpdate pinned to build ${MT_BUILD} in $TERMINAL_INI ($MT_PLATFORM)"
 
 # ── Supervised MT restart loop ───────────────────────────────────
 restart_count=0
