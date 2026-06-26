@@ -113,111 +113,30 @@ _shutdown() {
 trap _shutdown TERM INT
 
 # ── Auto-login driver (xdotool-based GUI automation) ───────────
-#
-# Why this exists
-# ---------------
-# MetaTrader 5 build 5836 ignores both documented unattended-launch
-# mechanisms:
-#   * `/login /password /server` command-line flags - confirmed via
-#     ps -ef + journal silence + zero outbound TCP to broker IPs.
-#   * startup.ini [Common] Login/Password/Server - file is read, but
-#     never acted on; only populates the Login dialog's fields.
-#
-# MetaQuotes' modern builds expect either a saved accounts.dat (which
-# only exists after a manual first login) or interactive user input.
-# The accepted industry solution - used by every commercial MT5 VPS
-# provider running Wine + Xvfb (ForexVPS, Beeks, CNS) - is to drive
-# the Login dialog programmatically via xdotool, check "Save account
-# information" so MT5 writes accounts.dat itself, and let every
-# subsequent boot use accounts.dat for silent auto-login.
-#
-# Contract
-# --------
-# auto_login_driver() runs as a background child of the entrypoint.
-# It is best-effort: a driver crash does NOT kill MT5. The supervisor
-# loop's normal exit-code path handles MT5 lifecycle; the driver is
-# purely additive automation.
-#
-#   1. Wait up to AUTO_LOGIN_PROCESS_WAIT_SECS for terminal binary.
-#   2. Phase 2 (dialog-first, with main-window fallback):
-#      a) Phase 2a -- poll xdotool every 2s for a Login-shaped window
-#         (AUTO_LOGIN_DIALOG_TITLE_REGEX). Wait at most
-#         AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS (default 30s) for the
-#         dialog before considering Phase 2c. The dialog path was the
-#         original design contract; it remains the happy path for
-#         fresh prefixes and for any future MT5 build that reinstates
-#         the on-launch Login prompt.
-#      b) Phase 2b -- idempotent :5555 fast path. If :5555 LISTEN
-#         appears at any time, MT5 has auto-logged in via
-#         accounts.dat (subsequent boot). Exit 0 immediately.
-#      c) Phase 2c -- main-window menu-driven invocation. After
-#         AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS of NEITHER dialog NOR
-#         :5555 bind, check whether MT5's main UI window is visible
-#         (AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX). If yes, this is the
-#         empirical build-5836 + pre-staged-config path -- MT5
-#         opened straight to the main window without prompting.
-#         Phase 2c dismisses the 'Welcome to LiveUpdate' modal
-#         (Escape), focuses the main window, sends Ctrl+Shift+L
-#         (MT5's 'Login to Trade Account' hotkey), waits up to
-#         AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS for the dialog,
-#         and falls back to the Alt+F (File menu) -> arrow Down ->
-#         Return menu navigation if the hotkey was absorbed. On
-#         dialog visible after either path, falls through to Phase
-#         3 unchanged. Platform-gated to MT_PLATFORM=mt5; MT4 keeps
-#         the dialog-only Phase 2a path because MT4 build behaviour
-#         on this code path has not been empirically validated.
-#      Phase 2 overall budget remains AUTO_LOGIN_DIALOG_WAIT_SECS;
-#      if neither dialog nor :5555 bind happens within that budget,
-#      exit 1 (supervisor handles).
-#   3. Phase 3 -- on dialog visible: activate window, type credentials
-#      with --clearmodifiers --delay 50, check 'Save account
-#      information', press Return. Unchanged from previous design.
-#   4. Phase 4 -- for AUTO_LOGIN_FOLLOWUP_DISMISS_SECS, dismiss any
-#      other visible windows (EULA, Welcome, broker terms, news
-#      alerts) via Return. Unchanged.
-#   5. Total budget AUTO_LOGIN_TOTAL_BUDGET_SECS. On success exit 0;
-#      on timeout exit 1.
-#
-# Security
-# --------
-# - Runs as uid 1000 (same as the main container).
-# - $MT_PASSWORD is passed to `xdotool type --` as an argv element.
-#   It appears in xdotool's /proc/<pid>/cmdline for the milliseconds
-#   the call takes. Only the mt uid can read it. This is a strict
-#   improvement over the previous `/password:` on terminal64.exe
-#   itself, which kept the password in cmdline for the process
-#   lifetime.
-# - NEVER logs $MT_PASSWORD. Logs $MT_LOGIN, $MT_SERVER, dialog
-#   titles, timing.
-# Clipboard paste timeout for credential fields. Bounds any xclip hang
-# against a wedged X server. 3s is the safe ceiling: xclip's happy
-# path is ~10ms (set the selection, return); under heavy I/O load it
-# should never exceed ~500ms.
+# MT5 build 5836 ignores /login /password /server flags and the
+# startup.ini [Common] block, so the Login dialog is driven via
+# xdotool. Phases: 1 wait for terminal; 2a/2b/2c surface or invoke
+# the Login dialog (or fast-path on an existing :5555 bind); 3 fill
+# + submit credentials; login-auth gate; chart-attach; 4 poll :5555
+# + dismiss follow-ups. Best-effort: a driver crash never kills MT5.
+# NEVER logs $MT_PASSWORD.
 AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS="${AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS:-3}"
 
-# Credential input strategy for Phase 3 (per-field).
-#
-#   paste_then_type (default, recommended):
-#       Try clipboard paste first; on paste failure, fall back to
-#       xdotool type with the hardened 150ms-delay profile. This is
-#       defence-in-depth: paste is the deterministic primary path,
-#       typing is the operational safety net.
-#
-#   paste:
-#       Paste-only. If paste fails, the field stays empty and the
-#       broker login will fail with a clear journal error. Use this
-#       for security-strict deployments where ANY cmdline exposure
-#       window (the typing fallback briefly exposes MT_PASSWORD in
-#       xdotool's /proc/<pid>/cmdline) is unacceptable.
-#
-#   type:
-#       Skip paste entirely; type every field. Useful for MT4 (where
-#       paste has not been empirically validated) and for diagnosing
-#       a paste-specific regression. Tunable per-pod via
-#       `kubectl set env` without rebuilding the image.
+# Phase 3 per-field input strategy: paste_then_type (default; paste
+# first, fall back to xdotool type), paste (paste only), or type
+# (type only). Tunable per-pod via `kubectl set env`.
 AUTO_LOGIN_INPUT_STRATEGY="${AUTO_LOGIN_INPUT_STRATEGY:-paste_then_type}"
 
-AUTO_LOGIN_TOTAL_BUDGET_SECS="${AUTO_LOGIN_TOTAL_BUDGET_SECS:-240}"
+# Overall driver budget. Covers worst-case first boot: Phase 1-2
+# (~60s) + Phase 3 (~10s) + login-auth gate (up to 120s; real Exness
+# handshake measured at 87s) + Phase 5 settle (up to 60s, early-exits)
+# + Phase 5 attempt 1 (chart-window-wait 20s + bind-wait 30s). ~305s
+# baseline; 420s gives headroom. Stays under the startupProbe budget
+# (620s) and the engine readiness timeout (600s) so the driver always
+# completes before those outer gates fire. The hard-kill fires at
+# 420 + AUTO_LOGIN_HARD_KILL_GRACE_SECS. Subsequent boots use
+# accounts.dat and finish in ~20-30s.
+AUTO_LOGIN_TOTAL_BUDGET_SECS="${AUTO_LOGIN_TOTAL_BUDGET_SECS:-420}"
 AUTO_LOGIN_DIALOG_WAIT_SECS="${AUTO_LOGIN_DIALOG_WAIT_SECS:-120}"
 AUTO_LOGIN_PROCESS_WAIT_SECS="${AUTO_LOGIN_PROCESS_WAIT_SECS:-60}"
 AUTO_LOGIN_FOLLOWUP_DISMISS_SECS="${AUTO_LOGIN_FOLLOWUP_DISMISS_SECS:-60}"
@@ -231,8 +150,11 @@ AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an 
 #   pre-staged config, MT5 will never prompt and Phase 2c must
 #   invoke File -> Login to Trade Account explicitly.
 # AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS: per-attempt wait for the
-#   Login dialog after a Phase 2c invocation (hotkey or menu). Used
-#   twice -- once after Ctrl+Shift+L, once after Alt+F menu fallback.
+#   Login dialog after a Phase 2c invocation (mnemonic or menu). Used
+#   per attempt -- after the Alt+F,L mnemonic and after each Alt+F
+#   arrow-navigation fallback. (An earlier design polled after a
+#   Ctrl+Shift+L hotkey; that accelerator does not exist on MT5 build
+#   5836 and was removed -- see the Phase 2c evidence-basis note below.)
 # AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX: WM_NAME pattern for the MT main
 #   UI window. Build 5836 emits TWO distinct shapes that BOTH must be
 #   matched by this regex:
@@ -257,6 +179,22 @@ AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an 
 AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS="${AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS:-30}"
 AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS="${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS:-15}"
 AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(MetaTrader [45] - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging))}"
+# Optional operator override for the journal login-confirmation regex.
+# Leave EMPTY (default) to let _drv_login_authenticated() build a
+# login-id-keyed pattern at call time (MT_LOGIN is not yet populated
+# here - it is loaded from Vault later in the script). Set a non-empty
+# value only to force a specific pattern for an unforeseen broker
+# journal format; it is then used verbatim.
+AUTO_LOGIN_JOURNAL_AUTH_REGEX="${AUTO_LOGIN_JOURNAL_AUTH_REGEX:-}"
+# Budget for the post-submit broker-handshake wait. The Login dialog
+# closing does NOT mean the broker accepted the credentials; MT5
+# probes server pools (often failing on wrong pools first) and only
+# then writes the authorize line. The operator's real Exness journal
+# showed ~87s between the first failed pool attempt and the successful
+# authorize, so 120s gives ~38% headroom while keeping worst-case
+# driver time (~60-90s to submit + 120s wait) within
+# AUTO_LOGIN_TOTAL_BUDGET_SECS=420.
+AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS="${AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS:-120}"
 # Wall-clock ceiling on a single xdotool invocation. xdotool's `search
 # --onlyvisible --name <re>` and `windowactivate --sync` calls can
 # block indefinitely against Wine override-redirect modal windows
@@ -298,64 +236,17 @@ _drv_log() { log "INFO" "auto_login: $*"; }
 _drv_warn() { log "WARN" "auto_login: $*"; }
 _drv_err() { log "ERROR" "auto_login: $*"; }
 
-# _xdo wraps every xdotool invocation in `timeout`. coreutils
-# `timeout` is part of the base Ubuntu 24.04 image (verified at build
-# time; no Dockerfile change needed). Exit semantics:
-#   - 0       : xdotool ran and returned 0 (happy path).
-#   - 1       : xdotool ran and returned non-zero (e.g. no window
-#               matched the search regex). Caller treats as a no-op.
-#   - 124     : timeout fired before xdotool exited (the wedge case
-#               this helper exists to defend against). Caller treats
-#               as a no-op so the driver advances to its next step.
-#   - 125-127 : timeout itself failed (e.g. xdotool binary missing).
-#               Same no-op treatment — the driver continues so a
-#               cluster-wide xdotool regression cannot wedge the
-#               supervisor.
-# Callers retain the historical `2>/dev/null || true` postfix so the
-# pipefail-aware `set -e` shell behaviour does not abort on a timeout
-# exit. Stderr from xdotool is discarded by the caller; logs are
-# emitted by the driver helpers, not by xdotool itself.
+# Wrap every xdotool call in `timeout` so a wedged X interaction
+# (Wine modal whose WM_NAME atom never stabilises) cannot hang the
+# driver. Any non-zero exit (including timeout 124) is treated by
+# callers as a no-op via their `2>/dev/null || true` postfix.
 _xdo() {
   timeout "${AUTO_LOGIN_XDOTOOL_TIMEOUT_SECS}" xdotool "$@"
 }
 
-# _drv_paste_into_focused_field: deliver a credential value to the
-# currently-focused MT5 dialog field via the X CLIPBOARD selection +
-# Ctrl+V (Win32 WM_PASTE).
-#
-# This is the deterministic alternative to `xdotool type --` for
-# Wine-translated Win32 input. Empirical evidence (2026-06-24 08:52
-# staging screenshot) showed `xdotool type` dropping characters at
-# the X-event / Wine-message-pump boundary under load: Login field
-# got 0 chars, Password 3 chars, Server lost trailing char. Clipboard
-# paste delivers the value atomically via a single WM_PASTE message;
-# no per-character pipeline, no drops possible.
-#
-# Contract:
-#   * $1 = field label for logging (never logs the value itself).
-#   * stdin = the literal byte sequence to paste.
-#   * Caller MUST already have Tab'd to the target field. This helper
-#     does not move focus; it only clears + pastes.
-#
-# Steps:
-#   1. Ctrl+A + Delete to guarantee empty field (closes the case where
-#      a focus race left MT5's default text in the field).
-#   2. Pipe stdin to xclip with --loops 1. xclip serves exactly one
-#      paste consumer, then exits, so the selection lives only until
-#      Ctrl+V consumes it (~50ms).
-#   3. timeout AUTO_LOGIN_CLIPBOARD_TIMEOUT_SECS bounds the call.
-#   4. LC_ALL=C on the subshell so non-ASCII bytes are byte-preserved
-#      (no locale-specific UTF-8 re-encoding).
-#   5. Send Ctrl+V via _xdo so it inherits the existing per-call
-#      timeout.
-#   6. Settle for AUTO_LOGIN_FIELD_SETTLE_SECS so MT5's message pump
-#      consumes the WM_PASTE before the next operation.
-#
-# Security:
-#   * stdin is read by xclip; the value NEVER appears in argv or
-#     /proc/<pid>/cmdline of any process.
-#   * Logs only the label and a derived integer length, never the
-#     content.
+# Deliver a credential to the focused field via X CLIPBOARD + Ctrl+V
+# (atomic WM_PASTE; no per-char drops). Caller must have Tab'd to the
+# field. $1=label (never logs the value); stdin=the literal bytes.
 _drv_paste_into_focused_field() {
   local _label="$1"
   local _bytes_read
@@ -398,26 +289,10 @@ _drv_scrub_clipboard() {
   _drv_log "clipboard scrubbed"
 }
 
-# _drv_type_into_focused_field: deliver a credential value via
-# xdotool type. The fallback path for when clipboard paste fails.
-#
-# Contract:
-#   * $1 = value to type (passed as argv to xdotool).
-#   * $2 = field label for logging (never logs the value).
-#   * Caller MUST already have Tab'd to the target field.
-#
-# Steps:
-#   1. Ctrl+A + Delete to clear the field.
-#   2. xdotool type --clearmodifiers --delay <ms> -- <value>.
-#      The 150ms default per-character delay (commit 1c9cfac1) is the
-#      empirically-tuned baseline for Wine-translated Win32 input.
-#   3. Settle for AUTO_LOGIN_FIELD_SETTLE_SECS.
-#
-# Security:
-#   * The value appears in xdotool's /proc/<pid>/cmdline for the
-#     type duration only (~3.6s on a 24-char password at 150ms/char).
-#   * Only the mt uid (1000) can read other mt-uid processes' /proc.
-#   * Log records the byte length only, never the content.
+# Fallback delivery via xdotool type (per-char, 150ms delay tuned for
+# Wine-translated Win32 input). $1=value (argv), $2=label. The value
+# is briefly visible in xdotool's /proc cmdline (readable only by the
+# mt uid); logs the byte length only.
 _drv_type_into_focused_field() {
   local _value="$1"
   local _label="$2"
@@ -444,27 +319,9 @@ _drv_type_into_focused_field() {
   return 0
 }
 
-# _drv_deliver_credential: deliver a credential value to the
-# currently-focused field using the strategy in
-# AUTO_LOGIN_INPUT_STRATEGY. Single entry point so Phase 3 does not
-# have to repeat the strategy switch for each field.
-#
-# Contract:
-#   * $1 = value bytes (passed as argv; only typing path uses argv).
-#         For paste, the value is also piped via stdin to the paste
-#         helper. Passwords are never logged by either path.
-#   * $2 = field label for logging.
-#
-# Returns 0 on success, 1 on total failure (every configured strategy
-# attempt failed).
-#
-# Strategy semantics:
-#   * paste:           paste only; fail-loud on paste error.
-#   * type:            type only; skip paste.
-#   * paste_then_type: try paste; on failure, fall back to type.
-#                      This is the default and the recommended posture.
-#   * (other):         log WARN and behave as paste_then_type for
-#                      safety; do not refuse the field.
+# Deliver a credential to the focused field using
+# AUTO_LOGIN_INPUT_STRATEGY. $1=value, $2=label. Returns 0 on
+# success, 1 when every configured strategy attempt failed.
 _drv_deliver_credential() {
   local _value="$1"
   local _label="$2"
@@ -560,6 +417,73 @@ _drv_find_login_dialog() {
 
 _drv_find_main_window() {
   _drv_find_window_by_regex "$AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX"
+}
+
+# Authoritative login confirmation from the MT5 journal (Tier 2). The
+# journal is MT5's own record of the broker handshake, far more
+# reliable than the MDI window title. Real Exness journal success
+# lines (login-id keyed):
+#   '<login>': authorized on <server> through ...
+#   '<login>': terminal synchronized with <company> ...
+#   '<login>': trading has been enabled - hedging mode
+# The failure line "'<login>': authorization on <server> failed
+# (Invalid account)" shares none of these tokens, so a rejected login
+# is NOT a match. The effective pattern is built at call time keyed to
+# MT_LOGIN (now populated from Vault); an explicit
+# AUTO_LOGIN_JOURNAL_AUTH_REGEX override, if set, wins verbatim.
+# Echoes the matched line on success (return 0).
+_drv_login_authenticated() {
+  local _journal _match _regex
+  if [ -n "${AUTO_LOGIN_JOURNAL_AUTH_REGEX:-}" ]; then
+    _regex="$AUTO_LOGIN_JOURNAL_AUTH_REGEX"
+  else
+    _regex="'${MT_LOGIN}': (authorized on |terminal synchronized with |trading has been enabled)"
+  fi
+  _journal=$(ls -t "$MT_DIR/logs/"*.log 2>/dev/null | head -n1 || true)
+  [ -n "$_journal" ] || return 1
+  _match=$(tr -d '\000' < "$_journal" 2>/dev/null \
+    | grep -aE "$_regex" \
+    | tail -n1 || true)
+  if [ -n "$_match" ]; then
+    printf '%s' "$_match"
+    return 0
+  fi
+  return 1
+}
+
+# Supplementary human-diagnostic only: returns the current active
+# window title (e.g. '<login> -   - Netting'). NOT used as a gate.
+_drv_active_title() {
+  local _w
+  _w=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "")
+  [ -n "$_w" ] && DISPLAY=:99 _xdo getwindowname "$_w" 2>/dev/null || true
+}
+
+# Poll the journal for a broker connect/authorize line up to
+# AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS. Echoes the matched journal line on
+# success (return 0); returns 1 on timeout. Logs the journal tail and
+# the live MDI title each second so the exact handshake moment and any
+# broker-side rejection are observable in the driver log.
+_drv_wait_for_login_auth() {
+  local _budget="$1"
+  local _waited=0 _line _title
+  while [ "$_waited" -lt "$_budget" ]; do
+    _line=$(_drv_login_authenticated)
+    if [ -n "$_line" ]; then
+      _drv_log "login confirmed via journal at +${_waited}s: ${_line}"
+      printf '%s' "$_line"
+      return 0
+    fi
+    if ! _drv_mt_proc_alive; then
+      _drv_warn "terminal process exited during login-auth wait at +${_waited}s"
+      return 1
+    fi
+    _title=$(_drv_active_title)
+    _drv_log "login-auth wait +${_waited}s: active title='${_title}' (awaiting broker connect/authorize line in journal)"
+    sleep 1
+    _waited=$(( _waited + 1 ))
+  done
+  return 1
 }
 
 # _drv_clear_modals_for_main_window: aggressively dismiss any open modals
@@ -727,7 +651,17 @@ _drv_wait_for_dialog() {
 #   kubectl -n etradie-system set env statefulset/<release> -c mt-node \
 #     AUTO_LOGIN_PHASE5_ENABLED=1
 # without an image rebuild. The default is 0.
-AUTO_LOGIN_PHASE5_ENABLED="${AUTO_LOGIN_PHASE5_ENABLED:-0}"
+# Chart-attach is REQUIRED for the EA to load: the ZeroMQ_EA binds
+# tcp://*:5555 in OnInit(), and OnInit runs only when the EA is
+# attached to a chart. Branded MT5 auto-opens its OWN bundled
+# workspace charts after login, but those use the broker's per-chart
+# templates, not Profiles/Templates/expert.tpl, so our EA is never
+# attached by that path. This cascade opens a chart and lets MT5
+# apply expert.tpl (which names ZeroMQ_EA). It runs ONLY after the
+# login-success gate confirmed the broker handshake, so it can no
+# longer race a still-initialising terminal. Set to 0 only to
+# diagnose an unrelated regression without an image rebuild.
+AUTO_LOGIN_PHASE5_ENABLED="${AUTO_LOGIN_PHASE5_ENABLED:-1}"
 # Upper bound only: the settle loop early-exits the instant a
 # deterministic readiness signal fires (see
 # _drv_phase5_mql5_logs_present / _drv_phase5_welcome_modal_seen below).
@@ -742,6 +676,13 @@ AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_SECS="${AUTO_LOGIN_PHASE5_CHART_WINDOW_WAIT_
 AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX="${AUTO_LOGIN_PHASE5_CHART_WINDOW_TITLE_REGEX:-^[A-Za-z0-9._#@!^+\-]+,[A-Za-z][0-9]+}"
 AUTO_LOGIN_PHASE5_BIND_WAIT_SECS="${AUTO_LOGIN_PHASE5_BIND_WAIT_SECS:-30}"
 AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS="${AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS:-5}"
+# Deterministic-attach wait. After login is confirmed and the bundle's
+# Profiles/Default workspace has been stripped on overlay, MT5 should
+# cold-boot a fresh chart from startup.ini [Charts] Template=expert and
+# the EA should bind :5555 on its own with NO keystrokes. Poll :5555
+# for this long before falling back to the Phase 5 keystroke cascade.
+# 60s covers MT5's post-login chart open + EA OnInit on a fresh prefix.
+AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS="${AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS:-60}"
 # Budget guard: how much of the AUTO_LOGIN_TOTAL_BUDGET_SECS must be
 # reserved for Phase 4's poll-for-remainder loop. When the total
 # budget is about to be exhausted, Phase 5 skips remaining attempts
@@ -832,6 +773,197 @@ _drv_phase5_welcome_modal_seen() {
     Welcome\ to\ LiveUpdate*) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+# ── Bundle Config-dir case resolver ───────────────────────────────
+# The broker bundles are baked on case-INSENSITIVE Windows. On the
+# case-SENSITIVE Linux/ext4 PVC the baked config directory may be
+# 'Config' (exness mt5), 'config' (exness mt4), or BOTH as two
+# distinct directories (deriv mt5). MT5/MT4 on Wine read whichever
+# their build opens; our entrypoint must write startup.ini /
+# terminal.ini into THAT directory or they are silently ignored.
+#
+# Resolve a single canonical config dir for $1 (the branded MT root):
+#   * If only one case exists, echo it.
+#   * If BOTH exist, canonicalize on 'Config' (the case the live MT5
+#     builds in these bundles use): migrate any files unique to the
+#     lowercase 'config' into 'Config', then remove the lowercase
+#     duplicate so MT's read path is deterministic. Echo 'Config'.
+#   * If neither exists, create 'Config' and echo it.
+# Echoes the ABSOLUTE path on stdout. Idempotent.
+_resolve_mt_config_dir() {
+  local _root="$1"
+  local _cap="$_root/Config"
+  local _low="$_root/config"
+  if [ -d "$_cap" ] && [ -d "$_low" ]; then
+    # Merge lowercase -> Config (do not clobber existing Config files),
+    # then drop the duplicate so precedence is unambiguous.
+    cp -an "$_low/." "$_cap/" 2>/dev/null || true
+    rm -rf "$_low" 2>/dev/null || true
+    printf '%s' "$_cap"
+    return 0
+  fi
+  if [ -d "$_low" ]; then
+    printf '%s' "$_low"
+    return 0
+  fi
+  # Default (only Config, or neither): use/create Config.
+  mkdir -p "$_cap" 2>/dev/null || true
+  printf '%s' "$_cap"
+}
+
+# ── Bundle overlay normalizer ─────────────────────────────────────
+# Neutralizes the baked broker state that blocks deterministic EA
+# attach. See the call site (inside the _overlay_needed block) for
+# the full rationale (classes A/B/C). $1=branded MT root, $2=platform
+# ('mt4'|'mt5'). Idempotent; safe to re-run.
+_normalize_overlay() {
+  local _root="$1"
+  local _plat="$2"
+  local _cfg _common _ai
+
+  # (A) Strip the saved chart WORKSPACE so MT cold-boots a fresh
+  #     chart that startup.ini Template=expert applies our EA to.
+  #     Both the legacy <root>/Profiles/Charts and the live
+  #     MQL5/Profiles/Charts copies are removed on MT5; MT4 uses a
+  #     lowercase profiles/ tree with per-profile chart dirs +
+  #     lastprofile.ini. Templates/ and SymbolSets/ are preserved.
+  if [ "$_plat" = "mt4" ]; then
+    if [ -d "$_root/profiles" ]; then
+      log INFO "overlay-normalize(mt4): stripping baked profiles/* chart workspace (keeping nothing under profiles/; MT4 recreates a default profile on cold boot)"
+      # MT4 stores each profile as profiles/<name>/chartNN.chr plus
+      # profiles/lastprofile.ini. Remove every profile dir AND
+      # lastprofile.ini so no saved workspace is restored.
+      find "$_root/profiles" -mindepth 1 -maxdepth 1 \( -type d -o -name 'lastprofile.ini' \) \
+        -exec rm -rf {} + 2>/dev/null || true
+    fi
+  else
+    if [ -d "$_root/Profiles/Charts" ]; then
+      log INFO "overlay-normalize(mt5): stripping baked Profiles/Charts workspace"
+      rm -rf "$_root/Profiles/Charts" 2>/dev/null || true
+    fi
+    if [ -d "$_root/MQL5/Profiles/Charts" ]; then
+      log INFO "overlay-normalize(mt5): stripping baked MQL5/Profiles/Charts workspace"
+      rm -rf "$_root/MQL5/Profiles/Charts" 2>/dev/null || true
+    fi
+  fi
+
+  # Resolve the canonical config dir ONCE (also de-dups Deriv's
+  # Config+config). Export it so the later startup.ini / terminal.ini
+  # / journal logic uses the same directory MT actually reads.
+  _cfg=$(_resolve_mt_config_dir "$_root")
+  MT_CONFIG_DIR="$_cfg"
+  export MT_CONFIG_DIR
+  log INFO "overlay-normalize: canonical config dir resolved to '${MT_CONFIG_DIR}'"
+
+  # (B) MT5 only: neutralize common.ini. It holds ONLY the bundle
+  #     builder's FOREIGN account ([Common] Login/Server/Environment)
+  #     and saved UI/profile state ([Charts] ProfileLast=Default +
+  #     PreloadCharts=1, which forces a profile restore that makes MT5
+  #     ignore startup.ini Template=expert). A fresh MT5 install has no
+  #     common.ini and creates it on first run, so DELETING the baked
+  #     one returns the file to its fresh-install state: nothing to
+  #     mis-parse, no foreign account or saved profile to restore. We
+  #     delete rather than text-rewrite because the file is UTF-16LE
+  #     and an encoding-changing rewrite is an unverified assumption.
+  #     Our per-tenant session comes from startup.ini [Common] +
+  #     auto_login_driver(); MT5 re-creates common.ini after first
+  #     login and the PVC persists it.
+  if [ "$_plat" != "mt4" ]; then
+    _common="$MT_CONFIG_DIR/common.ini"
+    if [ -f "$_common" ]; then
+      log INFO "overlay-normalize(mt5): removing baked common.ini (foreign account + ProfileLast/PreloadCharts profile-restore; MT5 recreates it from our startup.ini after first login)"
+      rm -f "$_common" 2>/dev/null || true
+    fi
+  fi
+
+  # (C) Delete the baked saved-account cache so the per-tenant Vault
+  #     creds are the ONLY login path. MT5 -> accounts.dat (re-created
+  #     after first login). MT4 -> accounts.ini (encrypted; cannot be
+  #     safely edited, so delete; MT4 recreates it after login).
+  if [ "$_plat" = "mt4" ]; then
+    _ai="$MT_CONFIG_DIR/accounts.ini"
+    if [ -f "$_ai" ]; then
+      log INFO "overlay-normalize(mt4): removing baked accounts.ini (foreign account; MT4 recreates after auto-login)"
+      rm -f "$_ai" 2>/dev/null || true
+    fi
+  else
+    if [ -f "$MT_CONFIG_DIR/accounts.dat" ]; then
+      log INFO "overlay-normalize(mt5): removing baked accounts.dat (foreign account; MT5 recreates after auto-login)"
+      rm -f "$MT_CONFIG_DIR/accounts.dat" 2>/dev/null || true
+    fi
+  fi
+
+  # Deterministic success status. entrypoint.sh runs under `set -e`
+  # and this function is invoked as a bare statement; without an
+  # explicit return, a trailing `[ -f ... ]` test that evaluates
+  # false (e.g. no baked accounts cache) would return non-zero and
+  # abort the entrypoint. All cleanup above is best-effort by design.
+  return 0
+}
+
+# ── Chart-attach evidence helpers (MQL5/Logs grep) ────────────────
+# EA bind happens ONLY after chart-open -> EA-attach -> OnInit ->
+# g_socket.bind(). These helpers read the EA's own Experts-tab log
+# (MQL5/Logs/<date>.log for MT5, MQL4/Logs/<date>.log for MT4) so the
+# keystroke-fallback decision branches on the ACTUAL chart/EA state,
+# not on the coarse 'is :5555 LISTEN?' symptom. A missing bind can
+# mean (a) no chart/EA yet [keystrokes help], (b) chart+EA attached
+# but OnInit still running [keep waiting], or (c) chart+EA attached
+# but bind FAILED [keystrokes are harmful: the EA's duplicate-instance
+# guard would reject a second attach]. Only (a) is a keystroke case.
+#
+# The grep patterns are anchored to the EA's literal Print() strings
+# from src/engine/ta/broker/mt5/zmq/ZeroMQ_EA.mq5 and the terminal's
+# own Experts-tab line, both verified against a real MT5 build 5833
+# journal capture:
+#   S1 attach:      'expert ZeroMQ_EA (EURUSDm,H1) loaded successfully'
+#   S2 bind ok:     '... [ZMQ_EA] ... === eTradie ZeroMQ Bridge Started ==='
+#   S2 bind fail:   '... [ZMQ_EA] ... FATAL: Failed to bind to tcp://*:5555'
+#                   '... [ZMQ_EA] ... Duplicate EA instance on port 5555 ...'
+# All reads strip the UTF-16 NUL bytes the MT5 log writer emits.
+_drv_mql5_logs_dir() {
+  if [ "${MT_PLATFORM:-mt5}" = "mt4" ]; then
+    printf '%s' "$MT_DIR/MQL4/Logs"
+  else
+    printf '%s' "$MT_DIR/MQL5/Logs"
+  fi
+}
+
+# _drv_grep_mql5_logs: grep -aE the given ERE across the newest MQL5/
+# MQL4 log file (NUL-stripped). Returns 0 on a match. Newest file
+# only: the EA rewrites a fresh daily log per boot, and matching the
+# newest avoids a stale match from a previous PVC boot's log.
+_drv_grep_mql5_logs() {
+  local _re="$1"
+  local _dir _log
+  _dir=$(_drv_mql5_logs_dir)
+  _log=$(ls -t "$_dir"/*.log 2>/dev/null | head -n1 || true)
+  [ -n "$_log" ] || return 1
+  tr -d '\000' < "$_log" 2>/dev/null | grep -aqE "$_re"
+}
+
+# S1: a chart was opened AND the EA was attached to it. The terminal
+# writes this Experts-tab line the instant the EA loads onto a chart,
+# BEFORE OnInit's bind result is known.
+_drv_chart_ea_attached() {
+  _drv_grep_mql5_logs 'expert[[:space:]]+ZeroMQ_EA[[:space:]]*\(.*\)[[:space:]]+loaded successfully'
+}
+
+# S2: OnInit ran and g_socket.bind() SUCCEEDED (the EA prints the
+# startup banner only on the bind-success path). Redundant safety
+# signal alongside the authoritative _drv_zmq_bound port check.
+_drv_ea_bind_succeeded() {
+  _drv_grep_mql5_logs '\[ZMQ_EA\].*(=== eTradie ZeroMQ Bridge Started ===|Endpoint: tcp://\*:)'
+}
+
+# S2-fail: OnInit ran but g_socket.bind() FAILED, or the duplicate-
+# instance guard rejected the attach. Either way a fresh chart-open
+# via keystrokes cannot fix it and would stack a second EA into the
+# same guard. The operator-facing remedy is DLL/AutoTrading config or
+# a clean restart, not another chart.
+_drv_ea_bind_failed() {
+  _drv_grep_mql5_logs '\[ZMQ_EA\].*(FATAL: Failed to bind|Duplicate EA instance on port)'
 }
 
 # _drv_wait_for_chart_window: poll _drv_find_chart_window until
@@ -1114,6 +1246,19 @@ _drv_phase5_chart_attach() {
       _drv_log "phase5: :5555 LISTEN at +${_waited}s during post-login settle; skipping chart-attach"
       return 0
     fi
+    # Higher-priority than the readiness signal below: if a chart+EA is
+    # ALREADY attached (S1) we must NOT keystroke, because opening a
+    # second chart would attach a second EA that the EA's own
+    # duplicate-instance guard rejects with INIT_FAILED. The bind is
+    # either still in progress (OnInit) or has failed; either way the
+    # correct action is to yield to the Phase 4 poll, which keeps
+    # watching :5555 for the remaining budget. Returning 1 (not 0)
+    # signals 'chart-attach not completed here' so the caller's Phase 4
+    # loop owns the final bind verdict.
+    if _drv_chart_ea_attached; then
+      _drv_warn "phase5: chart+EA already attached at +${_waited}s during settle (no :5555 yet); NOT keystroking (would double-attach into the EA duplicate-instance guard); yielding to Phase 4 poll"
+      return 1
+    fi
     if _drv_phase5_mql5_logs_present; then
       _exit_reason="MQL5/Logs present"
       break
@@ -1223,6 +1368,7 @@ auto_login_driver() {
   local start_ts now elapsed wid wid_first dialog_seen=0 bind_until dismiss_until fwid w wname
   local main_wid="" phase2a_deadline phase2c_attempted=0
   local hard_kill_pid="" hard_kill_budget driver_pid
+  local _det_waited=0
   start_ts=$(date +%s)
 
   _drv_log "start (budget=${AUTO_LOGIN_TOTAL_BUDGET_SECS}s, login=${MT_LOGIN}, server=${MT_SERVER})"
@@ -1446,32 +1592,99 @@ auto_login_driver() {
     # lingers in the buffer after Phase 3.
     _drv_scrub_clipboard
 
-    # Phase 5 (chart-attach via menu-driven File -> New Chart).
-    # On build 5836 + /portable + fresh Wine prefix, MT5 does NOT
-    # open a chart on its own after login; without a chart the
-    # startup.ini-pinned 'Template=expert' directive has nowhere to
-    # apply, the EA never loads, and :5555 never binds. Phase 5
-    # uses Alt+F + menu navigation (the same mechanism Phase 2c uses
-    # for Login to Trade Account) to open a chart on the broker-
-    # default Market Watch symbol; MT5 then auto-applies expert.tpl,
-    # the EA OnInit runs, and the EA binds :5555.
-    #
-    # Best-effort: any Phase 5 failure logs WARN and falls through to
-    # Phase 4 (poll :5555 for the remaining budget). A broker that
-    # happens to auto-open a chart on login is still serviced by the
-    # Phase 4 poll.
-    #
-    # Re-resolve main_wid here because Phase 2a may have populated
-    # wid_first without main_wid (the dialog-first path). On the
-    # Phase 2c path main_wid is already set.
-    if [ -z "${main_wid:-}" ]; then
-      main_wid=$(_drv_find_main_window) || true
-    fi
-    if _drv_phase5_chart_attach "$main_wid" "$start_ts"; then
-      _drv_log "phase5: chart-attach succeeded; :5555 bound; exit success"
-      return 0
+    # Login-success gate. Submitting the dialog does NOT mean the
+    # broker authenticated the session. Confirm via the MT5 journal's
+    # broker authorize/connect line before proceeding. The
+    # accounts.dat fast path (:5555 already bound) short-circuits it.
+    if _drv_zmq_bound; then
+      _drv_log "login gate: :5555 already LISTEN (accounts.dat fast path); skipping journal wait"
+    elif _drv_wait_for_login_auth "$AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS" >/dev/null; then
+      _drv_log "login gate: broker authentication confirmed; proceeding to chart-attach"
     else
-      _drv_log "phase5: chart-attach did not bind :5555; continuing to Phase 4 follow-up poll for remaining budget"
+      _drv_err "login gate: broker authentication NOT confirmed within ${AUTO_LOGIN_LOGIN_AUTH_WAIT_SECS}s (no broker connect/authorize line in the MT5 journal). Credentials may be wrong, the server name may not resolve against servers.dat, or the access-server handshake failed. Exiting so the supervisor respawns."
+      return 1
+    fi
+
+    # PRIMARY chart-attach (deterministic, GUI-free). With the bundle's
+    # Profiles/Default workspace stripped on overlay, MT5 cold-boots a
+    # fresh chart from startup.ini [Charts] Template=expert, attaches
+    # ZeroMQ_EA, and OnInit binds :5555 with no keystrokes.
+    #
+    # The fallback decision is EVIDENCE-BASED, not a bare port-bind
+    # timeout. EA bind happens only after chart-open -> EA-attach ->
+    # OnInit -> g_socket.bind(), so a missing :5555 within the wait can
+    # mean three different things, only one of which keystrokes fix:
+    #   (a) no chart/EA attached yet          -> keystrokes help
+    #   (b) chart+EA attached, OnInit running  -> keep waiting
+    #   (c) chart+EA attached, bind FAILED     -> keystrokes HARMFUL
+    #       (the EA's duplicate-instance guard rejects a 2nd attach)
+    # Each poll classifies the state from the EA's own MQL5/Logs lines
+    # and the /proc/net/tcp LISTEN check, and only escalates to the
+    # keystroke fallback when there is genuinely no chart+EA AND no
+    # bind by the end of the wait.
+    _det_waited=0
+    while [ "$_det_waited" -lt "$AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS" ]; do
+      # Authoritative success: the EA's REP socket is LISTENing. The
+      # bind-success log line is a redundant confirmation for slow
+      # /proc visibility windows.
+      if _drv_zmq_bound; then
+        _drv_log "deterministic attach: :5555 LISTEN at +${_det_waited}s (startup.ini Template=expert applied to fresh chart); exit success"
+        return 0
+      fi
+      if _drv_ea_bind_succeeded && _drv_zmq_bound; then
+        _drv_log "deterministic attach: EA reported bind success at +${_det_waited}s and :5555 LISTEN; exit success"
+        return 0
+      fi
+      # State (c): chart+EA attached but OnInit's bind FAILED. A second
+      # chart-open would stack a second EA into the same duplicate-
+      # instance guard (INIT_FAILED). Do NOT keystroke; surface the
+      # real cause and let the supervisor respawn cleanly.
+      if _drv_ea_bind_failed; then
+        _drv_err "deterministic attach: EA attached to a chart but OnInit bind FAILED at +${_det_waited}s (MQL5/Logs shows 'FATAL: Failed to bind' or 'Duplicate EA instance on port'). A keystroke chart-open would stack a SECOND EA into the same duplicate-instance guard, so the keystroke fallback is intentionally skipped. Likely cause: a prior EA still holds :5555, DLL imports / automated trading disabled, or libzmq.dll failed to load. Exiting so the supervisor respawns MT5 with a clean prefix."
+        return 1
+      fi
+      if ! _drv_mt_proc_alive; then
+        _drv_warn "deterministic attach: terminal exited at +${_det_waited}s; exiting (supervisor will respawn)"
+        return 1
+      fi
+      # State (b): chart+EA attached, OnInit still running. Observed
+      # ~10s between the 'loaded successfully' line and the EA's bind
+      # banner on a real MT5 build 5833 capture, so this is the
+      # expected healthy-but-slow path. Keep waiting; do NOT escalate.
+      if _drv_chart_ea_attached; then
+        _drv_log "deterministic attach: chart+EA attached at +${_det_waited}s, OnInit still binding (no :5555 yet); waiting (NOT escalating to keystrokes)"
+      fi
+      sleep 2
+      _det_waited=$(( _det_waited + 2 ))
+    done
+
+    # Wait elapsed without a bind. Classify ONE more time to decide
+    # whether the keystroke fallback is appropriate.
+    if _drv_ea_bind_failed; then
+      _drv_err "deterministic attach: bind FAILED (see MQL5/Logs); skipping keystroke fallback to avoid a duplicate-instance double-attach; exiting for a clean respawn"
+      return 1
+    fi
+    if _drv_chart_ea_attached; then
+      _drv_warn "deterministic attach: chart+EA attached but :5555 not bound within ${AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS}s and no explicit bind-failure line. The chart-open keystroke fallback cannot help (a chart+EA already exists); yielding to the Phase 4 poll for the remaining budget in case OnInit binds late."
+    else
+      _drv_warn "deterministic attach: NO chart+EA attached and :5555 not bound within ${AUTO_LOGIN_DETERMINISTIC_BIND_WAIT_SECS}s; engaging keystroke chart-attach fallback (genuine no-chart state)"
+      # FALLBACK chart-attach (xdotool keystroke cascade). Only reached
+      # when there is genuinely no chart+EA attached. Re-resolve
+      # main_wid for the Phase 2a path.
+      if [ -z "${main_wid:-}" ]; then
+        main_wid=$(_drv_find_main_window) || true
+      fi
+      # Final guard against a race: a chart+EA may have attached in the
+      # interval between the check above and here. Re-check so the
+      # cascade never double-attaches.
+      if _drv_chart_ea_attached; then
+        _drv_log "phase5 fallback: chart+EA attached just before cascade dispatch; skipping keystrokes and yielding to Phase 4 poll"
+      elif _drv_phase5_chart_attach "$main_wid" "$start_ts"; then
+        _drv_log "phase5 fallback: chart-attach succeeded; :5555 bound; exit success"
+        return 0
+      else
+        _drv_log "phase5 fallback: chart-attach did not bind :5555; continuing to Phase 4 follow-up poll for remaining budget"
+      fi
     fi
   fi
 
@@ -1727,7 +1940,12 @@ if [ "$MT_PLATFORM" = "mt4" ]; then
   EA_DEPS_LIBZMQ_DST_REL="MQL4/Libraries/libzmq.dll"
   EA_DEPS_INCLUDE_DST_REL="MQL4/Include"
   SET_REL_DST="MQL4/Profiles/Templates/ZeroMQ_EA.set"
-  TPL_REL_DST="templates/expert.tpl"
+  # Primary template path: co-located with ZeroMQ_EA.set so MT4 loads
+  # the <expert> inputs from the same directory. TPL_REL_DST_ALT is
+  # the legacy root-level location, written as a mirror so whichever
+  # tree the build reads, expert.tpl is present.
+  TPL_REL_DST="MQL4/Profiles/Templates/expert.tpl"
+  TPL_REL_DST_ALT="templates/expert.tpl"
   MT_PROGRAM_FILES_PARENT="$WINE_PREFIX/drive_c/Program Files (x86)"
 else
   MT_DIR="$WINE_PREFIX/drive_c/Program Files/MetaTrader 5"
@@ -1738,7 +1956,13 @@ else
   EA_DEPS_LIBZMQ_DST_REL="MQL5/Libraries/libzmq.dll"
   EA_DEPS_INCLUDE_DST_REL="MQL5/Include"
   SET_REL_DST="MQL5/Profiles/Templates/ZeroMQ_EA.set"
-  TPL_REL_DST="Profiles/Templates/expert.tpl"
+  # Primary template path: co-located with ZeroMQ_EA.set so MT5 loads
+  # the <expert> inputs from the same directory (the authoritative
+  # read path on build 58xx). TPL_REL_DST_ALT is the legacy root-level
+  # tree the bundles also ship; written as a mirror so whichever tree
+  # the build reads, expert.tpl is present.
+  TPL_REL_DST="MQL5/Profiles/Templates/expert.tpl"
+  TPL_REL_DST_ALT="Profiles/Templates/expert.tpl"
   MT_PROGRAM_FILES_PARENT="$WINE_PREFIX/drive_c/Program Files"
 fi
 
@@ -2088,6 +2312,49 @@ if [ "$_overlay_needed" -eq 1 ]; then
   fi
   printf '%s\n' "${BUNDLE_SHA256:-unknown}" > "$_sentinel_file" 2>/dev/null || true
   log INFO "broker-bundle overlay: complete; sentinel written at '${_sentinel_file}'"
+
+  # ── Overlay normalizer (deterministic chart-attach prerequisites) ──
+  #
+  # The pre-baked broker bundles are built on case-INSENSITIVE Windows
+  # and ship state that actively BLOCKS our deterministic EA attach on
+  # case-SENSITIVE Linux/Wine. Verified against the three sha-matched
+  # catalog bundles (exness mt5, deriv mt5, exness mt4). Three classes
+  # of baked state must be neutralized, ONCE, on (re-)overlay only
+  # (sentinel-gated), so MT5's OWN saved profile + accounts cache on
+  # subsequent boots over the same PVC are preserved:
+  #
+  #   (A) Saved chart WORKSPACE. The bundles do NOT ship Profiles/
+  #       Default; the real workspace is Profiles/Charts/* AND
+  #       MQL5/Profiles/Charts/* (MT5) or profiles/* + lastprofile.ini
+  #       (MT4). While a saved profile exists, MT5 restores it and
+  #       IGNORES startup.ini [Charts] Template=expert, so our EA never
+  #       attaches. Removing the chart workspace forces MT5 to cold-
+  #       boot a fresh chart that Template=expert applies expert.tpl
+  #       to (naming ZeroMQ_EA), OnInit runs, :5555 binds -- no GUI
+  #       automation. Templates/ + SymbolSets/ are KEPT.
+  #
+  #   (B) common.ini profile-restore + FOREIGN account (MT5 only).
+  #       Both MT5 bundles ship [Charts] ProfileLast=Default +
+  #       PreloadCharts=1 (forces profile restore) and a third-party
+  #       [Common] Login=/Server=/Environment= (the bundle builder's
+  #       own account). Left in place MT5 would auto-restore a foreign
+  #       session and race our Vault-sourced auto-login. We blank
+  #       ProfileLast, set PreloadCharts=0, and strip the foreign
+  #       Login/Server/Environment.
+  #
+  #   (C) Saved-account cache. MT5 ships Config/accounts.dat; MT4
+  #       ships the encrypted Config/accounts.ini. Both carry the
+  #       foreign account. We DELETE them so the only login path is
+  #       auto_login_driver() with the per-tenant Vault creds. MT5
+  #       re-creates accounts.dat itself after the first successful
+  #       login (the driver ticks 'Save account information') and the
+  #       PVC persists it, so the subsequent-boot fast path is intact.
+  #
+  # MT_CONFIG_DIR (resolved below, BEFORE this block uses it) is the
+  # single canonical Config directory; on Deriv (which ships BOTH
+  # 'Config' and 'config') it is de-duplicated so MT5's read path is
+  # deterministic.
+  _normalize_overlay "$MT_DIR" "$MT_PLATFORM"
 fi
 
 # Step 5: assert the branded terminal is now in place and grab its
@@ -2103,13 +2370,27 @@ log INFO "broker-bundle overlay summary: branded_terminal='${MT_DIR}/${MT_EXE}',
 
 unset _bundle_top_level _bundle_exe_name _bundle_exe_finds _bundle_exe_count _bundle_exe _bundle_root _bundle_root_name _sentinel_dir _sentinel_file _overlay_needed _terminal_size _terminal_sha _line
 
+# Ensure MT_CONFIG_DIR is set on EVERY boot path. The normalizer sets
+# + exports it on the overlay path; on the overlay-SKIPPED subsequent-
+# boot path (sentinel matched) it is still unset here, so resolve it
+# now against the existing on-disk layout (also de-dups a stray
+# Config/config pair if a prior boot left one). All later config /
+# journal writes derive from this so they land in the directory MT
+# actually reads (case-correct on Linux/Wine).
+if [ -z "${MT_CONFIG_DIR:-}" ]; then
+  MT_CONFIG_DIR=$(_resolve_mt_config_dir "$MT_DIR")
+  export MT_CONFIG_DIR
+  log INFO "config dir resolved (overlay-skipped path) to '${MT_CONFIG_DIR}'"
+fi
+
 # ── Materialise MT directory layout under the branded root ────────
 mkdir -p "$MT_DIR/$(dirname "$EA_REL_DST")" \
          "$MT_DIR/$(dirname "$SET_REL_DST")" \
          "$MT_DIR/$(dirname "$TPL_REL_DST")" \
+         "$MT_DIR/$(dirname "$TPL_REL_DST_ALT")" \
          "$MT_DIR/$(dirname "$EA_DEPS_LIBZMQ_DST_REL")" \
          "$MT_DIR/$EA_DEPS_INCLUDE_DST_REL" \
-         "$MT_DIR/config"
+         "$MT_CONFIG_DIR"
 
 # ── Copy EA binary + dependencies (AFTER bundle overlay) ──────────
 # The bundle may have shipped empty MQL{4,5}/Experts and MQL{4,5}/
@@ -2175,7 +2456,7 @@ log INFO "EA .set written to $MT_DIR/$SET_REL_DST"
 # default chart and the EA attaches there; the engine resolves the
 # broker-actual symbol via GET_ALL_SYMBOLS and patches MT_SYMBOL,
 # triggering a single rolling restart with the real value.
-INI_FILE="$MT_DIR/config/startup.ini"
+INI_FILE="$MT_CONFIG_DIR/startup.ini"
 if [ "$SYMBOL_RESOLVED" = "true" ]; then
   cat > "$MT_DIR/$TPL_REL_DST" <<EOF
 <chart>
@@ -2186,7 +2467,10 @@ name=ZeroMQ_EA
 </expert>
 </chart>
 EOF
-  log INFO "Chart template written ($MT_SYMBOL)"
+  # Mirror to the legacy template tree so whichever Profiles/Templates
+  # location the build reads, expert.tpl is present and byte-identical.
+  cp -f "$MT_DIR/$TPL_REL_DST" "$MT_DIR/$TPL_REL_DST_ALT" 2>/dev/null || true
+  log INFO "Chart template written to '$TPL_REL_DST' (+ mirror '$TPL_REL_DST_ALT') symbol=$MT_SYMBOL"
 
   cat > "$INI_FILE" <<EOF
 [Common]
@@ -2235,7 +2519,9 @@ name=ZeroMQ_EA
 </expert>
 </chart>
 EOF
-  log INFO "Bootstrap chart template written (no symbol pinned)"
+  # Mirror to the legacy template tree (see symbol-resolved branch).
+  cp -f "$MT_DIR/$TPL_REL_DST" "$MT_DIR/$TPL_REL_DST_ALT" 2>/dev/null || true
+  log INFO "Bootstrap chart template written to '$TPL_REL_DST' (+ mirror '$TPL_REL_DST_ALT'), no symbol pinned"
 
   cat > "$INI_FILE" <<EOF
 [Common]
@@ -2258,53 +2544,41 @@ EOF
 fi
 log INFO "Startup config written to $INI_FILE"
 
-# ── Disable MetaTrader LiveUpdate self-restart loop (defect #15) ──
-# Both MT5 (terminal64.exe) and MT4 (terminal.exe) run LiveUpdate on
-# every cold boot: the terminal contacts MetaQuotes' update servers,
-# downloads a component (e.g. mt5onnx64), and self-restarts to apply
-# (exit 143). The supervised loop then relaunches and re-runs the full
-# recompile + LiveUpdate from scratch -- an infinite, non-convergent
-# loop in which the EA OnInit never runs, MQL Logs is never created,
-# and :5555 never binds, so the pod never reaches Ready.
+# ── LiveUpdate build pin (terminal.ini) ───────────────────────────
+# The only effective LiveUpdate control is the per-tenant
+# NetworkPolicy egress block (chart + provisioner), NOT a config
+# write. The terminal.ini LastBuildDataPath pin below is config-only
+# and harmless.
 #
-# DEAD ENDS -- DO NOT RE-IMPLEMENT (all empirically DISPROVEN on the
-# live cluster, build 5836; see
-# docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md §1.x):
-#   1. [LiveUpdate] LastBuildDataPath pin in terminal.ini  -> IGNORED.
-#   2. hostAliases / DNS sinkhole of download.mql5.com     -> IGNORED
-#      (updater dials MetaQuotes by hardcoded IP, bypassing /etc/hosts).
-#   3. common.ini [Common] Source= empty (+ NewsEnable=0), re-asserted
-#      every boot                                          -> IGNORED
-#      (confirmed present in the running prefix; MT5 still downloaded
-#      mt5onnx64 and self-restarted exit 143; :5555 never bound).
-#
-# NO in-container config or DNS lever stops LiveUpdate on this build.
-# The ONLY working control is a NETWORK EGRESS BLOCK (Layer 2) applied
-# by the per-tenant NetworkPolicy (default-deny egress + broker
-# access-server CIDR allowlist). That lives in the chart + provisioner,
-# NOT in this script. Do not add another config-write 'fix' here.
-#
-# The legacy terminal.ini LastBuildDataPath pin is still written below
-# only because the baked template carries it; it is INERT and retained
-# solely to avoid a no-op diff. It does nothing.
-
-# Resolve the baked terminal build so we never pin a stale number.
-# The terminal records the running build in its journal as
-# 'MetaTrader <4|5> ... build <N> started'; fall back to the known
-# baked MT5 build (5836) if the journal is not yet present (first
-# boot). MT4 journals carry the same 'build <N>' token.
+# Build resolution is JOURNAL-FIRST and authoritative: the running
+# build is read from the broker-bundle terminal's own journal
+# ('Terminal ... build NNNN started'). The image no longer bakes any
+# MetaTrader install -- the branded terminal arrives at runtime via
+# the broker bundle -- so there is NO single 'baked build' to assume
+# as a fallback (real captures span build 5833 on Deriv, 5830 on the
+# Exness access server, etc.). When the journal does not yet exist
+# (cold first boot, before MT5 has written it), the build is UNKNOWN
+# unless an operator pins MT_BUILD_FALLBACK explicitly. In the unknown
+# case we SKIP writing the [LiveUpdate] pin rather than fabricate a
+# build number: a wrong LastBuildDataPath is at best inert and at
+# worst misleading to an operator reading terminal.ini, and the pin
+# is not the mechanism that actually gates LiveUpdate (the egress
+# NetworkPolicy is).
+MT_BUILD_FALLBACK="${MT_BUILD_FALLBACK:-}"
 MT_BUILD=""
+# MT5/MT4 write the journal to <root>/logs (lowercase) at runtime;
+# this is created by MT itself, not baked, so it is case-stable.
 MT_JOURNAL_DIR="$MT_DIR/logs"
 if [ -d "$MT_JOURNAL_DIR" ]; then
   MT_BUILD=$(grep -ahoE 'build [0-9]+ started' "$MT_JOURNAL_DIR"/*.log 2>/dev/null \
     | grep -oE '[0-9]+' | sort -rn | head -n1 || true)
 fi
-MT_BUILD="${MT_BUILD:-5836}"
+MT_BUILD="${MT_BUILD:-$MT_BUILD_FALLBACK}"
 
-# Layer 1: pin [LiveUpdate] LastBuildDataPath in terminal.ini for the
-# active platform (MT4 and MT5 share this config file + section name).
-TERMINAL_INI="$MT_DIR/config/terminal.ini"
-if [ -f "$TERMINAL_INI" ]; then
+TERMINAL_INI="$MT_CONFIG_DIR/terminal.ini"
+if [ -z "$MT_BUILD" ]; then
+  log INFO "LiveUpdate build pin SKIPPED: running build not yet resolvable from the journal ($MT_JOURNAL_DIR) and MT_BUILD_FALLBACK is unset. The journal-derived build will be pinned on a subsequent boot; LiveUpdate is gated by the NetworkPolicy egress block regardless, so this is non-fatal ($MT_PLATFORM)."
+elif [ -f "$TERMINAL_INI" ]; then
   # Preserve any existing terminal.ini content but replace/append the
   # [LiveUpdate] section deterministically.
   if grep -qi '^\[LiveUpdate\]' "$TERMINAL_INI"; then
@@ -2317,23 +2591,14 @@ if [ -f "$TERMINAL_INI" ]; then
     mv "${TERMINAL_INI}.tmp" "$TERMINAL_INI"
   fi
   printf '\n[LiveUpdate]\nLastBuildDataPath=%s\n' "$MT_BUILD" >> "$TERMINAL_INI"
+  log INFO "LiveUpdate pinned to build ${MT_BUILD} in $TERMINAL_INI ($MT_PLATFORM)"
 else
   cat > "$TERMINAL_INI" <<EOF
 [LiveUpdate]
 LastBuildDataPath=${MT_BUILD}
 EOF
+  log INFO "LiveUpdate pinned to build ${MT_BUILD} in $TERMINAL_INI ($MT_PLATFORM)"
 fi
-log INFO "LiveUpdate pinned to build ${MT_BUILD} in $TERMINAL_INI ($MT_PLATFORM)"
-
-# NOTE: LiveUpdate is disabled solely via the [LiveUpdate]
-# LastBuildDataPath pin in terminal.ini above (the mechanism
-# confirmed from the actual install). No filesystem chmod and no
-# network block are applied: MetaTrader writes legitimate files at
-# the program-dir root on normal startup, so locking it risks
-# stopping the terminal from launching; and any network block is the
-# only lever that could endanger the broker connection. The ini pin
-# is config-only with zero side effect -- it cannot break the broker,
-# the EA, the ZMQ socket, or startup.
 
 # ── Supervised MT restart loop ───────────────────────────────────
 restart_count=0
@@ -2343,49 +2608,11 @@ while :; do
   log INFO "Launching $MT_EXE (platform=$MT_PLATFORM, server=$MT_SERVER, login=$MT_LOGIN, symbol=$MT_SYMBOL, symbol_resolved=$SYMBOL_RESOLVED, zmq_port=$ZMQ_PORT, restart_count=$restart_count)"
 
   cd "$MT_DIR"
-  # Launch contract for unattended headless MT5 build 5836:
-  #
-  #   /portable - the ONLY flag we pass. It pins MT5's config location
-  #               to <install_dir>/config/ (not
-  #               AppData/Roaming/MetaQuotes/), so the startup.ini we
-  #               write is the one MT5 reads, AND so MT5 writes
-  #               accounts.dat to the PVC-mounted config dir (where
-  #               it persists across pod restarts).
-  #
-  # We deliberately do NOT pass /login /password /server. MT5 build
-  # 5836 ignores those flags entirely - confirmed via ps -ef showing
-  # the flags reaching terminal64.exe + journal silence + zero
-  # outbound TCP to broker IPs (see runbook sections 1.2 / 2.x for
-  # the full empirical evidence trail). startup.ini's [Common]
-  # Login/Password/Server block is also ignored for auto-login: MT5
-  # reads the file (populates dialog fields) but never executes a
-  # login action.
-  #
-  # Auto-login is instead driven by the xdotool-based
-  # auto_login_driver() shell function defined above, which forks
-  # immediately after this wine launch. The driver waits for MT5's
-  # Login dialog on the Xvfb display, types $MT_LOGIN / $MT_PASSWORD
-  # / $MT_SERVER with --clearmodifiers, ticks "Save account
-  # information" so MT5 writes accounts.dat, and presses Return.
-  # Every subsequent boot auto-loads silently from accounts.dat and
-  # the driver's fast path exits success on the immediate :5555
-  # LISTEN.
-  #
-  # See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md sections 2.x.
-  #
-  # Note on credential exposure: MT_PASSWORD is NOT on the wine
-  # command line. The xdotool auto_login_driver (forked below) types
-  # the password into MT5's Login dialog after launch; the password
-  # appears in xdotool's /proc/<pid>/cmdline ONLY for the milliseconds
-  # the `xdotool type` call takes. This is a strict improvement over
-  # the previous `/password:$MT_PASSWORD` on terminal64.exe, which
-  # kept the password in MT5's cmdline for the entire process
-  # lifetime. /portable is retained so MT5 reads/writes config in
-  # <install_dir>/config (PVC-mounted, persists across pod restarts);
-  # this lets MT5 save accounts.dat itself when the driver checks
-  # "Save account information", and subsequent boots auto-login
-  # silently from that file (the driver detects the immediate
-  # :5555 LISTEN and exits success on its fast path).
+  # /portable is the only flag: it pins config to <install_dir>/config
+  # (PVC-backed) so our startup.ini is read and MT5 persists
+  # accounts.dat across restarts. /login /password /server are NOT
+  # passed (ignored by build 5836); auto-login is driven by
+  # auto_login_driver(), keeping MT_PASSWORD off the wine cmdline.
   wine "$MT_EXE" /portable &
   MT_PID=$!
   log INFO "MetaTrader PID: $MT_PID"

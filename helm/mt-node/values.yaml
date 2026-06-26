@@ -259,7 +259,11 @@ sidecar:
       # the xdotool-driven first login) and complete in ~20-30s total,
       # so the larger window is consumed only on the first boot per
       # fresh PVC. Memory/CPU soft-caps are unaffected by this window.
-      startupGraceSeconds: 300
+      # LOCKSTEP: must be > the entrypoint auto-login driver hard-kill
+      # (AUTO_LOGIN_TOTAL_BUDGET_SECS=420 + hard-kill grace 30 = 450)
+      # so the driver is always reaped before the watchdog can SIGTERM
+      # MT5. 480 gives a clean 30s margin above the 450s hard-kill.
+      startupGraceSeconds: 480
 
 # ---------------------------------------------------------------------
 # Persistence

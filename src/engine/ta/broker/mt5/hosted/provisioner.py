@@ -1010,14 +1010,16 @@ class HostedProvisioner:
             # docker/mt-node/entrypoint.sh::auto_login_driver and
             # docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md sections
             # 2.x) + chart open + EA OnInit + :5555 bind (~10s).
-            # ~215s baseline; 300s gives ~40% headroom for I/O
-            # contention. Subsequent boots use accounts.dat (written by
-            # MT5 itself during the xdotool-driven first login) and
-            # complete in ~20-30s total. LOCKSTEP INVARIANT: must
-            # mirror helm/mt-node/values.yaml::sidecar.watchdog.config
+            # ~215s baseline. Subsequent boots use accounts.dat (written
+            # by MT5 itself during the xdotool-driven first login) and
+            # complete in ~20-30s total. LOCKSTEP INVARIANT: must mirror
+            # helm/mt-node/values.yaml::sidecar.watchdog.config
             # .startupGraceSeconds so engine-runtime-provisioned tenant
-            # pods are wire-identical to chart-rendered ones.
-            "WATCHDOG_STARTUP_GRACE_SECONDS": "300",
+            # pods are wire-identical to chart-rendered ones. 480s is
+            # > the entrypoint auto-login driver hard-kill (420s budget
+            # + 30s grace = 450s), giving a clean margin so the driver
+            # is always reaped before the watchdog can SIGTERM MT5.
+            "WATCHDOG_STARTUP_GRACE_SECONDS": "480",
         }
         body = client.V1ConfigMap(
             metadata=client.V1ObjectMeta(
