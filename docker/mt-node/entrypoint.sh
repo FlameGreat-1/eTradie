@@ -896,6 +896,13 @@ _normalize_overlay() {
       rm -f "$MT_CONFIG_DIR/accounts.dat" 2>/dev/null || true
     fi
   fi
+
+  # Deterministic success status. entrypoint.sh runs under `set -e`
+  # and this function is invoked as a bare statement; without an
+  # explicit return, a trailing `[ -f ... ]` test that evaluates
+  # false (e.g. no baked accounts cache) would return non-zero and
+  # abort the entrypoint. All cleanup above is best-effort by design.
+  return 0
 }
 
 # ── Chart-attach evidence helpers (MQL5/Logs grep) ────────────────
