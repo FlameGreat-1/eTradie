@@ -140,7 +140,17 @@ AUTO_LOGIN_TOTAL_BUDGET_SECS="${AUTO_LOGIN_TOTAL_BUDGET_SECS:-420}"
 AUTO_LOGIN_DIALOG_WAIT_SECS="${AUTO_LOGIN_DIALOG_WAIT_SECS:-120}"
 AUTO_LOGIN_PROCESS_WAIT_SECS="${AUTO_LOGIN_PROCESS_WAIT_SECS:-60}"
 AUTO_LOGIN_FOLLOWUP_DISMISS_SECS="${AUTO_LOGIN_FOLLOWUP_DISMISS_SECS:-60}"
-AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an Account|Login to Trade Account|Authorization)}"
+# Note: 'Open an Account' is deliberately NOT in this regex even though
+# the branded MT5 wizard window can carry that title. The Open-an-Account
+# wizard is the EXCLUSIVE responsibility of _drv_handle_account_wizard
+# (Phase 2a). If this regex matched the wizard, the Phase 2a loop would
+# pick the wizard up as a Login dialog the moment the wizard handler
+# returned (its Gate 2 short-circuits when the login-dialog regex matches
+# the wizard itself), and Phase 3 would type the per-tenant Vault
+# credentials into the wizard's focused field. Keep this regex strictly
+# anchored to the four real Login-dialog title shapes MT5/MT4 build
+# 58xx emit.
+AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Login to Trade Account|Authorization)}"
 # Phase 2c tunables. See the contract docstring above.
 #
 # AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS: how long Phase 2a polls for a
@@ -178,7 +188,20 @@ AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an 
 #   evidence of skipping the Login prompt.
 AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS="${AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS:-30}"
 AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS="${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS:-15}"
-AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(MetaTrader [45] - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging))}"
+# Branded titles add an optional capitalised brand token between
+# 'MetaTrader [45]' and ' - <Netting|Hedging>' (e.g.
+# 'MetaTrader 5 EXNESS - Netting' on the Exness branded MT5 bundle,
+# verified live in commit 3321d2e3 as WID=12582913). The brand token
+# is constrained to '[A-Z][A-Za-z0-9]*' (a single capitalised
+# alphanumeric word) so the regex cannot accidentally match unrelated
+# child windows like 'MetaTrader 5 Help' or 'MetaTrader 5 Settings'
+# (those titles do not end in ' - Netting'/' - Hedging' so they
+# could not match anyway, but the explicit constraint makes the
+# intent unambiguous). The post-login shape and MT4 shapes are
+# unchanged. The empty-WM_NAME path during init / wizard is still
+# handled by _drv_find_main_window_by_pid as a fallback after this
+# regex search returns nothing.
+AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(MetaTrader [45]( [A-Z][A-Za-z0-9]*)? - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging))}"
 # Optional operator override for the journal login-confirmation regex.
 # Leave EMPTY (default) to let _drv_login_authenticated() build a
 # login-id-keyed pattern at call time (MT_LOGIN is not yet populated
@@ -2066,9 +2089,16 @@ auto_login_driver() {
     fi
     if [ "$now" -lt "$dismiss_until" ]; then
       # Look for follow-up windows that are NOT the original Login
-      # dialog or the MetaTrader main window. Press Return on each
-      # (default "OK/Accept" action for EULA / news / broker terms).
-      fwid=$(DISPLAY=:99 xdotool search --onlyvisible --name '.+' 2>/dev/null | head -5 || true)
+      # dialog, the MetaTrader main window, or the Open-an-Account
+      # wizard (the wizard has its own dedicated handler in Phase 2a).
+      # Press Return on each (default "OK/Accept" action for EULA /
+      # news / broker terms). All xdotool calls are timeout-bounded
+      # via _xdo (Wine override-redirect modals can hang raw xdotool
+      # property reads -- jordansissel/xdotool #117/#126; bounding
+      # them keeps Phase 4 from wedging the driver). windowactivate
+      # is async (no --sync) for the same reason every other driver
+      # site is async against Wine.
+      fwid=$(DISPLAY=:99 _xdo search --onlyvisible --name '.+' 2>/dev/null | head -5 || true)
       if [ -n "$fwid" ]; then
         for w in $fwid; do
           [ "$w" = "$wid_first" ] && continue
@@ -2077,15 +2107,16 @@ auto_login_driver() {
           # '<account> - - Netting', so name-only matching is not
           # sufficient.
           [ -n "${main_wid:-}" ] && [ "$w" = "$main_wid" ] && continue
-          wname=$(DISPLAY=:99 xdotool getwindowname "$w" 2>/dev/null || true)
+          wname=$(DISPLAY=:99 _xdo getwindowname "$w" 2>/dev/null || true)
           [ -z "$wname" ] && continue
           case "$wname" in
             'MetaTrader 5'*|'MetaTrader 4'*|*'- Netting'*|*'- Hedging'*) continue ;;
+            'Open an Account'*|*'Select a company'*) continue ;;
           esac
           _drv_log "dismiss follow-up window: '${wname}' (WID=${w})"
-          DISPLAY=:99 xdotool windowactivate --sync "$w" 2>/dev/null || true
+          DISPLAY=:99 _xdo windowactivate "$w" 2>/dev/null || true
           sleep 0.2
-          DISPLAY=:99 xdotool key --clearmodifiers Return 2>/dev/null || true
+          DISPLAY=:99 _xdo key --clearmodifiers Return 2>/dev/null || true
         done
       fi
     fi
@@ -2200,11 +2231,19 @@ if [ -r "${VAULT_SECRETS_FILE}" ]; then
   # clear log entry plus a journal-grep is enough for an operator to
   # escalate.
   _self_pid=$$
-  case "${MT_PASSWORD:-}" in
-    "${_self_pid}"*)
-      log WARN "MT_PASSWORD appears to start with this shell's PID (${_self_pid}). This is the historical signature of bash-source corruption of /vault/secrets/. If the broker rejects the login as 'invalid password', someone has reintroduced a shell-source pattern upstream of this entrypoint. See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md."
-      ;;
-  esac
+  # Defensive guard: an empty _self_pid would degenerate the case
+  # glob to '*', firing the regression WARN on every boot regardless
+  # of password content (false positive). $$ is the entrypoint's own
+  # PID and is essentially never empty in bash, but skipping the
+  # match when it IS empty keeps the guard from ever turning into a
+  # log-pollution source.
+  if [ -n "$_self_pid" ]; then
+    case "${MT_PASSWORD:-}" in
+      "${_self_pid}"*)
+        log WARN "MT_PASSWORD appears to start with this shell's PID (${_self_pid}). This is the historical signature of bash-source corruption of /vault/secrets/. If the broker rejects the login as 'invalid password', someone has reintroduced a shell-source pattern upstream of this entrypoint. See docs/runbooks/HOSTED-MT-PROVISIONING-SESSION.md."
+        ;;
+    esac
+  fi
   unset _self_pid _line _key _val
 
   if [ -n "$_vault_rendered_at" ]; then
@@ -2646,6 +2685,55 @@ if [ -f "$_sentinel_file" ] && [ -f "$MT_DIR/$MT_EXE" ]; then
   log INFO "broker-bundle overlay: sentinel '${_sentinel_file}' present and ${MT_EXE} on disk; skipping overlay (idempotent)"
 fi
 
+# Legacy-PVC self-heal. PVCs that were overlay-installed by the
+# deletion-era normalizer (commits e16b70bf / c85b5d7e / bc1b96566)
+# have the sentinel + MT_EXE present, but the bundle's shipped
+# Config/common.ini + Config/accounts.dat (MT5) or Config/accounts.ini
+# (MT4) were DELETED at overlay time. On those PVCs the sentinel-gated
+# skip above would leave the prefix permanently in the deletion state
+# and every boot would land on the Open-an-Account wizard (the wizard
+# handler in Phase 2a is the safety net, but the supportable steady
+# state is 'common.ini present; MT5 boots straight to the Login
+# dialog'). Detect this state and bust the sentinel so the overlay
+# re-runs and the preserving normalizer restores the files from the
+# bundle. Idempotent: only fires when a real mismatch is observed.
+if [ "$_overlay_needed" -eq 0 ]; then
+  _legacy_cfg=$(_resolve_mt_config_dir "$MT_DIR")
+  _bundle_cfg="${_bundle_root}/Config"
+  if [ ! -d "$_bundle_cfg" ]; then
+    # Some MT4 bundles ship 'config' (lowercase). The bundle Config-dir
+    # resolution itself is the normalizer's job, but for the heal-check
+    # we just look at whichever case the bundle ships.
+    _bundle_cfg="${_bundle_root}/config"
+  fi
+  _legacy_state_detected=0
+  _legacy_missing=""
+  if [ "$MT_PLATFORM" = "mt4" ]; then
+    if [ -f "${_bundle_cfg}/accounts.ini" ] && [ ! -f "${_legacy_cfg}/accounts.ini" ]; then
+      _legacy_state_detected=1
+      _legacy_missing="accounts.ini"
+    fi
+  else
+    if [ -f "${_bundle_cfg}/common.ini" ] && [ ! -f "${_legacy_cfg}/common.ini" ]; then
+      _legacy_state_detected=1
+      _legacy_missing="common.ini"
+    fi
+    if [ -f "${_bundle_cfg}/accounts.dat" ] && [ ! -f "${_legacy_cfg}/accounts.dat" ]; then
+      _legacy_state_detected=1
+      if [ -n "$_legacy_missing" ]; then
+        _legacy_missing="${_legacy_missing}+accounts.dat"
+      else
+        _legacy_missing="accounts.dat"
+      fi
+    fi
+  fi
+  if [ "$_legacy_state_detected" -eq 1 ]; then
+    log WARN "broker-bundle overlay: legacy-PVC state detected (sentinel present, ${MT_EXE} on disk, but bundle-shipped ${_legacy_missing} missing under '${_legacy_cfg}'). This PVC was overlay-installed by a deletion-era normalizer (commits e16b70bf/c85b5d7e/bc1b96566). Busting the sentinel so the overlay re-runs and the preserving normalizer (commit 4b371085) restores the missing file(s) from the bundle. One-shot per affected PVC; idempotent on subsequent boots."
+    _overlay_needed=1
+  fi
+  unset _legacy_cfg _bundle_cfg _legacy_state_detected _legacy_missing
+fi
+
 if [ "$_overlay_needed" -eq 1 ]; then
   # Clean any stale sentinel files from a previous bundle version on
   # this PVC so 'ls .bundle-installed-from-*' is always unambiguous.
@@ -2920,7 +3008,15 @@ MT_BUILD=""
 # this is created by MT itself, not baked, so it is case-stable.
 MT_JOURNAL_DIR="$MT_DIR/logs"
 if [ -d "$MT_JOURNAL_DIR" ]; then
-  MT_BUILD=$(grep -ahoE 'build [0-9]+ started' "$MT_JOURNAL_DIR"/*.log 2>/dev/null \
+  # MT5/MT4 build 58xx writes the journal as UTF-16LE (ASCII bytes
+  # interleaved with 0x00 NUL). Strip the NULs before grepping or
+  # the ASCII regex literally never matches. Same posture every
+  # other journal reader in this script uses
+  # (_drv_login_authenticated, _drv_grep_mql5_logs, the LiveUpdate
+  # self-restart classifier in the supervisor loop).
+  MT_BUILD=$(cat "$MT_JOURNAL_DIR"/*.log 2>/dev/null \
+    | tr -d '\000' \
+    | grep -ahoE 'build [0-9]+ started' \
     | grep -oE '[0-9]+' | sort -rn | head -n1 || true)
 fi
 MT_BUILD="${MT_BUILD:-$MT_BUILD_FALLBACK}"
