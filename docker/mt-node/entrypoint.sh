@@ -140,7 +140,17 @@ AUTO_LOGIN_TOTAL_BUDGET_SECS="${AUTO_LOGIN_TOTAL_BUDGET_SECS:-420}"
 AUTO_LOGIN_DIALOG_WAIT_SECS="${AUTO_LOGIN_DIALOG_WAIT_SECS:-120}"
 AUTO_LOGIN_PROCESS_WAIT_SECS="${AUTO_LOGIN_PROCESS_WAIT_SECS:-60}"
 AUTO_LOGIN_FOLLOWUP_DISMISS_SECS="${AUTO_LOGIN_FOLLOWUP_DISMISS_SECS:-60}"
-AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an Account|Login to Trade Account|Authorization)}"
+# Note: 'Open an Account' is deliberately NOT in this regex even though
+# the branded MT5 wizard window can carry that title. The Open-an-Account
+# wizard is the EXCLUSIVE responsibility of _drv_handle_account_wizard
+# (Phase 2a). If this regex matched the wizard, the Phase 2a loop would
+# pick the wizard up as a Login dialog the moment the wizard handler
+# returned (its Gate 2 short-circuits when the login-dialog regex matches
+# the wizard itself), and Phase 3 would type the per-tenant Vault
+# credentials into the wizard's focused field. Keep this regex strictly
+# anchored to the four real Login-dialog title shapes MT5/MT4 build
+# 58xx emit.
+AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Login to Trade Account|Authorization)}"
 # Phase 2c tunables. See the contract docstring above.
 #
 # AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS: how long Phase 2a polls for a
@@ -178,7 +188,20 @@ AUTO_LOGIN_DIALOG_TITLE_REGEX="${AUTO_LOGIN_DIALOG_TITLE_REGEX:-^(Login|Open an 
 #   evidence of skipping the Login prompt.
 AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS="${AUTO_LOGIN_MAIN_WINDOW_WAIT_SECS:-30}"
 AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS="${AUTO_LOGIN_DIALOG_WAIT_AFTER_INVOKE_SECS:-15}"
-AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(MetaTrader [45] - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging))}"
+# Branded titles add an optional capitalised brand token between
+# 'MetaTrader [45]' and ' - <Netting|Hedging>' (e.g.
+# 'MetaTrader 5 EXNESS - Netting' on the Exness branded MT5 bundle,
+# verified live in commit 3321d2e3 as WID=12582913). The brand token
+# is constrained to '[A-Z][A-Za-z0-9]*' (a single capitalised
+# alphanumeric word) so the regex cannot accidentally match unrelated
+# child windows like 'MetaTrader 5 Help' or 'MetaTrader 5 Settings'
+# (those titles do not end in ' - Netting'/' - Hedging' so they
+# could not match anyway, but the explicit constraint makes the
+# intent unambiguous). The post-login shape and MT4 shapes are
+# unchanged. The empty-WM_NAME path during init / wizard is still
+# handled by _drv_find_main_window_by_pid as a fallback after this
+# regex search returns nothing.
+AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX="${AUTO_LOGIN_MAIN_WINDOW_TITLE_REGEX:-^(MetaTrader [45]( [A-Z][A-Za-z0-9]*)? - (Netting|Hedging)|[0-9]+ - +- (Netting|Hedging))}"
 # Optional operator override for the journal login-confirmation regex.
 # Leave EMPTY (default) to let _drv_login_authenticated() build a
 # login-id-keyed pattern at call time (MT_LOGIN is not yet populated
