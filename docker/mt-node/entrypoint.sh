@@ -3054,7 +3054,10 @@ EOF
   # Mirror to the legacy template tree so whichever Profiles/Templates
   # location the build reads, expert.tpl is present and byte-identical.
   cp -f "$MT_DIR/$TPL_REL_DST" "$MT_DIR/$TPL_REL_DST_ALT" 2>/dev/null || true
-  log INFO "Chart template written to '$TPL_REL_DST' (+ mirror '$TPL_REL_DST_ALT') symbol=$MT_SYMBOL"
+  # ALSO mirror to default.tpl so interactive Phase 5 chart-opens apply it.
+  cp -f "$MT_DIR/$TPL_REL_DST" "$MT_DIR/$(dirname "$TPL_REL_DST")/default.tpl" 2>/dev/null || true
+  cp -f "$MT_DIR/$TPL_REL_DST" "$MT_DIR/$(dirname "$TPL_REL_DST_ALT")/default.tpl" 2>/dev/null || true
+  log INFO "Chart template written to '$TPL_REL_DST' (+ mirror '$TPL_REL_DST_ALT' + default.tpl) symbol=$MT_SYMBOL"
 
   cat > "$INI_FILE" <<EOF
 [Common]
@@ -3105,7 +3108,11 @@ name=ZeroMQ_EA
 EOF
   # Mirror to the legacy template tree (see symbol-resolved branch).
   cp -f "$MT_DIR/$TPL_REL_DST" "$MT_DIR/$TPL_REL_DST_ALT" 2>/dev/null || true
-  log INFO "Bootstrap chart template written to '$TPL_REL_DST' (+ mirror '$TPL_REL_DST_ALT'), no symbol pinned"
+  # ALSO mirror to default.tpl so that any chart opened interactively by
+  # Phase 5 keystrokes automatically loads the ZeroMQ_EA.
+  cp -f "$MT_DIR/$TPL_REL_DST" "$MT_DIR/$(dirname "$TPL_REL_DST")/default.tpl" 2>/dev/null || true
+  cp -f "$MT_DIR/$TPL_REL_DST" "$MT_DIR/$(dirname "$TPL_REL_DST_ALT")/default.tpl" 2>/dev/null || true
+  log INFO "Bootstrap chart template written to '$TPL_REL_DST' (+ mirror '$TPL_REL_DST_ALT' + default.tpl), no symbol pinned"
 
   cat > "$INI_FILE" <<EOF
 [Common]
