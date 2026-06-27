@@ -6,7 +6,7 @@ replicaCount: 1
 image:
   repository: ghcr.io/flamegreat-1/etradie/billing
   pullPolicy: IfNotPresent
-  tag: "6f01951cd964cf01fd16ffa6883a884f3f8afdaf"
+  tag: "f51e7cfcdb19a57dd90c07f5d6de333df48a7de2"
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8082"
