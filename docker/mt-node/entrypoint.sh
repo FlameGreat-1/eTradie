@@ -2063,25 +2063,25 @@ auto_login_driver() {
     _drv_deliver_credential "$MT_PASSWORD" "password"
     _drv_phase3_log "after_pwd_deliver"
 
-    # ── Field 3: Server (paste-then-type; combobox edit portion) ─────
-    # MT5's Server field is an editable combobox (Win32 CBS_DROPDOWN
-    # style). The edit portion accepts WM_PASTE exactly like a plain
-    # edit control; MT5 reads the entry-portion text on dialog submit
-    # rather than the dropdown highlight.
+    # ── Field 3: Save account information (checkbox) ─────────────
+    # The 'Save password' checkbox is physically to the right of the Password
+    # field, so the Windows Tab order hits it BEFORE the Server field.
+    # We toggle it ON so MT5 writes accounts.dat.
     DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
     sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
     _drv_phase3_log "after_tab_3"
-    _drv_deliver_credential "$MT_SERVER" "server"
-    _drv_phase3_log "after_server_deliver"
-
-    # ── Field 4: Save account information (checkbox) ─────────────
-    # Tab to checkbox, Space to toggle ON so MT5 writes accounts.dat.
-    DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
-    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
-    _drv_phase3_log "after_tab_4"
     DISPLAY=:99 _xdo key --clearmodifiers space 2>/dev/null || true
     sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
     _drv_phase3_log "after_space"
+
+    # ── Field 4: Server (paste-then-type; combobox edit portion) ─────
+    # MT5's Server field is an editable combobox (Win32 CBS_DROPDOWN
+    # style) located below the Password/Checkbox row.
+    DISPLAY=:99 _xdo key --clearmodifiers Tab 2>/dev/null || true
+    sleep "$AUTO_LOGIN_FIELD_SETTLE_SECS"
+    _drv_phase3_log "after_tab_4"
+    _drv_deliver_credential "$MT_SERVER" "server"
+    _drv_phase3_log "after_server_deliver"
 
     # ── Submit ───────────────────────────────────────────────────
     # Return activates the dialog's default button (the OK / Login

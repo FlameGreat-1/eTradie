@@ -748,3 +748,217 @@ drwxr-xr-x 19 softverse softverse    4096 Jun 26 21:22 ..
 -rw-r--r--  1 softverse softverse      42 Jun 26 21:34 windows-poll-13.txt
 DONE. Diagnostic dir: /home/softverse/hostedmt-diagnostics/20260626T202212Z
 softverse@Softverse:~/hostedmt-diagnostics/20260626T202212Z
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+EXAMINE THE NOTE.md THOROUGHLY FROM THE START TO THE END.
+
+
+FROM WHAT WE HAVE, xdg-open screen-poll-02.png SHOWED THIS :
+
+
+File
+View
+Tools
+Help
+Market Watch
+X
+IDE (0)
+Algo Trading
+New Order
++
+Symbol
+Bid
+3333.667
+3334.638
+Ask
+Daily Ch...
+XAUUSDM
+115786,40
+115923.04
+0.21%
+BTCUSDm
+1.16680
+1.16689
+-1.37%
+EURUSDM
+USDJPYm
+147.890
+147.898
+-0.32%
+0.45%
+ETHUSDM
+4314.20
+4331.40
+-3.42%
+XAUUSD
+3334.210
+3334.380
+-0.06%
+Symbols
+Details Trading
+Ticks
+Navigator
+Exness
+Accounts
+Indicators
+Expert Advisors
+Scripts
+Services
+Market
+***
+Authorization allows to get access to the trade account
+Login:
+133978149
+Password:
+Save password
+Common
+Favorites
+Server:
+Exness-MT5Real
+OK
+Cancel
+X Time
+Source
+2026.06.26 20:25:20.312
+Terminal
+2026.06.26 20:25:20.313
+Terminal
+2026.06.26 20:25:20.313
+Terminal
+Windows 10 build 19045 on Wine 11.0 Linux 6.8.0-124-generic, 8 x AMD EPYC (with IBPB), AVX2, 17/23 Gb memory, 67/192 Gb...
+C:\Program Files\MetaTrader 5 EXNESS
+Toolbox
+News |
+Mailbox
+Calendar |
+Alerts |
+Articles |
+Code Base |
+Experts
+Journal
+0000.00.00 00:00
+0:000.000
+H: 000.000
+L: 000.000
+C: 000.000
+Market (0)
+Sigrials VPS
+V: 00000
+Tester
+0/0 Kb
+For Help, press F1
+Default
+
+
+
+
+
+BUT xdg-open screen-poll-03.png TO xdg-open screen-poll-10.png ALL SHOWED THIS BELOW:
+
+
+File View
+Tools
+Help
+IDE
+(0)
+Algo Trading
+New Order
+Market Watch
+X
+Symbol
+Bid
+Ask
+Daily Ch... ^
+XAUUSDM
+3333.667
+3334.638
+0.21%
+BTCUSDm
+115786.40
+115923.04.
+-1.37%
+7 EURUSDm
+1.16680
+1.16689
+-0.32%
+USDJPYm
+147.890
+147.898
+0.45%
+ETHUSDM
+4314.20 4331.40
+-3.42%
+XAUUSD
+3334.210
+3334.380
+-0.06%
+Symbols Details
+Trading
+Ticks
+Navigator
+Exness
+Accounts
+Indicators
+Expert Advisors
+Scripts
+Services
+Market
+Common Favorites
+X
+X Time
+2026.06.26 20:25:20.312
+2026.06.26 20:25:20.313
+2026.06.26 20:25:20.313
+2026.06.26 20:26:20.990
+2026.06.26 20:26:22.305
+LiveUpdate
+2026.06.26 20:26:22.308
+Source
+Terminal
+Terminal
+Terminal
+LiveUpdate
+LiveUpdate
+م
+Message
+MetaTrader 5 EXNESS x64 build 5836 started for Exness Technologies Ltd.
+Windows 10 build 19045 on Wine 11.0 Linux 6.8.0-124-generic, 8 x AMD EPYC (with IBPB), AVX2, 17/23 Gb memory, 67/192 Gb...
+C:\Program Files\MetaTrader 5 EXNESS
+new version build 5833 (IDE: 5833, Tester: 5833) is available
+'mt5onnx64' downloaded and updated (14688 kb)
+downloaded successfully
+Toolbox
+News
+Mailbox
+Calendar
+Alerts
+Articles |
+Code Base
+Experts Journal
+0000.00.00 00:00
+0: 000.000
+H: 000.000
+L: 000.000
+C: 000.000
+Market (1)
+Sigrials VPS
+V: 00000
+0/0 Kb
+Tester
+For Help, press F1
+Default
