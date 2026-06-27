@@ -1761,7 +1761,11 @@ _drv_phase5_chart_attach() {
     sleep 0.5
     DISPLAY=:99 _xdo key l
     sleep 1.0
-    DISPLAY=:99 _xdo type "expert"
+    DISPLAY=:99 _xdo key ctrl+a
+    sleep 0.2
+    DISPLAY=:99 _xdo key BackSpace
+    sleep 0.2
+    DISPLAY=:99 _xdo type "expert.tpl"
     sleep 0.5
     DISPLAY=:99 _xdo key Return
     sleep 1.0
@@ -1793,7 +1797,11 @@ _drv_phase5_chart_attach() {
     sleep 0.5
     DISPLAY=:99 _xdo key l
     sleep 1.0
-    DISPLAY=:99 _xdo type "expert"
+    DISPLAY=:99 _xdo key ctrl+a
+    sleep 0.2
+    DISPLAY=:99 _xdo key BackSpace
+    sleep 0.2
+    DISPLAY=:99 _xdo type "expert.tpl"
     sleep 0.5
     DISPLAY=:99 _xdo key Return
     sleep 1.0
@@ -1825,7 +1833,11 @@ _drv_phase5_chart_attach() {
     sleep 0.5
     DISPLAY=:99 _xdo key l
     sleep 1.0
-    DISPLAY=:99 _xdo type "expert"
+    DISPLAY=:99 _xdo key ctrl+a
+    sleep 0.2
+    DISPLAY=:99 _xdo key BackSpace
+    sleep 0.2
+    DISPLAY=:99 _xdo type "expert.tpl"
     sleep 0.5
     DISPLAY=:99 _xdo key Return
     sleep 1.0
