@@ -1752,10 +1752,25 @@ _drv_phase5_chart_attach() {
   # the first one. If only categories (with ►) are present, Return enters
   # the category submenu without opening a chart -- attempt 2 handles that.
   if _drv_phase5_attempt "$_mwid" "attempt 1 (Alt+F New Chart → recently-used)" "alt+f Right Return"; then
+    _drv_log "phase5: explicitly loading expert template via keystrokes"
+    DISPLAY=:99 _xdo search --class "Wine" windowactivate --sync 2>/dev/null || true
+    sleep 0.5
+    DISPLAY=:99 _xdo key alt+c
+    sleep 0.5
+    DISPLAY=:99 _xdo key t
+    sleep 0.5
+    DISPLAY=:99 _xdo key l
+    sleep 1.0
+    DISPLAY=:99 _xdo type "expert"
+    sleep 0.5
+    DISPLAY=:99 _xdo key Return
+    sleep 1.0
+
     if _drv_phase5_poll_bind "$_start_ts" "attempt 1"; then
       return 0
     fi
-    _drv_warn "phase5: attempt 1: chart opened but :5555 not bound within budget; falling through to next attempt"
+    _drv_warn "phase5: attempt 1: chart opened but :5555 not bound within budget; aborting Phase 5 loop to prevent errant menu navigation"
+    return 1
   fi
 
   if _drv_phase5_budget_exhausted "$_start_ts"; then
@@ -1769,10 +1784,25 @@ _drv_phase5_chart_attach() {
   # Return opens a chart for the first symbol in that category.
   # On a fresh install with no recently-used symbols, this is the primary path.
   if _drv_phase5_attempt "$_mwid" "attempt 2 (Alt+F New Chart → first category)" "alt+f Right Right Return"; then
+    _drv_log "phase5: explicitly loading expert template via keystrokes"
+    DISPLAY=:99 _xdo search --class "Wine" windowactivate --sync 2>/dev/null || true
+    sleep 0.5
+    DISPLAY=:99 _xdo key alt+c
+    sleep 0.5
+    DISPLAY=:99 _xdo key t
+    sleep 0.5
+    DISPLAY=:99 _xdo key l
+    sleep 1.0
+    DISPLAY=:99 _xdo type "expert"
+    sleep 0.5
+    DISPLAY=:99 _xdo key Return
+    sleep 1.0
+
     if _drv_phase5_poll_bind "$_start_ts" "attempt 2"; then
       return 0
     fi
-    _drv_warn "phase5: attempt 2: chart opened but :5555 not bound within budget; falling through to next attempt"
+    _drv_warn "phase5: attempt 2: chart opened but :5555 not bound within budget; aborting Phase 5 loop to prevent errant menu navigation"
+    return 1
   fi
 
   if _drv_phase5_budget_exhausted "$_start_ts"; then
@@ -1786,10 +1816,25 @@ _drv_phase5_chart_attach() {
   # its submenu. Return opens the first symbol. Covers edge cases where the
   # first category is empty or has no submenu on a particular broker.
   if _drv_phase5_attempt "$_mwid" "attempt 3 (Alt+F New Chart → second category)" "alt+f Right Down Right Return"; then
+    _drv_log "phase5: explicitly loading expert template via keystrokes"
+    DISPLAY=:99 _xdo search --class "Wine" windowactivate --sync 2>/dev/null || true
+    sleep 0.5
+    DISPLAY=:99 _xdo key alt+c
+    sleep 0.5
+    DISPLAY=:99 _xdo key t
+    sleep 0.5
+    DISPLAY=:99 _xdo key l
+    sleep 1.0
+    DISPLAY=:99 _xdo type "expert"
+    sleep 0.5
+    DISPLAY=:99 _xdo key Return
+    sleep 1.0
+
     if _drv_phase5_poll_bind "$_start_ts" "attempt 3"; then
       return 0
     fi
-    _drv_warn "phase5: attempt 3: chart opened but :5555 not bound within budget"
+    _drv_warn "phase5: attempt 3: chart opened but :5555 not bound within budget; aborting Phase 5 loop to prevent errant menu navigation"
+    return 1
   fi
 
   _drv_err "phase5: all three attempts failed to open a chart that binds :5555; falling through to Phase 4 poll for remaining budget"
