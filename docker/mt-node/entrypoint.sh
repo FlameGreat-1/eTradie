@@ -1476,12 +1476,13 @@ _drv_phase5_attempt() {
   _drv_log "phase5: ${_label}: dispatching keystroke sequence [${_seq}]"
   for _tok in $_seq; do
     DISPLAY=:99 _xdo key --clearmodifiers "$_tok" 2>/dev/null || true
-    # Longer settle for Ctrl+M (Market Watch panel materialisation)
-    # and Menu (context menu unfurl); shorter for arrow keys.
+    # Longer settle for Ctrl+M (Market Watch panel materialisation),
+    # Menu (context menu unfurl), and Right (submenu render in File →
+    # New Chart navigation under Wine); shorter for arrow keys / Return.
     case "$_tok" in
       ctrl+m|Menu) sleep 1.0 ;;
-      alt+f)        sleep 0.5 ;;
-      *)            sleep 0.3 ;;
+      alt+f|Right) sleep 0.5 ;;
+      *)           sleep 0.3 ;;
     esac
   done
 
@@ -1552,33 +1553,34 @@ _drv_phase5_attempt() {
 #    - On timeout: sends Escape twice to close any half-opened
 #      menu/panel then proceeds to the next attempt.
 #
-#    Attempt 1 (highest certainty): Ctrl+M + default action.
-#      ctrl+m Tab Home Return
-#      - Ctrl+M opens Market Watch panel (verified working).
-#      - Tab moves focus into the Market Watch list.
-#      - Home selects the first row (deterministic; no positional
-#        guessing).
-#      - Return triggers MT5's default Market Watch action which is
-#        'Chart Window' out of the box (per MetaQuotes docs).
+#    Attempt 1 (recently-used path): Alt+F → New Chart → Return.
+#      alt+f Right Return
+#      - Alt+F opens the File menu. "New Chart" is the first item.
+#      - Right enters the "New Chart" submenu. If recently-used
+#        symbols exist (e.g. EURUSD at the top), they appear before
+#        the category folders. Return opens a chart for the first one.
+#      - On a fresh install with no recently-used symbols, Return
+#        lands on the first category (which has a ► submenu arrow)
+#        and enters it rather than opening a chart. Attempt 2 covers
+#        this case.
+#      Operator-verified on real MT5 build 5836 (2026-06-27).
 #
-#    Attempt 2 (high certainty): Ctrl+M + keyboard context menu.
-#      ctrl+m Tab Home Menu Down Return
-#      - Same Ctrl+M + Tab + Home as Attempt 1 to focus the first
-#        Market Watch row.
-#      - Menu key (XKB keysym, dedicated context-menu key on PC
-#        keyboards) opens the right-click context menu in place.
-#      - Down moves from 'New Order' (position 1) to 'Chart Window'
-#        (position 2) per MetaQuotes default menu order.
-#      - Return activates Chart Window.
-#      This is the keyboard-equivalent of the operator's manual
-#      verification workflow ('right-click symbol -> Chart Window').
-#
-#    Attempt 3 (last resort): Alt+F + File menu navigation.
+#    Attempt 2 (first category path): Alt+F → New Chart → category → Return.
 #      alt+f Right Right Return
-#      - Retained from v2 verbatim as a defence-in-depth fallback
-#        for the rare case where both Ctrl+M paths fail (e.g.
-#        Market Watch panel is empty post-login because the broker
-#        symbol-catalogue download has not yet completed).
+#      - Same Alt+F + Right as Attempt 1 to enter the New Chart submenu.
+#      - Second Right enters the first category's submenu (e.g.
+#        "Forex Major ►" on Exness). The submenu lists individual
+#        symbols (EURUSD, GBPUSD, etc.).
+#      - Return opens a chart for the first symbol in that category.
+#      - This is the primary path on fresh installs where no recently-
+#        used symbols exist.
+#      Operator-verified on real MT5 build 5836 (2026-06-27).
+#
+#    Attempt 3 (second category path): Alt+F → New Chart → Down → category → Return.
+#      alt+f Right Down Right Return
+#      - Same as Attempt 2 but Down skips to the second category row
+#        before Right enters its submenu. Defence-in-depth for brokers
+#        whose first category is empty or has no submenu.
 #
 # 4. MT5 auto-applies startup.ini [Charts] Template=expert to the
 #    newly-opened chart -- per MetaQuotes the directive applies to
@@ -1744,8 +1746,12 @@ _drv_phase5_chart_attach() {
     _drv_warn "phase5: settle upper bound (${AUTO_LOGIN_PHASE5_POST_LOGIN_SETTLE_SECS}s) reached without any readiness signal; proceeding to keystroke cascade anyway (best-effort)"
   fi
 
-  # Attempt 1: Ctrl+M Market Watch + default action (highest certainty).
-  if _drv_phase5_attempt "$_mwid" "attempt 1 (Ctrl+M default action)" "ctrl+m Tab Home Return"; then
+  # Attempt 1: File → New Chart → first recently-used symbol (operator-verified).
+  # alt+f opens File menu. Right enters "New Chart" submenu (first item).
+  # If recently-used symbols exist at the top, Return opens a chart for
+  # the first one. If only categories (with ►) are present, Return enters
+  # the category submenu without opening a chart -- attempt 2 handles that.
+  if _drv_phase5_attempt "$_mwid" "attempt 1 (Alt+F New Chart → recently-used)" "alt+f Right Return"; then
     if _drv_phase5_poll_bind "$_start_ts" "attempt 1"; then
       return 0
     fi
@@ -1758,8 +1764,11 @@ _drv_phase5_chart_attach() {
   fi
   sleep "$AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS"
 
-  # Attempt 2: Ctrl+M Market Watch + keyboard context menu (high certainty).
-  if _drv_phase5_attempt "$_mwid" "attempt 2 (Ctrl+M context menu)" "ctrl+m Tab Home Menu Down Return"; then
+  # Attempt 2: File → New Chart → first category → first symbol (operator-verified).
+  # The second Right enters the first category's submenu (e.g. "Forex Major ►").
+  # Return opens a chart for the first symbol in that category.
+  # On a fresh install with no recently-used symbols, this is the primary path.
+  if _drv_phase5_attempt "$_mwid" "attempt 2 (Alt+F New Chart → first category)" "alt+f Right Right Return"; then
     if _drv_phase5_poll_bind "$_start_ts" "attempt 2"; then
       return 0
     fi
@@ -1772,8 +1781,11 @@ _drv_phase5_chart_attach() {
   fi
   sleep "$AUTO_LOGIN_PHASE5_INTER_ATTEMPT_SECS"
 
-  # Attempt 3: Alt+F File menu navigation (last resort, defence-in-depth).
-  if _drv_phase5_attempt "$_mwid" "attempt 3 (Alt+F File menu)" "alt+f Right Right Return"; then
+  # Attempt 3: File → New Chart → second category → first symbol (defence-in-depth).
+  # Down skips the first category row and highlights the second. Right enters
+  # its submenu. Return opens the first symbol. Covers edge cases where the
+  # first category is empty or has no submenu on a particular broker.
+  if _drv_phase5_attempt "$_mwid" "attempt 3 (Alt+F New Chart → second category)" "alt+f Right Down Right Return"; then
     if _drv_phase5_poll_bind "$_start_ts" "attempt 3"; then
       return 0
     fi
