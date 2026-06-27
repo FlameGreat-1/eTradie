@@ -955,7 +955,7 @@ _drv_clear_modals_for_main_window() {
     _drv_log "blocking modal detected (WID=${_awid}, NAME=${_aname}); attempting dismiss"
     
     case "$_aname" in
-      Welcome\ to\ LiveUpdate*)
+      *LiveUpdate*|Updates\ have\ been\ downloaded*)
         # Click Restart (Alt+R) so MT5 applies the update and self-
         # restarts; the supervisor handles the resulting exit 143.
         # Bare Return is ambiguous about which button is focused.
@@ -1215,7 +1215,7 @@ _drv_phase5_welcome_modal_seen() {
   fi
   _aname=$(DISPLAY=:99 _xdo getwindowname "$_awid" 2>/dev/null || echo "")
   case "$_aname" in
-    Welcome\ to\ LiveUpdate*) return 0 ;;
+    *LiveUpdate*|Updates\ have\ been\ downloaded*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -3103,6 +3103,7 @@ Server=${MT_SERVER}
 AutoConfiguration=true
 
 [Charts]
+Symbol=UNKNOWN
 Period=H1
 Template=expert
 
