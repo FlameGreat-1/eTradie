@@ -1330,8 +1330,12 @@ _normalize_overlay() {
   if [ "$_plat" != "mt4" ]; then
     _common="$MT_CONFIG_DIR/common.ini"
     if [ -f "$_common" ]; then
-      log INFO "overlay-normalize(mt5): deleting baked common.ini (foreign [Common] account context blocked by trusted-device check on fresh Wine prefix -- surfaces demo-registration wizard; MT5 recreates the file after Phase 3's per-tenant login)"
-      rm -f "$_common" 2>/dev/null || true
+      log INFO "overlay-normalize(mt5): scrubbing baked common.ini (removing foreign account context while preserving global expert settings)"
+      cat > "$_common" <<EOF
+[Experts]
+AllowDllImport=1
+ExpertsEnable=1
+EOF
     fi
   fi
 
@@ -1638,6 +1642,29 @@ _drv_phase5_poll_bind() {
       _drv_log "phase5: :5555 LISTEN at +${_waited}s after ${_label}; EA OnInit succeeded"
       return 0
     fi
+
+    if [ $(( _waited % 5 )) -eq 0 ] && [ "$_waited" -gt 0 ]; then
+      local _mql_log_dir="$MT_DIR/MQL5/Logs"
+      if [ "$MT_PLATFORM" = "mt4" ]; then _mql_log_dir="$MT_DIR/MQL4/Logs"; fi
+      
+      # Sample EA log
+      local _ea_log=$(ls -t "$_mql_log_dir/"*.log 2>/dev/null | head -n1 || true)
+      if [ -n "$_ea_log" ]; then
+        local _ea_recent=$(tr -d '\000' < "$_ea_log" 2>/dev/null | tail -n 3 | tr '\n' ' | ')
+        _drv_log "phase5: EA log sample at +${_waited}s: ${_ea_recent}"
+      fi
+      
+      # Sample Terminal Journal
+      local _jnl_log=$(ls -t "$MT_DIR/logs/"*.log 2>/dev/null | head -n1 || true)
+      if [ -n "$_jnl_log" ]; then
+        # We look specifically for EA load/unload or DLL errors in the last 10 lines
+        local _jnl_recent=$(tr -d '\000' < "$_jnl_log" 2>/dev/null | tail -n 10 | grep -iE 'expert|dll|zmq' | tail -n 2 | tr '\n' ' | ' || true)
+        if [ -n "$_jnl_recent" ]; then
+          _drv_log "phase5: Journal EA/DLL events at +${_waited}s: ${_jnl_recent}"
+        fi
+      fi
+    fi
+
     if _drv_phase5_budget_exhausted "$_start_ts"; then
       _drv_warn "phase5: ${_label}: budget guard fired (remaining < ${AUTO_LOGIN_PHASE5_BUDGET_GUARD_SECS}s); yielding to Phase 4"
       return 1
