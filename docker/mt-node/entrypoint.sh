@@ -3105,6 +3105,7 @@ symbol=${MT_SYMBOL}
 period=16385
 <expert>
 name=ZeroMQ_EA
+flags=339
 </expert>
 </chart>
 EOF
@@ -3160,6 +3161,7 @@ else
 period=16385
 <expert>
 name=ZeroMQ_EA
+flags=339
 </expert>
 </chart>
 EOF
