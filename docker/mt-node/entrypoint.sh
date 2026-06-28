@@ -1762,6 +1762,11 @@ _drv_phase5_chart_attach() {
     sleep 1.0
     DISPLAY=:99 _xdo key l
     sleep 1.5
+    
+    _active_wid=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "UNKNOWN")
+    _active_name=$(DISPLAY=:99 _xdo getwindowname "$_active_wid" 2>/dev/null || echo "UNKNOWN")
+    _drv_log "phase5: BEFORE typing template, active window is WID=${_active_wid} NAME='${_active_name}'"
+
     DISPLAY=:99 _xdo key Home
     sleep 0.2
     DISPLAY=:99 _xdo key Shift+End
@@ -1801,6 +1806,11 @@ _drv_phase5_chart_attach() {
     sleep 1.0
     DISPLAY=:99 _xdo key l
     sleep 1.5
+
+    _active_wid=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "UNKNOWN")
+    _active_name=$(DISPLAY=:99 _xdo getwindowname "$_active_wid" 2>/dev/null || echo "UNKNOWN")
+    _drv_log "phase5: BEFORE typing template, active window is WID=${_active_wid} NAME='${_active_name}'"
+
     DISPLAY=:99 _xdo key Home
     sleep 0.2
     DISPLAY=:99 _xdo key Shift+End
@@ -1840,6 +1850,11 @@ _drv_phase5_chart_attach() {
     sleep 1.0
     DISPLAY=:99 _xdo key l
     sleep 1.5
+
+    _active_wid=$(DISPLAY=:99 _xdo getactivewindow 2>/dev/null || echo "UNKNOWN")
+    _active_name=$(DISPLAY=:99 _xdo getwindowname "$_active_wid" 2>/dev/null || echo "UNKNOWN")
+    _drv_log "phase5: BEFORE typing template, active window is WID=${_active_wid} NAME='${_active_name}'"
+
     DISPLAY=:99 _xdo key Home
     sleep 0.2
     DISPLAY=:99 _xdo key Shift+End
