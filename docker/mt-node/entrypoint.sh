@@ -1754,20 +1754,21 @@ _drv_phase5_chart_attach() {
   if _drv_phase5_attempt "$_mwid" "attempt 1 (Alt+F New Chart → recently-used)" "alt+f Right Return"; then
     _drv_log "phase5: explicitly loading expert template via keystrokes"
     DISPLAY=:99 _xdo search --class "Wine" windowactivate --sync 2>/dev/null || true
-    sleep 0.5
+    # Wait for the newly-opened chart to finish downloading history and unblock the UI thread.
+    sleep 5.0
     DISPLAY=:99 _xdo key alt+c
-    sleep 0.5
-    DISPLAY=:99 _xdo key t
-    sleep 0.5
-    DISPLAY=:99 _xdo key l
     sleep 1.0
+    DISPLAY=:99 _xdo key t
+    sleep 1.0
+    DISPLAY=:99 _xdo key l
+    sleep 1.5
     DISPLAY=:99 _xdo key Home
     sleep 0.2
     DISPLAY=:99 _xdo key Shift+End
     sleep 0.2
     DISPLAY=:99 _xdo key BackSpace
     sleep 0.2
-    DISPLAY=:99 _xdo type "expert.tpl"
+    DISPLAY=:99 _xdo type --delay 100 "expert.tpl"
     sleep 0.5
     DISPLAY=:99 _xdo key Return
     sleep 1.0
@@ -1792,20 +1793,21 @@ _drv_phase5_chart_attach() {
   if _drv_phase5_attempt "$_mwid" "attempt 2 (Alt+F New Chart → first category)" "alt+f Right Right Return"; then
     _drv_log "phase5: explicitly loading expert template via keystrokes"
     DISPLAY=:99 _xdo search --class "Wine" windowactivate --sync 2>/dev/null || true
-    sleep 0.5
+    # Wait for the newly-opened chart to finish downloading history and unblock the UI thread.
+    sleep 5.0
     DISPLAY=:99 _xdo key alt+c
-    sleep 0.5
-    DISPLAY=:99 _xdo key t
-    sleep 0.5
-    DISPLAY=:99 _xdo key l
     sleep 1.0
+    DISPLAY=:99 _xdo key t
+    sleep 1.0
+    DISPLAY=:99 _xdo key l
+    sleep 1.5
     DISPLAY=:99 _xdo key Home
     sleep 0.2
     DISPLAY=:99 _xdo key Shift+End
     sleep 0.2
     DISPLAY=:99 _xdo key BackSpace
     sleep 0.2
-    DISPLAY=:99 _xdo type "expert.tpl"
+    DISPLAY=:99 _xdo type --delay 100 "expert.tpl"
     sleep 0.5
     DISPLAY=:99 _xdo key Return
     sleep 1.0
@@ -1830,20 +1832,21 @@ _drv_phase5_chart_attach() {
   if _drv_phase5_attempt "$_mwid" "attempt 3 (Alt+F New Chart → second category)" "alt+f Right Down Right Return"; then
     _drv_log "phase5: explicitly loading expert template via keystrokes"
     DISPLAY=:99 _xdo search --class "Wine" windowactivate --sync 2>/dev/null || true
-    sleep 0.5
+    # Wait for the newly-opened chart to finish downloading history and unblock the UI thread.
+    sleep 5.0
     DISPLAY=:99 _xdo key alt+c
-    sleep 0.5
-    DISPLAY=:99 _xdo key t
-    sleep 0.5
-    DISPLAY=:99 _xdo key l
     sleep 1.0
+    DISPLAY=:99 _xdo key t
+    sleep 1.0
+    DISPLAY=:99 _xdo key l
+    sleep 1.5
     DISPLAY=:99 _xdo key Home
     sleep 0.2
     DISPLAY=:99 _xdo key Shift+End
     sleep 0.2
     DISPLAY=:99 _xdo key BackSpace
     sleep 0.2
-    DISPLAY=:99 _xdo type "expert.tpl"
+    DISPLAY=:99 _xdo type --delay 100 "expert.tpl"
     sleep 0.5
     DISPLAY=:99 _xdo key Return
     sleep 1.0
