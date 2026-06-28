@@ -13,7 +13,7 @@ image:
   # literal below is only the value between pushes. IfNotPresent is
   # correct because each push produces a NEW tag (the SHA), so ArgoCD
   # always sees a real diff and the node always pulls the new bytes.
-  tag: "d7f1e0c13e832f7a8d5a29457356926c3d37bdaf"
+  tag: "86a8004a63699af10d373db2609d6d0b14eabc49"
   pullPolicy: IfNotPresent
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -105,7 +105,7 @@ config:
         vault.hashicorp.com/agent-limits-cpu: "250m"
         vault.hashicorp.com/agent-requests-mem: "64Mi"
         vault.hashicorp.com/agent-limits-mem: "128Mi"
-    image: ghcr.io/flamegreat-1/etradie/mt-node:d7f1e0c13e832f7a8d5a29457356926c3d37bdaf
+    image: ghcr.io/flamegreat-1/etradie/mt-node:86a8004a63699af10d373db2609d6d0b14eabc49
 externalSecrets:
   enabled: true
   engine:
