@@ -1761,7 +1761,9 @@ _drv_phase5_chart_attach() {
     sleep 0.5
     DISPLAY=:99 _xdo key l
     sleep 1.0
-    DISPLAY=:99 _xdo key ctrl+a
+    DISPLAY=:99 _xdo key Home
+    sleep 0.2
+    DISPLAY=:99 _xdo key Shift+End
     sleep 0.2
     DISPLAY=:99 _xdo key BackSpace
     sleep 0.2
@@ -1797,7 +1799,9 @@ _drv_phase5_chart_attach() {
     sleep 0.5
     DISPLAY=:99 _xdo key l
     sleep 1.0
-    DISPLAY=:99 _xdo key ctrl+a
+    DISPLAY=:99 _xdo key Home
+    sleep 0.2
+    DISPLAY=:99 _xdo key Shift+End
     sleep 0.2
     DISPLAY=:99 _xdo key BackSpace
     sleep 0.2
@@ -1833,7 +1837,9 @@ _drv_phase5_chart_attach() {
     sleep 0.5
     DISPLAY=:99 _xdo key l
     sleep 1.0
-    DISPLAY=:99 _xdo key ctrl+a
+    DISPLAY=:99 _xdo key Home
+    sleep 0.2
+    DISPLAY=:99 _xdo key Shift+End
     sleep 0.2
     DISPLAY=:99 _xdo key BackSpace
     sleep 0.2
