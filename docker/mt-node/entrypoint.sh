@@ -1330,12 +1330,26 @@ _normalize_overlay() {
   if [ "$_plat" != "mt4" ]; then
     _common="$MT_CONFIG_DIR/common.ini"
     if [ -f "$_common" ]; then
-      log INFO "overlay-normalize(mt5): scrubbing baked common.ini (removing foreign account context while preserving global expert settings)"
-      cat > "$_common" <<EOF
-[Experts]
-AllowDllImport=1
-ExpertsEnable=1
-EOF
+      log INFO "overlay-normalize(mt5): stripping foreign [Common] account context from common.ini and enabling DLLs while preserving global settings"
+      # MT5 writes common.ini in UTF-16LE. We must iconv to UTF-8 to use standard grep/sed, then iconv back.
+      iconv -f UTF-16LE -t UTF-8 "$_common" > "$_common.utf8" 2>/dev/null || true
+      
+      # 1. Remove login credentials to prevent demo-registration wizard
+      sed -i '/^Login=/d; /^Password=/d; /^Server=/d; /^Proxy/d' "$_common.utf8" 2>/dev/null || true
+      
+      # 2. Ensure DLLs are globally allowed in [Experts]
+      if grep -q '\[Experts\]' "$_common.utf8"; then
+        if grep -q '^AllowDllImport=' "$_common.utf8"; then
+          sed -i 's/^AllowDllImport=.*/AllowDllImport=1/' "$_common.utf8" 2>/dev/null || true
+        else
+          sed -i '/^\[Experts\]/a AllowDllImport=1' "$_common.utf8" 2>/dev/null || true
+        fi
+      else
+        printf "\n[Experts]\nAllowDllImport=1\nExpertsEnable=1\n" >> "$_common.utf8"
+      fi
+      
+      iconv -f UTF-8 -t UTF-16LE "$_common.utf8" > "$_common" 2>/dev/null || true
+      rm -f "$_common.utf8" 2>/dev/null || true
     fi
   fi
 
