@@ -106,68 +106,14 @@ export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
     if (brand.entities.length === 1) {
       onSelect(brand, brand.entities[0].entity_id);
     } else {
-      setSelectedBrand(brand);
-      setSelectedEntityId(brand.entities[0].entity_id);
+      if (selectedBrand?.brand_id === brand.brand_id) {
+        setSelectedBrand(null);
+      } else {
+        setSelectedBrand(brand);
+        setSelectedEntityId(brand.entities[0].entity_id);
+      }
     }
   };
-
-  if (selectedBrand) {
-    return (
-      <div className="w-full max-w-md mx-auto px-4 sm:px-6">
-        <div className="text-center mb-8">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-2 border border-border">
-            <Search className="h-6 w-6 text-content" />
-          </div>
-          <h2 className="text-xl font-bold text-content">Select Legal Entity</h2>
-          <p className="mt-2 text-sm text-content-secondary">
-            {selectedBrand.display_name} has multiple legal entities.
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <label className="block">
-            <span className="text-[10px] text-content-muted uppercase font-bold tracking-wider">
-              Legal Entity
-            </span>
-            <div className="relative mt-1">
-              <select
-                value={selectedEntityId}
-                onChange={(e) => setSelectedEntityId(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-border bg-surface-2 pl-3 pr-10 py-2.5 text-sm text-content focus:outline-none focus:border-brand transition-colors"
-              >
-                {selectedBrand.entities.map((e) => (
-                  <option key={e.entity_id} value={e.entity_id}>
-                    {e.display_name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={16}
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-faint"
-              />
-            </div>
-          </label>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={() => setSelectedBrand(null)}
-              className="flex-1 rounded-lg border border-border bg-transparent py-2.5 text-sm font-semibold text-content hover:bg-surface-2 transition-colors flex items-center justify-center gap-2"
-            >
-              <ArrowLeft size={16} /> Back
-            </button>
-            <button
-              type="button"
-              onClick={() => onSelect(selectedBrand, selectedEntityId)}
-              className="flex-1 rounded-lg bg-brand py-2.5 text-sm font-bold text-brand-contrast hover:opacity-90 transition-opacity"
-            >
-              Continue
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="w-full max-w-md mx-auto px-4 sm:px-6">
@@ -290,9 +236,46 @@ export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
                       </div>
                       <ChevronRight
                         size={14}
-                        className={`shrink-0 ${isActive ? 'text-brand' : 'text-content-faint'}`}
+                        className={`shrink-0 ${isActive ? 'text-brand' : 'text-content-faint'} ${
+                          selectedBrand?.brand_id === brand.brand_id ? 'rotate-90' : ''
+                        } transition-transform`}
                       />
                     </button>
+                    {selectedBrand?.brand_id === brand.brand_id && (
+                      <div className="px-3 pb-3 pt-1 border-t border-border/50 bg-brand/5">
+                        <label className="block mt-2">
+                          <span className="text-[10px] text-content-muted uppercase font-bold tracking-wider">
+                            Legal Entity
+                          </span>
+                          <div className="relative mt-1 flex gap-2">
+                            <div className="relative flex-1">
+                              <select
+                                value={selectedEntityId}
+                                onChange={(e) => setSelectedEntityId(e.target.value)}
+                                className="w-full appearance-none rounded-lg border border-border bg-surface-2 pl-3 pr-10 py-2.5 text-sm text-content focus:outline-none focus:border-brand transition-colors"
+                              >
+                                {brand.entities.map((e) => (
+                                  <option key={e.entity_id} value={e.entity_id}>
+                                    {e.display_name}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown
+                                size={14}
+                                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-content-faint"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => onSelect(brand, selectedEntityId)}
+                              className="rounded-lg bg-brand px-4 py-2.5 text-sm font-bold text-brand-contrast hover:opacity-90 transition-opacity"
+                            >
+                              Continue
+                            </button>
+                          </div>
+                        </label>
+                      </div>
+                    )}
                   </li>
                 );
               })}
