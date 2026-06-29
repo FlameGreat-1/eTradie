@@ -36,7 +36,7 @@ async def search_metaapi_servers(
         return {"brands": []}
 
     q_lower = q.lower().strip()
-    cache_key = f"etradie:metaapi:search:{q_lower}"
+    cache_key = f"etradie:metaapi:search:v2:{q_lower}"
 
     # 1. Check cache
     cached = await container.cache.get("metaapi", cache_key)
