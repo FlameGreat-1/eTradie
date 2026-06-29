@@ -49,8 +49,11 @@ async def search_metaapi_servers(
     # 2. Fetch from MetaAPI
     headers = {"auth-token": token, "Accept": "application/json"}
 
+    import urllib.parse
+    
     async def fetch_version(version: int) -> dict[str, list[str]]:
-        url = f"{METAAPI_BASE_URL}/known-mt-servers/{version}/search?query={q}"
+        encoded_q = urllib.parse.quote(q)
+        url = f"{METAAPI_BASE_URL}/known-mt-servers/{version}/search?query={encoded_q}"
         try:
             res = await container.http_client.get(
                 url,
@@ -129,7 +132,7 @@ async def search_metaapi_servers(
 
     # 4. Cache and return (24 hours = 86400 seconds)
     try:
-        await container.cache.set(cache_key, json.dumps(response_data), ttl=86400)
+        await container.cache.set(cache_key, json.dumps(response_data), ttl_seconds=86400)
     except Exception as exc:
         logger.error("metaapi_search_cache_set_failed", extra={"error": str(exc)})
 
