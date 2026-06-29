@@ -36,7 +36,7 @@ async def search_metaapi_servers(
         return {"brands": []}
 
     q_lower = q.lower().strip()
-    cache_key = f"etradie:metaapi:search:v3:{q_lower}"
+    cache_key = f"etradie:metaapi:search:v4:{q_lower}"
 
     # 1. Check cache
     cached = await container.cache.get("metaapi", cache_key)
@@ -106,29 +106,41 @@ async def search_metaapi_servers(
     if not brand_entities:
         return {"brands": []}
 
-    # Group into a single BrandRecord
-    brand_name = q.capitalize()
+    # Group entities by their brand name (first word)
+    from collections import defaultdict
 
-    from collections import Counter
+    brands_map: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for entity in brand_entities.values():
+        name_parts = entity["display_name"].split()
+        if not name_parts:
+            continue
+        # Use first word as brand name
+        brand_name = name_parts[0]
+        brands_map[brand_name].append(entity)
 
-    words = [name.split()[0] for name in brand_entities if name.split()]
-    if words:
-        # Use the most common first word as the brand name (e.g. "Exness B.V." -> "Exness")
-        brand_name = Counter(words).most_common(1)[0][0]
+    brands_list = []
+    for b_name, entities in brands_map.items():
+        # Check platforms for this brand
+        has_mt5 = any("mt5" in e.get("platforms", {}) for e in entities)
+        has_mt4 = any("mt4" in e.get("platforms", {}) for e in entities)
 
-    brand_record = {
-        "brand_id": f"metaapi_{hashlib.sha256(brand_name.encode()).hexdigest()[:8]}",
-        "display_name": f"{brand_name}",
-        "official_website": "",
-        "mt5_supported": bool(mt5_res),
-        "mt4_supported": bool(mt4_res),
-        "installer_packaging": "none",
-        "status": "active",
-        "is_metaapi_only": True,
-        "entities": list(brand_entities.values()),
-    }
+        brand_record = {
+            "brand_id": f"metaapi_{hashlib.sha256(b_name.encode()).hexdigest()[:8]}",
+            "display_name": f"{b_name}",
+            "official_website": "",
+            "mt5_supported": has_mt5,
+            "mt4_supported": has_mt4,
+            "installer_packaging": "none",
+            "status": "active",
+            "is_metaapi_only": True,
+            "entities": entities,
+        }
+        brands_list.append(brand_record)
 
-    response_data = {"brands": [brand_record]}
+    # Sort alphabetically by brand name
+    brands_list.sort(key=lambda b: b["display_name"])
+
+    response_data = {"brands": brands_list}
 
     # 4. Cache and return (24 hours = 86400 seconds)
     try:
