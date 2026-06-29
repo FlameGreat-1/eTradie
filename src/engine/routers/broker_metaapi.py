@@ -50,7 +50,7 @@ async def search_metaapi_servers(
     headers = {"auth-token": token, "Accept": "application/json"}
 
     import urllib.parse
-    
+
     async def fetch_version(version: int) -> dict[str, list[str]]:
         encoded_q = urllib.parse.quote(q)
         url = f"{METAAPI_BASE_URL}/known-mt-servers/{version}/search?query={encoded_q}"
