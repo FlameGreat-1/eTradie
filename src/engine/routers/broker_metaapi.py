@@ -43,12 +43,12 @@ async def search_metaapi_servers(
     if cached:
         try:
             return json.loads(cached)
-        except Exception:
-            pass
+        except json.JSONDecodeError as exc:
+            logger.warning("metaapi_search_cache_decode_failed", extra={"error": str(exc)})
 
     # 2. Fetch from MetaAPI
     headers = {"auth-token": token, "Accept": "application/json"}
-    
+
     async def fetch_version(version: int) -> dict[str, list[str]]:
         url = f"{METAAPI_BASE_URL}/known-mt-servers/{version}/search?query={q}"
         try:
@@ -72,16 +72,16 @@ async def search_metaapi_servers(
     mt5_res, mt4_res = await asyncio.gather(fetch_version(5), fetch_version(4))
 
     brand_entities: dict[str, dict[str, Any]] = {}
-    
+
     def process_servers(data: dict[str, list[str]], platform: str):
         for entity_name, servers in data.items():
             if entity_name not in brand_entities:
                 brand_entities[entity_name] = {
-                    "entity_id": f"metaapi_{hashlib.md5(entity_name.encode()).hexdigest()[:8]}",
+                    "entity_id": f"metaapi_{hashlib.sha256(entity_name.encode()).hexdigest()[:8]}",
                     "display_name": entity_name,
                     "platforms": {}
                 }
-            
+
             demo_servers = []
             live_servers = []
             for srv in servers:
@@ -90,7 +90,7 @@ async def search_metaapi_servers(
                     demo_servers.append(srv)
                 else:
                     live_servers.append(srv)
-            
+
             brand_entities[entity_name]["platforms"][platform] = {
                 "bundle_r2_path": "",
                 "bundle_sha256": "",
@@ -108,15 +108,15 @@ async def search_metaapi_servers(
 
     # Group into a single BrandRecord
     brand_name = q.capitalize()
-    
+
     from collections import Counter
-    words = [name.split()[0] for name in brand_entities.keys() if name.split()]
+    words = [name.split()[0] for name in brand_entities if name.split()]
     if words:
         # Use the most common first word as the brand name (e.g. "Exness B.V." -> "Exness")
         brand_name = Counter(words).most_common(1)[0][0]
 
     brand_record = {
-        "brand_id": f"metaapi_{hashlib.md5(brand_name.encode()).hexdigest()[:8]}",
+        "brand_id": f"metaapi_{hashlib.sha256(brand_name.encode()).hexdigest()[:8]}",
         "display_name": f"{brand_name}",
         "official_website": "",
         "mt5_supported": bool(mt5_res),
@@ -128,7 +128,7 @@ async def search_metaapi_servers(
     }
 
     response_data = {"brands": [brand_record]}
-    
+
     # 4. Cache and return (24 hours = 86400 seconds)
     try:
         await container.cache.set(cache_key, json.dumps(response_data), ttl=86400)
