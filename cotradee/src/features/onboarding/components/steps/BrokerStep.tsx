@@ -319,7 +319,7 @@ export function BrokerStep({ brand, entityId, onBack, onComplete }: Props) {
             </div>
           </div>
 
-          <div className="space-y-1">
+          <div className={`${requiresPassword ? '' : 'col-span-2'} space-y-1`}>
             <label className="text-[10px] text-content-muted uppercase font-bold tracking-wider">
               Login ID
             </label>
@@ -333,7 +333,7 @@ export function BrokerStep({ brand, entityId, onBack, onComplete }: Props) {
           </div>
 
           {requiresPassword && (
-            <div className="col-span-2 space-y-1">
+            <div className="space-y-1">
               <label className="text-[10px] text-content-muted uppercase font-bold tracking-wider">
                 Trading Password
               </label>
