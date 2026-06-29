@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
 import {
   useBrokerRegistry,
+  useMetaApiBrokers,
   type BrandRecord,
 } from '@/features/broker/api/brokerRegistry';
 
@@ -18,20 +19,47 @@ export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
   const listRef = useRef<HTMLUListElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const { data: metaApiBrands, isLoading: isMetaApiLoading } = useMetaApiBrokers(debouncedQuery);
+
   const filtered = useMemo<BrandRecord[]>(() => {
     const list = brands ?? [];
     const q = query.trim().toLowerCase();
+    
+    let localFiltered: BrandRecord[] = [];
     if (!q) {
-      return [...list].sort((a, b) => a.display_name.localeCompare(b.display_name));
+      localFiltered = [...list].sort((a, b) => a.display_name.localeCompare(b.display_name));
+    } else {
+      localFiltered = list
+        .filter(
+          (b) =>
+            b.display_name.toLowerCase().includes(q) ||
+            b.brand_id.toLowerCase().includes(q),
+        )
+        .sort((a, b) => a.display_name.localeCompare(b.display_name));
     }
-    return list
-      .filter(
-        (b) =>
-          b.display_name.toLowerCase().includes(q) ||
-          b.brand_id.toLowerCase().includes(q),
-      )
-      .sort((a, b) => a.display_name.localeCompare(b.display_name));
-  }, [brands, query]);
+    
+    // Merge MetaApi brands
+    const merged = [...localFiltered];
+    if (metaApiBrands && metaApiBrands.length > 0) {
+      for (const maBrand of metaApiBrands) {
+        // Simple deduplication based on display_name or brand_id
+        if (!merged.some(b => b.display_name.toLowerCase() === maBrand.display_name.toLowerCase())) {
+          merged.push(maBrand);
+        }
+      }
+    }
+    
+    return merged;
+  }, [brands, metaApiBrands, query]);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -108,7 +136,7 @@ export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
         </label>
 
         <div className="rounded-lg border border-border bg-surface-2 overflow-hidden">
-          {isLoading && (
+          {(isLoading || isMetaApiLoading) && (
             <div className="flex items-center justify-center gap-2 py-8 text-xs text-content-muted">
               <Loader2 size={14} className="animate-spin" />
               Loading broker catalog…
@@ -179,6 +207,11 @@ export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
                           {brand.mt4_supported && (
                             <span className="ml-1 inline-flex items-center rounded bg-surface-3 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-content-muted">
                               MT4
+                            </span>
+                          )}
+                          {brand.is_metaapi_only && (
+                            <span className="ml-2 inline-flex items-center rounded bg-blue-500/10 text-blue-500 border border-blue-500/20 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider">
+                              MetaApi Cloud
                             </span>
                           )}
                         </div>

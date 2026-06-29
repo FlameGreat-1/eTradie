@@ -35,6 +35,7 @@ export interface BrandRecord {
   installer_packaging: InstallerPackaging;
   status: BrandStatus;
   notes?: string | null;
+  is_metaapi_only?: boolean;
   entities: EntityRecord[];
 }
 
@@ -55,6 +56,26 @@ export function useBrokerRegistry() {
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+  });
+}
+
+export function useMetaApiBrokers(query: string) {
+  const { isAuthenticated } = useAuth();
+  const trimmed = query.trim();
+  const enabled = isAuthenticated && trimmed.length >= 2;
+
+  return useQuery({
+    queryKey: ['broker', 'metaapi', trimmed],
+    queryFn: async (): Promise<BrandRecord[]> => {
+      const { data } = await api.engine.get<BrokerRegistryResponse>(
+        `/api/broker/metaapi/servers?q=${encodeURIComponent(trimmed)}`
+      );
+      return data?.brands ?? [];
+    },
+    enabled,
+    staleTime: 60 * 60 * 1000, // 1 hour
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
+    refetchOnWindowFocus: false,
   });
 }
 

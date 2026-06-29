@@ -48,6 +48,7 @@ export function BrokerStep({ brand, onBack, onComplete }: Props) {
   const [form, setForm] = useState<BrokerForm>(() => {
     const initial: BrokerForm = { ...INITIAL_FORM };
     if (brand) {
+      if (brand.is_metaapi_only) initial.connection_type = 'metaapi';
       if (brand.mt5_supported) initial.platform = 'mt5';
       else if (brand.mt4_supported) initial.platform = 'mt4';
       if (brand.entities.length === 1) initial.entity_id = brand.entities[0].entity_id;
@@ -79,6 +80,11 @@ export function BrokerStep({ brand, onBack, onComplete }: Props) {
         next.name = `My ${brand.display_name} Account`;
       }
       next.mt5_server = '';
+      if (brand.is_metaapi_only && f.connection_type !== 'metaapi') {
+        next.connection_type = 'metaapi';
+      } else if (!brand.is_metaapi_only && f.connection_type === 'metaapi') {
+        // Option to reset if needed, but not strictly necessary since Exoper supports both technically.
+      }
       return next;
     });
   }, [brand]);
@@ -212,7 +218,7 @@ export function BrokerStep({ brand, onBack, onComplete }: Props) {
                 }
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand transition-colors appearance-none"
               >
-                <option value="hosted">Exoper</option>
+                {!brand?.is_metaapi_only && <option value="hosted">Exoper</option>}
                 <option value="metaapi">MetaAPI</option>
                 <option value="ea">ZeroMQ (EA)</option>
               </select>

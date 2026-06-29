@@ -16,6 +16,7 @@ from engine.routers import (
     analysis,
     broker_bridge,
     broker_connections,
+    broker_metaapi,
     chart,
     health,
     internal,
@@ -367,6 +368,7 @@ def create_app() -> FastAPI:
     app.include_router(llm_connections.router)
     app.include_router(processor_config.router)
     app.include_router(broker_connections.router)
+    app.include_router(broker_metaapi.router)
     app.include_router(broker_bridge.router)
     app.include_router(chart.router)
     app.include_router(trading_plan.router)
