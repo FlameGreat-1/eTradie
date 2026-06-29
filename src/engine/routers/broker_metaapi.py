@@ -106,29 +106,22 @@ async def search_metaapi_servers(
     if not brand_entities:
         return {"brands": []}
 
-    # Group into a single BrandRecord
-    brand_name = q.capitalize()
+    brand_records = []
+    for entity_name, entity_data in brand_entities.items():
+        brand_record = {
+            "brand_id": entity_data["entity_id"],
+            "display_name": entity_name,
+            "official_website": "",
+            "mt5_supported": "mt5" in entity_data["platforms"],
+            "mt4_supported": "mt4" in entity_data["platforms"],
+            "installer_packaging": "none",
+            "status": "active",
+            "is_metaapi_only": True,
+            "entities": [entity_data],
+        }
+        brand_records.append(brand_record)
 
-    from collections import Counter
-
-    words = [name.split()[0] for name in brand_entities if name.split()]
-    if words:
-        # Use the most common first word as the brand name (e.g. "Exness B.V." -> "Exness")
-        brand_name = Counter(words).most_common(1)[0][0]
-
-    brand_record = {
-        "brand_id": f"metaapi_{hashlib.sha256(brand_name.encode()).hexdigest()[:8]}",
-        "display_name": f"{brand_name}",
-        "official_website": "",
-        "mt5_supported": bool(mt5_res),
-        "mt4_supported": bool(mt4_res),
-        "installer_packaging": "none",
-        "status": "active",
-        "is_metaapi_only": True,
-        "entities": list(brand_entities.values()),
-    }
-
-    response_data = {"brands": [brand_record]}
+    response_data = {"brands": brand_records}
 
     # 4. Cache and return (24 hours = 86400 seconds)
     try:
