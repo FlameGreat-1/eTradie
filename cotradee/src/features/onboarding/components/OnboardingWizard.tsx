@@ -22,6 +22,7 @@ export function OnboardingWizard() {
   const [mounted, setMounted] = useState(false);
 
   const [pickedBrand, setPickedBrand] = useState<BrandRecord | null>(null);
+  const [pickedEntityId, setPickedEntityId] = useState<string>('');
 
   useEffect(() => {
     if (loading || mounted) return;
@@ -52,8 +53,9 @@ export function OnboardingWizard() {
     navigate('/dashboard', { replace: true });
   }, [navigate]);
 
-  const handleBrandSelect = useCallback((brand: BrandRecord) => {
+  const handleBrandSelect = useCallback((brand: BrandRecord, entityId: string) => {
     setPickedBrand(brand);
+    setPickedEntityId(entityId);
     setCurrent(1);
   }, []);
 
@@ -74,6 +76,7 @@ export function OnboardingWizard() {
         return (
           <BrokerStep
             brand={pickedBrand}
+            entityId={pickedEntityId}
             onBack={handleBackFromSetup}
             onComplete={advance}
           />

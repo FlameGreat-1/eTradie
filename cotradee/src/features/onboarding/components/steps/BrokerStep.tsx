@@ -36,11 +36,12 @@ const INITIAL_FORM: BrokerForm = {
 
 interface Props {
   brand: BrandRecord | null;
+  entityId: string;
   onBack: () => void;
   onComplete: () => void;
 }
 
-export function BrokerStep({ brand, onBack, onComplete }: Props) {
+export function BrokerStep({ brand, entityId, onBack, onComplete }: Props) {
   const { data: connections } = useBrokerConnections();
   const { data: active } = useActiveBrokerConnection();
   const createConn = useCreateBrokerConnection();
@@ -51,7 +52,7 @@ export function BrokerStep({ brand, onBack, onComplete }: Props) {
       if (brand.is_metaapi_only) initial.connection_type = 'metaapi';
       if (brand.mt5_supported) initial.platform = 'mt5';
       else if (brand.mt4_supported) initial.platform = 'mt4';
-      if (brand.entities.length === 1) initial.entity_id = brand.entities[0].entity_id;
+      if (entityId) initial.entity_id = entityId;
       initial.name = `My ${brand.display_name} Account`;
     }
     return initial;
@@ -66,11 +67,8 @@ export function BrokerStep({ brand, onBack, onComplete }: Props) {
     if (!brand) return;
     setForm((f) => {
       const next = { ...f };
-      if (brand.entities.length === 1) {
-        next.entity_id = brand.entities[0].entity_id;
-      } else if (!brand.entities.some((e) => e.entity_id === f.entity_id)) {
-        next.entity_id = '';
-      }
+      next.entity_id = entityId || '';
+      
       const supportsCurrent =
         f.platform === 'mt5' ? brand.mt5_supported : brand.mt4_supported;
       if (!supportsCurrent) {
@@ -87,7 +85,7 @@ export function BrokerStep({ brand, onBack, onComplete }: Props) {
       }
       return next;
     });
-  }, [brand]);
+  }, [brand, entityId]);
 
   const alreadyConnected =
     !!active || (Array.isArray(connections) && connections.length > 0);
@@ -243,37 +241,7 @@ export function BrokerStep({ brand, onBack, onComplete }: Props) {
             />
           </div>
 
-          {brand.entities.length > 1 && (
-            <div className="col-span-2 space-y-1">
-              <label className="text-[10px] text-content-muted uppercase font-bold tracking-wider">
-                Legal Entity
-              </label>
-              <div className="relative">
-                <select
-                  value={form.entity_id}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, entity_id: e.target.value, mt5_server: '' }))
-                  }
-                  className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand appearance-none"
-                >
-                  <option value="" disabled>
-                    Select an entity…
-                  </option>
-                  {brand.entities.map((e) => (
-                    <option key={e.entity_id} value={e.entity_id}>
-                      {e.display_name}
-                      {e.regulator && e.regulator !== 'unknown' ? ` (${e.regulator})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-content-faint pointer-events-none"
-                  size={14}
-                  strokeWidth={3}
-                />
-              </div>
-            </div>
-          )}
+          {/* Removed Legal Entity Dropdown (now selected in step 0) */}
 
           {(form.connection_type === 'metaapi' || form.connection_type === 'hosted') && (
             <div className="space-y-1">
