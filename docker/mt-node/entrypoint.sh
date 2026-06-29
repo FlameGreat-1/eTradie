@@ -1330,12 +1330,33 @@ _normalize_overlay() {
   if [ "$_plat" != "mt4" ]; then
     _common="$MT_CONFIG_DIR/common.ini"
     if [ -f "$_common" ]; then
-      log INFO "overlay-normalize(mt5): stripping foreign [Common] account context from common.ini and enabling DLLs while preserving global settings"
+      log INFO "overlay-normalize(mt5): replacing baked credentials in common.ini with tenant values (prevents wizard on multi-entity bundles) and enabling DLLs"
       # MT5 writes common.ini in UTF-16LE. We must iconv to UTF-8 to use standard grep/sed, then iconv back.
       iconv -f UTF-16LE -t UTF-8 "$_common" > "$_common.utf8" 2>/dev/null || true
       
-      # 1. Remove login credentials to prevent demo-registration wizard
-      sed -i '/^Login=/d; /^Password=/d; /^Server=/d; /^Proxy/d' "$_common.utf8" 2>/dev/null || true
+      # 1. Replace baked Login/Password/Server with the TENANT's values so
+      #    MT5 has correct server context on boot. On multi-entity bundles
+      #    (e.g. Deriv ships 9 companies in one install), deleting Server=
+      #    caused MT5 to lose company context and show the "Open an Account"
+      #    wizard — which pre-selected the wrong company (BVI instead of
+      #    Deriv.com Limited). Replacing instead of deleting preserves the
+      #    server context so MT5 can resolve the server, determine the
+      #    correct entity, and auto-login without any wizard.
+      #    On single-entity bundles (Exness) this is harmless.
+      #    Uses awk ENVIRON[] for safe handling of passwords with special chars.
+      awk '
+        BEGIN { did_l=0; did_p=0; did_s=0 }
+        /^Login=/ { print "Login=" ENVIRON["MT_LOGIN"]; did_l=1; next }
+        /^Password=/ { print "Password=" ENVIRON["MT_PASSWORD"]; did_p=1; next }
+        /^Server=/ { print "Server=" ENVIRON["MT_SERVER"]; did_s=1; next }
+        /^Proxy/ { next }
+        { print }
+        END {
+          if (!did_l) print "Login=" ENVIRON["MT_LOGIN"]
+          if (!did_p) print "Password=" ENVIRON["MT_PASSWORD"]
+          if (!did_s) print "Server=" ENVIRON["MT_SERVER"]
+        }
+      ' "$_common.utf8" > "$_common.utf8.tmp" && mv "$_common.utf8.tmp" "$_common.utf8"
       
       # 2. Ensure DLLs are globally allowed in [Experts]
       if grep -q '\[Experts\]' "$_common.utf8"; then
@@ -1349,7 +1370,7 @@ _normalize_overlay() {
       fi
       
       iconv -f UTF-8 -t UTF-16LE "$_common.utf8" > "$_common" 2>/dev/null || true
-      rm -f "$_common.utf8" 2>/dev/null || true
+      rm -f "$_common.utf8" "$_common.utf8.tmp" 2>/dev/null || true
     fi
   fi
 

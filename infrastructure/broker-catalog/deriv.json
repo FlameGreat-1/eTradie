@@ -4,7 +4,7 @@
   "official_website": "https://deriv.com",
   "mt5_supported": true,
   "mt4_supported": false,
-  "installer_packaging": "unified",
+  "installer_packaging": "per_entity",
   "status": "active",
   "notes": "bundle_r2_path is the resolved public HTTPS URL of the R2 object. The R2 scheme alias (r2://etradie-installers/broker-bundles/deriv-portable.zip) is preserved here for traceability only; never used as a fetch path. The HTTPS URL below is what the provisioner / initContainer wget-fetches.",
   "entities": [
