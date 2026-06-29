@@ -79,7 +79,7 @@ async def search_metaapi_servers(
                 brand_entities[entity_name] = {
                     "entity_id": f"metaapi_{hashlib.sha256(entity_name.encode()).hexdigest()[:8]}",
                     "display_name": entity_name,
-                    "platforms": {}
+                    "platforms": {},
                 }
 
             demo_servers = []
@@ -94,10 +94,7 @@ async def search_metaapi_servers(
             brand_entities[entity_name]["platforms"][platform] = {
                 "bundle_r2_path": "",
                 "bundle_sha256": "",
-                "servers": {
-                    "demo": demo_servers,
-                    "live": live_servers
-                }
+                "servers": {"demo": demo_servers, "live": live_servers},
             }
 
     process_servers(mt5_res, "mt5")
@@ -110,6 +107,7 @@ async def search_metaapi_servers(
     brand_name = q.capitalize()
 
     from collections import Counter
+
     words = [name.split()[0] for name in brand_entities if name.split()]
     if words:
         # Use the most common first word as the brand name (e.g. "Exness B.V." -> "Exness")
@@ -124,7 +122,7 @@ async def search_metaapi_servers(
         "installer_packaging": "none",
         "status": "active",
         "is_metaapi_only": True,
-        "entities": list(brand_entities.values())
+        "entities": list(brand_entities.values()),
     }
 
     response_data = {"brands": [brand_record]}
