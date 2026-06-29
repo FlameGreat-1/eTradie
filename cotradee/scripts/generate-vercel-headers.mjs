@@ -133,6 +133,16 @@ function companionOrigin(origin) {
  */
 function deriveConnectSrc(envLookup) {
   const set = new Set();
+  
+  // ALWAYS add these so that both staging and prod environments work without CSP blocks
+  const hardcodedOrigins = [
+    'https://api.exoper.com',
+    'wss://api.exoper.com',
+    'https://staging-api.exoper.com',
+    'wss://staging-api.exoper.com'
+  ];
+  hardcodedOrigins.forEach(o => set.add(o));
+
   for (const [name, fallback] of Object.entries(VITE_ORIGIN_VARS)) {
     const origin = toOrigin(envLookup(name) || fallback);
     if (!origin) continue;

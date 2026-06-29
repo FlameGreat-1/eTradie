@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, ChevronRight, AlertCircle, Loader2, ChevronDown, ArrowLeft } from 'lucide-react';
+import { Search, ChevronRight, AlertCircle, Loader2, ChevronDown } from 'lucide-react';
 import {
   useBrokerRegistry,
   useMetaApiBrokers,
