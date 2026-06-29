@@ -54,10 +54,7 @@ export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
     const merged = [...localFiltered];
     if (metaApiBrands && metaApiBrands.length > 0) {
       for (const maBrand of metaApiBrands) {
-        // Simple deduplication based on display_name or brand_id
-        if (!merged.some(b => b.display_name.toLowerCase() === maBrand.display_name.toLowerCase())) {
-          merged.push(maBrand);
-        }
+        merged.push(maBrand);
       }
     }
     
