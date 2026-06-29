@@ -216,7 +216,7 @@ export function BrokerStep({ brand, entityId, onBack, onComplete }: Props) {
                 }
                 className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-content focus:outline-none focus:border-brand transition-colors appearance-none"
               >
-                {!brand?.is_metaapi_only && <option value="hosted">Exoper</option>}
+                <option value="hosted">Exoper</option>
                 <option value="metaapi">MetaAPI</option>
                 <option value="ea">ZeroMQ (EA)</option>
               </select>

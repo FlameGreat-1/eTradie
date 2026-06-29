@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, ChevronRight, AlertCircle, Loader2, ChevronDown } from 'lucide-react';
 import {
-  useBrokerRegistry,
   useMetaApiBrokers,
   type BrandRecord,
 } from '@/features/broker/api/brokerRegistry';
@@ -12,7 +11,6 @@ interface Props {
 }
 
 export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
-  const { data: brands, isLoading, isError, error, refetch } = useBrokerRegistry();
 
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -31,39 +29,17 @@ export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const { data: metaApiBrands, isLoading: isMetaApiLoading } = useMetaApiBrokers(debouncedQuery);
+  const { data: metaApiBrands, isLoading: isMetaApiLoading, isError, error, refetch } = useMetaApiBrokers(debouncedQuery);
 
   const filtered = useMemo<BrandRecord[]>(() => {
-    const list = brands ?? [];
-    const q = query.trim().toLowerCase();
-    
-    let localFiltered: BrandRecord[] = [];
-    if (!q) {
-      localFiltered = [...list].sort((a, b) => a.display_name.localeCompare(b.display_name));
-    } else {
-      localFiltered = list
-        .filter(
-          (b) =>
-            b.display_name.toLowerCase().includes(q) ||
-            b.brand_id.toLowerCase().includes(q),
-        )
-        .sort((a, b) => a.display_name.localeCompare(b.display_name));
-    }
-    
-    // Merge MetaApi brands
-    const merged = [...localFiltered];
-    if (metaApiBrands && metaApiBrands.length > 0) {
-      for (const maBrand of metaApiBrands) {
-        merged.push(maBrand);
-      }
-    }
-    
-    return merged;
-  }, [brands, metaApiBrands, query]);
+    return metaApiBrands || [];
+  }, [metaApiBrands]);
+
+  const isLoading = isMetaApiLoading && debouncedQuery.length >= 2;
 
   useEffect(() => {
     setActiveIndex(0);
-  }, [query, brands]);
+  }, [query, metaApiBrands]);
 
   useEffect(() => {
     const el = listRef.current?.children[activeIndex] as HTMLElement | undefined;
@@ -77,10 +53,10 @@ export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
   }, [selectedBrand]);
 
   useEffect(() => {
-    if (!initialBrandId || !brands?.length) return;
-    const match = brands.find((b) => b.brand_id === initialBrandId);
+    if (!initialBrandId || !metaApiBrands?.length) return;
+    const match = metaApiBrands.find((b) => b.brand_id === initialBrandId);
     if (match) setQuery(match.display_name);
-  }, [initialBrandId, brands]);
+  }, [initialBrandId, metaApiBrands]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (filtered.length === 0) return;
