@@ -200,11 +200,6 @@ export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
                               MT4
                             </span>
                           )}
-                          {brand.is_metaapi_only && (
-                            <span className="ml-2 inline-flex items-center rounded bg-blue-500/10 text-blue-500 border border-blue-500/20 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider">
-                              MetaApi Cloud
-                            </span>
-                          )}
                         </div>
                       </div>
                       <ChevronRight
