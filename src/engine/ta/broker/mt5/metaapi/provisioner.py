@@ -162,7 +162,7 @@ class MetaApiProvisioner:
             "application": "MetaApi",
         }
 
-        if self._magic:
+        if self._magic is not None:
             payload["magic"] = self._magic
 
         # Generate a unique transaction ID for idempotency (32-char hex required).
