@@ -694,10 +694,20 @@ class MetaApiClient(BrokerBase):
                 details={"symbol": symbol},
             )
 
+        time_raw = raw.get("time", 0)
+        if isinstance(time_raw, str):
+            try:
+                ts = datetime.fromisoformat(time_raw.replace("Z", "+00:00"))
+                tick_time = int(ts.timestamp())
+            except Exception:
+                tick_time = 0
+        else:
+            tick_time = int(time_raw)
+
         tick = TickPrice(
             bid=float(raw.get("bid", 0)),
             ask=float(raw.get("ask", 0)),
-            time=int(raw.get("time", 0)),
+            time=tick_time,
         )
         # Section 2 anti-stale guard. Same contract as ZmqClient.
         if self._freshness_guard is not None:

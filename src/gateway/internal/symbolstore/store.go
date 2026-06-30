@@ -125,7 +125,7 @@ func (s *Store) SetActiveSymbols(ctx context.Context, userID string, symbols []s
 	for _, sym := range symbols {
 		trimmed := strings.TrimSpace(sym)
 		if trimmed != "" {
-			normalized = append(normalized, strings.ToUpper(trimmed))
+			normalized = append(normalized, trimmed)
 		}
 	}
 
