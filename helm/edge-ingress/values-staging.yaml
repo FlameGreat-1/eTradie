@@ -11,7 +11,7 @@ image:
   # literal below is only the value between pushes. IfNotPresent is
   # correct because each push produces a NEW tag (the SHA), so ArgoCD
   # always sees a real diff and the node always pulls the new bytes.
-  tag: "c50afb3c4ff73e90a84122ed71b24754c9fd97f0"
+  tag: "e442395166b183864853ec3fdc9ec5dd2d2542e2"
   pullPolicy: IfNotPresent
 resources:
   requests:
