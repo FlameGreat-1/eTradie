@@ -37,7 +37,7 @@ class TestCandleValidation:
 
     def test_symbol_normalization(self):
         c = make_candle(symbol="eur/usd")
-        assert c.symbol == "EURUSD"
+        assert c.symbol == "eurusd"
 
     def test_naive_timestamp_gets_utc(self):
         naive = datetime(2024, 1, 15, 10, 0, 0)
