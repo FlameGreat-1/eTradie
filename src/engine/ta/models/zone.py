@@ -22,7 +22,7 @@ class Zone(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
 
     def model_post_init(self, __context) -> None:
         if self.upper_bound <= self.lower_bound:
@@ -81,7 +81,7 @@ class OrderBlock(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
 
     def model_post_init(self, __context) -> None:
         if self.upper_bound <= self.lower_bound:
@@ -142,7 +142,7 @@ class FairValueGap(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
 
     def model_post_init(self, __context) -> None:
         if self.upper_bound <= self.lower_bound:
@@ -204,7 +204,7 @@ class BreakerBlock(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
 
     def model_post_init(self, __context) -> None:
         if self.upper_bound <= self.lower_bound:
@@ -279,7 +279,7 @@ class SupplyZone(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
 
     def model_post_init(self, __context) -> None:
         if self.upper_bound <= self.lower_bound:
@@ -350,7 +350,7 @@ class DemandZone(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
 
     def model_post_init(self, __context) -> None:
         if self.upper_bound <= self.lower_bound:
@@ -439,7 +439,7 @@ class QuasiModoLevel(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
 
     # ── Computed aliases for backward compatibility ───────────────────
 
@@ -529,7 +529,7 @@ class MiniPriceLevel(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
 
     @computed_field
     @property

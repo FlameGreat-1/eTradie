@@ -37,7 +37,7 @@ class CurrencyPair(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        normalized = v.upper().replace("/", "").replace("_", "")
+        normalized = v.replace("/", "").replace("_", "")
         if len(normalized) not in (6, 7):
             raise ValueError(f"Invalid currency pair symbol: {v}")
         return normalized
@@ -74,7 +74,7 @@ _PAIR_LOCK: Lock = Lock()
 
 
 def parse_pair(symbol: str) -> CurrencyPair:
-    normalized = symbol.upper().replace("/", "").replace("_", "")
+    normalized = symbol.replace("/", "").replace("_", "")
     
     with _PAIR_LOCK:
         if normalized in _PAIR_REGISTRY:
@@ -121,7 +121,7 @@ class CorrelationConfig(FrozenModel):
     max_trades_per_group: int = Field(default=1, ge=1)
     
     def get_group(self, symbol: str) -> str | None:
-        normalized = symbol.upper().replace("/", "")
+        normalized = symbol.replace("/", "")
         for group_name, symbols in self.groups.items():
             if normalized in symbols:
                 return group_name

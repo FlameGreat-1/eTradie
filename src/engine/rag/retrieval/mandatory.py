@@ -47,7 +47,7 @@ def _symbol_contains_usd(symbol: str) -> bool:
         GBPJPY -> False   NAS100  -> False
         DE40   -> False   BTCUSD  -> True
     """
-    normalised = symbol.upper().replace("/", "").replace(".", "").replace("_", "")
+    normalised = symbol.replace("/", "").replace(".", "").replace("_", "")
     return "USD" in normalised
 
 
@@ -57,7 +57,7 @@ def _symbol_is_metal(symbol: str) -> bool:
     Metals have a strong inverse DXY correlation and need extra DXY
     knowledge. Checks for XAU (gold) and XAG (silver) dynamically.
     """
-    normalised = symbol.upper().replace("/", "").replace(".", "").replace("_", "")
+    normalised = symbol.replace("/", "").replace(".", "").replace("_", "")
     return "XAU" in normalised or "XAG" in normalised
 
 

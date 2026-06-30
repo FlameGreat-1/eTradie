@@ -20,7 +20,7 @@ class LiquidityPool(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @computed_field
     @property
@@ -58,7 +58,7 @@ class LiquiditySweep(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @computed_field
     @property
@@ -100,7 +100,7 @@ class LiquidityGrab(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @computed_field
     @property
@@ -129,7 +129,7 @@ class InducementEvent(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @computed_field
     @property
@@ -160,7 +160,7 @@ class CompressionEvent(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @computed_field
     @property
@@ -193,7 +193,7 @@ class EqualHighsLows(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @field_validator("liquidity_type")
     @classmethod

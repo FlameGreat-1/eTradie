@@ -22,7 +22,7 @@ class Candle(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        normalized = v.upper().replace("/", "").replace("_", "")
+        normalized = v.replace("/", "").replace("_", "")
         if len(normalized) < 2:
             raise ValueError(f"Invalid symbol: {v}")
         return normalized
@@ -180,7 +180,7 @@ class CandleSequence(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @field_validator("candles")
     @classmethod

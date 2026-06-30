@@ -23,7 +23,7 @@ class StructureEvent(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @computed_field
     @property
@@ -51,7 +51,7 @@ class BreakOfStructure(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @computed_field
     @property
@@ -92,7 +92,7 @@ class ChangeOfCharacter(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @computed_field
     @property
@@ -134,7 +134,7 @@ class BreakInMarketStructure(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @computed_field
     @property
@@ -175,7 +175,7 @@ class ShiftInMarketStructure(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     @computed_field
     @property
@@ -231,7 +231,7 @@ class SRFlip(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
 
     @computed_field
     @property
@@ -293,7 +293,7 @@ class RSFlip(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
 
     @computed_field
     @property

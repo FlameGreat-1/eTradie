@@ -89,7 +89,7 @@ class RedisSymbolReader:
             )
 
             if stored is not None and isinstance(stored, list) and len(stored) > 0:
-                symbols = [s.upper() for s in stored if isinstance(s, str) and s.strip()]
+                symbols = [s for s in stored if isinstance(s, str) and s.strip()]
                 if symbols:
                     logger.debug(
                         "symbol_reader_loaded_from_redis",

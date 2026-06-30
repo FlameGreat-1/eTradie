@@ -28,7 +28,7 @@ class FibonacciRetracement(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     def model_post_init(self, __context) -> None:
         if self.swing_high <= self.swing_low:
@@ -123,7 +123,7 @@ class PremiumDiscountZone(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     def model_post_init(self, __context) -> None:
         if self.upper_bound <= self.lower_bound:
@@ -173,7 +173,7 @@ class DealingRange(FrozenModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
-        return v.upper().replace("/", "").replace("_", "")
+        return v.replace("/", "").replace("_", "")
     
     def model_post_init(self, __context) -> None:
         if self.high <= self.low:

@@ -153,7 +153,7 @@ def _get_pair_type(symbol: str) -> str:
     USDJPYm, US30.raw, etc.  We use prefix matching so any suffix works.
     """
     # Strip common broker suffix separators first, then uppercase.
-    symbol_upper = symbol.upper().replace("/", "").replace("_", "").split(".")[0]
+    symbol_upper = symbol.replace("/", "").replace("_", "").split(".")[0]
 
     # Metals — prefix match (XAUUSD, XAUUSDm, XAUUSD.raw all match)
     for prefix in _METAL_PREFIXES:

@@ -134,7 +134,7 @@ async def get_latest_analyses(
         repo = AnalysisRepository(session)
 
         if pair:
-            rows = await repo.get_latest_by_pair(pair.upper(), user_id=user.user_id, limit=limit)
+            rows = await repo.get_latest_by_pair(pair, user_id=user.user_id, limit=limit)
         else:
             rows = await repo.list_recent_all(user_id=user.user_id, limit=limit)
 
