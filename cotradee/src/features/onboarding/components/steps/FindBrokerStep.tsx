@@ -16,6 +16,7 @@ export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLUListElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const hasInitializedRef = useRef(false);
 
   const [debouncedQuery, setDebouncedQuery] = useState(query);
   
@@ -53,9 +54,12 @@ export function FindBrokerStep({ onSelect, initialBrandId }: Props) {
   }, [selectedBrand]);
 
   useEffect(() => {
-    if (!initialBrandId || !metaApiBrands?.length) return;
+    if (hasInitializedRef.current || !initialBrandId || !metaApiBrands?.length) return;
     const match = metaApiBrands.find((b) => b.brand_id === initialBrandId);
-    if (match) setQuery(match.display_name);
+    if (match) {
+      setQuery(match.display_name);
+      hasInitializedRef.current = true;
+    }
   }, [initialBrandId, metaApiBrands]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
