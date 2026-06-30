@@ -94,16 +94,16 @@ func TestSetActiveSymbols_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestSetActiveSymbols_NormalizesToUppercase(t *testing.T) {
+func TestSetActiveSymbols_PreservesCase(t *testing.T) {
 	rc := testRedis(t)
 	store := NewStore(rc)
 	ctx := context.Background()
 
-	store.SetActiveSymbols(ctx, testUserID, []string{"eurusd", "gbpusd"})
+	store.SetActiveSymbols(ctx, testUserID, []string{"eurusd", "GBPusd"})
 
 	symbols := store.GetActiveSymbols(ctx, testUserID)
-	if symbols[0] != "EURUSD" || symbols[1] != "GBPUSD" {
-		t.Fatalf("expected uppercase, got %v", symbols)
+	if symbols[0] != "eurusd" || symbols[1] != "GBPusd" {
+		t.Fatalf("expected preserved case, got %v", symbols)
 	}
 }
 
