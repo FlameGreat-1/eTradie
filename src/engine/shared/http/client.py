@@ -6,7 +6,7 @@ import ssl
 import time
 from asyncio import Lock
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from enum import StrEnum, unique
 from typing import Any
@@ -636,7 +636,7 @@ class HttpClient:
                 # HTTP-date format: 'Thu, 02 Jul 2026 06:48:39 GMT'
                 try:
                     target_dt = parsedate_to_datetime(raw_retry)
-                    delta = (target_dt - datetime.now(timezone.utc)).total_seconds()
+                    delta = (target_dt - datetime.now(UTC)).total_seconds()
                     retry_after = max(delta, 1.0)  # at least 1s
                 except Exception:
                     # Unparseable header — fall through to backoff default
