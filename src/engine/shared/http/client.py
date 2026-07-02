@@ -6,6 +6,8 @@ import ssl
 import time
 from asyncio import Lock
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from enum import StrEnum, unique
 from typing import Any
 from urllib.parse import urlparse
@@ -609,14 +611,42 @@ class HttpClient:
         attempt: int,
         trace_id: str | None,
     ) -> None:
-        """Handle 429 rate limit response."""
+        """Handle 429 rate limit response.
+
+        The Retry-After header may be either a numeric value (seconds)
+        or an HTTP-date string (RFC 7231 §7.1.3). MetaAPI, for example,
+        sends dates like 'Thu, 02 Jul 2026 06:48:39 GMT'. We try the
+        numeric form first, fall back to HTTP-date parsing, and use
+        exponential backoff as the last resort.
+        """
         PROVIDER_ERRORS_TOTAL.labels(
             provider=provider_name,
             category=category,
             error_type="rate_limit",
         ).inc()
 
-        retry_after = float(resp.headers.get("Retry-After", self._backoff_delay(attempt)))
+        raw_retry = resp.headers.get("Retry-After")
+        retry_after = self._backoff_delay(attempt)  # default fallback
+
+        if raw_retry is not None:
+            try:
+                # Numeric seconds (most common)
+                retry_after = float(raw_retry)
+            except ValueError:
+                # HTTP-date format: 'Thu, 02 Jul 2026 06:48:39 GMT'
+                try:
+                    target_dt = parsedate_to_datetime(raw_retry)
+                    delta = (target_dt - datetime.now(timezone.utc)).total_seconds()
+                    retry_after = max(delta, 1.0)  # at least 1s
+                except Exception:
+                    # Unparseable header — fall through to backoff default
+                    logger.debug(
+                        "retry_after_parse_failed",
+                        extra={
+                            "provider": provider_name,
+                            "raw_value": raw_retry,
+                        },
+                    )
 
         logger.warning(
             "rate_limited",

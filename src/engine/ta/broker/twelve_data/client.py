@@ -575,7 +575,7 @@ class TwelveDataClient(BrokerBase):
     ) -> str:
         parts = [
             _CACHE_KEY_PREFIX,
-            symbol.upper(),
+            symbol,
             timeframe.value,
         ]
 
