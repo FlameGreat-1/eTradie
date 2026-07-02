@@ -367,7 +367,7 @@ func (o *Orchestrator) executePipeline(
 			// 1. Filter symbols with open positions (active trades under Management).
 			if openPositions, ok := execState["open_positions"].([]*executionv1.OpenPosition); ok {
 				for _, op := range openPositions {
-					activeSymbolsMap[strings.ToUpper(op.GetSymbol())] = true
+					activeSymbolsMap[op.GetSymbol()] = true
 				}
 			}
 
@@ -386,7 +386,7 @@ func (o *Orchestrator) executePipeline(
 			//   c) Execution's watcher already handles this with ~100ms latency.
 			if pendingOrders, ok := execState["pending_orders"].([]*executionv1.PendingOrder); ok {
 				for _, po := range pendingOrders {
-					activeSymbolsMap[strings.ToUpper(po.GetSymbol())] = true
+					activeSymbolsMap[po.GetSymbol()] = true
 				}
 			}
 		} else {
@@ -396,7 +396,7 @@ func (o *Orchestrator) executePipeline(
 
 	var skippedSymbols []string
 	for _, sym := range symbols {
-		if activeSymbolsMap[strings.ToUpper(sym)] {
+		if activeSymbolsMap[sym] {
 			skippedSymbols = append(skippedSymbols, sym)
 		} else {
 			filteredSymbols = append(filteredSymbols, sym)
@@ -1341,7 +1341,7 @@ func (o *Orchestrator) processSymbol(
 	}
 	if processorOutput.TradeValid {
 		analysisMsg = fmt.Sprintf("Analysis complete for %s: %s %s (grade: %s, confidence: %.1f%%)",
-			symbol, processorOutput.Direction, processorOutput.Symbol,
+			symbol, processorOutput.Direction, symbol,
 			processorOutput.Grade, processorOutput.Confidence*100)
 		analysisDetails["direction"] = processorOutput.Direction
 		analysisDetails["trading_style"] = processorOutput.TradingStyle

@@ -313,15 +313,15 @@ func (g *GuardEvaluator) checkSessionRestriction(ta *models.TASymbolResult) mode
 	if strings.Contains(symbol, "JPY") || strings.Contains(symbol, "AUD") || strings.Contains(symbol, "NZD") {
 		return models.GuardCheckResult{
 			Rule: constants.RuleSessionRestriction, Verdict: constants.VerdictPass,
-			Reason: fmt.Sprintf("%s is active during Asian session", symbol),
+			Reason: fmt.Sprintf("%s is active during Asian session", ta.Symbol),
 		}
 	}
 
 	return models.GuardCheckResult{
 		Rule:     constants.RuleSessionRestriction,
 		Verdict:  constants.VerdictReject,
-		Reason:   fmt.Sprintf("Asian session restriction: %s should not be traded 00:00-07:00 UTC", symbol),
-		Metadata: map[string]interface{}{"hour_utc": hour, "symbol": symbol},
+		Reason:   fmt.Sprintf("Asian session restriction: %s should not be traded 00:00-07:00 UTC", ta.Symbol),
+		Metadata: map[string]interface{}{"hour_utc": hour, "symbol": ta.Symbol},
 	}
 }
 

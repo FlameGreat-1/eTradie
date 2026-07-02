@@ -214,12 +214,16 @@ async def internal_ta_analyze(
             pulse = _build_pulse(symbol)
             await pulse.emit("LOADING", f"Preparing analysis for {symbol}")
             try:
-                return await container.ta_orchestrator.analyze(
+                result = await container.ta_orchestrator.analyze(
                     symbol=symbol,
                     broker_client=user_broker,
                     user_id=user_id,
                     pulse=pulse,
                 )
+                # FORCE original symbol case to prevent UI streaming bugs
+                # (the broker may resolve it to uppercase, but the frontend needs the requested case)
+                result["symbol"] = symbol
+                return result
             except Exception as exc:  # noqa: BLE001 - per-symbol isolation
                 return _error_result(symbol, exc)
 

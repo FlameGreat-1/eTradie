@@ -169,7 +169,7 @@ func (r *Router) Route(
 		observability.GatewayNoSetupTotal.WithLabelValues("processor_no_setup").Inc()
 
 		r.log.Info().
-			Str("symbol", processorOutput.Symbol).
+			Str("symbol", taResult.Symbol).
 			Str("reason", reason).
 			Strs("rejection_rules", processorOutput.RejectionRules).
 			Str("trace_id", traceID).
@@ -216,7 +216,7 @@ func (r *Router) Route(
 			alert.NewEvent(alert.SourceGateway, alert.TypeGuardWarning, alert.SeverityWarning,
 				fmt.Sprintf("Guard warning [%s]: %s", check.Rule, check.Reason)).
 				WithUserID(auth.UserIDFromContext(ctx)).
-				WithSymbol(processorOutput.Symbol).
+				WithSymbol(taResult.Symbol).
 				WithDirection(processorOutput.Direction).
 				WithTraceID(traceID).
 				WithDetails(map[string]interface{}{
@@ -233,7 +233,7 @@ func (r *Router) Route(
 		observability.GatewayStageErrors.WithLabelValues(constants.StageGuardEvaluation.String(), "rejected").Inc()
 
 		r.log.Warn().
-			Str("symbol", processorOutput.Symbol).
+			Str("symbol", taResult.Symbol).
 			Strs("blocking_rules", guardResult.BlockingRules).
 			Str("trace_id", traceID).
 			Msg("route_guard_rejected")
@@ -251,7 +251,7 @@ func (r *Router) Route(
 				alert.NewEvent(alert.SourceGateway, alert.TypeGuardRejected, alert.SeverityWarning,
 					fmt.Sprintf("Trade rejected by guards: %s", strings.Join(guardResult.BlockingRules, ", "))).
 					WithUserID(auth.UserIDFromContext(ctx)).
-					WithSymbol(processorOutput.Symbol).
+					WithSymbol(taResult.Symbol).
 					WithDirection(processorOutput.Direction).
 					WithTraceID(traceID).
 					WithDetails(map[string]interface{}{
@@ -270,9 +270,9 @@ func (r *Router) Route(
 	}
 
 	// Step 4: Route to execution engine (Module B).
-	execResult := r.executeTrade(ctx, processorOutput, traceID)
+	execResult := r.executeTrade(ctx, taResult.Symbol, processorOutput, traceID)
 
-	symbol := processorOutput.Symbol
+	symbol := taResult.Symbol
 	if symbol == "" {
 		symbol = "unknown"
 	}
@@ -283,7 +283,7 @@ func (r *Router) Route(
 	observability.GatewayTradeRouted.WithLabelValues(symbol, direction).Inc()
 
 	r.log.Info().
-		Str("symbol", processorOutput.Symbol).
+		Str("symbol", taResult.Symbol).
 		Str("direction", processorOutput.Direction).
 		Float64("confidence", processorOutput.Confidence).
 		Str("grade", processorOutput.Grade).
@@ -320,13 +320,14 @@ func (r *Router) Route(
 
 func (r *Router) executeTrade(
 	ctx context.Context,
+	symbol string,
 	decision *models.ProcessorOutput,
 	traceID string,
 ) map[string]interface{} {
 	claims := auth.ClaimsFromContext(ctx)
 	if claims != nil && claims.Role != "admin" && claims.Tier == "free" {
 		r.log.Info().
-			Str("symbol", decision.Symbol).
+			Str("symbol", symbol).
 			Str("direction", decision.Direction).
 			Str("trace_id", traceID).
 			Msg("execution_blocked_for_free_tier")
@@ -340,9 +341,9 @@ func (r *Router) executeTrade(
 		if r.transport != nil {
 			r.transport.Publish(ctx,
 				alert.NewEvent(alert.SourceGateway, alert.TypeSubscriptionRequired, alert.SeverityInfo,
-					fmt.Sprintf("Trade execution blocked for %s: Upgrade to Pro tier to unlock execution.", decision.Symbol)).
+					fmt.Sprintf("Trade execution blocked for %s: Upgrade to Pro tier to unlock execution.", symbol)).
 					WithUserID(claims.UserID).
-					WithSymbol(decision.Symbol).
+					WithSymbol(symbol).
 					WithDirection(decision.Direction).
 					WithTraceID(traceID).
 					WithDetails(map[string]interface{}{
@@ -364,7 +365,7 @@ func (r *Router) executeTrade(
 
 	if r.execution == nil {
 		r.log.Info().
-			Str("symbol", decision.Symbol).
+			Str("symbol", symbol).
 			Str("direction", decision.Direction).
 			Str("trace_id", traceID).
 			Msg("execution_engine_not_available")
@@ -382,7 +383,7 @@ func (r *Router) executeTrade(
 	if globalHalted, userHalted, err := r.execution.HaltState(ctx, ""); err != nil {
 		r.log.Warn().
 			Err(err).
-			Str("symbol", decision.Symbol).
+			Str("symbol", symbol).
 			Str("trace_id", traceID).
 			Msg("kill_switch_state_read_failed_failing_open_to_validator_backstop")
 	} else if globalHalted || userHalted {
@@ -396,7 +397,7 @@ func (r *Router) executeTrade(
 		observability.GatewayExecutionHaltedTotal.WithLabelValues(scope).Inc()
 
 		r.log.Warn().
-			Str("symbol", decision.Symbol).
+			Str("symbol", symbol).
 			Str("direction", decision.Direction).
 			Str("scope", scope).
 			Str("trace_id", traceID).
@@ -405,9 +406,9 @@ func (r *Router) executeTrade(
 		if r.transport != nil {
 			r.transport.Publish(ctx,
 				alert.NewEvent(alert.SourceGateway, alert.TypeExecutionHalted, alert.SeverityCritical,
-					fmt.Sprintf("Trade blocked for %s: %s", decision.Symbol, reason)).
+					fmt.Sprintf("Trade blocked for %s: %s", symbol, reason)).
 					WithUserID(auth.UserIDFromContext(ctx)).
-					WithSymbol(decision.Symbol).
+					WithSymbol(symbol).
 					WithDirection(decision.Direction).
 					WithTraceID(traceID).
 					WithDetails(map[string]interface{}{
@@ -432,7 +433,7 @@ func (r *Router) executeTrade(
 	if err != nil {
 		observability.GatewayStageErrors.WithLabelValues(constants.StageDecisionRouting.String(), "execution_error").Inc()
 		r.log.Error().
-			Str("symbol", decision.Symbol).
+			Str("symbol", symbol).
 			Err(err).
 			Str("trace_id", traceID).
 			Msg("execution_failed")
@@ -440,9 +441,9 @@ func (r *Router) executeTrade(
 		if r.transport != nil {
 			r.transport.Publish(ctx,
 				alert.NewEvent(alert.SourceGateway, alert.TypeExecutionCallFailed, alert.SeverityError,
-					fmt.Sprintf("Execution call failed for %s: %s", decision.Symbol, err.Error())).
+					fmt.Sprintf("Execution call failed for %s: %s", symbol, err.Error())).
 					WithUserID(auth.UserIDFromContext(ctx)).
-					WithSymbol(decision.Symbol).
+					WithSymbol(symbol).
 					WithDirection(decision.Direction).
 					WithTraceID(traceID).
 					WithDetail("error", err.Error()),
